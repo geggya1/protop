@@ -53,6 +53,10 @@ export const NOTIFICATION_TYPES = [
     scope: 'company', audience: 'Dokumentets eier og godkjenner, og lesere av merknader',
   },
   {
+    id: 'hrSurvey', group: 'work', label: 'Medarbeiderundersøkelse å svare på', push: true, email: true, recommended: true,
+    scope: 'company', audience: 'Alle ansatte som ikke har svart',
+  },
+  {
     id: 'hrReviewInvite', group: 'work', label: 'Medarbeidersamtale: temaer å forberede og samtale å signere', push: true, email: true, recommended: true,
     scope: 'company', audience: 'Den ansatte samtalen gjelder',
   },

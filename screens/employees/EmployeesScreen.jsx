@@ -882,6 +882,7 @@ export default function EmployeesScreen() {
   const pendingEmployeeView = useRef('detail');
   const pendingMyAbsence = useRef(false);
   const pendingMine = useRef(false);
+  const pendingMineSurvey = useRef(false);
   useEffect(() => {
     if (!shellIntent || typeof shellIntent !== 'object') return;
     if (shellIntent.type === 'openEmployee') {
@@ -904,6 +905,12 @@ export default function EmployeesScreen() {
     // Varsel om ny versjon av et dokument: Min side, der dokumentene leses og bekreftes.
     if (shellIntent.type === 'myDocuments') {
       pendingMine.current = true;
+      clearShellIntent?.();
+      return;
+    }
+    // Varsel om medarbeiderundersøkelsen: Min side, der skjemaet står.
+    if (shellIntent.type === 'mySurvey') {
+      pendingMineSurvey.current = true;
       clearShellIntent?.();
     }
   }, [shellIntent, clearShellIntent]);
@@ -1000,6 +1007,12 @@ export default function EmployeesScreen() {
     pendingMyAbsence.current = false;
     requestShellTab?.('arbeid', 'fravaer');
   }, [rows, directoryReady, linked, mine, requestShellTab]);
+
+  useEffect(() => {
+    if (!pendingMineSurvey.current || (!directoryReady && !linked && !mine)) return;
+    pendingMineSurvey.current = false;
+    openMine();
+  }, [rows, directoryReady, linked, mine]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!pendingMine.current || (!directoryReady && !linked && !mine)) return;

@@ -59,6 +59,8 @@ function shellForEvent(eventType) {
   if (eventType === 'attestPending') return { tab: 'more', subView: 'progress', intent: 'attest' };
   if (eventType === 'documentApproval' || eventType === 'documentComment') return { tab: 'skjema', intent: { type: 'docControl', tab: 'styring' } };
   if (eventType === 'documentPublished') return { tab: 'ansatte', intent: { type: 'myDocuments' } };
+  // Medarbeiderundersøkelse: Min side, der skjemaet står.
+  if (eventType === 'hrSurvey') return { tab: 'ansatte', intent: { type: 'mySurvey' } };
   // Medarbeidersamtalen: den ansatte forbereder og signerer på Min side; lederen følger opp i HR.
   if (eventType === 'hrReviewInvite') return { tab: 'ansatte', intent: { type: 'myDocuments' } };
   if (eventType === 'hrReviewUpdate') return { tab: 'hr', subView: 'oppfolging' };

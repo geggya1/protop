@@ -191,6 +191,16 @@ export const COMPANY_HERO = {
       'Find the customer, see agreements and link the project.',
     ),
   },
+  'kunder-undersokelse': {
+    wideArt: true,
+    name: 'Kundeundersøkelse',
+    kicker: t('Kunder', 'Customers'),
+    title: t('Hva synes kundene?', 'What do customers think?'),
+    pitch: t(
+      'Send undersøkelsen, følg opp de misfornøyde og se utviklingen år for år.',
+      'Send the survey, follow up unhappy customers and track progress year by year.',
+    ),
+  },
   kontrakt: {
     wideArt: true,
     name: 'Kontrakt / avtale',
@@ -558,7 +568,7 @@ export function companyHeroId(tab, moreSubView = null) {
   if (tab === 'projects') return 'projects';
   if (tab === 'ansatte') return 'ansatte';
   if (tab === 'hr') return `hr-${defaultHrSubView(moreSubView)}`;
-  if (tab === 'kunder') return 'kunder';
+  if (tab === 'kunder') return moreSubView === 'undersokelse' ? 'kunder-undersokelse' : 'kunder';
   if (tab === 'kontrakt') return 'kontrakt';
   if (tab === 'skjema') return 'skjema';
   if (tab === 'iso') return 'iso';
@@ -579,7 +589,7 @@ export function companyHeroId(tab, moreSubView = null) {
   return null;
 }
 
-const ROUTE_PREFIXES = ['hr', 'anbud', 'arbeid', 'okonomi', 'selskap', 'moter'];
+const ROUTE_PREFIXES = ['hr', 'anbud', 'arbeid', 'okonomi', 'selskap', 'moter', 'kunder'];
 
 /** Fane og underside for en bånd-id (motsatt vei av companyHeroId). */
 export function companyHeroRoute(id) {

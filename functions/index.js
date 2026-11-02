@@ -319,3 +319,4 @@ export {
 export { recordUsage, listEmployeeUsage } from './usageLog.js';
 export { logSensitiveAccess, listAccessLog } from './accessLog.js';
 export { helpdesk } from './helpdeskCallable.js';
+export { customerSurvey } from './customerSurveyCallable.js';

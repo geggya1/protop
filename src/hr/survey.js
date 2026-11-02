@@ -32,6 +32,35 @@ export const DEFAULT_SURVEY_QUESTIONS = [
   { id: 'anbefale', area: 'Trivsel', text: 'Jeg vil anbefale arbeidsplassen til andre.' },
 ];
 
+/**
+ * Flere spørsmål å velge mellom (spørsmålsbank). Faste id-er, så samme spørsmål kan
+ * sammenlignes fra år til år.
+ */
+export const SURVEY_QUESTION_BANK = [
+  { id: 'balanse', area: 'Arbeidsmengde', text: 'Jeg klarer å balansere jobb og fritid.' },
+  { id: 'tidspress', area: 'Arbeidsmengde', text: 'Jeg har sjelden så mye å gjøre at det går ut over kvaliteten eller sikkerheten.' },
+  { id: 'rolle', area: 'Ledelse', text: 'Jeg vet hva som forventes av meg i jobben.' },
+  { id: 'anerkjennelse', area: 'Ledelse', text: 'Jeg får anerkjennelse når jeg gjør en god jobb.' },
+  { id: 'rettferdig', area: 'Ledelse', text: 'Ledelsen behandler de ansatte rettferdig.' },
+  { id: 'endring', area: 'Ledelse', text: 'Jeg blir tatt med på råd når det gjøres endringer som angår meg.' },
+  { id: 'team', area: 'Samarbeid', text: 'Vi hjelper hverandre når det trengs.' },
+  { id: 'konflikt', area: 'Samarbeid', text: 'Uenighet og konflikter blir tatt tak i og løst.' },
+  { id: 'opplaering', area: 'Utvikling', text: 'Jeg har fått nok opplæring til å gjøre jobben trygt og riktig.' },
+  { id: 'mestring', area: 'Utvikling', text: 'Jeg opplever mestring i jobben.' },
+  { id: 'utstyr', area: 'Fysisk arbeidsmiljø', text: 'Jeg har verktøyet og verneutstyret jeg trenger.' },
+  { id: 'belastning', area: 'Fysisk arbeidsmiljø', text: 'Jeg slipper unødvendige tunge løft og belastende arbeidsstillinger.' },
+  { id: 'avvik', area: 'HMS', text: 'Avvik og uønskede hendelser jeg melder, blir fulgt opp.' },
+  { id: 'vernerunde', area: 'HMS', text: 'Verneombudet er synlig og lett å få tak i.' },
+  { id: 'helse', area: 'Helse', text: 'Jobben påvirker helsen min positivt eller nøytralt.' },
+  { id: 'stress', area: 'Helse', text: 'Jeg har sjelden plager som skyldes stress på jobben.' },
+  { id: 'stolt', area: 'Trivsel', text: 'Jeg er stolt av jobben vi gjør.' },
+  { id: 'bli', area: 'Trivsel', text: 'Jeg ser for meg å jobbe her om to år.' },
+];
+
+/** Områdene i standardspørsmålene og spørsmålsbanken, til valg i redigeringen. */
+export const SURVEY_AREAS = [...new Set([...DEFAULT_SURVEY_QUESTIONS, ...SURVEY_QUESTION_BANK].map((q) => q.area))];
+export const SURVEY_MAX_QUESTIONS = 40;
+
 export const SURVEY_STATUSES = [
   { id: 'draft', label: 'Utkast' },
   { id: 'open', label: 'Åpen for svar' },
@@ -55,14 +84,19 @@ export function newSurveyId(now = new Date()) {
   return `mu_${now.getFullYear()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function newSurvey({ year = new Date().getFullYear(), uid = '', now = new Date() } = {}) {
+/**
+ * Ny undersøkelse. template: forrige undersøkelse. Da brukes de samme spørsmålene og
+ * innledningen, så resultatene kan sammenlignes fra år til år.
+ */
+export function newSurvey({ year = new Date().getFullYear(), uid = '', now = new Date(), template = null } = {}) {
+  const base = template ? normalizeSurvey(template) : null;
   return normalizeSurvey({
     id: newSurveyId(now),
     title: `Medarbeiderundersøkelse ${year}`,
-    intro: 'Undersøkelsen er anonym. Ingen kan se hva du har svart. Resultatene vises bare samlet, når undersøkelsen er avsluttet og minst fem har svart.',
+    intro: base?.intro || 'Undersøkelsen er anonym. Ingen kan se hva du har svart. Resultatene vises bare samlet, når undersøkelsen er avsluttet og minst fem har svart.',
     status: 'draft',
     year,
-    questions: DEFAULT_SURVEY_QUESTIONS,
+    questions: base?.questions?.length ? base.questions : DEFAULT_SURVEY_QUESTIONS,
     createdBy: uid,
     createdAt: now.toISOString(),
   });
@@ -74,7 +108,7 @@ export function normalizeSurvey(raw = {}) {
     .map(normalizeQuestion)
     .filter((q) => q.text);
   const seen = new Set();
-  const unique = questions.filter((q) => (seen.has(q.id) ? false : seen.add(q.id)));
+  const unique = questions.filter((q) => (seen.has(q.id) ? false : seen.add(q.id))).slice(0, SURVEY_MAX_QUESTIONS);
   return {
     id: text(raw.id),
     title: text(raw.title).slice(0, 120) || 'Medarbeiderundersøkelse',
@@ -82,8 +116,11 @@ export function normalizeSurvey(raw = {}) {
     status,
     year: Number(raw.year) || new Date().getFullYear(),
     questions: unique,
-    closesOn: text(raw.closesOn).slice(0, 10),
+    closesOn: /^\d{4}-\d{2}-\d{2}$/.test(text(raw.closesOn).slice(0, 10)) ? text(raw.closesOn).slice(0, 10) : '',
     openedAt: text(raw.openedAt),
+    notifiedAt: text(raw.notifiedAt),
+    remindedAt: text(raw.remindedAt),
+    reminders: Number(raw.reminders) || 0,
     closedAt: text(raw.closedAt),
     createdBy: text(raw.createdBy),
     createdAt: text(raw.createdAt),
@@ -174,6 +211,7 @@ export const AREA_ADVICE = {
   Utvikling: 'Lag en kompetanseplan, og ta opp utviklingsønsker i medarbeidersamtalene.',
   'Fysisk arbeidsmiljø': 'Gjør en vernerunde med verneombudet, og meld og følg opp funn som avvik.',
   HMS: 'Gå gjennom avviksrutinen og varslingsrutinen med alle, og vis at meldte avvik blir fulgt opp.',
+  Helse: 'Kartlegg belastninger sammen med verneombudet og bedriftshelsetjenesten, og tilpass arbeidet der det trengs.',
   Trakassering: 'Gå gjennom rutinen for varsling og håndtering av trakassering med verneombudet, og gjør den kjent for alle (arbeidsmiljøloven § 4-3).',
 };
 
@@ -279,4 +317,123 @@ export function participation(count, invited) {
   const n = Number(invited) || 0;
   if (!n) return { count, invited: 0, pct: null };
   return { count, invited: n, pct: Math.min(100, Math.round((count / n) * 100)) };
+}
+
+// ------------------------------------------------------------------ redigering av utkast
+
+/** Id til et eget spørsmål: fra teksten, unik i undersøkelsen. */
+export function questionIdFor(textValue, taken = []) {
+  const base = text(textValue).toLowerCase()
+    .replace(/æ/g, 'ae').replace(/ø/g, 'o').replace(/å/g, 'a')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+    .split('_').slice(0, 4).join('_')
+    .slice(0, 30) || 'sporsmal';
+  const used = new Set(taken);
+  if (!used.has(base)) return base;
+  let i = 2;
+  while (used.has(`${base}_${i}`)) i += 1;
+  return `${base}_${i}`;
+}
+
+/** Legg til et spørsmål (fra spørsmålsbanken eller eget). Id-en beholdes når den er ledig. */
+export function addSurveyQuestion(survey, question) {
+  const s = normalizeSurvey(survey);
+  const ids = s.questions.map((q) => q.id);
+  const id = question?.id && !ids.includes(question.id) ? question.id : questionIdFor(question?.text, ids);
+  return normalizeSurvey({ ...s, questions: [...s.questions, { ...question, id }] });
+}
+
+export function updateSurveyQuestion(survey, id, patch = {}) {
+  const s = normalizeSurvey(survey);
+  return normalizeSurvey({
+    ...s,
+    questions: s.questions.map((q) => (q.id === id ? { ...q, ...patch, id: q.id } : q)),
+  });
+}
+
+export function removeSurveyQuestion(survey, id) {
+  const s = normalizeSurvey(survey);
+  return normalizeSurvey({ ...s, questions: s.questions.filter((q) => q.id !== id) });
+}
+
+/** Flytt et spørsmål opp (dir = -1) eller ned (dir = 1). */
+export function moveSurveyQuestion(survey, id, dir) {
+  const s = normalizeSurvey(survey);
+  const list = [...s.questions];
+  const i = list.findIndex((q) => q.id === id);
+  const j = i + (dir < 0 ? -1 : 1);
+  if (i < 0 || j < 0 || j >= list.length) return s;
+  [list[i], list[j]] = [list[j], list[i]];
+  return normalizeSurvey({ ...s, questions: list });
+}
+
+/** Spørsmålene i banken som ikke allerede er med. */
+export function availableBankQuestions(survey) {
+  const ids = new Set(normalizeSurvey(survey).questions.map((q) => q.id));
+  return [...DEFAULT_SURVEY_QUESTIONS, ...SURVEY_QUESTION_BANK].filter((q) => !ids.has(q.id));
+}
+
+// ------------------------------------------------------------------ frist
+
+function dayKey(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Svarfrist: { date, daysLeft, passed }. date er tom når fristen ikke er satt. */
+export function surveyDeadline(survey, today = new Date()) {
+  const s = normalizeSurvey(survey);
+  if (!s.closesOn) return { date: '', daysLeft: null, passed: false };
+  const [y, m, d] = s.closesOn.split('-').map(Number);
+  const due = Date.UTC(y, m - 1, d);
+  const t = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const daysLeft = Math.round((due - t) / 86400000);
+  return { date: s.closesOn, daysLeft, passed: daysLeft < 0 };
+}
+
+/** Standard svarfrist: to uker fra i dag. */
+export function defaultDeadline(today = new Date()) {
+  return dayKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 14));
+}
+
+// ------------------------------------------------------------------ utvikling og eksport
+
+/**
+ * Punktene til utviklingen over tid (src/surveys/trend.js), ett per avsluttet undersøkelse
+ * med resultat. resultsById: { [surveyId]: surveyResults(...) }.
+ */
+export function hrTrendPoints(surveys, resultsById = {}, invited = 0) {
+  return (surveys || [])
+    .map(normalizeSurvey)
+    .filter((s) => s.status === 'closed' && resultsById[s.id]?.ready)
+    .map((s) => {
+      const r = resultsById[s.id];
+      const a = surveyAnalysis(r);
+      return {
+        id: s.id,
+        label: s.title.replace(/^Medarbeiderundersøkelse\s*/i, '') || String(s.year),
+        date: s.closedAt || s.openedAt || s.createdAt,
+        index: a?.index ?? null,
+        count: r.count,
+        pct: invited ? participation(r.count, invited).pct : null,
+        areas: r.areas.map((x) => ({ area: x.area, score: x.score })),
+      };
+    });
+}
+
+/** Resultatet som CSV-rader (src/surveys/csv.js). Bare samlede tall, aldri enkeltsvar. */
+export function surveyCsvRows(survey, results, analysis) {
+  const s = normalizeSurvey(survey);
+  const rows = [[s.title], ['Svar', results?.count ?? 0]];
+  if (!results?.ready || !analysis) return rows;
+  rows.push(['Totalindeks (0–100)', analysis.index], ['Positive svar (%)', analysis.positive], ['Negative svar (%)', analysis.negative]);
+  if (analysis.indexDelta != null) rows.push(['Endring fra forrige', analysis.indexDelta]);
+  rows.push([], ['Område', 'Score (0–100)', 'Endring fra forrige', 'Nivå']);
+  const level = { good: 'Godt', ok: 'Middels', weak: 'Forbedringsområde' };
+  for (const a of analysis.areas) rows.push([a.area, a.score, a.delta, level[a.level] || '']);
+  rows.push([], ['Spørsmål', 'Område', 'Snitt (1–5)', 'Score (0–100)', 'Positivt (%)', 'Negativt (%)', 'Antall svar', ...SURVEY_SCALE_LABELS]);
+  for (const q of analysis.questions) {
+    rows.push([q.text, q.area, q.avg, q.score, q.likert?.positive ?? '', q.likert?.negative ?? '', q.n, ...(q.dist || [])]);
+  }
+  return rows;
 }

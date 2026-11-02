@@ -76,7 +76,7 @@ export const COMPANY_MODULES = [
     label: 'Kunder',
     icon: 'people',
     hint: 'Kunderegister med kontakter og historikk.',
-    navIds: ['kunder'],
+    navIds: ['kunder', 'kundeundersokelse'],
     routes: [['kunder', null]],
   },
   {

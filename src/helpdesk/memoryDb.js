@@ -32,12 +32,18 @@ export function createMemoryDb(seed = null) {
         if (!store.has(path)) throw new Error(`Dokumentet finnes ikke: ${path}`);
         store.set(path, { ...store.get(path), ...clone(data) });
       },
+      async delete() { store.delete(path); },
       collection(name) { return colRef(`${path}/${name}`); },
     };
   }
   function colRef(path, filters = []) {
     return {
       doc(id) { return docRef(`${path}/${id || nextId()}`); },
+      async add(data) {
+        const ref = docRef(`${path}/${nextId()}`);
+        await ref.set(data);
+        return ref;
+      },
       where(field, op, value) { return colRef(path, [...filters, [field, op, value]]); },
       async get() {
         const depth = path.split('/').length + 1;
@@ -57,6 +63,7 @@ export function createMemoryDb(seed = null) {
         get: (ref) => ref.get(),
         set: (ref, data, opts) => ref.set(data, opts),
         update: (ref, data) => ref.update(data),
+        delete: (ref) => ref.delete(),
       });
     },
     dump: () => Object.fromEntries(store),

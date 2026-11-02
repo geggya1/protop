@@ -58,6 +58,7 @@ export const DEPLOY_ENTRIES = [
   'intercompanyIndex.js',
   'intercompanyTriggerIndex.js',
   'helpdeskIndex.js',
+  'customerSurveyIndex.js',
 ];
 
 const SPECIFIER_RE = [

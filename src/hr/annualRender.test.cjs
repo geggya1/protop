@@ -43,6 +43,9 @@ const surveyStoreMock = {
   loadOpenSurveys: async () => [],
   hasAnswered: async () => false,
   submitSurveyAnswer: async () => true,
+  deleteDraftSurvey: async () => {},
+  setSurveyDeadline: async () => {},
+  notifySurveyEmployees: async () => ({ ok: true, notified: 0 }),
 };
 
 const cache = new Map();
@@ -77,7 +80,8 @@ function load(rel) {
     if (id.includes('ShellTitles')) return { useRepeatsShellTitle: () => false };
     if (id.includes('components/DateInput')) return { __esModule: true, default: host('DateInput') };
     // Komponentene ved siden av (./HrShared, ./HrSickLeave …) kompileres på samme måte.
-    if (id.startsWith('./')) {
+    if (id.includes('ui/useConfirm')) return { useConfirm: () => async () => true };
+    if (id.startsWith('.')) {
       const jsx = path.join(path.dirname(full), `${id}.jsx`);
       if (fs.existsSync(jsx)) return load(path.relative(ROOT, jsx));
     }
@@ -178,6 +182,32 @@ const has = (html, id) => assert.ok(html.includes(`id="${id}"`), `mangler ${id}`
   assert.match(resHtml, /Lag oppgave for tiltak/);
   assert.match(resHtml, /Svært positivt/);
 
+  // Redigering av utkast: spørsmål, spørsmålsbank, svarfrist og varsel om spørsmål som ikke kan sammenlignes.
+  const HrSurveyEditor = load('screens/hr/HrSurveyEditor.jsx').default;
+  const draft = sv.newSurvey({ year: 2027, template: done });
+  const changed = sv.updateSurveyQuestion(draft, 'trivsel', { text: 'Ny tekst.' });
+  const editor = renderToStaticMarkup(React.createElement(HrSurveyEditor, {
+    colors, survey: changed, previous: done, onSave: async () => true, onDelete() {}, busy: false,
+  }));
+  for (const id of ['hr-survey-editor', 'hr-survey-q-trivsel', 'hr-survey-bank-toggle', 'hr-survey-save', 'hr-survey-delete', 'hr-survey-add-own']) has(editor, id);
+  assert.match(editor, /1 spørsmål er nye eller endret/);
+  assert.match(editor, /Spørsmålsbank \(\d+\)/);
+  assert.match(editor, /Svarfrist/);
+
+  // Utvikling over tid: diagram, områdetabell og «Hva må bedres».
+  const SurveyTrend = load('components/surveys/SurveyTrend.jsx').default;
+  const { surveyTrend } = await import('../surveys/trend.js');
+  const trend = surveyTrend([
+    { id: 'a', label: '2025', date: '2025-11-01', index: 61, count: 8, pct: 80, areas: [{ area: 'Ledelse', score: 72 }, { area: 'HMS', score: 66 }] },
+    { id: 'b', label: '2026', date: '2026-11-01', index: 58, count: 9, pct: 90, areas: [{ area: 'Ledelse', score: 74 }, { area: 'HMS', score: 52 }] },
+  ]);
+  const trendHtml = renderToStaticMarkup(React.createElement(SurveyTrend, { colors, trend, target: 70, nativeID: 'hr-survey-trend', onExport() {} }));
+  for (const id of ['hr-survey-trend', 'hr-survey-trend-areas', 'hr-survey-trend-improve', 'hr-survey-trend-table-toggle', 'hr-survey-trend-export']) has(trendHtml, id);
+  assert.match(trendHtml, /Hva må bedres/);
+  assert.match(trendHtml, /HMS/);
+  assert.match(trendHtml, /under målet og ned fra forrige/);
+
+  // Min side viser svarfristen.
   // Uten åpen undersøkelse vises ingenting på Min side (første rendering, før lasting).
   assert.equal(renderToStaticMarkup(React.createElement(EmployeeSurveyCard, { colors, companyId: 'c1', uid: 'u1' })), '');
   console.log('hr annual render ok');

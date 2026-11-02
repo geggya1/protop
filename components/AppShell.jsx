@@ -36,6 +36,7 @@ import IsoScreen from '../screens/iso/IsoScreen';
 import AnbudScreen from '../screens/anbud/AnbudScreen';
 import ContractScreen from '../screens/anbud/ContractScreen';
 import CustomersScreen from '../screens/customers/CustomersScreen';
+import CustomerSurveyScreen from '../screens/customers/CustomerSurveyScreen';
 import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import EconomySettingsScreen from '../screens/economy/EconomySettingsScreen';
@@ -816,7 +817,8 @@ function AppShellInner() {
         />
       );
     }
-    if (tab === 'kunder') return <CustomersScreen />;
+    // Kunder → Kundeundersøkelse (/hjem/kunder/undersokelse).
+    if (tab === 'kunder') return moreSubView === 'undersokelse' ? <CustomerSurveyScreen /> : <CustomersScreen />;
     if (tab === 'ansatte') return <EmployeesScreen />;
     if (tab === 'hr') return <HrScreen subView={moreSubView || defaultHrSubView(null)} />;
     if (tab === 'kontrakt') return <ContractScreen />;

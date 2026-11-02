@@ -37,6 +37,10 @@ export const FILES = [
   'functions/helpKnowledge.test.mjs',
   'src/helpdesk/helpdesk.test.mjs',
   'functions/helpdesk.test.mjs',
+  // Kundeundersøkelse og medarbeiderundersøkelse: modell, utvikling over tid, server og varsler.
+  'src/surveys/surveys.test.mjs',
+  'src/surveys/surveysRender.test.cjs',
+  'functions/hrSurveyNotify.test.mjs',
   'src/utils/reverseGeocode.test.mjs',
   'src/privacy/companyClosure.test.mjs',
   'src/privacy/companyArchive.test.mjs',

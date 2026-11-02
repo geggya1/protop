@@ -8,7 +8,7 @@
  * tidspunkt, og sletter de rå svarene.
  */
 import {
-  collection, doc, getDoc, getDocs, increment, query, where, writeBatch,
+  collection, deleteDoc, doc, getDoc, getDocs, increment, query, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../../firebase';
@@ -60,6 +60,28 @@ export async function openSurvey(companyId, survey, { now = new Date() } = {}) {
   batch.set(ref(companyId, 'hrSurveys', s.id), { ...s, status: 'open', openedAt: now.toISOString() });
   batch.set(ref(companyId, 'hrSurveyStats', s.id), { count: 0 });
   await batch.commit();
+}
+
+/** Slett et utkast (reglene tillater bare utkast). */
+export async function deleteDraftSurvey(companyId, surveyId) {
+  if (!cid(companyId) || !surveyId) throw new Error('Mangler undersøkelse.');
+  await deleteDoc(ref(companyId, 'hrSurveys', surveyId));
+}
+
+/** Endre svarfristen på en åpen undersøkelse. Spørsmålene er låst (reglene). */
+export async function setSurveyDeadline(companyId, surveyId, closesOn) {
+  if (!cid(companyId) || !surveyId) throw new Error('Mangler undersøkelse.');
+  const value = /^\d{4}-\d{2}-\d{2}$/.test(String(closesOn || '')) ? String(closesOn) : '';
+  await updateDoc(ref(companyId, 'hrSurveys', surveyId), { closesOn: value });
+}
+
+/**
+ * Varsle de ansatte (serveren): kind 'open' når den åpnes, 'remind' for purring.
+ * Bare de som ikke har svart, får varselet. Svar: { ok, notified }.
+ */
+export async function notifySurveyEmployees(companyId, surveyId, kind = 'open') {
+  const res = await httpsCallable(functions, 'notifyHrSurvey', { timeout: 60000 })({ familyId: cid(companyId), surveyId, kind });
+  return res.data || { ok: false };
 }
 
 /** Avslutt (serveren). Svar: { ok, count, ready }. */

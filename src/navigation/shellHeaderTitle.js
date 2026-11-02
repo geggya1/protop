@@ -79,7 +79,7 @@ export function resolveShellHeaderTitle({
   if (tab === 'underenheter') return 'Underenheter';
   if (tab === 'chat') return t('tabs.chat');
   if (tab === 'anbud') return anbudMenuTitle(moreSubView);
-  if (tab === 'kunder') return 'Kunder';
+  if (tab === 'kunder') return moreSubView === 'undersokelse' ? 'Kundeundersøkelse' : 'Kunder';
   if (tab === 'kontrakt') return 'Kontrakter';
   if (tab === 'skjema') return 'Skjemabygger';
   if (tab === 'projects') return 'Prosjekt';

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
-import { SURVEY_COMMENT_MAX, SURVEY_SCALE, SURVEY_SCALE_LABELS } from '../../src/hr/survey';
+import { SURVEY_COMMENT_MAX, SURVEY_SCALE, SURVEY_SCALE_LABELS, surveyDeadline } from '../../src/hr/survey';
+import { formatNbDate } from '../../src/hr/model';
 import { hasAnswered, loadOpenSurveys, submitSurveyAnswer } from '../../src/hr/surveyStore';
 import { toneColor } from '../../src/hr/uiHelpers';
 import { chartColorsFor } from '../../src/ui/chartColors';
@@ -78,6 +79,9 @@ export default function EmployeeSurveyCard({ colors, companyId, uid }) {
     <HrCard colors={colors}>
       <View nativeID="employee-survey" style={styles.stack}>
         <HrSectionTitle colors={colors} title={survey.title} subtitle={survey.intro} />
+        {surveyDeadline(survey).date && !surveyDeadline(survey).passed ? (
+          <Text style={[styles.scale, { color: colors.ink }]} nativeID="employee-survey-deadline">{`Svarfrist ${formatNbDate(surveyDeadline(survey).date)}.`}</Text>
+        ) : null}
         <View style={styles.progress} nativeID="employee-survey-progress">
           <View style={[styles.meter, { backgroundColor: chart.barTrack }]}>
             <View style={[styles.meterFill, { width: `${Math.round((answeredCount / Math.max(1, total)) * 100)}%`, backgroundColor: chart.bar }]} />

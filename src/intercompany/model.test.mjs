@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  answerLinkSettings,
+  linkIdFor,
+  proposeLinkSettings,
   approveMirrorEntries,
   buildCloneProject,
   buildLinkRequest,
@@ -103,6 +106,10 @@ test('gruppering og åpen avtale', () => {
 test('prosjektkopi-id kan leses tilbake', () => {
   const id = cloneProjectId('icl-abc-123', 'prjXYZ');
   assert.deepEqual(parseCloneProjectId(id), { linkId: 'icl-abc-123', ownerProjectId: 'prjXYZ' });
+  // Ekte prosjekt-id fra createId har understrek (prj_lz1_ab12cd).
+  const real = cloneProjectId(linkIdFor('famA', 'famB', 1700000000000), 'prj_lz1_ab12cd');
+  assert.equal(parseCloneProjectId(real).ownerProjectId, 'prj_lz1_ab12cd');
+  assert.equal(mirrorId('famA', 'tid_x_1'), 'ic_famA_tid_x_1');
   assert.equal(parseCloneProjectId('prj123'), null);
   assert.equal(mirrorId('famA', 'tid1'), 'ic_famA_tid1');
 });
@@ -167,6 +174,33 @@ const CLONE = {
   intercompany: { linkId: 'icl-1', role: 'supplier', ownerCompanyId: MOR.id, ownerProjectId: 'prjA', ownerProjectNumber: '24017', ownerProjectName: 'Skole' },
 };
 
+test('når datter fakturerer mor, står godkjenningen hos mor', () => {
+  const source = { id: 'tid1', projectId: CLONE.id, employeeId: 'emp7', date: '2026-11-02', hours: 7.5, status: 'låst', invoiceId: 'F-datter-1' };
+  const ownerApproved = { id: 'ic_famDatter_tid1', date: '2026-11-02', hours: 7.5, billableHours: 7.5, timeType: 'ordinary', status: 'godkjent', internalNote: 'mors notat', icMirror: true, intercompany: { mirror: true, supplierApproved: true } };
+  const out = mirrorTimeEntry({ source, existing: ownerApproved, clone: CLONE, supplier: DATTER, ownerEmployeeId: 'x' });
+  assert.equal(out.row.status, 'godkjent');
+  assert.equal(out.row.intercompany.supplierApproved, true);
+  assert.equal(out.row.internalNote, 'mors notat', 'eiers felt står');
+});
+
+test('nye priser i aktiv avtale må godtas av den andre parten', () => {
+  const active = respondToLink(pendingFromMor({ hours: { discountPercent: 10 } }), { companyId: DATTER.id, accept: true }).link;
+  const proposed = proposeLinkSettings(active, { companyId: MOR.id, settings: { hours: { discountPercent: 100 } } });
+  assert.equal(proposed.proposed, true);
+  assert.equal(proposed.link.settings.hours.discountPercent, 10, 'gjelder ikke før datter godtar');
+  assert.equal(linkView(proposed.link, DATTER.id).settingsToAnswer, true);
+  assert.equal(answerLinkSettings(proposed.link, { companyId: MOR.id, accept: true }).ok, false);
+  const accepted = answerLinkSettings(proposed.link, { companyId: DATTER.id, accept: true });
+  assert.equal(accepted.link.settings.hours.discountPercent, 100);
+  assert.equal(accepted.link.pendingSettings, null);
+  const rejected = answerLinkSettings(proposed.link, { companyId: DATTER.id, accept: false });
+  assert.equal(rejected.link.settings.hours.discountPercent, 10);
+  // Ventende forespørsel: den som spurte, kan justere før svar; den andre kan ikke.
+  const pending = pendingFromMor();
+  assert.equal(proposeLinkSettings(pending, { companyId: MOR.id, settings: { hours: { discountPercent: 3 } } }).link.settings.hours.discountPercent, 3);
+  assert.equal(proposeLinkSettings(pending, { companyId: DATTER.id, settings: {} }).ok, false);
+});
+
 test('timer speiles: godkjent hos datter legger seg til godkjenning hos mor', () => {
   const source = { id: 'tid1', projectId: CLONE.id, employeeId: 'emp7', employeeName: 'Ola', date: '2026-11-02', hours: 7.5, status: 'registrert' };
   const first = mirrorTimeEntry({ source, clone: CLONE, supplier: DATTER, ownerEmployeeId: 'ic_famDatter_emp7' });
@@ -209,7 +243,15 @@ test('salg og utleie speiles til eier', () => {
   assert.equal(first.row.discountPercent, 0, 'rabatten til mor følger ikke med til sluttkunden');
   assert.equal(first.row.intercompany.supplierApproved, false);
   const ready = mirrorSale({ source: { ...sale, status: 'approved' }, existing: first.row, clone: CLONE, supplier: DATTER });
-  assert.equal(ready.row.status, 'approved');
+  assert.equal(ready.row.status, 'draft', 'klar hos datter = til godkjenning hos mor');
+  assert.equal(ready.row.intercompany.supplierApproved, true);
+  const ownerOk = { ...ready.row, status: 'approved', discountPercent: 5, comment: 'Mors notat' };
+  const touched = mirrorSale({ source: { ...sale, status: 'approved', comment: 'ny' }, existing: ownerOk, clone: CLONE, supplier: DATTER });
+  assert.equal(touched.row.status, 'approved', 'mors godkjenning står når varen er lik');
+  assert.equal(touched.row.discountPercent, 5, 'mors rabatt mot sluttkunden står');
+  assert.equal(touched.row.comment, 'Mors notat');
+  const repriced = mirrorSale({ source: { ...sale, status: 'approved', unitPrice: 120 }, existing: ownerOk, clone: CLONE, supplier: DATTER });
+  assert.equal(repriced.row.status, 'draft', 'ny pris må godkjennes på nytt');
   assert.equal(mirrorSale({ source: { ...sale, status: 'rejected' }, existing: ready.row, clone: CLONE, supplier: DATTER }).action, 'delete');
 
   const rows = salesToMirror([sale, { id: 'r', kind: 'rental', projectId: CLONE.id }, { id: 'own', projectId: 'prj1' }], { rental: { enabled: false } });
@@ -223,7 +265,11 @@ test('utleie: booking på prosjekt blir salgsrad med utleiepris', () => {
   const equipment = { id: 'eq1', name: 'Minigraver', rental: { enabled: true, price: 1500, unit: 'dag' } };
   const booking = { id: 'b1', equipmentId: 'eq1', projectId: CLONE.id, date: '2026-11-02', endDate: '2026-11-04', status: 'reserved' };
   assert.equal(rentalQuantity(booking, 'dag'), 3);
-  assert.equal(rentalQuantity({ start: '2026-11-02T07:00:00', end: '2026-11-02T11:00:00' }, 'time'), 4);
+  assert.equal(rentalQuantity({ start: '2026-11-02T07:00', end: '2026-11-02T11:00', date: '2026-11-02' }, 'time'), 4);
+  assert.equal(rentalQuantity({ date: '2026-11-02', endDate: '2026-11-04', start: '2026-11-02T07:00', end: '2026-11-02T15:00' }, 'time'), 24, '8 timer x 3 dager');
+  assert.equal(rentalSaleFromBooking({ booking: { ...booking, status: 'pending' }, equipment }), null, 'ventende forespørsel faktureres ikke');
+  assert.equal(rentalSaleFromBooking({ booking: { ...booking, recurring: true }, equipment }), null, 'faste serier faktureres ikke automatisk');
+  assert.equal(rentalSaleFromBooking({ booking, equipment: { ...equipment, rental: { ...equipment.rental, since: '2026-11-03' } } }), null, 'eldre reservasjoner blir ikke utleie');
   const row = rentalSaleFromBooking({ booking, equipment, project: { ...CLONE, intercompany: { ...CLONE.intercompany, rentalDiscountPercent: 10 } } });
   assert.equal(row.kind, 'rental');
   assert.equal(row.quantity, 3);

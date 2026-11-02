@@ -324,6 +324,8 @@ export default function EquipmentScreen() {
     const onto = (base) => ({
       equipment: patchRowsById(base.equipment, before.equipment, after.equipment),
       personalVehicles: patchRowsById(base.personalVehicles, before.personalVehicles, after.personalVehicles),
+      // Utleiepris endret: utleielinjene på prosjektene (salg) følger med.
+      sales: patchRowsById(base.sales, before.sales, after.sales),
     });
     setState(after);
     setError('');
@@ -773,7 +775,15 @@ export default function EquipmentScreen() {
                   nativeID="equipment-rental-toggle"
                   label={gear.rental?.enabled ? 'Utleie på prosjekt: på' : 'Utleie på prosjekt: av'}
                   active={!!gear.rental?.enabled}
-                  onPress={() => setGear((row) => ({ ...row, rental: { ...(row.rental || {}), enabled: !row.rental?.enabled } }))}
+                  onPress={() => setGear((row) => ({
+                    ...row,
+                    rental: {
+                      ...(row.rental || {}),
+                      enabled: !row.rental?.enabled,
+                      // Reservasjoner fra i dag faktureres; eldre blir ikke utleie i ettertid.
+                      since: row.rental?.since || new Date().toISOString().slice(0, 10),
+                    },
+                  }))}
                   colors={colors}
                 />
                 {gear.rental?.enabled ? (
@@ -807,7 +817,7 @@ export default function EquipmentScreen() {
                       ))}
                     </View>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      Reservasjoner på et prosjekt blir en utleielinje under Til fakturering. Leverer dere til et tilknyttet selskap, gjelder rabatten i avtalen.
+                      {`Bekreftede reservasjoner på et prosjekt${gear.rental?.since ? ` fra ${gear.rental.since}` : ''} blir en utleielinje under Til fakturering. Faste serier og ventende forespørsler faktureres ikke automatisk. Leverer dere til et tilknyttet selskap, gjelder rabatten i avtalen.`}
                     </Text>
                   </>
                 ) : null}

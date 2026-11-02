@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import LinkSettingsForm from './LinkSettingsForm';
 import { useIntercompanyLinks } from '../../src/intercompany/useIntercompanyLinks';
 import {
-  endLinkAgreement, requestLink, respondLink, saveLinkSettings, withdrawLinkRequest,
+  answerLinkSettings, endLinkAgreement, requestLink, respondLink, saveLinkSettings, withdrawLinkRequest,
 } from '../../src/intercompany/client';
 import { normalizeLinkSettings, settingsSummary } from '../../src/intercompany/model';
 import { digitsOrgnr } from '../../src/project/companyRegistry';
@@ -160,13 +160,30 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
       ))}
 
       {groups.active.map((link) => (
-        <LinkRow key={link.id} link={link} colors={colors}>
+        <LinkRow key={link.id} link={link} colors={colors} badge={link.settingsToAnswer ? 'Nye priser foreslått' : null}>
+          {link.pendingSettings ? (
+            <View style={[styles.proposal, { borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink, fontSize: 13 }}>
+                {link.settingsProposedByUs
+                  ? `Dere har foreslått nye priser: ${settingsSummary(link.pendingSettings.settings)}. Venter på «${link.partner.name}».`
+                  : `«${link.partner.name}» foreslår nye priser: ${settingsSummary(link.pendingSettings.settings)}.`}
+              </Text>
+              {canEdit ? (
+                <View style={styles.actions}>
+                  {link.settingsToAnswer ? (
+                    <Button nativeID={`ic-prices-accept-${link.id}`} primary label="Godta prisene" colors={colors} disabled={!!busyId} onPress={() => run(link.id, () => answerLinkSettings({ companyId: familyId, linkId: link.id, accept: true }), 'De nye prisene gjelder nå, også på prosjektkopiene.')} />
+                  ) : null}
+                  <Button label={link.settingsToAnswer ? 'Avslå' : 'Trekk forslaget'} colors={colors} disabled={!!busyId} onPress={() => run(link.id, () => answerLinkSettings({ companyId: familyId, linkId: link.id, accept: false }), 'Prisene står som før.')} />
+                </View>
+              ) : null}
+            </View>
+          ) : null}
           {editingId === link.id ? (
             <>
               <LinkSettingsForm value={editDraft} onChange={setEditDraft} colors={colors} disabled={busyId === link.id} ourCompanyId={familyId} />
               <View style={styles.actions}>
-                <Button primary label={busyId === link.id ? 'Lagrer…' : 'Lagre priser'} colors={colors} disabled={!!busyId} onPress={async () => {
-                  const out = await run(link.id, () => saveLinkSettings({ companyId: familyId, linkId: link.id, settings: editDraft }), 'Prisene er lagret. Prosjektkopiene får de nye prisene.');
+                <Button primary label={busyId === link.id ? 'Sender…' : 'Foreslå nye priser'} colors={colors} disabled={!!busyId} onPress={async () => {
+                  const out = await run(link.id, () => saveLinkSettings({ companyId: familyId, linkId: link.id, settings: editDraft }), `Forslaget er sendt. Prisene gjelder når «${link.partner.name}» har godtatt dem.`);
                   if (out) setEditingId('');
                 }} />
                 <Button label="Avbryt" colors={colors} disabled={!!busyId} onPress={() => setEditingId('')} />
@@ -174,7 +191,7 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
             </>
           ) : canEdit ? (
             <View style={styles.actions}>
-              <Button nativeID={`ic-edit-${link.id}`} label="Endre priser" colors={colors} disabled={!!busyId} onPress={() => { setEditingId(link.id); setEditDraft(link.settings); }} />
+              <Button nativeID={`ic-edit-${link.id}`} label="Foreslå nye priser" colors={colors} disabled={!!busyId} onPress={() => { setEditingId(link.id); setEditDraft(link.settings); }} />
               <Button danger label="Avslutt avtalen" colors={colors} disabled={!!busyId} onPress={() => run(link.id, () => endLinkAgreement({ companyId: familyId, linkId: link.id }), 'Avtalen er avsluttet.')} />
             </View>
           ) : null}
@@ -277,6 +294,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   btn: { borderRadius: 12, minHeight: 38, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
   choice: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+  proposal: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 8 },
   label: { fontSize: 12 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
 });

@@ -72,9 +72,14 @@ function round2(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
 
-/** Id uten understrek, så kopi- og speil-id-ene kan leses tilbake. */
+/** Id uten understrek, så kopi- og speil-id-ene kan leses tilbake. Brukes på avtale- og selskaps-id. */
 export function safeId(value) {
   return text(value).replace(/[^A-Za-z0-9-]/g, '');
+}
+
+/** Id som kan stå i en dokumentsti: alt beholdes unntatt skråstrek (prosjekt- og rad-id har understrek). */
+export function pathId(value) {
+  return text(value).replace(/\//g, '');
 }
 
 export function linkIdFor(requesterId, targetId, at = Date.now()) {
@@ -159,6 +164,14 @@ export function normalizeLink(raw = {}, id = '') {
     settings: normalizeLinkSettings(src.settings),
     settingsUpdatedAt: text(src.settingsUpdatedAt),
     settingsUpdatedBy: text(src.settingsUpdatedBy),
+    pendingSettings: src.pendingSettings && typeof src.pendingSettings === 'object' && text(src.pendingSettings.proposedByCompanyId)
+      ? {
+        settings: normalizeLinkSettings(src.pendingSettings.settings),
+        proposedByCompanyId: text(src.pendingSettings.proposedByCompanyId),
+        proposedByUid: text(src.pendingSettings.proposedByUid),
+        proposedAt: text(src.pendingSettings.proposedAt),
+      }
+      : null,
     updatedAt: text(src.updatedAt),
   };
 }
@@ -182,6 +195,8 @@ export function linkView(link, companyId) {
     outgoing: row.status === LINK_STATUS.pending && row.requestedByCompanyId === id,
     active: row.status === LINK_STATUS.active,
     statusLabel: LINK_STATUS_LABELS[row.status] || row.status,
+    settingsToAnswer: !!row.pendingSettings && row.pendingSettings.proposedByCompanyId !== id,
+    settingsProposedByUs: !!row.pendingSettings && row.pendingSettings.proposedByCompanyId === id,
   };
 }
 
@@ -282,6 +297,60 @@ export function endLink(link, { companyId, at = '' }) {
   return { ok: true, link: { ...row, status: LINK_STATUS.ended, endedAt: stamp, endedByCompanyId: text(companyId), updatedAt: stamp } };
 }
 
+/**
+ * Nye priser i en aktiv avtale er et forslag til den andre parten godtar det (prisene er avtalt
+ * mellom to selskaper, og den ene kan ikke endre dem alene). Ventende forespørsler kan justeres
+ * av den som spurte, før den andre har svart.
+ */
+export function proposeLinkSettings(link, { companyId, settings, uid = '', at = '' }) {
+  const row = normalizeLink(link, link?.id);
+  const id = text(companyId);
+  if (!row.companyIds.includes(id)) return { ok: false, error: 'Selskapet er ikke part i avtalen.' };
+  if (row.status === LINK_STATUS.pending) {
+    if (row.requestedByCompanyId !== id) return { ok: false, error: 'Godta eller avslå forespørselen først.' };
+    return updateLinkSettings(row, { companyId: id, settings, uid, at });
+  }
+  if (row.status !== LINK_STATUS.active) return { ok: false, error: 'Avtalen er avsluttet.' };
+  const error = settingsError(settings);
+  if (error) return { ok: false, error };
+  const stamp = text(at) || new Date().toISOString();
+  return {
+    ok: true,
+    proposed: true,
+    link: {
+      ...row,
+      pendingSettings: { settings: normalizeLinkSettings(settings), proposedByCompanyId: id, proposedByUid: text(uid), proposedAt: stamp },
+      updatedAt: stamp,
+    },
+  };
+}
+
+/** Svar på prisforslaget: den andre parten godtar eller avslår, den som foreslo kan trekke det. */
+export function answerLinkSettings(link, { companyId, accept, uid = '', at = '' }) {
+  const row = normalizeLink(link, link?.id);
+  const id = text(companyId);
+  const pending = row.pendingSettings;
+  if (!pending) return { ok: false, error: 'Det er ingen nye priser å svare på.' };
+  if (!row.companyIds.includes(id)) return { ok: false, error: 'Selskapet er ikke part i avtalen.' };
+  const stamp = text(at) || new Date().toISOString();
+  if (accept) {
+    if (pending.proposedByCompanyId === id) return { ok: false, error: 'Det andre selskapet må godta prisene.' };
+    if (row.status !== LINK_STATUS.active) return { ok: false, error: 'Avtalen er ikke aktiv.' };
+    return {
+      ok: true,
+      link: {
+        ...row,
+        settings: normalizeLinkSettings(pending.settings),
+        pendingSettings: null,
+        settingsUpdatedAt: stamp,
+        settingsUpdatedBy: text(uid),
+        updatedAt: stamp,
+      },
+    };
+  }
+  return { ok: true, link: { ...row, pendingSettings: null, updatedAt: stamp } };
+}
+
 export function updateLinkSettings(link, { companyId, settings, uid = '', at = '' }) {
   const row = normalizeLink(link, link?.id);
   if (![LINK_STATUS.pending, LINK_STATUS.active].includes(row.status)) {
@@ -319,8 +388,9 @@ export function settingsSummary(settings) {
 
 // ── Prosjektkopi hos leverandøren ─────────────────────────────────────────
 
+/** Avtale-id har aldri understrek, så alt etter første understrek er eierens prosjekt-id slik den er. */
 export function cloneProjectId(linkId, ownerProjectId) {
-  return `${CLONE_PREFIX}${safeId(linkId)}_${safeId(ownerProjectId)}`;
+  return `${CLONE_PREFIX}${safeId(linkId)}_${pathId(ownerProjectId)}`;
 }
 
 export function isCloneProjectId(id) {
@@ -337,7 +407,7 @@ export function parseCloneProjectId(id) {
 }
 
 export function mirrorId(sourceCompanyId, sourceId) {
-  return `${MIRROR_PREFIX}${safeId(sourceCompanyId)}_${safeId(sourceId)}`.slice(0, 600);
+  return `${MIRROR_PREFIX}${safeId(sourceCompanyId)}_${pathId(sourceId)}`.slice(0, 600);
 }
 
 export function isMirrorRow(row) {
@@ -346,8 +416,14 @@ export function isMirrorRow(row) {
 
 /** Ordinær timepris på eierens prosjekt (prosjektets timepris). */
 export function ownerHourlyRate(project) {
-  const rate = money(project?.pricingSettings?.hourlyRate);
-  return rate == null ? null : rate;
+  const rate = money(project?.pricingSettings?.hourlyRate ?? project?.hourlyRate);
+  return rate == null || rate <= 0 ? null : rate;
+}
+
+/** Rabatt på ordinær pris krever at eierens prosjekt har timepris. Ellers må avtalen ha fast pris. */
+export function cloneRateMissing({ settings, ownerProject }) {
+  const s = normalizeLinkSettings(settings);
+  return s.hours.enabled && s.hours.mode !== 'fixed' && ownerHourlyRate(ownerProject) == null;
 }
 
 /**
@@ -423,6 +499,7 @@ export function buildCloneProject({ link, owner, ownerProject, customer = null, 
       ownerProjectNumber: text(ownerProject.number),
       ownerProjectName: text(ownerProject.name),
       rentalDiscountPercent: pricing.rentalDiscountPercent,
+      rateMissing: cloneRateMissing({ settings: row.settings, ownerProject }),
       clonedAt: text(base.intercompany?.clonedAt) || stamp,
       updatedAt: stamp,
     },
@@ -651,7 +728,8 @@ export function mirrorTimeEntry({ source, existing = null, clone, supplier, owne
     }
     return { action: 'delete' };
   }
-  const supplierApproved = source.status === 'godkjent';
+  // Godkjent hos leverandøren, også når leverandøren har fakturert eier (da står føringen som låst med faktura).
+  const supplierApproved = source.status === 'godkjent' || !!text(source.invoiceId);
   const meta = {
     mirror: true,
     linkId: text(ic.linkId),
@@ -679,9 +757,12 @@ export function mirrorTimeEntry({ source, existing = null, clone, supplier, owne
   let status = supplierApproved ? 'låst' : 'registrert';
   if (existing && existing.status === 'godkjent' && supplierApproved && sameCore(existing, core)) status = 'godkjent';
   const history = Array.isArray(existing?.history) ? existing.history : [];
+  // Eiers egne felt (internt notat, avskriving, historikk) står; resten kommer fra kilden.
+  const own = existing && typeof existing === 'object' ? existing : {};
   return {
     action: 'set',
     row: {
+      ...own,
       id: mirrorId(supplier.id, source.id),
       projectId: text(ic.ownerProjectId),
       employeeId: text(ownerEmployeeId),
@@ -693,10 +774,10 @@ export function mirrorTimeEntry({ source, existing = null, clone, supplier, owne
       activityName: text(source.activityName) || 'Hovedaktivitet',
       ...core,
       description: text(source.description),
-      internalNote: '',
+      internalNote: text(own.internalNote),
       clockIn: text(source.clockIn),
       clockOut: text(source.clockOut),
-      department: '',
+      department: text(own.department),
       invoiceId: null,
       status,
       createdAt: text(existing?.createdAt) || text(source.createdAt) || stamp,
@@ -801,10 +882,18 @@ export function mirrorSale({ source, existing = null, clone, supplier, at = '' }
   if (existing && (text(existing.invoiceId) || existing.status === 'invoiced')) {
     return { action: 'set', row: { ...existing, intercompany: meta } };
   }
-  const keepOwnerStatus = existing && supplierApproved && existing.status === 'approved';
+  // Som timene: klar hos leverandøren = til godkjenning hos eier (utkast), eier setter Klar.
+  // Eiers godkjenning står så lenge vare, mengde og pris er de samme.
+  const own = existing && typeof existing === 'object' ? existing : {};
+  const sameGoods = existing
+    && Number(existing.quantity) === (Number(source.quantity) || 1)
+    && Number(existing.unitPrice) === (Number(source.unitPrice) || 0)
+    && text(existing.name) === text(source.name);
+  const keepOwnerStatus = existing && supplierApproved && existing.status === 'approved' && sameGoods;
   return {
     action: 'set',
     row: {
+      ...own,
       id: mirrorId(supplier.id, source.id),
       date: text(source.date),
       productId: '',
@@ -818,22 +907,23 @@ export function mirrorSale({ source, existing = null, clone, supplier, at = '' }
       vatCode: text(source.vatCode) || 'HIGH',
       account: source.kind === 'rental' ? (text(source.account) || '3600') : (text(source.account) || '3000'),
       billable: source.billable !== false,
-      customerId: '',
-      customerNumber: '',
-      customerName: '',
+      customerId: text(own.customerId),
+      customerNumber: text(own.customerNumber),
+      customerName: text(own.customerName),
       projectId: text(ic.ownerProjectId),
       projectNumber: text(ic.ownerProjectNumber),
       projectName: text(ic.ownerProjectName),
       employeeId: '',
       employeeName: text(source.employeeName),
-      status: keepOwnerStatus ? 'approved' : (supplierApproved ? 'approved' : 'draft'),
+      status: keepOwnerStatus ? 'approved' : 'draft',
       invoiceId: '',
       createdAt: text(existing?.createdAt) || text(source.createdAt) || stamp,
       updatedAt: stamp,
       period: text(source.period),
-      comment: text(source.comment),
-      discountPercent: 0,
-      surchargePercent: 0,
+      comment: existing ? text(own.comment) : text(source.comment),
+      // Eiers rabatt og påslag mot sluttkunden; leverandørens rabatt til eier følger ikke med.
+      discountPercent: existing ? (Number(own.discountPercent) || 0) : 0,
+      surchargePercent: existing ? (Number(own.surchargePercent) || 0) : 0,
       purchaseUnitPrice: Number(source.unitPrice) || 0,
       externalStore: true,
       storage: 'productSales',
@@ -886,6 +976,8 @@ export function normalizeRental(raw = {}) {
     price: money(src.price),
     unit,
     account: text(src.account) || '3600',
+    // Fra denne datoen faktureres reservasjoner. Eldre reservasjoner blir ikke utleie i ettertid.
+    since: /^\d{4}-\d{2}-\d{2}$/.test(text(src.since)) ? text(src.since) : '',
   };
 }
 
@@ -897,17 +989,23 @@ function dayCount(from, through) {
   return Math.round((b - a) / 86400000) + 1;
 }
 
-function hoursBetween(start, end) {
-  const a = Date.parse(text(start));
-  const b = Date.parse(text(end));
-  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return 1;
-  return Math.max(0.5, Math.round(((b - a) / 3600000) * 2) / 2);
+function clockMinutes(value) {
+  const m = /T?(\d{2}):(\d{2})/.exec(text(value).slice(-5));
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 }
 
-/** Mengde for bookingen i utstyrets prisenhet. */
+/** Timer per dag fra klokkeslettene (start og slutt ligger på første dag i bookingen). */
+function hoursPerDay(start, end) {
+  const a = clockMinutes(start);
+  const b = clockMinutes(end);
+  if (a == null || b == null || b <= a) return 8;
+  return Math.max(0.5, Math.round(((b - a) / 60) * 2) / 2);
+}
+
+/** Mengde for bookingen i utstyrets prisenhet. Timepris: timer per dag ganger antall dager. */
 export function rentalQuantity(booking, unit = 'dag') {
-  if (unit === 'time') return hoursBetween(booking?.start, booking?.end);
   const days = dayCount(booking?.date, booking?.endDate);
+  if (unit === 'time') return Math.round(hoursPerDay(booking?.start, booking?.end) * days * 100) / 100;
   if (unit === 'uke') return Math.round((days / 7) * 100) / 100;
   if (unit === 'mnd') return Math.round((days / 30) * 100) / 100;
   return days;
@@ -924,8 +1022,11 @@ export function rentalSaleId(bookingId) {
  */
 export function rentalSaleFromBooking({ booking, equipment, project = null, existing = null, at = '' }) {
   const rental = normalizeRental(equipment?.rental);
-  if (!booking || booking.status === 'cancelled' || !text(booking.projectId)) return null;
+  // Bare bekreftede enkeltreservasjoner på prosjekt. Faste serier og ventende forespørsler faktureres ikke automatisk.
+  if (!booking || booking.status === 'cancelled' || booking.status === 'pending' || !text(booking.projectId)) return null;
+  if (booking.recurring) return null;
   if (booking.billable === false || !rental.enabled || !(rental.price > 0)) return null;
+  if (rental.since && text(booking.date) < rental.since) return null;
   const stamp = text(at) || new Date().toISOString();
   const quantity = rentalQuantity(booking, rental.unit);
   const unitLabel = RENTAL_UNITS.find((row) => row.id === rental.unit)?.label || 'dag';

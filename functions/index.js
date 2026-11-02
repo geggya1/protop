@@ -310,7 +310,7 @@ export { claimEmployeeInvite } from './employeeInvite.js';
 export { respondGroupInvite, syncMyInvites, invitePreview } from './groupInvite.js';
 export { findCompanyByOrgnr, claimCompanyOrgnr, requestCompanyJoin } from './companyJoin.js';
 export {
-  icRequestLink, icRespondLink, icWithdrawLink, icEndLink, icUpdateLinkSettings,
+  icRequestLink, icRespondLink, icWithdrawLink, icEndLink, icUpdateLinkSettings, icAnswerLinkSettings,
   icListPartnerEmployees, icAllocateMembers, icRemoveMember,
 } from './intercompany.js';
 export { onIcTimeEntryWritten, onIcProjectStateWritten } from './intercompanyTriggers.js';

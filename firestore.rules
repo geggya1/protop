@@ -984,9 +984,19 @@ service cloud.firestore {
     // Konsernintegrasjon: føringer speilet fra et tilknyttet selskap (icMirror) lages, endres i
     // kjernen og slettes bare av serveren (functions/intercompanyTriggers.js). Prosjekteier kan
     // godkjenne og fakturere dem, men godkjenne bare når leverandøren har godkjent først.
+    // Kildefeltene i intercompany (leverandørens godkjenning og hvem som leverte) settes bare av serveren.
+    function icMetaKept() {
+      let d = request.resource.data.get('intercompany', {});
+      let o = resource.data.get('intercompany', {});
+      return d.get('supplierApproved', false) == o.get('supplierApproved', false)
+        && d.get('sourceCompanyId', '') == o.get('sourceCompanyId', '')
+        && d.get('mirror', false) == o.get('mirror', false);
+    }
+
     function icTimeMirrorKept() {
       return resource.data.get('icMirror', false) != true
         || (request.resource.data.get('icMirror', false) == true
+          && icMetaKept()
           && timeEntryCoreKept()
           && (request.resource.data.get('status', '') != 'godkjent'
             || resource.data.get('status', '') == 'godkjent'
@@ -1001,6 +1011,9 @@ service cloud.firestore {
         || (request.method == 'delete' && (resource == null || resource.data.get('icMirror', false) != true))
         || (request.method == 'update' && (resource.data.get('icMirror', false) != true
           || (request.resource.data.get('icMirror', false) == true
+            && icMetaKept()
+            && request.resource.data.get('kind', '') == resource.data.get('kind', '')
+            && request.resource.data.get('billable', true) == resource.data.get('billable', true)
             && request.resource.data.get('quantity', 0) == resource.data.get('quantity', 0)
             && request.resource.data.get('unitPrice', 0) == resource.data.get('unitPrice', 0)
             && request.resource.data.get('projectId', '') == resource.data.get('projectId', '')

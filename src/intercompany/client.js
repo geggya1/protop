@@ -28,8 +28,8 @@ export function requestLink({ companyId, orgnr = '', targetCompanyId = '', role 
   return call('icRequestLink', { companyId, orgnr, targetCompanyId, role, settings, message, actorName }, 'Kunne ikke sende forespørselen.');
 }
 
-export function respondLink({ companyId, linkId, accept, settings = null, actorName = '' }) {
-  return call('icRespondLink', { companyId, linkId, accept: !!accept, ...(settings ? { settings } : {}), actorName }, 'Kunne ikke svare på forespørselen.');
+export function respondLink({ companyId, linkId, accept, actorName = '' }) {
+  return call('icRespondLink', { companyId, linkId, accept: !!accept, actorName }, 'Kunne ikke svare på forespørselen.');
 }
 
 export function withdrawLinkRequest({ companyId, linkId }) {
@@ -40,8 +40,13 @@ export function endLinkAgreement({ companyId, linkId }) {
   return call('icEndLink', { companyId, linkId }, 'Kunne ikke avslutte avtalen.');
 }
 
+/** Nye priser: i en aktiv avtale blir det et forslag som det andre selskapet må godta. */
 export function saveLinkSettings({ companyId, linkId, settings }) {
   return call('icUpdateLinkSettings', { companyId, linkId, settings }, 'Kunne ikke lagre prisene.');
+}
+
+export function answerLinkSettings({ companyId, linkId, accept }) {
+  return call('icAnswerLinkSettings', { companyId, linkId, accept: !!accept }, 'Kunne ikke svare på prisforslaget.');
 }
 
 export function listPartnerEmployees({ companyId, linkId }) {

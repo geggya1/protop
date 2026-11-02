@@ -235,7 +235,7 @@ queue_entry meetingIndex.js "$MEETINGS"
 open_for meetingIndex.js "$MEETINGS"
 
 # Konsernintegrasjon: avtaler mellom selskaper, tildeling på prosjekt og speiling av timer og salg.
-INTERCOMPANY="functions:icRequestLink,functions:icRespondLink,functions:icWithdrawLink,functions:icEndLink,functions:icUpdateLinkSettings,functions:icListPartnerEmployees,functions:icAllocateMembers,functions:icRemoveMember"
+INTERCOMPANY="functions:icRequestLink,functions:icRespondLink,functions:icWithdrawLink,functions:icEndLink,functions:icUpdateLinkSettings,functions:icAnswerLinkSettings,functions:icListPartnerEmployees,functions:icAllocateMembers,functions:icRemoveMember"
 queue_entry intercompanyIndex.js "$INTERCOMPANY"
 open_for intercompanyIndex.js "$INTERCOMPANY"
 

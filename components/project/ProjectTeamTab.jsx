@@ -60,6 +60,9 @@ export default function ProjectTeamTab({
     onChangeState(next);
     const names = (res?.allocated || []).map((row) => row.name).join(', ');
     showSaveToast(names ? `${names} tildelt.` : 'Tildelt.');
+    if (res?.rateMissing) {
+      setError('Prosjektet har ingen timepris, så rabatten i avtalen har ingen pris å regne fra. Sett timepris på prosjektet, eller avtal fast timepris med selskapet.');
+    }
   }
 
   const rows = useMemo(() => memberHoursMap(timeEntries, members), [timeEntries, members]);
@@ -188,6 +191,9 @@ export default function ProjectTeamTab({
         <View style={[styles.icBanner, { backgroundColor: colors.brandSoft }]} nativeID="project-intercompany-label">
           <Ionicons name="git-merge-outline" size={16} color={colors.brand} />
           <Text style={{ color: colors.ink, flex: 1, fontSize: 13 }}>
+            {isSupplierCopy && project.intercompany.rateMissing
+              ? 'Prosjekteier har ikke timepris på prosjektet, så rabatten i avtalen har ingen pris å regne fra. Sett timepris på prosjektet her, eller avtal fast timepris. '
+              : ''}
             {isSupplierCopy
               ? `${icLabel}. Timer godkjennes her først og går deretter til ${project.intercompany.ownerCompanyName || 'prosjekteier'}, som faktureres herfra.`
               : `${icLabel}. Timene deres kommer til godkjenning her når hjemmeselskapet har godkjent dem.`}

@@ -9,6 +9,7 @@ export {
   icWithdrawLink,
   icEndLink,
   icUpdateLinkSettings,
+  icAnswerLinkSettings,
   icListPartnerEmployees,
   icAllocateMembers,
   icRemoveMember,

@@ -87,6 +87,8 @@ test('speilede timer: eier godkjenner og fakturerer, men lager, sletter og endre
   await assertFails(updateDoc(ref('ic_famDatter_t1'), { icMirror: false }));
   await assertFails(deleteDoc(ref('ic_famDatter_t1')));
   await assertFails(updateDoc(ref('ic_famDatter_t2'), { status: 'godkjent' }), 'ikke godkjent hos datter ennå');
+  await assertFails(updateDoc(ref('ic_famDatter_t2'), { 'intercompany.supplierApproved': true }), 'eier kan ikke late som datter har godkjent');
+  await assertFails(updateDoc(ref('ic_famDatter_t2'), { 'intercompany.supplierApproved': true, status: 'godkjent' }));
   await assertSucceeds(updateDoc(ref('ic_famDatter_t1'), { status: 'godkjent' }));
   await assertSucceeds(updateDoc(ref('ic_famDatter_t1'), { invoiceId: 'F1' }));
   // Vanlige føringer som før.
@@ -98,6 +100,9 @@ test('speilede salg: eier fakturerer, men lager, sletter og endrer ikke varen', 
   await assertFails(setDoc(ref('ic_famDatter_s9'), { name: 'Falsk', quantity: 1, unitPrice: 1, icMirror: true }));
   await assertFails(updateDoc(ref('ic_famDatter_s1'), { quantity: 1 }));
   await assertFails(updateDoc(ref('ic_famDatter_s1'), { status: 'approved' }), 'ikke klar hos datter ennå');
+  await assertFails(updateDoc(ref('ic_famDatter_s1'), { 'intercompany.supplierApproved': true, status: 'approved' }));
+  await assertFails(updateDoc(ref('ic_famDatter_s1'), { billable: false }));
+  await assertSucceeds(updateDoc(ref('ic_famDatter_s1'), { discountPercent: 5 }), 'mors rabatt mot sluttkunden');
   await assertFails(deleteDoc(ref('ic_famDatter_s1')));
   await assertSucceeds(updateDoc(ref('ic_famDatter_s1'), { comment: 'Sjekk leveranse' }));
   await assertSucceeds(updateDoc(ref('own1'), { quantity: 3 }));

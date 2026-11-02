@@ -43,13 +43,15 @@ test('timer fra datter faktureres hos mor først når datter har godkjent', () =
   assert.equal(withReady[0].hourGroups[0].amount, 5000);
 });
 
-test('salg fra datter venter til det er klart der', () => {
+test('salg fra datter venter til det er klart der, og godkjennes så hos mor', () => {
   const draft = mirrorSale({ source: { id: 's1', projectId: CLONE.id, date: '2026-10-05', name: 'Gips', quantity: 2, unitPrice: 100, status: 'draft' }, clone: CLONE, supplier: SUPPLIER }).row;
   const ready = mirrorSale({ source: { id: 's1', projectId: CLONE.id, date: '2026-10-05', name: 'Gips', quantity: 2, unitPrice: 100, status: 'approved' }, clone: CLONE, supplier: SUPPLIER }).row;
   assert.equal(buildReadyProjects({ projects: [PROJECT], sales: [draft], periodEnd: '2026-10-31', today: '2026-11-02' }).length, 0);
   const built = buildReadyProjects({ projects: [PROJECT], sales: [ready], periodEnd: '2026-10-31', today: '2026-11-02' });
   assert.equal(built[0].sales.length, 1);
-  assert.equal(built[0].sales[0].approved, true);
+  assert.equal(built[0].sales[0].approved, false, 'klar hos datter, men ikke godkjent hos mor ennå');
+  const approved = buildReadyProjects({ projects: [PROJECT], sales: [{ ...ready, status: 'approved' }], periodEnd: '2026-10-31', today: '2026-11-02' });
+  assert.equal(approved[0].sales[0].approved, true);
   assert.equal(built[0].sales[0].intercompany.sourceCompanyName, 'Datter AS');
 });
 

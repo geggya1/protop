@@ -84,10 +84,10 @@ export default function BillingProjectRow({
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ color: colors.ink, fontSize: 14 }} numberOfLines={stacked ? 3 : 1}>
             <Text style={{ color: colors.muted }}>#{project.number} </Text>
-            <Text style={{ fontWeight: '700' }}>{project.name}</Text>
+            <Text style={{ fontWeight: '500' }}>{project.name}</Text>
             <Text style={{ color: colors.muted }}> for kunden </Text>
             {project.customerNumber ? <Text style={{ color: colors.muted }}>#{project.customerNumber} </Text> : null}
-            <Text style={{ fontWeight: '700' }}>{project.customerName || 'Uten kunde'}</Text>
+            <Text style={{ fontWeight: '500' }}>{project.customerName || 'Uten kunde'}</Text>
             <Text style={{ color: colors.muted }}>{`, ${project.pricingLabel.toLowerCase()}`}</Text>
           </Text>
           {project.warnings.length ? (
@@ -99,7 +99,7 @@ export default function BillingProjectRow({
           ) : null}
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>{money(openTotal + fixedPicked)}</Text>
+          <Text style={{ color: colors.ink, fontSize: 14, fontWeight: '500' }}>{money(openTotal + fixedPicked)}</Text>
           {some ? <Text style={{ color: colors.muted, fontSize: 12 }}>Valgt {money(amount)}</Text> : null}
           {project.fixed && !fixedPicked && project.fixed.amount > 0 ? (
             <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -242,7 +242,7 @@ export default function BillingProjectRow({
         <SectionTitle title="Prismodeller som skal faktureres" colors={colors} />
         <View style={[styles.models, { borderColor: colors.line }]}>
           <View style={styles.modelRow}>
-            <Text style={{ color: colors.ink, fontWeight: '700', flex: 1 }}>
+            <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>
               {project.pricingLabel}
               {fixed?.model === 'fixed' ? <Text style={{ color: colors.muted, fontWeight: '400' }}>{`  avtalt ${money(fixed.agreed)}`}</Text> : null}
             </Text>
@@ -277,7 +277,7 @@ export default function BillingProjectRow({
           ) : (
             <View style={styles.modelRow}>
               <Text style={{ color: colors.muted, flex: 1 }}>Klar til å faktureres</Text>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>{money(openTotal)}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>{money(openTotal)}</Text>
             </View>
           )}
         </View>

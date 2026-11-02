@@ -313,14 +313,14 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
               label="Velg alle"
               nativeID="billing-check-all"
             />
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>Velg alle</Text>
+            <Text style={{ color: colors.ink }}>Velg alle</Text>
             <Text style={{ color: colors.muted, fontSize: 13 }}>
               {visible.length === 1 ? '1 prosjekt' : `${visible.length} prosjekter`}
             </Text>
           </View>
           <View style={[styles.summaryRight, isPhone && styles.summaryRightStacked]}>
             <Text style={{ color: colors.ink }}>
-              <Text style={{ fontWeight: '700' }}>Totalt å faktureres: </Text>
+              <Text style={{ fontWeight: '500' }}>Totalt å faktureres: </Text>
               {money(workflow.totals.open)}
               <Text style={{ color: colors.muted }}> eks. mva</Text>
             </Text>
@@ -358,7 +358,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
         {!visible.length ? (
           <View style={[styles.empty, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Ionicons name="checkmark-done-outline" size={22} color={colors.muted} />
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>
               {ready.length ? 'Ingen prosjekter passer filteret.' : 'Ingenting å fakturere i perioden.'}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 13, textAlign: 'center', maxWidth: 520 }}>
@@ -434,7 +434,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
   inner: { padding: 16, gap: 12, paddingBottom: 48 },
-  title: { fontSize: 22, fontWeight: '700' },
+  title: { fontSize: 22, fontWeight: '600' },
   backLink: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
   toolbar: { gap: 8 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },

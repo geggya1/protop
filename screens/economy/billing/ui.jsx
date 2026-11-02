@@ -57,7 +57,7 @@ export function Button({
     >
       {busy ? <ActivityIndicator size="small" color={fg} /> : null}
       {!busy && icon ? <Ionicons name={icon} size={small ? 14 : 16} color={fg} /> : null}
-      <Text style={{ color: fg, fontWeight: '700', fontSize: small ? 12 : 13 }}>{label}</Text>
+      <Text style={{ color: fg, fontWeight: '600', fontSize: small ? 12 : 13 }}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -85,7 +85,7 @@ export function Chip({ label, tone = 'muted', icon }) {
   return (
     <View style={[styles.chip, { backgroundColor: t.bg }]}>
       {name ? <Ionicons name={name} size={12} color={t.fg} /> : null}
-      <Text style={{ color: t.fg, fontSize: 12, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ color: t.fg, fontSize: 12 }}>{label}</Text>
     </View>
   );
 }
@@ -96,7 +96,7 @@ export function Banner({ tone = 'info', title = '', children, colors }) {
     <View style={[styles.banner, { backgroundColor: t.bg, borderColor: t.bg }]}>
       <Ionicons name={t.icon || 'information-circle'} size={18} color={t.fg} />
       <View style={{ flex: 1, gap: 2 }}>
-        {title ? <Text style={{ color: t.fg, fontWeight: '700' }}>{title}</Text> : null}
+        {title ? <Text style={{ color: t.fg, fontWeight: '600' }}>{title}</Text> : null}
         {typeof children === 'string'
           ? <Text style={{ color: colors?.ink || t.fg, fontSize: 13, lineHeight: 19 }}>{children}</Text>
           : children}
@@ -108,7 +108,7 @@ export function Banner({ tone = 'info', title = '', children, colors }) {
 export function SectionTitle({ title, colors, right = null }) {
   return (
     <View style={styles.sectionTitle}>
-      <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 14, flex: 1 }}>{title}</Text>
+      <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 14, flex: 1 }}>{title}</Text>
       {right}
     </View>
   );
@@ -188,7 +188,7 @@ export function MiniTable({ columns, rows, colors, stacked = false, rowKey = (ro
         {columns.map((col) => (
           <View key={col.key} style={[styles.cell, cell(col)]}>
             {typeof col.label === 'string'
-              ? <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{col.label}</Text>
+              ? <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '500' }} numberOfLines={1}>{col.label}</Text>
               : col.label}
           </View>
         ))}
@@ -218,8 +218,8 @@ export function MiniTable({ columns, rows, colors, stacked = false, rowKey = (ro
 export function TotalRow({ label, value, colors, strong = true }) {
   return (
     <View style={styles.totalRow}>
-      <Text style={{ color: colors.ink, fontWeight: strong ? '700' : '500', flex: 1 }}>{label}</Text>
-      <Text style={{ color: colors.ink, fontWeight: strong ? '700' : '500' }}>{value}</Text>
+      <Text style={{ color: colors.ink, fontWeight: strong ? '600' : '400', flex: 1 }}>{label}</Text>
+      <Text style={{ color: colors.ink, fontWeight: strong ? '600' : '400' }}>{value}</Text>
     </View>
   );
 }

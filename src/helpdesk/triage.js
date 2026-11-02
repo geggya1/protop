@@ -65,6 +65,7 @@ export function sanitizeDiagnostics(raw) {
       subView: str(raw.page?.subView, 60),
       workspace: str(raw.page?.workspace, 20),
       companyName: str(raw.page?.companyName, 120),
+      from: stripUrl(raw.page?.from || ''),
     },
     env: {
       appVersion: str(env.appVersion, 40),
@@ -213,7 +214,12 @@ export function diagnosticsDigest(diag, { maxConsole = 8, maxNetwork = 6 } = {})
   if (!diag) return 'Ingen teknisk info sendt med.';
   const lines = [];
   const env = diag.env || {};
-  lines.push(`Side: ${diag.page?.path || '?'} (fane ${diag.page?.tab || '?'}${diag.page?.subView ? `/${diag.page.subView}` : ''}, ${diag.page?.workspace || '?'})`);
+  const where = [
+    diag.page?.tab && `fane ${diag.page.tab}${diag.page?.subView ? `/${diag.page.subView}` : ''}`,
+    diag.page?.workspace,
+  ].filter(Boolean).join(', ');
+  lines.push(`Side: ${diag.page?.path || '?'}${where ? ` (${where})` : ''}`);
+  if (diag.page?.from) lines.push(`Kom fra: ${diag.page.from}`);
   lines.push(`App: ${env.appVersion || '?'} build ${env.buildId || '?'} · ${env.platform || '?'} · ${env.os || '?'} · ${env.browser || '?'}`);
   lines.push(`Skjerm ${env.screen || '?'} / vindu ${env.viewport || '?'} · språk ${env.language || '?'} · ${env.online === false ? 'OFFLINE' : 'online'}`);
   const errs = (diag.console || []).filter((c) => c.level === 'error' || c.level === 'warn').slice(-maxConsole);

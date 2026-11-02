@@ -508,6 +508,7 @@ function topicArticle(topic, lang) {
     title: pickText(topic.title, lang),
     summary: pickText(topic.summary, lang),
     nav: topic.nav || null,
+    requires: topic.requires || null,
     steps: (topic.steps || []).map((s) => st(pickText(s.title, lang), s[lang] || s.nb || '')),
     keywords: topic.keywords || [],
     related: [],
@@ -571,7 +572,9 @@ export function relatedArticles(article, lang = 'nb', limit = 4) {
 /* ─────────── Søk ─────────── */
 
 const STOP = new Set(('og i på til av for med som er det en et den at jeg du vi de har kan ikke å seg om men så fra ble blir hva hvor hvordan '
-  + 'min mitt mine din ditt dine når skal vil får få meg deg oss noe noen alle eller da nå the a an to of in on is how do i my').split(' '));
+  + 'min mitt mine din ditt dine når skal vil får få meg deg oss noe noen alle eller da nå the a an to of in on is how do i my '
+  // Ord uten innhold i en supportsak («Test», «Hei», «Problem»).
+  + 'test teste testing testsak hei hallo problem problemer sak saken spørsmål lurer').split(' '));
 
 /** Små ord som betyr det samme i supportsammenheng. */
 const SYNONYMS = {
@@ -728,7 +731,7 @@ export function searchArticles(query, { lang = 'nb', limit = 12, group = '' } = 
 export function suggestForTicket({ subject = '', body = '', lang = 'nb', limit = 3 } = {}) {
   const text = `${subject} ${subject} ${String(body).slice(0, 400)}`;
   return searchArticles(text, { lang, limit: limit + 2 })
-    .filter((r) => r.score >= 6)
+    .filter((r) => r.score >= 8)
     .slice(0, limit)
     .map((r) => r.article);
 }

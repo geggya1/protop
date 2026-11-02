@@ -149,6 +149,8 @@ export const ASSISTANT_TOPICS = [
     ],
     nav: { tab: 'selskap', subView: 'tilgang' },
     page: 'selskap.tilgang',
+    // Bare for dem som kan bruke «Vis som» (admin). Hjelpesenteret skjuler temaet for andre.
+    requires: { resource: 'viewAs', action: 'see' },
     keywords: ['vis som', 'se som', 'view as', 'tilgang', 'rettigheter', 'teste'],
   }),
   topic({

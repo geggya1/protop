@@ -799,6 +799,7 @@ function TechBox({ d }) {
   return (
     <Box title="Teknisk info" icon="hardware-chip-outline" testID="hd-tech">
       <KV k="Side" v={`${d.page?.path || '?'}${d.page?.tab ? ` (${d.page.tab}${d.page.subView ? `/${d.page.subView}` : ''})` : ''}`} mono />
+      <KV k="Kom fra" v={d.page?.from} mono />
       <KV k="Nettleser" v={[env.browser, env.os].filter(Boolean).join(' · ')} />
       <KV k="Plattform" v={`${env.platform || '?'}${env.standalone ? ' · hjemskjerm-app' : ''}${env.touch ? ' · berøring' : ''}`} />
       <KV k="Versjon" v={`${env.appVersion || '?'} · ${env.buildId || '?'}`} mono />

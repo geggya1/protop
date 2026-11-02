@@ -190,3 +190,19 @@ test('lenker fra e-post åpner riktig sted', async () => {
   assert.match(sw, /label="Helpdesk"/);
   assert.match(sw, /navigate\('Helpdesk'\)/);
 });
+
+test('ingen forslag for innholdsløse titler, og admin-temaer er merket', () => {
+  assert.deepEqual(suggestForTicket({ subject: 'Test', body: 'TEST' }), []);
+  assert.deepEqual(suggestForTicket({ subject: 'Hei', body: 'Har et problem' }), []);
+  const viewAs = getArticle('tema-viewas');
+  assert.deepEqual(viewAs.requires, { resource: 'viewAs', action: 'see' });
+  assert.equal(getArticle('tema-locked').requires, null, 'låst modul er for alle');
+});
+
+test('teknisk info: siden brukeren kom fra og uten ikon-tegn', () => {
+  const d = sanitizeDiagnostics({ page: { path: '/hjem/apper/help', from: '/hjem/selskap?x=1' }, breadcrumbs: [{ type: 'klikk', label: 'Generelt ' }] });
+  assert.equal(d.page.from, '/hjem/selskap');
+  const digest = diagnosticsDigest(d);
+  assert.match(digest, /Kom fra: \/hjem\/selskap/);
+  assert.doesNotMatch(digest, /fane \?/);
+});

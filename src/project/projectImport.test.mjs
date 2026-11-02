@@ -493,7 +493,8 @@ try {
   assert.equal(project.hoursPeriod, null);
   console.log('projectImport.test.mjs: ok (with sample xlsx)');
 } catch (cause) {
-  if (cause?.code === 'ENOENT') {
+  // Eksempelfilen finnes bare på en utviklermaskin. På CI-maskiner kan mappen finnes uten lesetilgang.
+  if (cause?.code === 'ENOENT' || cause?.code === 'EACCES') {
     console.log('projectImport.test.mjs: ok (sample xlsx skipped)');
   } else {
     throw cause;

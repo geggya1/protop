@@ -12,6 +12,7 @@ import { ShellPageHeroContext } from '../../components/ShellHeader';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useShellPageHero } from '../../src/hooks/useShellPageHero';
 import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
+import IntercompanyPanel from '../../components/intercompany/IntercompanyPanel';
 import CompanyGroupChart, { GroupYearButton } from '../../components/project/CompanyGroupChart';
 import {
   OWNERSHIP_LEVELS,
@@ -114,6 +115,19 @@ export default function CompanyUnitsScreen() {
       return !open;
     });
   }, []);
+
+  // Selskaper koblet med den gamle koblingen (uten godkjenning). Panelet tilbyr å bekrefte dem.
+  const legacyLinks = useMemo(() => {
+    const hidden = new Set(aliasFamilyIds({ id: familyId, name: company?.navn, company }, families || []));
+    const rows = [];
+    if (family?.parentCompanyId && !family?.parentLinkId) {
+      rows.push({ companyId: family.parentCompanyId, name: family.parentCompanyName || 'Morselskap', role: 'parent' });
+    }
+    for (const unit of underenheterOf(company?.subUnits)) {
+      if (unit.companyId && !hidden.has(unit.companyId)) rows.push({ companyId: unit.companyId, name: unit.name, role: 'child' });
+    }
+    return rows;
+  }, [family, familyId, company, families]);
 
   const yearControl = (
     <GroupYearButton
@@ -254,6 +268,14 @@ export default function CompanyUnitsScreen() {
           />
         </View>
       ) : null}
+      <Text style={[styles.section, { color: colors.ink }]}>Tilknyttede selskaper</Text>
+      <IntercompanyPanel
+        familyId={familyId}
+        colors={colors}
+        canEdit={canEdit}
+        actorName={userProfile?.name || ''}
+        legacy={legacyLinks}
+      />
       <CompanyGroupChart
         company={company}
         settings={settings}

@@ -258,6 +258,9 @@ export function normalizeExpense(input = {}) {
     writeOffAt: text(row.writeOffAt),
     writeOffReason: text(row.writeOffReason).slice(0, 300),
     writeOffBy: text(row.writeOffBy).slice(0, 120),
+    // Speilet fra et tilknyttet selskap (konsernintegrasjon). Skrives bare av serveren.
+    ...(row.icMirror === true ? { icMirror: true } : {}),
+    ...(row.intercompany && typeof row.intercompany === 'object' ? { intercompany: { ...row.intercompany } } : {}),
     source: row.source && typeof row.source === 'object'
       ? {
         filename: text(row.source.filename),

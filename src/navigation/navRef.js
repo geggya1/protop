@@ -61,6 +61,8 @@ function shellForEvent(eventType) {
   if (eventType === 'documentPublished') return { tab: 'ansatte', intent: { type: 'myDocuments' } };
   // Forespørsel om å bli med i bedriften: Ansatte → Inviter brukere.
   if (eventType === 'companyJoinRequest') return { tab: 'ansatte', intent: { type: 'openInvite' } };
+  // Tilknytning mellom selskaper: Bedrift → Underenheter, der avtalene godkjennes.
+  if (eventType === 'intercompanyLink') return { tab: 'selskap', subView: 'underenheter' };
   if (eventType === 'companyMemberLeft') return { tab: 'ansatte' };
   if (eventType === 'birthdayReminder') return { tab: 'home' };
   if (eventType === 'boligReminder') return { tab: 'more', subView: 'boligmappa' };

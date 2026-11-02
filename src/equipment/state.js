@@ -2,6 +2,7 @@
  * Mutasjoner for utstyr, reservasjoner, egne biler og kjøresats.
  */
 
+import { syncRentalSales } from '../intercompany/model.js';
 import { createId } from '../project/engine.js';
 import { employeeMayBook } from './calendars.js';
 import {
@@ -20,8 +21,23 @@ function stamp() {
   return new Date().toISOString();
 }
 
+/**
+ * Utleie: bookinger på prosjekt av utstyr med utleiepris blir salgsrader (kind 'rental'),
+ * så de faktureres som produktsalg. Gjelder bare hel prosjektstate (med salg og utstyr).
+ */
+function withRentalSales(state) {
+  if (!state || !Array.isArray(state.sales) || !Array.isArray(state.equipment)) return state;
+  const synced = syncRentalSales({
+    sales: state.sales,
+    bookings: state.equipmentBookings || [],
+    equipment: state.equipment,
+    projects: state.projects || [],
+  });
+  return synced.changed ? { ...state, sales: synced.sales } : state;
+}
+
 function ok(state, extra = {}) {
-  return { ok: true, error: null, state, ...extra };
+  return { ok: true, error: null, state: withRentalSales(state), ...extra };
 }
 
 function fail(state, error) {

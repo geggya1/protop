@@ -3,6 +3,7 @@
  * med godkjenningsstatus, lås-dato, varsler og hittil fakturert.
  * Prosjektfanen og Økonomi bruker den samme funksjonen, så tallene er like.
  */
+import { mirrorAwaitingSupplier } from '../intercompany/model.js';
 import { parseHours, roundHours } from '../arbeid/hours.js';
 import { rateWithOvertime, timeTypeById } from '../arbeid/overtime.js';
 import { resolveHourlyRate } from './hourlyRate.js';
@@ -55,6 +56,8 @@ function entryHours(row) {
 export function isOpenEntry(row) {
   if (!row || row.billable === false) return false;
   if (text(row.invoiceId)) return false;
+  // Timer fra et tilknyttet selskap faktureres først når de er godkjent der (konsernintegrasjon).
+  if (mirrorAwaitingSupplier(row)) return false;
   if (!(entryHours(row) > 0)) return false;
   return row.status === 'godkjent' || row.status === 'registrert' || row.status === 'låst';
 }
@@ -274,9 +277,17 @@ export function buildReadyProjects({
         count: 0,
         approvedCount: 0,
         entries: [],
+        // Timer fra et tilknyttet selskap: hvem som leverte, og fakturaene de belastes på.
+        supplierName: '',
+        supplierInvoices: [],
       });
     }
     const group = hourGroups.get(key);
+    if (row.intercompany?.mirror) {
+      group.supplierName = text(row.intercompany.sourceCompanyName) || group.supplierName;
+      const number = text(row.intercompany.supplierInvoice?.number);
+      if (number && !group.supplierInvoices.includes(number)) group.supplierInvoices.push(number);
+    }
     const hours = entryHours(row);
     group.entries.push({ ...row, _hours: hours, _rate: rate });
     group.hours = roundHours(group.hours + hours);
@@ -302,6 +313,7 @@ export function buildReadyProjects({
   for (const raw of expenses || []) {
     const row = normalizeExpense(raw);
     if (!isOpenOperation(row) || text(row.date) > until) continue;
+    if (mirrorAwaitingSupplier(row)) continue;
     const target = slot(row.projectId);
     if (!target) continue;
     // Utlegg i kundens navn går videre med bruttobeløpet, uten påslag og mva.
@@ -327,6 +339,7 @@ export function buildReadyProjects({
       discountPercent: 0,
       amount: round2(base + markup),
       hasReceipt: !!row.receiptUri,
+      intercompany: row.intercompany?.mirror ? row.intercompany : null,
     });
   }
   for (const raw of trips || []) {
@@ -353,6 +366,7 @@ export function buildReadyProjects({
   for (const raw of sales || []) {
     const row = normalizeSale(raw);
     if (!row.billable || text(row.invoiceId) || row.status === 'invoiced' || row.status === 'rejected') continue;
+    if (mirrorAwaitingSupplier(row)) continue;
     if (text(row.date) > until) continue;
     if (text(row.postponedUntil) && text(row.postponedUntil) > now) continue;
     const target = slot(row.projectId);
@@ -369,7 +383,10 @@ export function buildReadyProjects({
       unitPrice: row.unitPrice,
       unit: row.unit,
       markupPercent: Number(row.surchargePercent) || 0,
-      discountPercent: Number(row.discountPercent) || Number(target.settings.discountProducts) || 0,
+      // Utleie har rabatten på raden (fra konsernavtalen); produktrabatten gjelder varer.
+      discountPercent: Number(row.discountPercent) || (row.kind === 'rental' ? 0 : Number(target.settings.discountProducts) || 0),
+      kind: row.kind === 'rental' ? 'rental' : 'product',
+      intercompany: row.intercompany?.mirror ? row.intercompany : null,
       amount: row.amountExVat,
     });
   }

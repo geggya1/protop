@@ -38,6 +38,7 @@ import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
 import ProjectOverviewTab from './ProjectOverviewTab';
 import ProjectSettingsTab from './ProjectSettingsTab';
+import { mirrorStatusText } from '../../src/intercompany/model';
 import ProjectTeamTab from './ProjectTeamTab';
 import ProjectExpensesTab from './ProjectExpensesTab';
 import ProjectSalesTab from './ProjectSalesTab';
@@ -540,13 +541,18 @@ export default function ProjectDetail({
                 <Text style={[styles.td, { color: colors.ink }]}>{formatDate(row.date)}</Text>
                 <Text style={[styles.td, { color: colors.ink }]} numberOfLines={1}>{row.employeeName}</Text>
                 <Text style={[styles.td, { color: colors.muted }]} numberOfLines={1}>{row.activityName}</Text>
-                <Text style={[styles.td, { color: colors.ink, flex: 1.4 }]} numberOfLines={2}>{row.description || '—'}</Text>
+                <View style={[styles.td, { flex: 1.4 }]}>
+                  <Text style={{ color: colors.ink }} numberOfLines={2}>{row.description || '—'}</Text>
+                  {row.icMirror ? (
+                    <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={2}>{mirrorStatusText(row)}</Text>
+                  ) : null}
+                </View>
                 <Text style={[styles.td, { color: colors.ink }]}>{formatHours(row.hours)}</Text>
                 {full ? <Text style={[styles.td, { color: colors.ink }]}>{formatHours(row.billableHours)}</Text> : null}
                 <View style={styles.td}>
                   {row.status === 'godkjent' || row.status === 'låst' ? (
                     <Ionicons name="checkmark-circle" size={18} color={colors.success || '#16a34a'} />
-                  ) : full && isAdmin ? (
+                  ) : full && isAdmin && !row.icMirror ? (
                     <TouchableOpacity
                       onPress={() => approveEntry(row.id)}
                       accessibilityRole="button"

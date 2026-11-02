@@ -31,6 +31,10 @@ export const NOTIFICATION_TYPES = [
     id: 'companyJoinRequest', group: 'work', label: 'Noen ber om å bli med i bedriften', push: true, email: true, recommended: true,
     scope: 'company', access: { resource: 'employees', action: 'write' },
   },
+  {
+    id: 'intercompanyLink', group: 'work', label: 'Forespørsel og svar om tilknytning mellom selskaper', push: true, email: true, recommended: true,
+    scope: 'company', audience: 'Eier og administratorer',
+  },
   { id: 'join_request_approved', group: 'work', label: 'Forespørselen din om å bli med er godkjent', push: true, email: true, recommended: true },
   { id: 'familyInvite', group: 'work', label: 'Invitasjon til bedrift eller gruppe', push: true, email: 'own', recommended: true },
   { id: 'familyInviteAccepted', group: 'work', label: 'Noen godtok invitasjonen din', push: true, email: false },

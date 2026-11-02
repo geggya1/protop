@@ -533,7 +533,22 @@ function normalizeCompany(raw) {
   company.periodFrom = text(source.periodFrom);
   company.periodTo = text(source.periodTo);
   company.comment = text(source.comment);
+  // Innleid fra et tilknyttet selskap i ProTop (konsernintegrasjon): hjemmeselskapet og posten der.
+  if (text(source.homeCompanyId)) {
+    company.homeCompanyId = text(source.homeCompanyId);
+    company.homeCompanyName = text(source.homeCompanyName);
+    company.homeCompanyOrgnr = text(source.homeCompanyOrgnr).replace(/\D/g, '');
+    company.homeEmployeeId = text(source.homeEmployeeId);
+    company.intercompanyLinkId = text(source.intercompanyLinkId);
+  }
   return company;
+}
+
+/** Innleid fra et tilknyttet selskap i ProTop. */
+export function homeCompanyOf(employee) {
+  const company = employee?.company || {};
+  if (!text(company.homeCompanyId)) return null;
+  return { id: text(company.homeCompanyId), name: text(company.homeCompanyName), orgnr: text(company.homeCompanyOrgnr) };
 }
 
 export function normalizeEmployee(raw) {

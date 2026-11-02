@@ -3,6 +3,7 @@
  * Ren data inn / data ut, slik at kalender og kjørebok deler samme register.
  */
 
+import { normalizeRental } from '../intercompany/model.js';
 import { addDays, dateKey, parseDateKey } from '../utils/dates.js';
 import { eventOccursOnDate } from '../utils/events.js';
 import { controlKind, equipmentCategory, equipmentGroup } from './catalog.js';
@@ -88,6 +89,8 @@ export function normalizeEquipment(input = {}) {
     // Måleutstyr (ISO 9001 7.1.5): skal ha kalibrering. Kontrollene har frist og sertifikat.
     measuring: !!row.measuring,
     controls: normalizeControls(row.controls),
+    // Utleie: pris per enhet når utstyret bookes på et prosjekt (faktureres som salg).
+    rental: normalizeRental(row.rental),
     createdAt: text(row.createdAt),
     updatedAt: text(row.updatedAt),
   };
@@ -261,6 +264,8 @@ export function normalizeBooking(input = {}) {
     end: interval.end,
     purpose: text(row.purpose),
     status,
+    // Utleie faktureres når utstyret har utleiepris og bookingen står på et prosjekt.
+    billable: row.billable !== false,
     ...recurrenceOf(row),
     createdAt: text(row.createdAt),
     updatedAt: text(row.updatedAt),

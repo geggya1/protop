@@ -309,5 +309,12 @@ export { generateCompanyForm } from './anbudForm.js';
 export { claimEmployeeInvite } from './employeeInvite.js';
 export { respondGroupInvite, syncMyInvites, invitePreview } from './groupInvite.js';
 export { findCompanyByOrgnr, claimCompanyOrgnr, requestCompanyJoin } from './companyJoin.js';
+export {
+  icRequestLink, icRespondLink, icWithdrawLink, icEndLink, icUpdateLinkSettings, icAnswerLinkSettings,
+  icListPartnerEmployees, icAllocateMembers, icRemoveMember,
+} from './intercompany.js';
+export {
+  onIcTimeEntryWritten, onIcProjectStateWritten, onIcProjectExpenseWritten, onIcInvoiceWritten,
+} from './intercompanyTriggers.js';
 export { recordUsage, listEmployeeUsage } from './usageLog.js';
 export { logSensitiveAccess, listAccessLog } from './accessLog.js';

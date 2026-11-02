@@ -586,6 +586,8 @@ function normalizeMemberRow(row) {
     addedAt: text(row.addedAt) || '',
     addedByUid: text(row.addedByUid),
     ...(text(row.updatedAt) ? { updatedAt: text(row.updatedAt) } : {}),
+    // Deltaker fra et tilknyttet selskap (konsernintegrasjon, src/intercompany/model.js).
+    ...(row.intercompany && typeof row.intercompany === 'object' ? { intercompany: { ...row.intercompany } } : {}),
   };
 }
 
@@ -640,6 +642,9 @@ export function normalizeTimeEntryRow(row) {
       history: row.history.filter((item) => item && typeof item === 'object').slice(-100),
     } : {}),
     ...(text(row.sourceCompanyId) ? { sourceCompanyId: text(row.sourceCompanyId) } : {}),
+    // Speilet fra et tilknyttet selskap (konsernintegrasjon). Skrives bare av serveren.
+    ...(row.icMirror === true ? { icMirror: true } : {}),
+    ...(row.intercompany && typeof row.intercompany === 'object' ? { intercompany: { ...row.intercompany } } : {}),
     // Avskrevet fra et fakturautkast: skal ikke faktureres (Til fakturering → Slett utkast).
     ...(text(row.writeOffAt) ? {
       writeOffAt: text(row.writeOffAt),
@@ -1711,6 +1716,9 @@ export function upsertTimeEntry(state, input) {
   const existing = existingId
     ? working.timeEntries.find((row) => row.id === existingId)
     : null;
+  if (existing?.icMirror) {
+    return fail(working, mirrorEditText(existing));
+  }
   if (existing?.invoiceId) {
     return fail(working, 'Føringen er fakturert og kan ikke endres. Be økonomi om en kreditnota hvis noe må rettes.');
   }
@@ -1784,9 +1792,16 @@ export function upsertTimeEntry(state, input) {
   return ok(syncProjectHourRollups({ ...working, timeEntries, members }, gate.project.id));
 }
 
+/** Timer speilet fra et tilknyttet selskap rettes der de er ført. */
+function mirrorEditText(row) {
+  const from = text(row?.intercompany?.sourceCompanyName) || 'det tilknyttede selskapet';
+  return `Timene er ført i ${from} og rettes og godkjennes der. Her kan de faktureres kunden når de er godkjent.`;
+}
+
 export function deleteTimeEntry(state, entryId) {
   const current = state.timeEntries.find((row) => row.id === entryId);
   if (!current) return fail(state, 'Føringen finnes ikke.');
+  if (current.icMirror) return fail(state, mirrorEditText(current));
   if (current.invoiceId) return fail(state, 'Føringen er fakturert og kan ikke slettes.');
   if (current.status === 'låst' || isDateLocked(lockThroughDate(state.timesheetLocks, current.employeeId), current.date)) {
     return fail(state, 'Føringen er låst og kan ikke slettes.');
@@ -1804,6 +1819,9 @@ export function setTimeEntryStatus(state, entryId, status) {
   }
   const current = state.timeEntries.find((row) => row.id === entryId);
   if (!current) return fail(state, 'Føringen finnes ikke.');
+  if (current.icMirror && status === 'godkjent' && current.intercompany?.supplierApproved !== true) {
+    return fail(state, 'Timene må godkjennes i hjemmeselskapet først.');
+  }
   return ok({
     ...state,
     timeEntries: state.timeEntries.map((row) => (

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import { elevationStyle, radius, space, type } from '../../src/ui/tokens';
 import { formatDateTime } from '../../src/format/nb';
 import { periodLabel } from '../../src/indeksregulering/engine';
 import { formatIndex } from '../../src/indeksregulering/letter';
@@ -50,6 +51,7 @@ function LatestInfo({ info, alignRight, colors }) {
             styles.infoBox,
             alignRight ? { right: -8 } : { left: -8 },
             { backgroundColor: colors.card, borderColor: colors.line },
+            elevationStyle(2, Platform.OS),
           ]}
         >
           <Text style={[styles.infoTitle, { color: colors.ink }]}>{info.title}</Text>
@@ -262,23 +264,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  infoGlyph: { fontSize: 10, fontWeight: '700', lineHeight: 12, fontStyle: 'italic' },
+  infoGlyph: { ...type.caption, fontWeight: '600', lineHeight: 14, fontStyle: 'italic' },
   infoBox: {
     position: 'absolute',
     bottom: 24,
     width: 260,
     zIndex: 20,
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 10,
-    gap: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    borderRadius: radius.control,
+    padding: space.sm,
+    gap: space.xxs,
   },
-  infoTitle: { fontSize: 13, fontWeight: '700' },
-  infoLine: { fontSize: 12, lineHeight: 17 },
+  infoTitle: type.bodyStrong,
+  infoLine: type.caption,
   empty: { padding: 12 },
 });

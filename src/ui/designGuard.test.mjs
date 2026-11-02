@@ -18,7 +18,7 @@ import test from 'node:test';
 export const BASELINE = {
   hex: 2454,
   fontSize: 4215,
-  borderRadius: 2205,
+  borderRadius: 2204,
 };
 
 const root = fileURLToPath(new URL('../../', import.meta.url));

@@ -13,6 +13,8 @@ import {
   sameWidgetPlacement,
   LEGACY_PARENT_WIDGETS_V4,
   LEGACY_COMPANY_WIDGETS_V5,
+  LEGACY_PARENT_WIDGETS_V6,
+  LEGACY_COMPANY_WIDGETS_V6,
 } from '../homeWidgetCatalog';
 import {
   childChoresLayoutIsStale,
@@ -35,7 +37,7 @@ export const HOME_LAYOUT_KEY = 'protop.homeLayout.v1';
  * standarden fra versjon 4 får den nye; et Hjem personen har endret står.
  * 6: Kjørebok på bedriftens Hjem (urørt standard fra versjon 5 får den).
  */
-export const HOME_TEMPLATE_VERSION = 6;
+export const HOME_TEMPLATE_VERSION = 7;
 /** Versjonen der parent-Hjem sist ble nullstilt for alle. */
 const PARENT_RESET_VERSION = 4;
 /** Child-only bump — does not re-reset parent homes still on version 4. */
@@ -133,14 +135,20 @@ function parseLayout(parsed, role = 'parent') {
     if (bannerId === LEGACY_DEFAULT_BANNER_ID) bannerId = DEFAULT_HOME_BANNER_ID;
     templateVersion = HOME_TEMPLATE_VERSION;
   } else if (role === 'parent' && templateVersion < HOME_TEMPLATE_VERSION) {
-    // Urørt standard fra versjon 4 får de nye widgetene. Egne valg (dra, legg til, fjern) står.
-    if (sameWidgetPlacement(widgets, normalizeWidgets(LEGACY_PARENT_WIDGETS_V4, role))) {
+    // Urørt standard fra versjon 4 eller 6 får de nye widgetene. Egne valg (dra, legg til, fjern) står.
+    if (
+      sameWidgetPlacement(widgets, normalizeWidgets(LEGACY_PARENT_WIDGETS_V4, role))
+      || sameWidgetPlacement(widgets, normalizeWidgets(LEGACY_PARENT_WIDGETS_V6, role))
+    ) {
       widgets = widgetsForLook(look, role);
     }
     templateVersion = HOME_TEMPLATE_VERSION;
   } else if (role === 'company' && templateVersion < HOME_TEMPLATE_VERSION) {
-    // Urørt bedriftsstandard fra versjon 5 får Kjørebok.
-    if (sameWidgetPlacement(widgets, normalizeWidgets(LEGACY_COMPANY_WIDGETS_V5, role))) {
+    // Urørt bedriftsstandard fra versjon 5 eller 6 får den nye standarden.
+    if (
+      sameWidgetPlacement(widgets, normalizeWidgets(LEGACY_COMPANY_WIDGETS_V5, role))
+      || sameWidgetPlacement(widgets, normalizeWidgets(LEGACY_COMPANY_WIDGETS_V6, role))
+    ) {
       widgets = widgetsForLook(look, role);
     }
     templateVersion = HOME_TEMPLATE_VERSION;

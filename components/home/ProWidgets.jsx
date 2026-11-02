@@ -17,8 +17,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useHomePalette } from './homeGlass';
 import { useNow } from '../../src/hooks/useNow';
 import {
-  dayBrief, countdownLabel, weekLoad, hoursLabel, quickActionsFor, relativeDay, kmLabel, krLabel,
+  countdownLabel, hoursLabel, quickActionsFor, relativeDay, kmLabel, krLabel,
 } from '../../src/utils/proHome';
+import { dayRibbon, daySentence, weekBars } from '../../src/utils/proHomeMore';
 import {
   useMyWeekHours, useHomeProjects, useTeamToday, useCompanyNewsPeek, useMyMileage,
 } from '../../src/hooks/useProHomeData';
@@ -34,46 +35,79 @@ function gridSize(widget) {
 /* Felles byggeklosser                                                 */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Ikonplaten i kortets topp: rund, og på bilde en nesten hvit plate
+ * med fargen i glyfen, så ikonet står fram mot glasset.
+ */
+export function IconDisc({ icon, color, size = 26 }) {
+  const pal = useHomePalette();
+  const glyph = color || (pal.glass ? '#1F6FB2' : pal.accentInk);
+  return (
+    <View
+      style={[
+        s.disc,
+        { width: size, height: size, borderRadius: size / 2 },
+        pal.glass ? s.discGlass : { backgroundColor: pal.accentSoft },
+      ]}
+    >
+      <Ionicons name={icon} size={Math.round(size * 0.54)} color={glyph} />
+    </View>
+  );
+}
+
+/**
+ * Kortet rundt hver widget. Er hele kortet trykkbart og toppen har en egen lenke
+ * (onRight), blir toppen og innholdet to trykkflater ved siden av hverandre, så det
+ * aldri blir en knapp inni en knapp.
+ */
 export function ProCard({
-  title, icon, right, onPress, onRight, children, style, testID, pad = 12, accessibilityLabel,
+  title, icon, iconColor, right, onPress, onRight, children, style, testID, pad = 12, accessibilityLabel,
 }) {
   const pal = useHomePalette();
-  const Wrap = onPress ? TouchableOpacity : View;
+  const split = !!onPress && !!onRight && !!title;
+  const Wrap = onPress && !split ? TouchableOpacity : View;
+  const rightTxt = right ? (
+    <Text style={[s.headRight, { color: pal.glass ? pal.muted : pal.accentInk }]} numberOfLines={1}>{right}</Text>
+  ) : null;
+  const titleRow = (
+    <>
+      {icon ? <IconDisc icon={icon} color={iconColor} /> : null}
+      <Text style={[s.headTitle, { color: pal.ink }]} numberOfLines={1}>{title}</Text>
+    </>
+  );
   return (
     <Wrap
       style={[s.card, pal.card, { padding: pad }, style]}
-      onPress={onPress}
-      activeOpacity={0.9}
-      accessibilityRole={onPress ? 'button' : undefined}
+      {...(Wrap === TouchableOpacity ? {
+        onPress, activeOpacity: 0.9, accessibilityRole: 'button',
+      } : null)}
       accessibilityLabel={accessibilityLabel || title}
       testID={testID}
     >
       {title ? (
         <View style={s.head}>
-          {icon ? (
-            <View style={[s.headIcon, { backgroundColor: pal.accentSoft }]}>
-              <Ionicons name={icon} size={13} color={pal.glass ? pal.ink : pal.accentInk} />
-            </View>
-          ) : null}
-          <Text style={[s.headTitle, { color: pal.ink }]} numberOfLines={1}>{title}</Text>
-          {right ? (
-            <TouchableOpacity
-              onPress={onRight || onPress}
-              disabled={!onRight && !onPress}
-              hitSlop={8}
-              accessibilityRole="button"
-            >
-              <Text style={[s.headRight, { color: pal.glass ? pal.muted : pal.accentInk }]} numberOfLines={1}>{right}</Text>
+          {split ? (
+            <TouchableOpacity style={s.headMain} onPress={onPress} accessibilityRole="button" accessibilityLabel={title}>
+              {titleRow}
             </TouchableOpacity>
-          ) : null}
+          ) : titleRow}
+          {right && onRight && (split || !onPress) ? (
+            <TouchableOpacity onPress={onRight} hitSlop={8} accessibilityRole="button">
+              {rightTxt}
+            </TouchableOpacity>
+          ) : rightTxt}
         </View>
       ) : null}
-      {children}
+      {split ? (
+        <TouchableOpacity style={s.splitBody} onPress={onPress} activeOpacity={0.9} accessible={false}>
+          {children}
+        </TouchableOpacity>
+      ) : children}
     </Wrap>
   );
 }
 
-function Pill({ label, icon, tone = 'accent', onPress, testID }) {
+export function Pill({ label, icon, tone = 'accent', onPress, testID }) {
   const pal = useHomePalette();
   const map = {
     accent: { bg: pal.accentSoft, fg: pal.glass ? pal.ink : pal.accentInk },
@@ -97,7 +131,7 @@ function Pill({ label, icon, tone = 'accent', onPress, testID }) {
   );
 }
 
-function EmptyLine({ icon = 'checkmark-circle', text, action, onAction, testID }) {
+export function EmptyLine({ icon = 'checkmark-circle', text, action, onAction, testID }) {
   const pal = useHomePalette();
   return (
     <View style={s.emptyLine} testID={testID}>
@@ -112,7 +146,7 @@ function EmptyLine({ icon = 'checkmark-circle', text, action, onAction, testID }
   );
 }
 
-function Bar({ ratio = 0, color, track, height = 6 }) {
+export function Bar({ ratio = 0, color, track, height = 6 }) {
   const pct = Math.max(0, Math.min(1, Number(ratio) || 0));
   return (
     <View style={[s.bar, { backgroundColor: track, height, borderRadius: height / 2 }]}>
@@ -129,64 +163,101 @@ function open(handlers, action) {
 /* Dagen din                                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Dagen din: arbeidsdagen som et bånd (07–17) med avtalene som blokker og en strek
+ * der klokka er nå, og én setning om dagen. Ingen tall i bokser.
+ */
 export function DayBriefWidget({ model, handlers, widget }) {
   const pal = useHomePalette();
+  const now = useNow(60000);
   const { gh } = gridSize(widget);
   const tasks = model?.taskProgress || {};
   const overdue = (tasks.items || []).filter((t) => /forfalt/i.test(t.meta || '')).length;
-  const unread = Object.values(model?.unreadByModule || {}).reduce((a, b) => a + (Number(b) || 0), 0);
   const focusTomorrow = !!model?.focusTomorrow;
-  const brief = dayBrief({
-    eventsToday: (focusTomorrow ? model?.eventsTomorrow : model?.eventsToday)?.length || 0,
+  const events = (focusTomorrow ? model?.eventsTomorrow : model?.eventsToday) || [];
+  const rows = model?.timeline || [];
+  const ribbon = useMemo(
+    () => dayRibbon(rows, { now, showNow: !focusTomorrow }),
+    [rows, now, focusTomorrow],
+  );
+  const sentence = daySentence({
+    events: events.length || rows.length,
+    freeMin: ribbon.freeMin,
     openTasks: Number(tasks.open) || 0,
-    overdueTasks: overdue,
-    unread,
-    nextTitle: model?.nextEvent?.title || '',
-    nextTime: model?.nextEvent?.time || '',
+    overdue,
     focusTomorrow,
   });
-  const targets = {
-    events: () => handlers?.onOpenPlan?.(),
-    tasks: () => handlers?.onOpenTasks?.(),
-    unread: () => handlers?.onOpenNotifications?.(),
-  };
+  const next = model?.nextEvent;
+  const soon = next && !focusTomorrow ? countdownLabel(next.time, next.end, now) : null;
+  const openNext = () => (next?.raw ? handlers?.onOpenEvent?.(next.raw) : handlers?.onOpenPlan?.());
   const compact = gh <= 1;
-  return (
-    <ProCard title={compact ? null : 'Dagen din'} icon="sunny" pad={compact ? 8 : 12} testID="pro-day-brief">
-      <View style={s.statRow}>
-        {brief.stats.map((st) => (
-          <TouchableOpacity
-            key={st.id}
-            style={[s.stat, { backgroundColor: pal.chip, borderColor: pal.line }, compact && s.statCompact]}
-            onPress={targets[st.id]}
-            accessibilityRole="button"
-            accessibilityLabel={`${st.value} ${st.label} ${st.sub}`}
-            testID={`pro-day-${st.id}`}
-          >
-            <View style={s.statTop}>
-              <Text style={[s.statNum, { color: st.alert ? pal.danger : pal.ink }, compact && s.statNumCompact]}>{st.value}</Text>
-              <Ionicons name={st.icon} size={13} color={st.alert ? pal.danger : pal.muted} />
-            </View>
-            {!compact ? (
-              <Text style={[s.statLbl, { color: st.alert ? pal.danger : pal.muted }]} numberOfLines={1}>
-                {st.alert ? st.sub : `${st.label} ${st.sub}`}
-              </Text>
-            ) : null}
-          </TouchableOpacity>
+  const ribbonH = compact ? 14 : 22;
+  const nextTime = next?.time && next.time !== 'Heldag' ? `${next.time} ` : '';
+
+  const band = (
+    <TouchableOpacity onPress={handlers?.onOpenPlan} accessibilityRole="button" accessibilityLabel={sentence} testID="pro-day-ribbon">
+      <View style={[s.ribbon, { height: ribbonH, backgroundColor: pal.track }]}>
+        {ribbon.blocks.map((b) => (
+          <View
+            key={b.id}
+            style={[s.ribbonBlock, {
+              left: `${b.from * 100}%`,
+              width: `${Math.max(2, (b.to - b.from) * 100)}%`,
+              backgroundColor: b.color || pal.accent,
+            }]}
+          />
         ))}
+        {ribbon.nowRatio != null ? (
+          <View style={[s.ribbonNow, { left: `${ribbon.nowRatio * 100}%`, backgroundColor: pal.glass ? '#FFFFFF' : pal.danger }]} />
+        ) : null}
       </View>
       {!compact ? (
-        <TouchableOpacity
-          style={s.briefLine}
-          onPress={() => (model?.nextEvent?.raw ? handlers?.onOpenEvent?.(model.nextEvent.raw) : handlers?.onOpenPlan?.())}
-          accessibilityRole="button"
-        >
-          <Ionicons name={model?.nextEvent ? 'arrow-forward-circle' : 'cafe-outline'} size={15} color={pal.accent} />
-          <Text style={[s.briefLineTxt, { color: pal.ink }]} numberOfLines={1}>
-            {model?.nextEvent ? `Neste: ${brief.line}` : brief.line}
-          </Text>
-        </TouchableOpacity>
+        <View style={s.ribbonTicks}>
+          {ribbon.ticks.map((t) => (
+            <Text key={t.hour} style={[s.ribbonTick, { left: `${t.at * 100}%`, color: pal.faint }]}>{t.label}</Text>
+          ))}
+        </View>
       ) : null}
+    </TouchableOpacity>
+  );
+
+  if (compact) {
+    return (
+      <ProCard pad={8} testID="pro-day-brief">
+        <View style={s.dayCompact}>
+          <IconDisc icon="sunny" size={22} color={pal.glass ? '#E0A106' : null} />
+          <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+            {band}
+            <Text style={[s.daySentence, { color: pal.ink }]} numberOfLines={1}>
+              {next ? `Neste ${nextTime}· ${next.title}` : sentence}
+            </Text>
+          </View>
+        </View>
+      </ProCard>
+    );
+  }
+
+  return (
+    <ProCard
+      title={focusTomorrow ? 'Dagen i morgen' : 'Dagen din'}
+      icon="sunny"
+      iconColor={pal.glass ? '#E0A106' : null}
+      right={soon || (ribbon.allDay ? `${ribbon.allDay} heldag` : null)}
+      onRight={openNext}
+      testID="pro-day-brief"
+    >
+      {band}
+      <TouchableOpacity style={s.briefLine} onPress={next ? openNext : handlers?.onOpenTasks} accessibilityRole="button">
+        <Text style={[s.daySentence, { color: pal.ink }]} numberOfLines={gh >= 3 ? 3 : 2}>
+          {next ? (
+            <>
+              <Text style={{ fontWeight: '600' }}>{`Neste ${nextTime}`}</Text>
+              {`${next.title}. `}
+              <Text style={{ color: pal.muted }}>{sentence}</Text>
+            </>
+          ) : sentence}
+        </Text>
+      </TouchableOpacity>
     </ProCard>
   );
 }
@@ -209,9 +280,7 @@ export function CalendarWidget({ model, handlers, widget }) {
     return (
       <ProCard pad={10} testID="pro-calendar-empty">
         <View style={s.chipRow}>
-          <View style={[s.headIcon, { backgroundColor: pal.accentSoft }]}>
-            <Ionicons name="calendar" size={13} color={pal.glass ? pal.ink : pal.accentInk} />
-          </View>
+          <IconDisc icon="calendar" />
           <TouchableOpacity style={s.chipMain} onPress={handlers?.onOpenPlan} accessibilityRole="button">
             <Text style={[s.chipTitle, { color: pal.ink }]} numberOfLines={1}>
               {focusTomorrow ? 'Ingen avtaler i morgen' : 'Ingen flere avtaler i dag'}
@@ -302,33 +371,54 @@ export function NextEventWidget({ model, handlers, widget }) {
 /* Uken                                                                */
 /* ------------------------------------------------------------------ */
 
-export function WeekAgendaWidget({ model, handlers }) {
+/** Uka: én stolpe per dag for hvor travel den er. Ukedager uten datotall. */
+export function WeekAgendaWidget({ model, handlers, widget }) {
   const pal = useHomePalette();
-  const load = useMemo(() => weekLoad(model?.weekCounts || {}, new Date()), [model?.weekCounts]);
+  const { gh } = gridSize(widget);
+  const week = useMemo(() => weekBars(model?.weekCounts || {}, new Date()), [model?.weekCounts]);
+  const tall = gh >= 3;
   return (
     <ProCard
-      title={`Uke ${load.week}`}
+      title={`Uke ${week.week}`}
       icon="calendar-number"
-      right={load.headline}
+      right={week.headline}
       onPress={handlers?.onOpenPlan}
       testID="pro-week"
     >
       <View style={s.weekRow}>
-        {load.days.map((d) => (
-          <View key={d.key} style={[s.weekDay, d.isToday && { backgroundColor: pal.accentSoft, borderRadius: 10 }]}>
-            <Text style={[s.weekLbl, { color: d.weekend ? pal.faint : pal.muted }]}>{d.label}</Text>
-            <Text style={[s.weekNum, { color: d.isToday ? (pal.glass ? pal.ink : pal.accentInk) : pal.ink }, d.past && !d.isToday && { opacity: 0.55 }]}>
-              {d.date}
-            </Text>
-            <View style={s.weekDots}>
-              {d.count ? Array.from({ length: Math.min(3, d.count) }).map((_, i) => (
-                <View key={i} style={[s.weekDot, { backgroundColor: pal.accent }]} />
-              )) : <View style={[s.weekDot, { backgroundColor: pal.track }]} />}
+        {week.days.map((d) => {
+          const strong = d.isToday;
+          const faded = d.past && !strong;
+          return (
+            <View
+              key={d.key}
+              style={s.weekDay}
+              accessibilityLabel={`${d.long}: ${d.count || 'ingen'} ${d.count === 1 ? 'avtale' : 'avtaler'}`}
+            >
+              <View style={[s.weekCol, { backgroundColor: pal.track }, strong && { borderWidth: 1.5, borderColor: pal.accent }]}>
+                <View
+                  style={{
+                    height: `${d.count ? Math.max(22, Math.round(d.ratio * 100)) : 0}%`,
+                    backgroundColor: pal.accent,
+                    opacity: faded ? 0.45 : 1,
+                    borderRadius: 6,
+                    width: '100%',
+                    alignItems: 'center',
+                  }}
+                >
+                  {d.count ? (
+                    <Text style={[s.weekColNum, { color: pal.glass ? '#0B2236' : '#FFFFFF' }]}>{d.count}</Text>
+                  ) : null}
+                </View>
+              </View>
+              <Text style={[s.weekLbl, { color: strong ? pal.ink : (d.weekend ? pal.faint : pal.muted), fontWeight: strong ? '600' : '400' }]}>
+                {strong ? 'I dag' : d.label}
+              </Text>
             </View>
-            <Text style={[s.weekCount, { color: d.count ? pal.ink : pal.faint }]}>{d.count || '–'}</Text>
-          </View>
-        ))}
+          );
+        })}
       </View>
+      {tall && week.hint ? <Text style={[s.calmTxt, { color: pal.muted }]}>{week.hint}</Text> : null}
     </ProCard>
   );
 }
@@ -400,7 +490,7 @@ export function NotesWidget({ model, handlers, widget }) {
   const newNote = () => handlers?.onAppAction?.({ type: 'tab', tab: 'notes', mode: 'create' });
   const max = gh >= 3 ? 3 : (gw >= 3 ? 2 : 1);
   return (
-    <ProCard title="Notater" icon="document-text" right={notes.length ? '+' : null} onRight={newNote} onPress={openNotes} testID="pro-notes">
+    <ProCard title="Notater" icon="document-text" right={notes.length ? '+' : null} onRight={notes.length ? newNote : null} onPress={notes.length ? openNotes : null} testID="pro-notes">
       {!notes.length ? (
         <TouchableOpacity style={[s.noteNew, { borderColor: pal.line }]} onPress={newNote} accessibilityRole="button" testID="pro-notes-new">
           <Ionicons name="create-outline" size={16} color={pal.accent} />
@@ -536,7 +626,8 @@ export function AssistantWidget({ handlers, widget, board = 'private' }) {
 export function MyHoursWidget({ model, handlers, widget }) {
   const pal = useHomePalette();
   const { gh } = gridSize(widget);
-  const { summary, ready, linked } = useMyWeekHours(model?.companyId);
+  const liveHours = useMyWeekHours(model?.companyId);
+  const { summary, ready, linked } = model?.preview?.hours || liveHours;
   const logHours = () => handlers?.onAppAction?.({ type: 'tab', tab: 'timeliste' });
 
   if (ready && !linked) {
@@ -629,7 +720,8 @@ export function ProjectsWidget({ model, handlers, widget }) {
   const { gh, gw } = gridSize(widget);
   const { summary } = useMyWeekHours(model?.companyId);
   const max = gh >= 4 ? 4 : (gh >= 3 ? 3 : 2);
-  const data = useHomeProjects(model?.companyId, { recentIds: summary.topProjectIds, limit: max });
+  const liveProjects = useHomeProjects(model?.companyId, { recentIds: summary.topProjectIds, limit: max });
+  const data = model?.preview?.projects || liveProjects;
   const openProjects = () => handlers?.onAppAction?.({ type: 'tab', tab: 'projects' });
   return (
     <ProCard
@@ -667,7 +759,8 @@ export function TeamWidget({ model, handlers, widget }) {
   const pal = useHomePalette();
   const { gw, gh } = gridSize(widget);
   const limit = gw >= 3 ? 10 : (gh >= 3 ? 6 : 4);
-  const team = useTeamToday(model?.companyId, { limit });
+  const liveTeam = useTeamToday(model?.companyId, { limit });
+  const team = model?.preview?.team || liveTeam;
   const openTeam = () => handlers?.onAppAction?.(
     team.manager ? { type: 'tab', tab: 'arbeid', subView: 'godkjenning' } : { type: 'tab', tab: 'selskap' },
   );
@@ -704,7 +797,8 @@ export function CompanyNewsWidget({ model, handlers, widget }) {
   const pal = useHomePalette();
   const { gh } = gridSize(widget);
   const max = gh >= 3 ? 3 : (gh >= 2 ? 2 : 1);
-  const news = useCompanyNewsPeek(model?.companyId, { limit: max });
+  const liveNews = useCompanyNewsPeek(model?.companyId, { limit: max });
+  const news = model?.preview?.news || liveNews;
   const openNews = () => handlers?.onAppAction?.({ type: 'tab', tab: 'selskap', subView: 'nyheter' });
   return (
     <ProCard title="Nyheter" icon="megaphone" right="Alle ›" onRight={openNews} onPress={openNews} testID="pro-news">
@@ -743,7 +837,8 @@ export function MileageWidget({ model, handlers, widget, board = 'private' }) {
   const pal = useHomePalette();
   const { gh, gw } = gridSize(widget);
   const companyId = board === 'company' ? model?.companyId : model?.mileageCompanyId;
-  const { summary, ready, linked } = useMyMileage(companyId);
+  const liveMileage = useMyMileage(companyId);
+  const { summary, ready, linked } = model?.preview?.mileage || liveMileage;
   const openLog = () => {
     if (board === 'company') {
       handlers?.onAppAction?.({ type: 'tab', tab: 'okonomi', subView: 'kjorebok' });
@@ -772,7 +867,7 @@ export function MileageWidget({ model, handlers, widget, board = 'private' }) {
       </ProCard>
     );
   }
-  if (!companyId || (ready && !linked)) {
+  if ((!companyId && !model?.preview?.mileage) || (ready && !linked)) {
     return (
       <ProCard title="Kjørebok" icon="car" testID="pro-mileage-unlinked">
         <EmptyLine
@@ -867,8 +962,12 @@ const s = StyleSheet.create({
     overflow: 'hidden',
   },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, minHeight: 22 },
-  headIcon: {
-    width: 22, height: 22, borderRadius: 7, alignItems: 'center', justifyContent: 'center',
+  headMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  splitBody: { flex: 1, minHeight: 0 },
+  disc: { alignItems: 'center', justifyContent: 'center' },
+  discGlass: {
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    ...(Platform.OS === 'web' ? { boxShadow: '0 2px 8px rgba(20, 28, 45, 0.12)' } : null),
   },
   headTitle: { flex: 1, fontSize: 14, fontWeight: '600', fontFamily: FONT },
   headRight: { fontSize: 12, fontFamily: FONT, maxWidth: 170 },
@@ -894,8 +993,14 @@ const s = StyleSheet.create({
   statNum: { fontSize: 22, fontWeight: '600', lineHeight: 26, fontFamily: FONT },
   statNumCompact: { fontSize: 18, lineHeight: 22 },
   statLbl: { fontSize: 11, marginTop: 1, fontFamily: FONT },
-  briefLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 9 },
-  briefLineTxt: { flex: 1, fontSize: 13, fontFamily: FONT },
+  briefLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  daySentence: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: FONT },
+  dayCompact: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  ribbon: { width: '100%', borderRadius: 8, overflow: 'hidden', position: 'relative' },
+  ribbonBlock: { position: 'absolute', top: 0, bottom: 0, borderRadius: 6, opacity: 0.9 },
+  ribbonNow: { position: 'absolute', top: 0, bottom: 0, width: 2, marginLeft: -1, borderRadius: 1 },
+  ribbonTicks: { height: 14, position: 'relative', marginTop: 2 },
+  ribbonTick: { position: 'absolute', fontSize: 10, marginLeft: -6, fontFamily: FONT },
 
   chipRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 28 },
   chipMain: { flex: 1, minWidth: 0 },
@@ -914,13 +1019,13 @@ const s = StyleSheet.create({
   nextTitle: { fontSize: 17, fontWeight: '600', lineHeight: 22, fontFamily: FONT },
   nextMeta: { fontSize: 13, marginTop: 3, fontFamily: FONT },
 
-  weekRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 2, flex: 1 },
-  weekDay: { flex: 1, alignItems: 'center', paddingVertical: 4, gap: 2 },
+  weekRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, flex: 1, minHeight: 0 },
+  weekDay: { flex: 1, alignItems: 'center', gap: 4, minHeight: 0 },
+  weekCol: {
+    flex: 1, width: '100%', maxWidth: 34, minHeight: 22, borderRadius: 8, justifyContent: 'flex-end', overflow: 'hidden', padding: 2,
+  },
+  weekColNum: { fontSize: 11, fontWeight: '700', marginTop: 2, fontFamily: FONT },
   weekLbl: { fontSize: 11, fontFamily: FONT },
-  weekNum: { fontSize: 15, fontWeight: '600', fontFamily: FONT },
-  weekDots: { flexDirection: 'row', gap: 2, height: 6, alignItems: 'center' },
-  weekDot: { width: 5, height: 5, borderRadius: 3 },
-  weekCount: { fontSize: 10, fontFamily: FONT },
 
   tasksEmpty: { flex: 1, justifyContent: 'center' },
   taskRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 6 },

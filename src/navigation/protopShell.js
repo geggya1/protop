@@ -98,16 +98,30 @@ export const PROTOP_HOME_WIDGET_TYPES = [
   'quickActions',
   'mail',
   'mileage',
+  'focus',
+  'countdown',
+  'vat',
 ];
+
+/** Bare på privat Hjem: personlige ting som ikke hører hjemme på bedriftens skjerm. */
+const PRIVATE_ONLY_HOME_WIDGET_TYPES = new Set(['weeklyPlan', 'countdown']);
 
 /** Bedriftens Hjem har i tillegg arbeidswidgetene. */
 export const PROTOP_COMPANY_HOME_WIDGET_TYPES = [
-  ...PROTOP_HOME_WIDGET_TYPES.filter((type) => type !== 'weeklyPlan'),
+  ...PROTOP_HOME_WIDGET_TYPES.filter((type) => !PRIVATE_ONLY_HOME_WIDGET_TYPES.has(type)),
   'myHours',
   'projects',
   'team',
   'companyNews',
+  'away',
+  'celebrations',
+  'tenders',
+  'approvals',
+  'myReports',
 ];
+
+/** Bare på bedriftens Hjem (vises ikke i Privat-katalogen). */
+const COMPANY_ONLY_HOME_WIDGET_TYPES = new Set(['myHours', 'projects', 'team', 'companyNews', 'away', 'celebrations', 'tenders', 'approvals', 'myReports']);
 
 const PROTOP_HOME_WIDGET_SET = new Set(PROTOP_HOME_WIDGET_TYPES);
 const PROTOP_COMPANY_HOME_WIDGET_SET = new Set(PROTOP_COMPANY_HOME_WIDGET_TYPES);
@@ -118,7 +132,7 @@ export function isProtopShellModule(id) {
 
 export function isProtopHomeWidget(type, board = 'private') {
   if (board === 'company') return PROTOP_COMPANY_HOME_WIDGET_SET.has(type);
-  return PROTOP_HOME_WIDGET_SET.has(type) || PROTOP_COMPANY_HOME_WIDGET_SET.has(type);
+  return PROTOP_HOME_WIDGET_SET.has(type) && !COMPANY_ONLY_HOME_WIDGET_TYPES.has(type);
 }
 
 export function applyProtopShellSections(sections, extraIds = []) {

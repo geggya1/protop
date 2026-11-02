@@ -15,9 +15,15 @@ import { listenCompanyWall } from '../project/companyWall';
 import { newsPlainText } from '../project/newsFormat';
 import { normalizeTrip } from '../economy/mileage';
 import { sameEmployeeIds } from '../project/myProjects';
+import { loadAbsences } from '../arbeid/absenceStorage';
+import { loadAnbudState, peekAnbudState, readCachedAnbudState } from '../anbud/storage';
+import { loadMyReports } from '../iso/storage';
 import {
   weekHoursSummary, homeProjects, teamToday, weekDays, isoDay, mileageSummary,
 } from '../utils/proHome';
+import {
+  awayToday, celebrations, tenderPeek, approvalSummary, myReportsSummary,
+} from '../utils/proHomeMore';
 
 /** Teller opp når Hjem får fokus igjen, så tallene er ferske etter at man har ført timer. */
 function useFocusTick() {
@@ -174,4 +180,125 @@ export function useMyMileage(companyId) {
     [trips, mine, today, me],
   );
   return { summary, ready: !!ready && empReady, linked: !!me };
+}
+
+/**
+ * Hvem som er borte i dag. Ledere og administratorer ser hele selskapet (årsak til
+ * sykdom skjules likevel); andre får bare sitt eget fravær fra reglene.
+ */
+export function useAwayToday(companyId) {
+  const { isAdmin } = useApp();
+  const { me, employees } = useMyEmployee(companyId);
+  const manager = canManageTimesheets({ isAdmin, employee: me });
+  const tick = useFocusTick();
+  const todayKey = useMemo(() => isoDay(new Date()), [tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toKey = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 21);
+    return isoDay(d);
+  }, [tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let live = true;
+    if (!companyId) {
+      setRows([]);
+      return undefined;
+    }
+    loadAbsences(companyId, { fromDate: todayKey, toDate: toKey, ...(manager ? {} : { employeeId: me?.id || '' }), all: false })
+      .then((list) => { if (live) setRows(Array.isArray(list) ? list : []); })
+      .catch(() => { if (live) setRows([]); });
+    return () => { live = false; };
+  }, [companyId, manager, me?.id, todayKey, toKey, tick]);
+  const away = useMemo(
+    () => awayToday(rows || [], employees, { todayKey, meId: me?.id || '' }),
+    [rows, employees, todayKey, me?.id],
+  );
+  const present = useMemo(
+    () => (employees || []).filter((row) => {
+      try { return isActiveEmployee(row); } catch { return row?.active !== false; }
+    }).length,
+    [employees],
+  );
+  return { ...away, ready: rows != null, manager, staff: present };
+}
+
+/** Jubileer og nye i bedriften, fra ansattlisten skallet allerede har. */
+export function useCelebrations(companyId, { limit = 4 } = {}) {
+  const { employees, ready } = useMyEmployee(companyId);
+  const tick = useFocusTick();
+  const data = useMemo(
+    () => celebrations(employees || [], { today: new Date(), limit }),
+    [employees, limit, tick], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  return { ...data, ready };
+}
+
+/** Anbud: nye treff og frister. Leser samme tilstand som Anbud-modulen (delt i minnet). */
+export function useTenderPeek(companyId, { enabled = true, limit = 3 } = {}) {
+  const tick = useFocusTick();
+  const [state, setState] = useState(() => (companyId ? peekAnbudState(companyId) : null));
+  useEffect(() => {
+    let live = true;
+    if (!companyId || !enabled) {
+      setState(null);
+      return undefined;
+    }
+    readCachedAnbudState(companyId)
+      .then((cached) => { if (live && cached) setState(cached); })
+      .catch(() => {});
+    loadAnbudState(companyId)
+      .then((next) => { if (live) setState(next || null); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [companyId, enabled, tick]);
+  const peek = useMemo(() => tenderPeek(state, { today: new Date(), limit }), [state, limit]);
+  return { ...peek, ready: state != null };
+}
+
+/** Timer som venter på godkjenning (ledere): denne og forrige uke. */
+export function useApprovals(companyId, { limit = 4 } = {}) {
+  const { isAdmin } = useApp();
+  const { me, employees } = useMyEmployee(companyId);
+  const manager = canManageTimesheets({ isAdmin, employee: me });
+  const tick = useFocusTick();
+  const range = useMemo(() => {
+    const days = weekDays(new Date());
+    const from = new Date(`${days[0].key}T12:00:00`);
+    from.setDate(from.getDate() - 7);
+    return { fromDate: isoDay(from), toDate: days[6].key };
+  }, [tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let live = true;
+    if (!companyId || !manager) {
+      setRows(null);
+      return undefined;
+    }
+    loadTimeEntries(companyId, range)
+      .then((list) => { if (live) setRows(Array.isArray(list) ? list : []); })
+      .catch(() => { if (live) setRows([]); });
+    return () => { live = false; };
+  }, [companyId, manager, range, tick]);
+  const data = useMemo(() => approvalSummary(rows || [], employees, { limit }), [rows, employees, limit]);
+  return { ...data, ready: rows != null, manager };
+}
+
+/** Mine meldte avvik og RUH. */
+export function useMyReports(companyId, { enabled = true, limit = 3 } = {}) {
+  const { uid } = useApp();
+  const tick = useFocusTick();
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let live = true;
+    if (!companyId || !uid || !enabled) {
+      setRows([]);
+      return undefined;
+    }
+    loadMyReports(companyId, uid)
+      .then((list) => { if (live) setRows(Array.isArray(list) ? list : []); })
+      .catch(() => { if (live) setRows([]); });
+    return () => { live = false; };
+  }, [companyId, uid, enabled, tick]);
+  const data = useMemo(() => myReportsSummary(rows || [], { limit }), [rows, limit]);
+  return { ...data, ready: rows != null };
 }

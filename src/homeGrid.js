@@ -591,12 +591,16 @@ export function addWidgetToGrid(list, type, role, { newWidgetId, widgetMeta }) {
 }
 
 /** ProTop-widgetene som fyller hele bredden når de legges til. */
-const PRO_WIDE_TYPES = new Set(['dayBrief', 'weekAgenda', 'quickActions', 'myHours', 'companyNews', 'mileage']);
+const PRO_WIDE_TYPES = new Set(['dayBrief', 'weekAgenda', 'quickActions', 'myHours', 'companyNews', 'mileage', 'vat', 'tenders']);
 
 export function defaultSpanForType(type, role) {
   if (type === 'timeline') return GRID_SPANS.wide;
   if (PRO_WIDE_TYPES.has(type)) return GRID_SPANS.wide;
   if (type === 'projects') return GRID_SPANS.rectTall;
+  if (type === 'focus' || type === 'approvals' || type === 'myReports') return GRID_SPANS.rect;
+  if (type === 'countdown') return GRID_SPANS.square;
+  if (type === 'away') return GRID_SPANS.rectTall;
+  if (type === 'celebrations') return GRID_SPANS.columnTall;
   if (type === 'team') return GRID_SPANS.columnTall;
   if (type === 'mail') return GRID_SPANS.square;
   // Progress + shop share a row as two wider/taller sections (3×3 + 2×3).

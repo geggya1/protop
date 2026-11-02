@@ -337,6 +337,7 @@ export const FILES = [
   // Hjem: ProTop-widgetene, rutenettet og mørkt glass på bilde.
   'src/utils/proHome.test.mjs',
   'src/utils/proHomeMore.test.mjs',
+  'src/project/groupChartData.test.mjs',
   'src/homeWidgetCatalog.test.mjs',
   'src/homeGrid.test.mjs',
   'src/utils/glassInk.test.mjs',

@@ -528,9 +528,9 @@ export default function CompanyPublicProfile({
     people: view.showEmployees ? staff : [],
     jobs: view.jobs,
   };
-  // Fanene får en sidespalte på PC: innholdet til venstre, bedriften, folkene og kontakt til høyre.
-  // Ansatte-fanen har kortene i full bredde og en smalere spalte.
-  function withAside(main, blocks, { staff: staffTab = false } = {}) {
+  // Fanene får en sidespalte på PC: innholdet til venstre i full bredde, og bedriften, folkene
+  // og kontakt stablet over hverandre i én smal spalte til høyre.
+  function withAside(main, blocks) {
     if (!blocks.length) return main;
     const aside = <CompanyProfileAside blocks={blocks} data={asideData} colors={colors} onTab={setTab} />;
     if (!wide) {
@@ -538,8 +538,8 @@ export default function CompanyPublicProfile({
     }
     return (
       <View style={styles.tabSplit}>
-        <View style={[styles.tabMain, staffTab && styles.tabMainWide]}>{main}</View>
-        <View style={[styles.tabAside, staffTab && styles.tabAsideNarrow]}>{aside}</View>
+        <View style={styles.tabMain}>{main}</View>
+        <View style={styles.tabAside}>{aside}</View>
       </View>
     );
   }
@@ -618,7 +618,7 @@ export default function CompanyPublicProfile({
         </View>
       ) : null}
 
-      {tab === 'nyheter' ? withAside(<CompanyNewsWall />, ['company', 'people', 'contact', 'jobs']) : null}
+      {tab === 'nyheter' ? withAside(<CompanyNewsWall />, ['company', 'contact', 'people', 'jobs']) : null}
 
       {tab === 'om-oss' ? withAside(
         <CompanyArticle
@@ -628,7 +628,7 @@ export default function CompanyPublicProfile({
           familyId={familyId}
           onUpdate={(fn) => setDraft((prev) => ({ ...prev, article: fn(prev.article) }))}
         />,
-        editing ? [] : ['news', 'people', 'contact'],
+        editing ? [] : ['contact', 'people', 'news'],
       ) : null}
 
       {tab === 'tjenester' ? (
@@ -655,7 +655,6 @@ export default function CompanyPublicProfile({
         />,
         // Ansatte og kontakt: besøk, kontakt og åpningstider står ved siden av folkene.
         ['contact', 'company', 'jobs'],
-        { staff: true },
       ) : null}
 
       {tab === 'baerekraft' ? (
@@ -913,10 +912,9 @@ const styles = StyleSheet.create({
   registrySplit: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
   registryCol: { flex: 1, minWidth: 0, gap: 12 },
   tabSplit: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
-  tabMain: { flex: 1.4, minWidth: 0, maxWidth: 960, gap: 12 },
-  tabMainWide: { maxWidth: '100%', flex: 1 },
-  tabAside: { flex: 1, minWidth: 320 },
-  tabAsideNarrow: {
+  tabMain: { flex: 1, minWidth: 0, gap: 12 },
+  // Smal nok til at sidespalten alltid blir én kolonne.
+  tabAside: {
     flexGrow: 0, flexShrink: 0, flexBasis: 380, width: 380, minWidth: 0,
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },

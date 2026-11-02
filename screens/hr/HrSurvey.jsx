@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import {
-  SURVEY_GOOD_SCORE, SURVEY_MIN_ANSWERS, defaultDeadline, hrTrendPoints, newSurvey, participation, previousSurvey,
+  SURVEY_GOOD_SCORE, SURVEY_MIN_ANSWERS, SURVEY_TEMPLATES, defaultDeadline, surveyKind, hrTrendPoints, newSurvey, participation, previousSurvey,
   surveyAnalysis, surveyCsvRows, surveyDeadline, surveyResults,
 } from '../../src/hr/survey';
 import {
@@ -9,6 +10,9 @@ import {
   saveSurvey, setSurveyDeadline,
 } from '../../src/hr/surveyStore';
 import { formatNbDate } from '../../src/hr/model';
+import { actionEffects, planFor, upsertPlan } from '../../src/hr/surveyPlan';
+import ResponseMeter from '../../components/surveys/ResponseMeter';
+import HrSurveyPlan, { ActionEffects } from './HrSurveyPlan';
 import { surveyTrend, trendSentence, uniqueSurveyTitle } from '../../src/surveys/trend';
 import { csvFileName, downloadCsv, trendCsvRows } from '../../src/surveys/csv';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -35,6 +39,7 @@ function deadlineText(dl) {
  */
 function SurveyItem({
   colors, survey, previous, result, prevResult, familyId, invited, canWrite, onChanged, onCreateTask, onOpenHandbook,
+  plans, onPatch,
   open: startOpen,
 }) {
   const [count, setCount] = useState(null);
@@ -116,6 +121,9 @@ function SurveyItem({
   const chart = chartColorsFor(colors);
   const analysis = results?.ready ? surveyAnalysis(results, prevResults) : null;
   const dl = surveyDeadline(survey);
+  const plan = planFor(plans, survey.id);
+  const effects = useMemo(() => (previous && results?.ready && prevResults?.ready
+    ? actionEffects(planFor(plans, previous.id), prevResults.areas, results.areas) : []), [plans, previous, results, prevResults]);
 
   const exportCsv = () => {
     if (!downloadCsv(csvFileName(survey.title, 'resultat'), surveyCsvRows(survey, results, analysis))) {
@@ -163,12 +171,16 @@ function SurveyItem({
               <Text style={[styles.meta, { color: colors.ink }]}>{`Svarfristen gikk ut ${formatNbDate(dl.date)}. Avslutt undersøkelsen for å se resultatet, eller sett en ny frist.`}</Text>
             </View>
           ) : null}
-          <View style={[styles.meter, { backgroundColor: chart.barTrack }]}>
-            <View style={[styles.meterFill, { width: `${part.pct || 0}%`, backgroundColor: chart.bar }]} />
-          </View>
-          <Text style={[styles.meta, { color: colors.ink }]}>
-            {count == null ? 'Teller svar …' : `${part.count} har svart${part.pct != null ? ` av ${part.invited} med brukerkonto (${part.pct} %)` : ''}.`}
-          </Text>
+          {count == null ? <Text style={[styles.meta, { color: colors.muted }]}>Teller svar …</Text> : (
+            <ResponseMeter
+              colors={colors}
+              pct={part.pct}
+              count={part.count}
+              of={part.invited}
+              label={part.pct != null ? `${part.count} av ${part.invited} med brukerkonto har svart` : `${part.count} har svart`}
+              nativeID="hr-survey-response"
+            />
+          )}
           <Text style={[styles.meta, { color: colors.muted }]}>
             {[
               survey.notifiedAt ? `Varslet ${formatNbDate(survey.notifiedAt)}` : '',
@@ -207,7 +219,7 @@ function SurveyItem({
       {analysis && !open ? (
         <View style={styles.summaryRow}>
           <Text style={[styles.meta, { color: colors.ink }]}>
-            {`Totalindeks ${analysis.index} av 100 · ${results.count} svar${analysis.weakAreas.length ? ` · ${analysis.weakAreas.length} forbedringsområde${analysis.weakAreas.length === 1 ? '' : 'r'}` : ''}`}
+            {`Totalindeks ${analysis.index} av 100 · ${results.count} svar${analysis.weakAreas.length ? ` · ${analysis.weakAreas.length} forbedringsområde${analysis.weakAreas.length === 1 ? '' : 'r'}` : ''}${plan.actions.length ? ` · ${plan.actions.filter((a) => a.status === 'done').length} av ${plan.actions.length} tiltak gjennomført` : ''}`}
           </Text>
           <HrChip colors={colors} label="Vis resultat" onPress={() => setOpen(true)} />
         </View>
@@ -224,6 +236,20 @@ function SurveyItem({
             onCreateTask={onCreateTask}
             onOpenHandbook={onOpenHandbook}
           />
+          {effects.length ? <ActionEffects colors={colors} effects={effects} previousTitle={previous?.title || 'forrige undersøkelse'} /> : null}
+          <View style={[styles.planBox, { borderColor: colors.line }]}>
+            <HrSurveyPlan
+              colors={colors}
+              survey={survey}
+              plan={plan}
+              analysis={analysis}
+              canWrite={canWrite && !!onPatch}
+              onCreateTask={onCreateTask}
+              onUpdate={(fn) => onPatch?.((state) => ({
+                surveyPlans: upsertPlan(state.surveyPlans, fn(planFor(state.surveyPlans, survey.id))),
+              }))}
+            />
+          </View>
           {Platform.OS === 'web' ? (
             <View style={styles.actions}>
               <HrButton colors={colors} icon="download-outline" label="Last ned resultat (Excel)" onPress={exportCsv} nativeID="hr-survey-export" />
@@ -235,11 +261,37 @@ function SurveyItem({
   );
 }
 
+const TEMPLATE_ICON = { arbeidsmiljo: 'shield-checkmark-outline', motivasjon: 'rocket-outline', puls: 'pulse-outline' };
+
+/** Et valg i malvelgeren. */
+function TemplateCard({
+  colors, icon, title, hint, recommended, onPress, nativeID,
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      nativeID={nativeID}
+      style={({ hovered }) => [styles.tcard, { borderColor: recommended ? (colors.brandInk || colors.brand) : colors.line, backgroundColor: hovered ? colors.sunken : colors.card }]}
+    >
+      <View style={styles.tcardHead}>
+        <View style={[styles.ticon, { backgroundColor: colors.sunken }]}>
+          <Ionicons name={icon || 'document-text-outline'} size={18} color={colors.brandInk || colors.brand} />
+        </View>
+        {recommended ? <Text style={[styles.badgeText, { color: colors.brandInk || colors.brand }]}>Anbefalt</Text> : null}
+      </View>
+      <Text style={[styles.itemTitle, { color: colors.ink }]}>{title}</Text>
+      <Text style={[styles.meta, { color: colors.muted }]}>{hint}</Text>
+    </Pressable>
+  );
+}
+
 /**
  * HR → Oppfølging → Medarbeiderundersøkelse. invited: egne ansatte med brukerkonto.
  */
 export default function HrSurvey({
-  colors, familyId, canWrite, invited, uid, onCreateTask, onOpenHandbook,
+  colors, familyId, canWrite, invited, uid, onCreateTask, onOpenHandbook, plans = [], onPatch,
 }) {
   const [surveys, setSurveys] = useState(null);
   const [error, setError] = useState('');
@@ -269,16 +321,18 @@ export default function HrSurvey({
   }, [familyId, closedIds]);
 
   const latestClosed = (surveys || []).find((s) => s.status === 'closed') || null;
-  const create = async () => {
+  const [choosing, setChoosing] = useState(false);
+  const create = async (templateId = '') => {
+    setChoosing(false);
     try {
-      // Samme spørsmål som sist, så tallene kan sammenlignes fra år til år.
-      const fresh = newSurvey({ uid, template: latestClosed });
+      // «Som sist»: samme spørsmål som forrige av samme slag, så tallene kan sammenlignes fra år til år.
+      const fresh = newSurvey({ uid, template: templateId ? null : latestClosed, templateId });
       await saveSurvey(familyId, {
         ...fresh,
         title: uniqueSurveyTitle(fresh.title, (surveys || []).map((s) => s.title)),
         closesOn: defaultDeadline(),
       });
-      showSaveToast?.(latestClosed
+      showSaveToast?.(latestClosed && !templateId
         ? 'Undersøkelsen er laget med de samme spørsmålene som sist. Se over og åpne den.'
         : 'Undersøkelsen er laget. Se over spørsmålene og åpne den.');
       reload();
@@ -295,7 +349,11 @@ export default function HrSurvey({
   const resultsReady = useMemo(() => Object.fromEntries((surveys || [])
     .filter((s) => s.status === 'closed' && resultsById[s.id])
     .map((s) => [s.id, surveyResults(s, resultsById[s.id].answers)])), [surveys, resultsById]);
-  const trend = useMemo(() => surveyTrend(hrTrendPoints(surveys, resultsReady, invited)), [surveys, resultsReady, invited]);
+  // Utviklingen vises per slag undersøkelse (arbeidsmiljø, motivasjon, puls), ellers sammenlignes ulike spørsmål.
+  const kinds = useMemo(() => SURVEY_TEMPLATES.filter((t) => (surveys || []).some((x) => x.status === 'closed' && surveyKind(x) === t.id)), [surveys]);
+  const [kind, setKind] = useState('');
+  const activeKind = kinds.some((k) => k.id === kind) ? kind : (kinds[0]?.id || 'arbeidsmiljo');
+  const trend = useMemo(() => surveyTrend(hrTrendPoints(surveys, resultsReady, invited, activeKind)), [surveys, resultsReady, invited, activeKind]);
   const sentence = trendSentence(trend);
   const firstClosed = (surveys || []).findIndex((x) => x.status === 'closed');
 
@@ -305,11 +363,42 @@ export default function HrSurvey({
         <HrSectionTitle
           colors={colors}
           title="Medarbeiderundersøkelse"
-          subtitle="Anonym kartlegging av arbeidsmiljøet: trivsel, arbeidsmengde, ledelse, samarbeid, HMS og trakassering. De ansatte varsles og svarer på Min side. Ingen kan se hvem som svarte hva. Gjør den gjerne hvert år, med de samme spørsmålene, så ser dere utviklingen."
+          subtitle="Anonym kartlegging av arbeidsmiljø, motivasjon og mestring. De ansatte varsles og svarer på Min side. Ingen kan se hvem som svarte hva. Gjør den hvert år med de samme spørsmålene, lag en tiltaksplan, og se om tiltakene virket."
           right={canWrite && !hasActive ? (
-            <HrButton colors={colors} primary icon="add" label={latestClosed ? 'Ny undersøkelse (som sist)' : 'Ny undersøkelse'} onPress={create} nativeID="hr-survey-new" />
+            <HrButton colors={colors} primary icon="add" label="Ny undersøkelse" onPress={() => setChoosing((v) => !v)} nativeID="hr-survey-new" />
           ) : null}
         />
+        {choosing && canWrite ? (
+          <View style={styles.choose} nativeID="hr-survey-templates">
+            <Text style={[styles.itemTitle, { color: colors.ink }]}>Hva vil dere måle?</Text>
+            <View style={styles.cards}>
+              {latestClosed ? (
+                <TemplateCard
+                  colors={colors}
+                  icon="repeat"
+                  title={`Som sist: ${latestClosed.title.replace(/\s*\d{4}.*$/, '')}`}
+                  hint={`Samme ${latestClosed.questions.length} spørsmål som «${latestClosed.title}», så dere ser utviklingen. Anbefalt hvert år.`}
+                  recommended
+                  onPress={() => create('')}
+                  nativeID="hr-survey-template-same"
+                />
+              ) : null}
+              {SURVEY_TEMPLATES.map((t) => (
+                <TemplateCard
+                  key={t.id}
+                  colors={colors}
+                  icon={TEMPLATE_ICON[t.id]}
+                  title={t.label}
+                  hint={t.hint}
+                  recommended={!latestClosed && t.id === 'arbeidsmiljo'}
+                  onPress={() => create(t.id)}
+                  nativeID={`hr-survey-template-${t.id}`}
+                />
+              ))}
+            </View>
+            <Text style={[styles.meta, { color: colors.muted }]}>Spørsmålene kan endres før undersøkelsen åpnes. Alle svarer på en skala fra 1 (helt uenig) til 5 (helt enig).</Text>
+          </View>
+        ) : null}
         {trend ? (
           <View style={styles.tabs}>
             <HrChip colors={colors} label="Undersøkelser" active={tab === 'surveys'} onPress={() => setTab('surveys')} nativeID="hr-survey-tab-list" />
@@ -321,6 +410,13 @@ export default function HrSurvey({
         {error ? <EmptyHint colors={colors} text={error} /> : null}
         {surveys && !surveys.length && !error ? (
           <EmptyHint colors={colors} text="Ingen undersøkelser ennå. Mange gjør dette hver høst, og ser utviklingen år for år." />
+        ) : null}
+        {tab === 'trend' && kinds.length > 1 ? (
+          <View style={styles.tabs}>
+            {kinds.map((k) => (
+              <HrChip key={k.id} colors={colors} label={k.label} active={activeKind === k.id} onPress={() => setKind(k.id)} nativeID={`hr-survey-kind-${k.id}`} />
+            ))}
+          </View>
         ) : null}
         {tab === 'trend' && trend ? (
           <SurveyTrend
@@ -346,6 +442,8 @@ export default function HrSurvey({
             onChanged={reload}
             onCreateTask={onCreateTask}
             onOpenHandbook={onOpenHandbook}
+            plans={plans}
+            onPatch={onPatch}
             open={i === firstClosed}
           />
         ))}
@@ -356,6 +454,13 @@ export default function HrSurvey({
 
 const styles = StyleSheet.create({
   stack: { gap: 8 },
+  choose: { gap: space.xs },
+  cards: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  tcard: { flexGrow: 1, flexBasis: 220, borderWidth: 1, borderRadius: radius.card, padding: space.sm, gap: 6 },
+  tcardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  ticon: { width: 32, height: 32, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { ...type.caption, fontWeight: '600' },
+  planBox: { borderTopWidth: 1, paddingTop: space.xs },
   tabs: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   meter: { height: 8, borderRadius: radius.pill, overflow: 'hidden' },
   meterFill: { height: 8, borderRadius: radius.pill },

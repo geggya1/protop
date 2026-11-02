@@ -31,6 +31,49 @@ function Delta({ colors, value }) {
   );
 }
 
+/**
+ * Varmekart i områdetabellen: fargen sier hvor langt området er fra målet (divergerende skala,
+ * rød under, grå rundt målet, blå over; samme validerte trinn som svarfordelingen). Tallet står
+ * alltid i cellen, så fargen er aldri alene om informasjonen.
+ */
+export const HEAT_BINS = [
+  { max: -20, label: 'Mer enn 20 under målet' },
+  { max: -5, label: '5–20 under' },
+  { max: 5, label: 'Rundt målet (±5)' },
+  { max: 15, label: '5–15 over' },
+  { max: Infinity, label: 'Mer enn 15 over' },
+];
+
+export function heatBin(score, target = 70) {
+  if (score == null || target == null) return -1;
+  const d = score - target;
+  if (d < -20) return 0;
+  if (d < -5) return 1;
+  if (d <= 5) return 2;
+  if (d <= 15) return 3;
+  return 4;
+}
+
+function luminance(hex) {
+  const m = String(hex || '').match(/^#?([0-9a-f]{6})$/i);
+  if (!m) return 1;
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = parseInt(m[1].slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrast(a, b) {
+  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+
+/** Tekstfargen med best kontrast mot cellen (lys eller mørk). */
+export function inkOn(fill) {
+  return contrast(fill, '#ffffff') >= contrast(fill, '#111827') ? '#ffffff' : '#111827';
+}
+
 const PAD = { left: 36, right: 16, top: 16, bottom: 28 };
 const HEIGHT = 200;
 
@@ -124,9 +167,10 @@ function LineChart({ colors, points, metric, target, nativeID }) {
  * indexLabel: navnet på hovedtallet («Totalindeks», «Tilfredshetsindeks»).
  */
 export default function SurveyTrend({
-  colors, trend, metric = 'index', target = null, indexLabel = 'Totalindeks', onExport, nativeID = 'survey-trend',
+  colors, trend, metric = 'index', target = null, areaTarget = 70, indexLabel = 'Totalindeks', onExport, nativeID = 'survey-trend',
 }) {
   const [table, setTable] = useState(false);
+  const chart = chartColorsFor(colors);
   if (!trend) return null;
   const { points } = trend;
   const label = metric === 'nps' ? 'NPS' : indexLabel;
@@ -190,15 +234,40 @@ export default function SurveyTrend({
           .map((m) => (
             <View key={m.area} style={[styles.row, { borderColor: colors.line }]}>
               <Text style={[styles.areaCol, m.main ? styles.bodyStrong : styles.body, { color: colors.ink }]} numberOfLines={2}>{m.area}</Text>
-              {m.values.map((v, i) => (
-                <Text key={points[i].id} style={[styles.numCol, i === m.values.length - 1 && !m.plain ? styles.bodyStrong : styles.body, { color: colors.ink }]}>
-                  {v == null ? '–' : String(v)}
-                </Text>
-              ))}
+              {m.values.map((v, i) => {
+                const bin = m.main ? -1 : heatBin(v, areaTarget);
+                const fill = bin >= 0 ? chart.likert[bin] : null;
+                return (
+                  <View key={points[i].id} style={[styles.numCol, styles.cellWrap]}>
+                    <Text
+                      style={[
+                        styles.cell,
+                        i === m.values.length - 1 && !m.plain ? styles.bodyStrong : styles.body,
+                        fill ? { backgroundColor: fill, color: inkOn(fill) } : { color: colors.ink },
+                      ]}
+                      accessibilityLabel={v == null ? `${m.area} ${points[i].label}: ikke målt` : `${m.area} ${points[i].label}: ${v}${bin >= 0 ? `, ${HEAT_BINS[bin].label.toLowerCase()}` : ''}`}
+                    >
+                      {v == null ? '–' : String(v)}
+                    </Text>
+                  </View>
+                );
+              })}
               <View style={[styles.numCol, styles.deltaCol]}>{m.plain ? null : <Delta colors={colors} value={m.delta} />}</View>
             </View>
           ))}
       </View>
+
+      {trend.matrix.length ? (
+        <View style={styles.legend} nativeID={`${nativeID}-heat-legend`}>
+          {HEAT_BINS.map((b, i) => (
+            <View key={b.label} style={styles.legendItem}>
+              <View style={[styles.swatch, { backgroundColor: chart.likert[i] }]} />
+              <Text style={[styles.caption, { color: colors.muted }]}>{b.label}</Text>
+            </View>
+          ))}
+          <Text style={[styles.caption, { color: colors.muted }]}>{`Mål per område: ${areaTarget} av 100.`}</Text>
+        </View>
+      ) : null}
 
       {trend.mustImprove.length ? (
         <View style={[styles.box, { borderColor: colors.line }]} nativeID={`${nativeID}-improve`}>
@@ -240,7 +309,11 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.xs, borderBottomWidth: 1, paddingVertical: 6 },
   headRow: { paddingTop: 4 },
   areaCol: { flex: 2, minWidth: 90 },
-  numCol: { flex: 1, minWidth: 36, textAlign: 'right' },
+  numCol: { flex: 1, minWidth: 44, textAlign: 'right' },
+  cellWrap: { alignItems: 'flex-end' },
+  cell: { minWidth: 40, paddingHorizontal: 6, paddingVertical: 3, borderRadius: radius.control / 2, textAlign: 'center', overflow: 'hidden' },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
+  swatch: { width: 12, height: 12, borderRadius: radius.control / 4 },
   deltaCol: { alignItems: 'flex-end' },
   box: { borderWidth: 1, borderRadius: radius.card, padding: space.sm, gap: 6 },
   improveRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, flexWrap: 'wrap' },

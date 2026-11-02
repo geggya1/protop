@@ -22,6 +22,8 @@ export const CUSTOMER_TEXT_MAX = 2000;
 export const CUSTOMER_MAX_QUESTIONS = 30;
 export const CUSTOMER_GOOD_SCORE = 70;
 export const CUSTOMER_WEAK_SCORE = 50;
+/** Misfornøyde kunder følges opp innen så mange dager etter svaret. */
+export const FOLLOW_UP_DAYS = 14;
 export const QUESTION_TYPES = [
   { id: 'scale', label: 'Fornøydhet 1–5' },
   { id: 'nps', label: 'Anbefaling 0–10' },
@@ -241,7 +243,7 @@ export function isUnhappy(survey, answer) {
  * Gir { ready, count, min, nps, index, questions, areas, texts, unhappy }.
  * score er 0–100 (1 → 0, 5 → 100). index er snittet av fornøydhet-spørsmålene.
  */
-export function customerResults(survey, answers, { min } = {}) {
+export function customerResults(survey, answers, { min, now = new Date() } = {}) {
   const s = normalizeCustomerSurvey(survey);
   const need = min ?? customerMinAnswers(s);
   const rows = (Array.isArray(answers) ? answers : []).filter((a) => a && (a.answers || a.texts));
@@ -296,9 +298,25 @@ export function customerResults(survey, answers, { min } = {}) {
     projectName: text(a.projectName),
     nps: npsQ ? (Number.isFinite(Number(a.answers?.[npsQ.id])) ? Number(a.answers[npsQ.id]) : null) : null,
     low: s.questions.filter((q) => q.type === 'scale' && Number(a.answers?.[q.id]) <= 2 && Number(a.answers?.[q.id]) >= 1).map((q) => q.area),
+    submittedAt: text(a.submittedAt),
     followUp: a.followUp || null,
+    ...followUpDue(a, now),
   }));
   return { ready: true, count, min: need, nps: npsQ ? npsQ.nps : null, index, questions, areas, texts, unhappy };
+}
+
+/**
+ * Frist for oppfølging av en misfornøyd kunde: FOLLOW_UP_DAYS etter svaret.
+ * Svar: { due: 'YYYY-MM-DD' | '', daysLeft, overdue }.
+ */
+export function followUpDue(answer, now = new Date()) {
+  const at = Date.parse(text(answer?.submittedAt));
+  if (!Number.isFinite(at) || answer?.followUp?.done) return { due: '', daysLeft: null, overdue: false };
+  const due = new Date(at + FOLLOW_UP_DAYS * 86400000);
+  const pad = (n) => String(n).padStart(2, '0');
+  const key = `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}`;
+  const daysLeft = Math.ceil((due.getTime() - now.getTime()) / 86400000);
+  return { due: key, daysLeft, overdue: daysLeft < 0 };
 }
 
 /** Analyse: styrker, forbedringsområder med tiltak, og utvikling fra forrige. */

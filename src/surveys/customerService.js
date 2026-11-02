@@ -14,14 +14,15 @@
  * deps: {
  *   db, now(), sendMail({ to, name, subject, text, html, fromName, replyTo }),
  *   rateLimit(key, limit, windowMs), assertAccess(familyId, uid, 'read' | 'write'),
- *   companyName(familyId), newToken(), hashToken(token) → Promise<string>, clientKey, log
+ *   companyName(familyId), newToken(), hashToken(token) → Promise<string>, clientKey, log,
+ *   notify(uids, { eventType, title, body, familyId }) — varsel i appen (valgfri)
  * }
  */
 import {
-  cleanCustomerAnswer, customerResults, customerSummary, normalizeCustomerSurvey,
+  FOLLOW_UP_DAYS, NPS_SCALE, cleanCustomerAnswer, customerResults, customerSummary, isUnhappy, normalizeCustomerSurvey,
   newCustomerSurveyId, questionText,
 } from './customerSurvey.js';
-import { answerUrl, customerSurveyMail } from './customerMail.js';
+import { answerUrl, customerReplyMail, customerSurveyMail } from './customerMail.js';
 
 export class SurveyError extends Error {
   constructor(code, message) {
@@ -82,6 +83,7 @@ function ctxOf(deps = {}) {
     hashToken: deps.hashToken,
     clientKey: text(deps.clientKey, 120) || 'anon',
     random: deps.random || Math.random,
+    notify: deps.notify || (async () => {}),
     log: deps.log || (() => {}),
   };
 }
@@ -305,7 +307,7 @@ async function actSend(ctx, familyId, surveyId, auth) {
   if (survey.status === 'draft') {
     const companyName = text(await ctx.companyName(familyId), 120) || 'Bedriften';
     const senderName = text(auth?.token?.name, 120);
-    await surveyRef(ctx, surveyId).update({ status: 'open', openedAt: nowIso, companyName, senderName });
+    await surveyRef(ctx, surveyId).update({ status: 'open', openedAt: nowIso, companyName, senderName, sentBy: text(auth?.uid, 128) });
     survey = { ...survey, status: 'open', openedAt: nowIso, companyName, senderName };
     opened = true;
   }
@@ -405,12 +407,36 @@ async function actFollowUp(ctx, familyId, surveyId, answerId, input, auth) {
   const ref = surveyRef(ctx, surveyId).collection('answers').doc(idOf(answerId, 'svar'));
   const snap = await ref.get();
   if (!snap.exists) fail('not-found', 'Fant ikke svaret.');
+  const answer = snap.data() || {};
+  const prev = answer.followUp || {};
   const followUp = {
     done: input?.done === true,
     note: text(input?.note, 1000),
     by: text(auth?.token?.name, 120) || text(auth?.uid, 60),
     at: ctx.now().toISOString(),
+    reply: text(prev.reply, 2000),
+    repliedAt: text(prev.repliedAt, 40),
   };
+  // Svar til kunden: hva som er gjort. Sendes til mottakerens e-post, og lagres på svaret.
+  const reply = text(input?.reply, 2000);
+  if (reply) {
+    const recipientId = text(answer.recipientId, 100);
+    const rSnap = recipientId ? await surveyRef(ctx, surveyId).collection('recipients').doc(recipientId).get() : null;
+    const recipient = rSnap?.exists ? rSnap.data() || {} : null;
+    if (!recipient || !EMAIL.test(text(recipient.email))) fail('failed-precondition', 'Fant ikke e-posten til kunden.');
+    const mail = customerReplyMail({ survey, recipient, reply });
+    const replyTo = auth?.token?.email_verified && EMAIL.test(text(auth?.token?.email)) ? text(auth.token.email) : '';
+    try {
+      await ctx.sendMail({
+        to: text(recipient.email), name: text(recipient.name), subject: mail.subject, text: mail.text, html: mail.html,
+        fromName: survey.companyName || 'ProTop', ...(replyTo ? { replyTo } : {}),
+      });
+    } catch (err) {
+      fail('unavailable', `E-posten til kunden kunne ikke sendes: ${text(err?.message, 160)}`);
+    }
+    followUp.reply = reply;
+    followUp.repliedAt = ctx.now().toISOString();
+  }
   await ref.update({ followUp });
   return { ok: true, followUp };
 }
@@ -475,6 +501,27 @@ async function actSubmit(ctx, token, values, texts) {
     tx.update(recipientRef, survey.anonymous ? { answered: true } : { answeredAt: ctx.now().toISOString() });
     tx.update(surveyRef(ctx, survey.id), { stats: { ...stats, answered: (Number(stats.answered) || 0) + 1 } });
   });
+  // Misfornøyd kunde i en navngitt undersøkelse: varsel til den som laget og sendte den, med en gang.
+  if (!survey.anonymous && isUnhappy(survey, doc)) {
+    const raw = (await surveyRef(ctx, survey.id).get()).data() || {};
+    const uids = [...new Set([text(raw.createdBy, 128), text(raw.sentBy, 128)].filter(Boolean))];
+    const npsQ = survey.questions.find((q) => q.type === 'nps');
+    const nps = npsQ && NPS_SCALE.includes(Number(doc.answers?.[npsQ.id])) ? Number(doc.answers[npsQ.id]) : null;
+    try {
+      await ctx.notify(uids, {
+        eventType: 'customerSurveyAlert',
+        title: `Misfornøyd kunde: ${doc.customerName || doc.recipientName || 'kunde'}`,
+        body: [
+          nps != null ? `Ga ${nps} av 10 på anbefaling i ${survey.title}.` : `Ga lav score i ${survey.title}.`,
+          `Ta kontakt og følg opp innen ${FOLLOW_UP_DAYS} dager.`,
+        ].join(' '),
+        familyId: survey.familyId,
+        surveyId: survey.id,
+      });
+    } catch (err) {
+      ctx.log('Kundeundersøkelse: varsel feilet', { surveyId: survey.id, message: err?.message });
+    }
+  }
   return { ok: true };
 }
 

@@ -10,9 +10,9 @@ import { csvFileName, toCsv, trendCsvRows } from './csv.js';
 import {
   CUSTOMER_MIN_ANONYMOUS, DEFAULT_CUSTOMER_QUESTIONS, cleanCustomerAnswer, customerAnalysis, customerCsvRows,
   customerResults, customerSummary, customerTrendPoints, isUnhappy, newCustomerSurvey, normalizeCustomerQuestions,
-  npsOf, previousCustomerSurvey, questionText,
+  followUpDue, npsOf, previousCustomerSurvey, questionText,
 } from './customerSurvey.js';
-import { answerUrl, customerSurveyMail } from './customerMail.js';
+import { answerUrl, customerReplyMail, customerSurveyMail } from './customerMail.js';
 import { handleCustomerSurvey, shuffle } from './customerService.js';
 
 // ------------------------------------------------------------ trend
@@ -142,12 +142,20 @@ import { handleCustomerSurvey, shuffle } from './customerService.js';
   assert.match(customerSurveyMail({ survey: { ...open, anonymous: true, companyName: 'X' }, url: 'u', reminder: true }).subject, /^Påminnelse:/);
 
   assert.deepEqual(shuffle([1, 2, 3], () => 0).sort(), [1, 2, 3]);
+
+  const due = followUpDue({ submittedAt: '2026-10-01T08:00:00Z' }, new Date('2026-10-20T08:00:00Z'));
+  assert.deepEqual([due.due, due.overdue], ['2026-10-15', true]);
+  assert.equal(followUpDue({ submittedAt: '2026-10-01T08:00:00Z', followUp: { done: true } }).due, '', 'fulgt opp');
+  const reply = customerReplyMail({ survey: { companyName: 'Bygg AS', title: 'Kundeundersøkelse 2026', senderName: 'Kari' }, recipient: { name: 'Per Hansen' }, reply: 'Vi <fikser> det.' });
+  assert.match(reply.text, /Hei Per/);
+  assert.match(reply.html, /Vi &lt;fikser&gt; det\./);
 }
 
 // ------------------------------------------------------------ serveren
 async function scenario({ anonymous }) {
   const db = createMemoryDb();
   const outbox = [];
+  const alerts = [];
   let clock = new Date('2026-10-01T08:00:00Z');
   const access = { owner: 'write', reader: 'read' };
   const deps = {
@@ -166,6 +174,7 @@ async function scenario({ anonymous }) {
     companyName: async () => 'Bygg AS',
     newToken: () => randomBytes(24).toString('base64url'),
     hashToken: async (t) => createHash('sha256').update(t).digest('hex'),
+    notify: async (uids, payload) => { alerts.push({ uids, ...payload }); },
   };
   const owner = { uid: 'owner', token: { name: 'Kari Leder', email: 'kari@bygg.no', email_verified: true } };
   const reader = { uid: 'reader', token: {} };
@@ -210,7 +219,7 @@ async function scenario({ anonymous }) {
   assert.equal(outbox[0].fromName, 'Bygg AS');
   assert.equal(outbox[0].replyTo, 'kari@bygg.no');
   const linkOf = (mail) => mail.text.match(/svar\/([A-Za-z0-9_-]+)/)[1];
-  const tokenFor = (email) => linkOf(outbox.filter((m) => m.to === email).at(-1));
+  const tokenFor = (email) => linkOf(outbox.filter((m) => m.to === email && /svar\//.test(m.text)).at(-1));
   // Lenken lagres bare som hash.
   assert.ok(!JSON.stringify(db.dump()).includes(tokenFor('per@kunde.no')));
   // Spørsmålene er låst etter utsending, men fristen kan endres.
@@ -233,6 +242,16 @@ async function scenario({ anonymous }) {
   assert.equal(await code(call({ action: 'submit', token: tokenFor('per@kunde.no'), values: {} }, null)), 'invalid-argument');
   await call({ action: 'submit', token: tokenFor('per@kunde.no'), values: { nps: 3, kvalitet: 2, fremdrift: 1 }, texts: { bedre: 'Holde avtalte frister' } }, null);
   assert.equal(await code(call({ action: 'submit', token: tokenFor('per@kunde.no'), values: { nps: 10 } }, null)), 'already-exists');
+  // Misfornøyd kunde: varsel med en gang til den som laget og sendte (navngitt), ingen i anonym.
+  if (anonymous) assert.equal(alerts.length, 0);
+  else {
+    assert.equal(alerts.length, 1);
+    assert.deepEqual(alerts[0].uids, ['owner']);
+    assert.equal(alerts[0].eventType, 'customerSurveyAlert');
+    assert.match(alerts[0].title, /Novaform AS/);
+    assert.match(alerts[0].body, /3 av 10/);
+    assert.match(alerts[0].body, /14 dager/);
+  }
   assert.equal((await call({ action: 'open', token: tokenFor('per@kunde.no') }, null)).answered, true);
   clock = new Date('2026-10-02T09:00:00Z');
   await call({ action: 'submit', token: tokenFor('lise@sola.kommune.no'), values: { nps: 10, kvalitet: 5, fremdrift: 4, pris: 4 } }, null);
@@ -257,8 +276,22 @@ async function scenario({ anonymous }) {
   } else {
     assert.equal(live.answers[0].customerName, 'Sola kommune', 'nyeste først');
     assert.equal(live.answers[1].customerName, 'Novaform AS');
-    const fu = await call({ action: 'followUp', familyId: 'fam_1', surveyId: sid, answerId: live.answers[1].id, done: true, note: 'Ringt, avtalt befaring' });
+    assert.equal(alerts.length, 1, 'fornøyd kunde gir ikke varsel');
+    const unhappy = customerResults(live.survey, live.answers, { now: clock }).unhappy[0];
+    assert.equal(unhappy.due, '2026-10-15');
+    assert.equal(unhappy.overdue, false);
+    const before = outbox.length;
+    const fu = await call({ action: 'followUp', familyId: 'fam_1', surveyId: sid, answerId: live.answers[1].id, done: true, note: 'Ringt, avtalt befaring', reply: 'Vi har snakket med prosjektlederen og satt opp ukentlige møter.' });
     assert.equal(fu.followUp.by, 'Kari Leder');
+    assert.ok(fu.followUp.repliedAt);
+    assert.equal(outbox.length, before + 1);
+    assert.equal(outbox.at(-1).to, 'per@kunde.no');
+    assert.match(outbox.at(-1).subject, /^Takk for tilbakemeldingen/);
+    assert.match(outbox.at(-1).text, /ukentlige møter/);
+    // Ny oppfølging uten svar beholder svaret som ble sendt.
+    const fu2 = await call({ action: 'followUp', familyId: 'fam_1', surveyId: sid, answerId: live.answers[1].id, done: false, note: 'Åpnet igjen' });
+    assert.match(fu2.followUp.reply, /ukentlige møter/);
+    assert.equal(customerResults(live.survey, (await call({ action: 'results', familyId: 'fam_1', surveyId: sid })).answers).unhappy[0].followUp.done, false);
   }
   // Lagret anonymt svar har ingen kunde eller tid.
   const stored = Object.entries(db.dump()).filter(([k]) => k.includes(`/${sid}/answers/`)).map(([, v]) => v);

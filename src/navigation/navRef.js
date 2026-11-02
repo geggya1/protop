@@ -64,6 +64,8 @@ function shellForEvent(eventType) {
   // Medarbeidersamtalen: den ansatte forbereder og signerer på Min side; lederen følger opp i HR.
   if (eventType === 'hrReviewInvite') return { tab: 'ansatte', intent: { type: 'myDocuments' } };
   if (eventType === 'hrReviewUpdate') return { tab: 'hr', subView: 'oppfolging' };
+  // Misfornøyd kunde: Kunder → Kundeundersøkelse, der oppfølgingen står.
+  if (eventType === 'customerSurveyAlert') return { tab: 'kunder', subView: 'undersokelse' };
   // Forespørsel om å bli med i bedriften: Ansatte → Inviter brukere.
   if (eventType === 'companyJoinRequest') return { tab: 'ansatte', intent: { type: 'openInvite' } };
   // Tilknytning mellom selskaper: Bedrift → Underenheter, der avtalene godkjennes.

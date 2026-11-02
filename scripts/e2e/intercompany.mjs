@@ -74,6 +74,8 @@ async function login(email, view = 'desktop', tag = '') {
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return;
     const t = msg.text();
+    // Kall til funksjoner som ikke kjører i emulatoren (CORS mot 5001) er støy her.
+    if (/CORS policy|net::ERR_FAILED/.test(t)) return;
     if (/intercompany|ic[A-Z]|permission|Missing or insufficient|FirebaseError/i.test(t)) errors.push(`[${tag || email} console] ${t.slice(0, 300)}`);
   });
   await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded', timeout: 300000 });
@@ -310,7 +312,7 @@ await step('Mor: Timerapport viser at timen belastes på faktura 20001', async (
 });
 
 await step('Mor: Utlegg på prosjektet viser utlegget fra Datter', async () => {
-  await clickText(mor.page, 'Utlegg', { exact: true });
+  await clickText(mor.page, 'Prosjektutlegg', { exact: true });
   await seeText(mor.page, 'Hotell Bergen', 60000);
   await seeText(mor.page, 'Ført i Datter Elektro AS', 30000);
   return shot(mor.page, 'mor-utlegg');

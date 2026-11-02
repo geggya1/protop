@@ -177,7 +177,12 @@ async function bulbCheck(page) {
       const top = document.elementFromPoint(x, y);
       return !(top && (top === el || el.contains(top)));
     });
-    if (covered.some(Boolean)) return { ok: false, reason: 'dekket av annet element', covered };
+    if (covered.some(Boolean)) {
+      // Hva som ligger over lyspæren, så feilen kan spores.
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      const by = top ? [top.id && `#${top.id}`, top.getAttribute('data-testid'), top.getAttribute('aria-label'), (top.innerText || '').trim().slice(0, 40), top.tagName].filter(Boolean).join(' | ') : '';
+      return { ok: false, reason: 'dekket av annet element', covered, by };
+    }
     return { ok: true, rect: { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) } };
   });
 }

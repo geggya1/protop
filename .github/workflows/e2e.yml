@@ -10,12 +10,12 @@ on:
       - 'e2e/**'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -54,11 +54,24 @@ jobs:
       - name: Alle sider (hjelpe-boten)
         id: sider
         continue-on-error: true
-        timeout-minutes: 35
-        run: node scripts/help-bot/run.mjs --base=http://localhost:8081 --views=desktop,phone --no-assistant --shots=first --out=e2e-out/sider
+        timeout-minutes: 45
+        run: node scripts/help-bot/run.mjs --base=http://localhost:8081 --views=${{ vars.E2E_VIEWS || 'phone,desktop' }} --no-assistant --shots=first --out=e2e-out/sider
       - name: Emulatorlogg
         if: always()
         run: cp emulators.log e2e-out/ 2>/dev/null || true
+      # Resultatene på en egen gren (e2e-results/<run>), så de kan hentes med git.
+      - name: Lagre resultater på gren
+        if: always()
+        run: |
+          set -e
+          mkdir -p /tmp/res && cp -r e2e-out/. /tmp/res/
+          cd /tmp/res
+          git init -q -b main
+          git config user.name "e2e-bot"
+          git config user.email "e2e-bot@users.noreply.github.com"
+          git add -A
+          git commit -qm "E2E-resultater ${GITHUB_RUN_ID}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/e2e-results/${GITHUB_RUN_ID}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

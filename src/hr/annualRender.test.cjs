@@ -117,6 +117,9 @@ const has = (html, id) => assert.ok(html.includes(`id="${id}"`), `mangler ${id}`
     onRefreshTasks() {},
   }));
   for (const id of ['hr-annual-wheel', 'hr-annual-wheel-graphic', 'hr-annual-timeline', 'hr-annual-kpi-done', 'hr-annual-tasks', 'hr-annual-month-0', 'hr-annual-ongoing-sykefravaer']) has(annual, id);
+  // Tidslinjen viser hele månedsnavn på web, ikke bare forbokstaver.
+  const timeline = annual.slice(annual.indexOf('id="hr-annual-timeline"'));
+  for (const name of ['Januar', 'September', 'Desember']) assert.ok(timeline.includes(`>${name}<`), `${name} i tidslinjen`);
   // Valgt måned (inneværende) viser aktivitetene sine; hjulet har tolv måneder og én bue per aktivitet.
   assert.equal((annual.match(/<path/g) || []).length >= 12 + 10, true, 'måneder og aktiviteter i hjulet');
   assert.equal(annual.includes('id="hr-sick-followup"'), false, 'sykefravær er egen side');

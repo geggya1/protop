@@ -1,0 +1,87 @@
+name: E2E i nettleser
+
+# Bygger web koblet mot lokale Firebase-emulatorer og går gjennom appen i Chromium:
+# konsernintegrasjonen (scripts/e2e/intercompany.mjs) og alle sidene (hjelpe-boten).
+# Kjører aldri mot protop.no eller skyen. Skjermbilder og rapporter lastes opp som artefakt.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'e2e/**'
+
+permissions:
+  contents: write
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm ci --prefix functions
+      - name: Playwright (Chromium)
+        run: npm install --no-save --no-audit --no-fund playwright@1 && npx playwright install --with-deps chromium
+      - name: Bygg web mot emulatorene
+        env:
+          EXPO_PUBLIC_FIREBASE_EMULATOR_HOST: 127.0.0.1
+          EXPO_NO_STATIC_RENDERING: '1'
+        run: npx expo export --platform web --output-dir dist
+      - name: Start emulatorer og frø testdata
+        run: |
+          nohup node scripts/e2e/emulators.mjs > emulators.log 2>&1 &
+          for i in $(seq 1 120); do [ -f .e2e-ready ] && break; sleep 3; done
+          tail -40 emulators.log
+          test -f .e2e-ready
+      - name: Server web
+        run: |
+          nohup node scripts/e2e/serve.mjs 8081 > serve.log 2>&1 &
+          sleep 3
+          curl -sf http://localhost:8081/ > /dev/null
+      - name: Konsernintegrasjon
+        id: konsern
+        continue-on-error: true
+        timeout-minutes: 20
+        run: node scripts/e2e/intercompany.mjs --base=http://localhost:8081 --out=e2e-out
+      - name: Alle sider (hjelpe-boten)
+        id: sider
+        # «[kun konsern]» i commit-meldingen hopper over den lange runden gjennom alle sidene.
+        if: ${{ !contains(github.event.head_commit.message, '[kun konsern]') }}
+        continue-on-error: true
+        timeout-minutes: 45
+        run: node scripts/help-bot/run.mjs --base=http://localhost:8081 --views=${{ vars.E2E_VIEWS || 'phone,desktop' }} --no-assistant --shots=first --out=e2e-out/sider
+      - name: Emulatorlogg
+        if: always()
+        run: cp emulators.log e2e-out/ 2>/dev/null || true
+      # Resultatene på en egen gren (e2e-results/<run>), så de kan hentes med git.
+      - name: Lagre resultater på gren
+        if: always()
+        run: |
+          set -e
+          mkdir -p /tmp/res && cp -r e2e-out/. /tmp/res/
+          cd /tmp/res
+          git init -q -b main
+          git config user.name "e2e-bot"
+          git config user.email "e2e-bot@users.noreply.github.com"
+          git add -A
+          git commit -qm "E2E-resultater ${GITHUB_RUN_ID}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/e2e-results/${GITHUB_RUN_ID}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-out
+          path: e2e-out
+          retention-days: 7
+      - name: Resultat
+        if: always()
+        run: |
+          echo "konsern=${{ steps.konsern.outcome }} sider=${{ steps.sider.outcome }}"
+          test "${{ steps.konsern.outcome }}" = "success"

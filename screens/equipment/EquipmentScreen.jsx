@@ -7,6 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -56,7 +57,7 @@ import { ControlStatus, ControlsEditor } from './EquipmentControls';
 import { submitQuick } from '../iso/quickSend';
 import EquipmentCalendar from '../../components/equipment/EquipmentCalendar';
 import { Ionicons } from '@expo/vector-icons';
-import { radius } from '../../src/ui/tokens';
+import { radius, type } from '../../src/ui/tokens';
 import { useLayout } from '../../src/theme';
 import { mileageProjectOptions, vehicleOdometer } from '../../src/mileage/flow';
 import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
@@ -544,6 +545,14 @@ export default function EquipmentScreen() {
           {row.group === 'kjoretoy' && feeClassLabel(feeClassFromSignals(row)) ? ` · ${feeClassLabel(feeClassFromSignals(row))}` : ''}
           {row.scope !== 'private' ? ` · ${EQUIPMENT_STATUSES.find((status) => status.id === row.status)?.label || row.status}` : ''}
         </Text>
+        {row.rental?.enabled && Number(row.rental.price) > 0 ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: colors.brandSoft, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
+            <Ionicons name="pricetag-outline" size={11} color={colors.brandInk} />
+            <Text style={[type.caption, { color: colors.brandInk, fontWeight: '500' }]}>
+              {`Utleie ${Number(row.rental.price).toLocaleString('nb-NO')} kr per ${RENTAL_UNITS.find((u) => u.id === row.rental.unit)?.label || 'dag'}`}
+            </Text>
+          </View>
+        ) : null}
         {row.warrantyUntil ? (
           <Text style={{ color: colors.ink, fontSize: 12 }}>
             Garanti til {dateText(row.warrantyUntil)}{row.warrantyVendor ? ` · ${row.warrantyVendor}` : ''}
@@ -770,22 +779,27 @@ export default function EquipmentScreen() {
                 <Field label="Garanti til" value={gear.warrantyUntil} onChange={(value) => setGear((row) => ({ ...row, warrantyUntil: value }))} colors={colors} date />
                 <Field label="Garantigiver" value={gear.warrantyVendor} onChange={(value) => setGear((row) => ({ ...row, warrantyVendor: value }))} colors={colors} />
               </View>
-              <View style={{ gap: 6 }} nativeID="equipment-rental">
-                <Chip
-                  nativeID="equipment-rental-toggle"
-                  label={gear.rental?.enabled ? 'Utleie på prosjekt: på' : 'Utleie på prosjekt: av'}
-                  active={!!gear.rental?.enabled}
-                  onPress={() => setGear((row) => ({
-                    ...row,
-                    rental: {
-                      ...(row.rental || {}),
-                      enabled: !row.rental?.enabled,
-                      // Reservasjoner fra i dag faktureres; eldre blir ikke utleie i ettertid.
-                      since: row.rental?.since || new Date().toISOString().slice(0, 10),
-                    },
-                  }))}
-                  colors={colors}
-                />
+              <View style={{ gap: 8, borderWidth: 1, borderColor: colors.line, borderRadius: radius.card, padding: 12 }} nativeID="equipment-rental">
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.ink, fontWeight: '600' }}>Utleie på prosjekt</Text>
+                    <Text style={[type.caption, { color: colors.muted }]}>Reservasjoner på et prosjekt faktureres som utleie.</Text>
+                  </View>
+                  <Switch
+                    nativeID="equipment-rental-toggle"
+                    accessibilityLabel="Utleie på prosjekt"
+                    value={!!gear.rental?.enabled}
+                    onValueChange={(on) => setGear((row) => ({
+                      ...row,
+                      rental: {
+                        ...(row.rental || {}),
+                        enabled: on,
+                        // Reservasjoner fra i dag faktureres; eldre blir ikke utleie i ettertid.
+                        since: row.rental?.since || new Date().toISOString().slice(0, 10),
+                      },
+                    }))}
+                  />
+                </View>
                 {gear.rental?.enabled ? (
                   <>
                     <View style={styles.row}>
@@ -817,7 +831,7 @@ export default function EquipmentScreen() {
                       ))}
                     </View>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {`Bekreftede reservasjoner på et prosjekt${gear.rental?.since ? ` fra ${gear.rental.since}` : ''} blir en utleielinje under Til fakturering. Faste serier og ventende forespørsler faktureres ikke automatisk. Leverer dere til et tilknyttet selskap, gjelder rabatten i avtalen.`}
+                      {`Bekreftede reservasjoner på et prosjekt${gear.rental?.since ? ` fra ${gear.rental.since.split('-').reverse().join('.')}` : ''} blir en utleielinje under Til fakturering. Faste serier og ventende forespørsler faktureres ikke automatisk. Leverer dere til et tilknyttet selskap, gjelder rabatten i avtalen.`}
                     </Text>
                   </>
                 ) : null}

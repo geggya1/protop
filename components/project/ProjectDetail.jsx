@@ -38,7 +38,7 @@ import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
 import ProjectOverviewTab from './ProjectOverviewTab';
 import ProjectSettingsTab from './ProjectSettingsTab';
-import { mirrorStatusText } from '../../src/intercompany/model';
+import IntercompanyTag from '../intercompany/IntercompanyTag';
 import ProjectTeamTab from './ProjectTeamTab';
 import ProjectExpensesTab from './ProjectExpensesTab';
 import ProjectSalesTab from './ProjectSalesTab';
@@ -543,9 +543,7 @@ export default function ProjectDetail({
                 <Text style={[styles.td, { color: colors.muted }]} numberOfLines={1}>{row.activityName}</Text>
                 <View style={[styles.td, { flex: 1.4 }]}>
                   <Text style={{ color: colors.ink }} numberOfLines={2}>{row.description || '—'}</Text>
-                  {row.icMirror ? (
-                    <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={2}>{mirrorStatusText(row)}</Text>
-                  ) : null}
+                  {row.icMirror ? <IntercompanyTag row={row} colors={colors} /> : null}
                 </View>
                 <Text style={[styles.td, { color: colors.ink }]}>{formatHours(row.hours)}</Text>
                 {full ? <Text style={[styles.td, { color: colors.ink }]}>{formatHours(row.billableHours)}</Text> : null}

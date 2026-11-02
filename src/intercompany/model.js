@@ -995,6 +995,28 @@ export function mirrorStatusText(row) {
   return `Ført i ${from} · venter på godkjenning der`;
 }
 
+/**
+ * Kort merke for en speilet rad: selskapet og hvor langt den har kommet hos arbeidsgiveren.
+ * tone: 'wait' (venter på godkjenning der) eller 'ok'. Null for vanlige rader.
+ */
+export function mirrorTag(row) {
+  if (!isMirrorRow(row)) return null;
+  const ic = row.intercompany || {};
+  const from = text(ic.sourceCompanyName) || 'Tilknyttet selskap';
+  const inv = ic.supplierInvoice;
+  let label = `${from} · venter på godkjenning`;
+  let tone = 'wait';
+  if (ic.sourceDeleted) label = `${from} · slettet der`;
+  else if (inv?.id) {
+    label = text(inv.number) ? `${from} · faktura ${text(inv.number)}` : `${from} · fakturautkast`;
+    tone = 'ok';
+  } else if (ic.supplierApproved) {
+    label = `${from} · godkjent`;
+    tone = 'ok';
+  }
+  return { label, tone, title: mirrorStatusText(row) };
+}
+
 /** Salg som skal speiles: på en prosjektkopi, med områdene avtalen omfatter. */
 export function salesToMirror(sales = [], settings = {}) {
   const s = normalizeLinkSettings(settings);

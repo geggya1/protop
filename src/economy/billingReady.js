@@ -304,7 +304,9 @@ export function buildReadyProjects({
     group.base = base;
     group.markupAmount = markup;
     group.amount = round2(base + markup - discount);
-    group.lockBehind = !group.lockThrough || group.lockThrough < group.periodEnd;
+    // Timer fra et tilknyttet selskap leveres og godkjennes hos arbeidsgiveren, ikke i timelisten her.
+    group.fromSupplier = !!group.supplierName && group.entries.every((row) => row.intercompany?.mirror);
+    group.lockBehind = group.fromSupplier ? false : (!group.lockThrough || group.lockThrough < group.periodEnd);
     group.entries.sort((a, b) => text(a.date).localeCompare(text(b.date)));
     target.hourGroups.push(group);
   }

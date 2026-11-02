@@ -315,3 +315,14 @@ test('pris på kopien settes som på ethvert prosjekt; avtalens pris er bare utg
   assert.equal(again.pricingSettings.fixedFee, 50000);
   assert.equal(again.name, 'Skole, trinn 2');
 });
+
+test('kort merke på speilede rader', async () => {
+  const { mirrorTag } = await import('./model.js');
+  assert.equal(mirrorTag({ id: 'x' }), null);
+  assert.deepEqual(
+    { ...mirrorTag({ icMirror: true, intercompany: { mirror: true, sourceCompanyName: 'Datter AS' } }), title: undefined },
+    { label: 'Datter AS · venter på godkjenning', tone: 'wait', title: undefined },
+  );
+  assert.equal(mirrorTag({ icMirror: true, intercompany: { mirror: true, sourceCompanyName: 'Datter AS', supplierApproved: true } }).label, 'Datter AS · godkjent');
+  assert.equal(mirrorTag({ icMirror: true, intercompany: { mirror: true, sourceCompanyName: 'Datter AS', supplierApproved: true, supplierInvoice: { id: 'i', number: '20001' } } }).label, 'Datter AS · faktura 20001');
+});

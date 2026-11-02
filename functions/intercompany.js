@@ -210,7 +210,7 @@ export const icRequestLink = onCall(CALL, async (req) => {
   if (!autoAccept) {
     await notifyCompany(targetId, {
       title: 'Forespørsel om tilknytning',
-      body: `${link.requestedByName || companyName(ownData)} i «${companyName(ownData)}» vil knytte selskapet til dere som ${view.partnerRoleLabel.toLowerCase()}. Godta eller avslå under Bedrift → Underenheter.`,
+      body: `«${companyName(ownData)}» vil knyttes til dere som ${view.partnerRoleLabel.toLowerCase()}${link.requestedByName ? ` (sendt av ${link.requestedByName})` : ''}. Godta eller avslå under Bedrift → Underenheter.`,
       exclude: [uid],
     });
   }

@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import IntercompanyTag from '../../../components/intercompany/IntercompanyTag';
 import { Ionicons } from '@expo/vector-icons';
 import { formatHours } from '../../../src/arbeid/hours.js';
 import { formatDate } from '../../../src/economy/invoices.js';
@@ -158,23 +159,27 @@ export default function BillingProjectRow({
           {row.employeeName}{row.timeTypeLabel ? ` (${row.timeTypeLabel})` : ''}
         </Text>
         {row.supplierName ? (
-          <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={2}>
-            {row.supplierInvoices?.length
-              ? `Fra ${row.supplierName} · faktura ${row.supplierInvoices.join(', ')}`
-              : `Fra ${row.supplierName}`}
-          </Text>
+          <IntercompanyTag
+            colors={colors}
+            label={row.supplierInvoices?.length ? `${row.supplierName} · faktura ${row.supplierInvoices.join(', ')}` : row.supplierName}
+          />
         ) : null}
       </View>
     ) },
     { key: 'activityName', label: 'Aktivitet', flex: 1.2 },
-    { key: 'lock', label: 'Levert t.o.m.', width: 104, render: (row) => (
+    { key: 'lock', label: 'Levert t.o.m.', width: 104, render: (row) => (row.fromSupplier ? (
+      <View style={styles.lock}>
+        <Ionicons name="checkmark-circle" size={12} color={colors.success || colors.brand} />
+        <Text style={[type.caption, { color: colors.muted }]} numberOfLines={1}>Godkjent der</Text>
+      </View>
+    ) : (
       <View style={styles.lock}>
         <Ionicons name={row.lockThrough ? 'lock-closed' : 'lock-open-outline'} size={12} color={row.lockBehind ? (colors.danger || '#b42318') : colors.muted} />
         <Text style={{ color: row.lockBehind ? (colors.danger || '#b42318') : colors.muted, fontSize: 12 }}>
           {row.lockThrough ? formatDate(row.lockThrough) : 'Ikke levert'}
         </Text>
       </View>
-    ) },
+    )) },
     { key: 'period', label: 'Periode', width: 74, render: (row) => monthSpan(row.periodStart, row.periodEnd) },
     { key: 'hours', label: 'Timer', width: 64, align: 'right', render: (row) => formatHours(row.hours) },
     { key: 'approved', label: 'Godkjent', width: 78, align: 'right', render: (row) => (

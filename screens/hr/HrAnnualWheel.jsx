@@ -38,30 +38,52 @@ export function statusColor(status, chart) {
   return chart.idle;
 }
 
+/** Vinkel (grader) for en dag i året: måned 0–11 og dag 1–31, jevnt fordelt innenfor måneden. */
+export function dayAngle(month, day, year = new Date().getFullYear()) {
+  const days = new Date(year, month + 1, 0).getDate();
+  const d = Math.min(Math.max(Number(day) || 15, 1), days);
+  return month * 30 + ((d - 0.5) / days) * 30;
+}
+
 /**
  * Det grafiske årshjulet: tolv måneder rundt, aktivitetene som buer innenfor (farge = status),
  * viser for dagens dato og «gjort» i midten. Trykk en måned eller en aktivitet for å velge måneden.
  * layout fra wheelLayout(). summary fra annualSummary().
+ * Brukes også av ISO-årshjulet: itemColor gir fargen per bue, points er datoer som punkter på
+ * månedsringen ({ key, month, day, count, color }), center erstatter teksten i midten
+ * ({ hero, lines }), og label er skjermleserteksten.
  */
 export default function HrAnnualWheel({
   colors, layout, summary, year, selectedMonth, onSelectMonth, size = 320, today = new Date(),
+  itemColor = null, points = [], center = null, label: a11yLabel = '', nativeID = 'hr-annual-wheel-graphic',
 }) {
   const chart = chartColorsFor(colors);
   const cx = size / 2;
   const cy = size / 2;
   const rOuter = size / 2 - 26;
   const rBand = rOuter - 22;
-  const trackGap = 13;
   const thisYear = today.getFullYear() === Number(year);
   const nowMonth = thisYear ? today.getMonth() : -1;
   const needle = thisYear ? yearFraction(today) * 360 : null;
   const tracks = Math.max(1, layout.tracks);
-  const rHole = rBand - 10 - tracks * trackGap;
+  // Mange samtidige aktiviteter: sporene tettes, så midten aldri blir for liten.
+  const minHole = size * 0.18;
+  const trackGap = Math.max(6, Math.min(13, (rBand - 10 - minHole) / tracks));
+  const stroke = Math.min(8, trackGap * 0.62);
+  const rHole = Math.max(rBand - 10 - tracks * trackGap, minHole * 0.7);
+  const colorOf = itemColor || ((i) => statusColor(i.status, chart));
+  const rPoint = (rBand + rOuter) / 2;
   const select = (m) => () => onSelectMonth?.(m);
-  const label = `Årshjul ${year}: ${summary.done} av ${summary.total} gjort, ${summary.now} denne måneden, ${summary.late} ikke krysset av.`;
+  const label = a11yLabel || (summary
+    ? `Årshjul ${year}: ${summary.done} av ${summary.total} gjort, ${summary.now} denne måneden, ${summary.late} ikke krysset av.`
+    : `Årshjul ${year}`);
+  const middle = center || {
+    hero: `${summary.done}/${summary.total}`,
+    lines: [`gjort i ${year}`, thisYear ? `Nå: ${MONTHS_NB[nowMonth].toLowerCase()}` : ''],
+  };
 
   return (
-    <View style={{ width: size, height: size }} accessibilityRole="image" accessibilityLabel={label} nativeID="hr-annual-wheel-graphic">
+    <View style={{ width: size, height: size }} accessibilityRole="image" accessibilityLabel={label} nativeID={nativeID}>
       <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         {MONTH_SHORT.map((name, m) => {
           const a0 = m * 30 + 1;
@@ -95,14 +117,28 @@ export default function HrAnnualWheel({
             <Path
               key={`${i.activity.id}-${from}`}
               d={arc(cx, cy, r, from * 30 + 5, (to + 1) * 30 - 5)}
-              stroke={statusColor(i.status, chart)}
-              strokeWidth={8}
+              stroke={colorOf(i)}
+              strokeWidth={stroke}
               strokeLinecap="round"
               fill="none"
               onPress={select(from)}
             />
           );
         }))}
+        {points.map((p) => {
+          const [x, y] = pt(cx, cy, rPoint, dayAngle(p.month, p.day, Number(year)));
+          const big = p.count > 1;
+          return (
+            <G key={p.key} onPress={select(p.month)}>
+              <Circle cx={x} cy={y} r={big ? 7.5 : 5} fill={p.color} stroke={chart.surface} strokeWidth={1.5} />
+              {big ? (
+                <SvgText x={x} y={y + 3.2} textAnchor="middle" fontSize={9} fontWeight="600" fill={chart.surface}>
+                  {p.count > 9 ? '9+' : String(p.count)}
+                </SvgText>
+              ) : null}
+            </G>
+          );
+        })}
         {needle != null ? (
           <G>
             <Line
@@ -119,9 +155,10 @@ export default function HrAnnualWheel({
         ) : null}
       </Svg>
       <View pointerEvents="none" style={[styles.center, { left: cx - rHole, top: cy - rHole, width: rHole * 2, height: rHole * 2 }]}>
-        <Text style={[styles.hero, { color: colors.ink }]}>{`${summary.done}/${summary.total}`}</Text>
-        <Text style={[styles.sub, { color: colors.muted }]}>{`gjort i ${year}`}</Text>
-        {thisYear ? <Text style={[styles.sub, { color: colors.muted }]}>{`Nå: ${MONTHS_NB[nowMonth].toLowerCase()}`}</Text> : null}
+        <Text style={[styles.hero, { color: colors.ink }]}>{middle.hero}</Text>
+        {(middle.lines || []).filter(Boolean).map((line) => (
+          <Text key={line} style={[styles.sub, { color: colors.muted }]} numberOfLines={1}>{line}</Text>
+        ))}
       </View>
     </View>
   );

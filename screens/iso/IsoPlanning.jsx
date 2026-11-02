@@ -12,10 +12,11 @@ import {
   annualTaskEffects, annualWheel, authorityMatrix, communicationGroups, orgTree, pageLabel, roleLinks,
 } from '../../src/iso/planning';
 import { personsLabel } from '../../src/iso/registers';
-import { HR_ANNUAL_ACTIVITIES, activityPeriod } from '../../src/hr/annualWheel';
+import { MONTHS_NB as MONTH_NAMES_NB } from '../../src/hr/annualWheel';
 import { SimpleRegister, Stat } from './IsoRegisters';
 import { postDate, postTitle, useCompanyNews } from './useCompanyNews';
 import { Banner, Btn, Card, KV, ListRow, Page, Pill, Row } from './isoUi';
+import IsoAnnualWheel from './IsoAnnualWheel';
 
 const live = (rows) => (rows || []).filter((r) => r.state !== 'arkivert');
 const pointer = Platform.OS === 'web' ? { cursor: 'pointer' } : {};
@@ -321,72 +322,17 @@ export function CommunicationPage({ ctx }) {
 
 /* ───────── Årshjul ───────── */
 
-function WheelItem({ item, planned, onPress }) {
-  const colors = useColors();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={item.title}
-      style={({ pressed }) => ({ flexDirection: 'row', gap: 6, alignItems: 'flex-start', paddingVertical: 3, borderRadius: 6, backgroundColor: pressed ? colors.brandSoft : 'transparent', ...pointer })}
-    >
-      <Ionicons name={planned ? 'ellipse' : (item.count ? 'layers-outline' : 'calendar-outline')} size={planned ? 8 : 13} color={planned ? colors.brand : colors.muted} style={{ marginTop: planned ? 5 : 2 }} />
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: planned ? colors.ink : colors.muted, fontSize: 12, fontWeight: planned ? '600' : '400' }}>
-          {item.title}{item.count ? ` (${item.count})` : ''}{item.date && !item.count ? ` · ${prettyDate(item.date)}` : ''}
-        </Text>
-        {planned && (item.responsibleRole || item.ownerName) ? <Text style={{ color: colors.muted, fontSize: 11 }}>{item.ownerName || item.responsibleRole}</Text> : null}
-      </View>
-    </Pressable>
-  );
-}
-
-function MonthGrid({ months, current, wide, onOpen, go }) {
-  const colors = useColors();
-  return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-      {months.map((m) => {
-        const now = m.month === current;
-        return (
-          <View
-            key={m.name}
-            style={{
-              flexGrow: 1,
-              flexBasis: wide ? 260 : '100%',
-              maxWidth: wide ? '33%' : undefined,
-              padding: 10,
-              gap: 4,
-              borderRadius: 12,
-              borderWidth: now ? 2 : 1,
-              borderColor: now ? colors.brand : colors.line,
-              backgroundColor: colors.card,
-            }}
-          >
-            <Row gap={6}>
-              <Text style={{ color: now ? colors.brand : colors.ink, fontWeight: '800', fontSize: 14 }}>{m.name}</Text>
-              {now ? <Pill label="Nå" tone="info" /> : null}
-            </Row>
-            {m.planned.map((r) => <WheelItem key={r.id} item={r} planned onPress={() => onOpen(r)} />)}
-            {m.dated.map((d) => <WheelItem key={d.key} item={d} onPress={() => go(d.page, d.open ? { open: d.open } : {})} />)}
-            {!m.planned.length && !m.dated.length ? <Text style={{ color: colors.muted, fontSize: 12 }}>–</Text> : null}
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
 export function AnnualWheelPage({ ctx }) {
   const colors = useColors();
   const { state, store, caps, go, wide } = ctx;
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth());
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const months = useMemo(() => annualWheel(state, { year }), [state, year]);
-  const thisMonth = useMemo(() => annualWheel(state, { year: now.getFullYear() })[now.getMonth()], [state]); // eslint-disable-line react-hooks/exhaustive-deps
   const pending = annualTaskEffects(state, { now, all: true });
-  const auto = live(state.records.aarshjul).filter((r) => r.createTasks).length;
+  const monthName = MONTH_NAMES_NB[now.getMonth()].toLowerCase();
 
   async function makeTasks() {
     setBusy(true);
@@ -394,69 +340,50 @@ export function AnnualWheelPage({ ctx }) {
     setBusy(false);
     setMsg(n ? `${n === 1 ? 'Én oppgave' : `${n} oppgaver`} ligger nå i Oppgaver.` : 'Oppgavene for måneden finnes allerede i Oppgaver.');
   }
+  const changeYear = (y) => {
+    setYear(y);
+    setMonth(y === now.getFullYear() ? now.getMonth() : 0);
+  };
 
   return (
     <Page wide={wide} title="Årshjul" intro="Faste aktiviteter i ledelsessystemet gjennom året, sammen med datoene fra registrene: revisjoner, gjennomganger, øvelser, revurderinger og evalueringer.">
-      <Card
-        title={`Denne måneden – ${thisMonth.name.toLowerCase()} ${now.getFullYear()}`}
-        right={caps.manage && pending.length ? <Btn small icon="checkbox-outline" label={`Lag oppgaver for ${thisMonth.name.toLowerCase()}`} busy={busy} onPress={makeTasks} /> : null}
-      >
-        {msg ? <Banner tone="ok" text={msg} /> : null}
-        {thisMonth.planned.map((r) => (
-          <ListRow
-            key={r.id}
-            icon="ellipse-outline"
-            title={r.title}
-            subtitle={[r.ownerName || r.responsibleRole, r.frequency, pageLabel(r.page) ? `i ${pageLabel(r.page)}` : ''].filter(Boolean).join(' · ')}
-            right={r.page ? <Btn small label="Åpne" onPress={() => go(r.page)} /> : null}
-            onPress={r.page ? () => go(r.page) : undefined}
-          />
-        ))}
-        {thisMonth.dated.map((d) => (
-          <ListRow key={d.key} icon={d.count ? 'layers-outline' : 'calendar-outline'} title={`${d.title}${d.count ? ` (${d.count})` : ''}`} subtitle={d.date ? prettyDate(d.date) : pageLabel(d.page)} onPress={() => go(d.page, d.open ? { open: d.open } : {})} />
-        ))}
-        {!thisMonth.planned.length && !thisMonth.dated.length ? <Muted>Ingenting planlagt denne måneden.</Muted> : null}
-        <Text style={{ color: colors.muted, fontSize: 12 }}>
-          {auto
-            ? `${auto} aktiviteter er merket «Lag oppgave». De blir oppgaver automatisk når måneden starter.`
-            : 'Merk aktiviteter med «Lag oppgave i ProTop når måneden starter», så kommer de som oppgaver av seg selv.'}
-        </Text>
-      </Card>
-      {ctx.canSeeHrAnnual ? (
-        <Card
-          title={`HR-årshjulet – ${thisMonth.name.toLowerCase()}`}
-          right={ctx.requestTab ? <Btn small icon="arrow-forward-outline" label="Åpne HR-årshjulet" onPress={() => ctx.requestTab('hr', 'arshjul')} /> : null}
-        >
-          {HR_ANNUAL_ACTIVITIES.filter((a) => a.months.includes(now.getMonth())).map((a) => (
-            <ListRow
-              key={a.id}
-              icon={a.kind === 'lov' ? 'shield-checkmark-outline' : 'ellipse-outline'}
-              title={a.title}
-              subtitle={[a.kind === 'lov' ? 'Lovkrav' : 'Anbefalt', activityPeriod(a), a.law].filter(Boolean).join(' · ')}
-              onPress={ctx.requestTab ? () => ctx.requestTab('hr', 'arshjul') : undefined}
-            />
-          ))}
-          {!HR_ANNUAL_ACTIVITIES.some((a) => a.months.includes(now.getMonth())) ? <Muted>Ingen faste HR-aktiviteter denne måneden.</Muted> : null}
-          <Muted>HR-aktivitetene føres i HR → Rutiner → Årshjul. Der kan begge årshjulene vises samlet.</Muted>
-        </Card>
-      ) : null}
       <SimpleRegister
         ctx={ctx}
         registerKey="aarshjul"
         title={`Årshjul ${year}`}
-        cardSubtitle="Prikk = planlagt aktivitet. Kalender = dato fra registrene. Trykk for detaljer eller for å gå til siden."
-        view={({ rows, open }) => (rows.length || months.some((m) => m.dated.length)
-          ? <MonthGrid months={months} current={year === now.getFullYear() ? now.getMonth() : -1} wide={wide} onOpen={open} go={go} />
-          : <Muted>Ingen aktiviteter ennå. «Ny» legger til en fast aktivitet med måned(er) og ansvarlig.</Muted>)}
+        cardSubtitle="Buer = faste aktiviteter, farget etter område. Punkter = datoer fra registrene. Trykk en måned i hjulet eller under."
+        view={({ open }) => (
+          <IsoAnnualWheel
+            months={months}
+            year={year}
+            month={month}
+            onMonth={setMonth}
+            open={open}
+            go={go}
+            today={now}
+            makeTasks={caps.manage && year === now.getFullYear() && (pending.length || msg)
+              ? { label: `Lag oppgaver for ${monthName}`, busy, onPress: makeTasks, msg }
+              : null}
+            hr={ctx.canSeeHrAnnual ? { onOpen: ctx.requestTab ? () => ctx.requestTab('hr', 'arshjul') : null } : null}
+          />
+        )}
         detail={(r) => (r.page ? <Row><Btn icon="arrow-forward-outline" label={`Gå til ${pageLabel(r.page)}`} onPress={() => go(r.page)} /></Row> : null)}
       >
         <Row>
-          <Btn small icon="chevron-back" accessibilityLabel="Forrige år" onPress={() => setYear(year - 1)} />
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>{year}</Text>
-          <Btn small icon="chevron-forward" accessibilityLabel="Neste år" onPress={() => setYear(year + 1)} />
-          {year !== now.getFullYear() ? <Btn small label="I år" onPress={() => setYear(now.getFullYear())} /> : null}
+          <Btn small icon="chevron-back" accessibilityLabel="Forrige år" onPress={() => changeYear(year - 1)} />
+          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 16 }}>{year}</Text>
+          <Btn small icon="chevron-forward" accessibilityLabel="Neste år" onPress={() => changeYear(year + 1)} />
+          {year !== now.getFullYear() ? <Btn small label="I år" onPress={() => changeYear(now.getFullYear())} /> : null}
         </Row>
+        {!live(state.records.aarshjul).length ? (
+          <Muted>Ingen faste aktiviteter ennå. «Ny» legger til en fast aktivitet med måned(er), område og ansvarlig.</Muted>
+        ) : null}
       </SimpleRegister>
+      <Muted>
+        {live(state.records.aarshjul).some((r) => r.createTasks)
+          ? 'Aktiviteter merket «Lag oppgave» blir oppgaver automatisk når måneden starter.'
+          : 'Merk aktiviteter med «Lag oppgave i ProTop når måneden starter», så kommer de som oppgaver av seg selv.'}
+      </Muted>
     </Page>
   );
 }

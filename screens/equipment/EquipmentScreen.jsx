@@ -57,7 +57,7 @@ import { ControlStatus, ControlsEditor } from './EquipmentControls';
 import { submitQuick } from '../iso/quickSend';
 import EquipmentCalendar from '../../components/equipment/EquipmentCalendar';
 import { Ionicons } from '@expo/vector-icons';
-import { radius } from '../../src/ui/tokens';
+import { radius, type } from '../../src/ui/tokens';
 import { useLayout } from '../../src/theme';
 import { mileageProjectOptions, vehicleOdometer } from '../../src/mileage/flow';
 import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
@@ -546,9 +546,9 @@ export default function EquipmentScreen() {
           {row.scope !== 'private' ? ` · ${EQUIPMENT_STATUSES.find((status) => status.id === row.status)?.label || row.status}` : ''}
         </Text>
         {row.rental?.enabled && Number(row.rental.price) > 0 ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: colors.brandSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: colors.brandSoft, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
             <Ionicons name="pricetag-outline" size={11} color={colors.brandInk} />
-            <Text style={{ color: colors.brandInk, fontSize: 11, fontWeight: '500' }}>
+            <Text style={[type.caption, { color: colors.brandInk, fontWeight: '500' }]}>
               {`Utleie ${Number(row.rental.price).toLocaleString('nb-NO')} kr per ${RENTAL_UNITS.find((u) => u.id === row.rental.unit)?.label || 'dag'}`}
             </Text>
           </View>
@@ -779,11 +779,11 @@ export default function EquipmentScreen() {
                 <Field label="Garanti til" value={gear.warrantyUntil} onChange={(value) => setGear((row) => ({ ...row, warrantyUntil: value }))} colors={colors} date />
                 <Field label="Garantigiver" value={gear.warrantyVendor} onChange={(value) => setGear((row) => ({ ...row, warrantyVendor: value }))} colors={colors} />
               </View>
-              <View style={{ gap: 8, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 12 }} nativeID="equipment-rental">
+              <View style={{ gap: 8, borderWidth: 1, borderColor: colors.line, borderRadius: radius.card, padding: 12 }} nativeID="equipment-rental">
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.ink, fontWeight: '600' }}>Utleie på prosjekt</Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>Reservasjoner på et prosjekt faktureres som utleie.</Text>
+                    <Text style={[type.caption, { color: colors.muted }]}>Reservasjoner på et prosjekt faktureres som utleie.</Text>
                   </View>
                   <Switch
                     nativeID="equipment-rental-toggle"

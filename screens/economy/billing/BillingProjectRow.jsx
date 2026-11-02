@@ -170,7 +170,7 @@ export default function BillingProjectRow({
     { key: 'lock', label: 'Levert t.o.m.', width: 104, render: (row) => (row.fromSupplier ? (
       <View style={styles.lock}>
         <Ionicons name="checkmark-circle" size={12} color={colors.success || colors.brand} />
-        <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>Godkjent der</Text>
+        <Text style={[type.caption, { color: colors.muted }]} numberOfLines={1}>Godkjent der</Text>
       </View>
     ) : (
       <View style={styles.lock}>

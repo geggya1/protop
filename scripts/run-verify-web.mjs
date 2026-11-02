@@ -121,6 +121,7 @@ export const FILES = [
   'src/arbeid/absenceDesktopUi.test.mjs',
   'src/arbeid/absenceDesktopRender.test.cjs',
   'src/arbeid/approvalsQueueRender.test.cjs',
+  'src/arbeid/deletedTimeEntriesRender.test.cjs',
   'src/arbeid/timesheetProjects.test.mjs',
   'src/equipment/model.test.mjs',
   'src/equipment/calendars.test.mjs',

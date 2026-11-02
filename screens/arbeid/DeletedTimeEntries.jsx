@@ -89,20 +89,41 @@ export default function DeletedTimeEntries({ familyId, employees = [], projects 
   if (!familyId || data.denied) return null;
 
   return (
+    <DeletedTimeEntriesList
+      colors={colors}
+      loading={data.loading}
+      error={data.error}
+      total={rows.length}
+      rows={shown}
+      more={!all && filtered.length > SHOWN ? filtered.length : 0}
+      query={query}
+      onQuery={setQuery}
+      onShowAll={() => setAll(true)}
+      busy={busy}
+      onRestore={restore}
+    />
+  );
+}
+
+/** Selve listen, uten lesing og lagring (testes for seg i deletedTimeEntriesRender.test.cjs). */
+export function DeletedTimeEntriesList({
+  colors, loading = false, error = '', total = 0, rows = [], more = 0, query = '', onQuery, onShowAll, busy = '', onRestore,
+}) {
+  return (
     <Card
       title="Slettede timer"
       subtitle="Timer som er slettet, med hvem som slettet dem og når. Gjenopprett en time som ble slettet ved en feil."
     >
       <View nativeID="slettede-timer" style={styles.stack}>
-        {data.loading ? <ActivityIndicator color={colors.brand} /> : null}
-        {data.error ? <Text style={[type.body, { color: colors.dangerInk || colors.danger }]}>{data.error}</Text> : null}
-        {!data.loading && !data.error && !rows.length ? (
+        {loading ? <ActivityIndicator color={colors.brand} /> : null}
+        {error ? <Text style={[type.body, { color: colors.dangerInk || colors.danger }]}>{error}</Text> : null}
+        {!loading && !error && !total ? (
           <Text style={[type.body, { color: colors.muted }]}>Ingen timer er slettet.</Text>
         ) : null}
-        {rows.length > 5 ? (
+        {total > 5 ? (
           <TextInput
             value={query}
-            onChangeText={setQuery}
+            onChangeText={onQuery}
             placeholder="Søk på ansatt, prosjekt eller beskrivelse"
             placeholderTextColor={colors.muted}
             accessibilityLabel="Søk i slettede timer"
@@ -110,17 +131,17 @@ export default function DeletedTimeEntries({ familyId, employees = [], projects 
             style={[styles.input, type.body, { borderColor: colors.line, color: colors.ink, backgroundColor: colors.bg }]}
           />
         ) : null}
-        {shown.map((row) => (
+        {rows.map((row) => (
           <View key={row.key} style={[styles.row, { borderColor: colors.line }]}>
             <View style={styles.main}>
               <Text style={[type.bodyStrong, { color: colors.ink }]}>
-                {row.employee} · {formatDate(row.date)} · {hoursText(row.hours)}
+                {`${row.employee} · ${formatDate(row.date)} · ${hoursText(row.hours)}`}
               </Text>
               <Text style={[type.label, { color: colors.ink }]} numberOfLines={2}>
                 {[row.project, row.description].filter(Boolean).join(' · ')}
               </Text>
               <Text style={[type.caption, { color: colors.muted }]}>
-                Slettet {when(row.at)} av {row.byName}{row.reason ? ` (${row.reason})` : ''}
+                {`Slettet ${when(row.at)} av ${row.byName}${row.reason ? ` (${row.reason})` : ''}`}
               </Text>
             </View>
             {row.restored ? <Badge label="Gjenopprettet" tone="ok" icon="checkmark" /> : null}
@@ -131,15 +152,16 @@ export default function DeletedTimeEntries({ familyId, employees = [], projects 
                 icon="arrow-undo-outline"
                 busy={busy === row.key}
                 disabled={!!busy && busy !== row.key}
-                onPress={() => restore(row)}
+                onPress={() => onRestore?.(row)}
                 nativeID={`gjenopprett-${row.entryId}`}
+                accessibilityLabel={`Gjenopprett timen til ${row.employee} ${formatDate(row.date)}`}
               />
             ) : null}
             {!row.restored && !row.restorable ? <Badge label="Mangler data" tone="muted" /> : null}
           </View>
         ))}
-        {!all && filtered.length > SHOWN ? (
-          <Button label={`Vis alle ${filtered.length}`} onPress={() => setAll(true)} small nativeID="slettede-timer-alle" />
+        {more ? (
+          <Button label={`Vis alle ${more}`} onPress={onShowAll} small nativeID="slettede-timer-alle" />
         ) : null}
       </View>
     </Card>

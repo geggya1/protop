@@ -179,6 +179,8 @@ export default function IsoScreen({ subView = 'oversikt' }) {
     accessPolicy: family?.company?.accessPolicy || null,
     canGrantAccess: bypass || (!!access.ready && !access.previewing && access.canEdit('accessControl')),
     requestTab: requestShellTab,
+    // Samlet årshjul: ISO-årshjulet viser månedens HR-aktiviteter for den som kan se HR.
+    canSeeHrAnnual: bypass || (typeof access.canView === 'function' && access.canView('hr')),
     prefill: params?.prefill || null,
     // Hurtigmelding (Meld RUH): saken vises med en gang, uten å laste ISO på nytt.
     onQuickSent: (list) => store.setState((cur) => (list || []).reduce((acc, f) => (f?.id ? replaceIn(acc, 'findings', f) : acc), cur)),

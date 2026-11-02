@@ -14,11 +14,12 @@ export const STATUS_LEGEND = [
   { id: 'off', label: 'Gjelder ikke' },
 ];
 
-export function StatusLegend({ colors }) {
+export function StatusLegend({ colors, withIso = false }) {
   const chart = chartColorsFor(colors);
+  const list = withIso ? [...STATUS_LEGEND, { id: 'iso', label: 'ISO-årshjulet' }] : STATUS_LEGEND;
   return (
     <View style={styles.legend} accessibilityRole="list">
-      {STATUS_LEGEND.map((s) => (
+      {list.map((s) => (
         <View key={s.id} style={styles.legendItem}>
           <View style={[styles.swatch, { backgroundColor: statusColor(s.id, chart) }]} />
           <Text style={[styles.legendText, { color: colors.muted }]}>{s.label}</Text>
@@ -54,7 +55,7 @@ export default function HrAnnualTimeline({ colors, layout, nowMonth = -1, select
         {head}
       </View>
       {layout.items.map((i) => {
-        const muted = i.track < 0;
+        const muted = i.track < 0 && i.status !== 'iso';
         const on = selectedMonth >= i.start && selectedMonth <= i.end;
         return (
           <Pressable
@@ -69,15 +70,17 @@ export default function HrAnnualTimeline({ colors, layout, nowMonth = -1, select
             ]}
           >
             <Text numberOfLines={compact ? 2 : 1} style={[styles.name, compact && styles.nameCompact, { color: muted ? colors.muted : colors.ink }]}>
-              {i.activity.title}
+              {i.status === 'iso' ? `ISO · ${i.activity.title}` : i.activity.title}
             </Text>
             <View style={styles.months}>
               {MONTH_LETTER.map((l, m) => (
                 <View key={`${l}${m}`} style={[styles.cell, m === nowMonth && { backgroundColor: chart.segmentNow }]} />
               ))}
-              <View style={[styles.barSlot, { left: `${(i.start / 12) * 100}%`, width: `${((i.end - i.start + 1) / 12) * 100}%` }]}>
-                <View style={[styles.bar, { backgroundColor: statusColor(i.status, chart) }]} />
-              </View>
+              {(i.segments || [[i.start, i.end]]).map(([from, to]) => (
+                <View key={from} style={[styles.barSlot, { left: `${(from / 12) * 100}%`, width: `${((to - from + 1) / 12) * 100}%` }]}>
+                  <View style={[styles.bar, { backgroundColor: statusColor(i.status, chart) }]} />
+                </View>
+              ))}
             </View>
           </Pressable>
         );

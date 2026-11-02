@@ -12,6 +12,7 @@ import {
   annualTaskEffects, annualWheel, authorityMatrix, communicationGroups, orgTree, pageLabel, roleLinks,
 } from '../../src/iso/planning';
 import { personsLabel } from '../../src/iso/registers';
+import { HR_ANNUAL_ACTIVITIES, activityPeriod } from '../../src/hr/annualWheel';
 import { SimpleRegister, Stat } from './IsoRegisters';
 import { postDate, postTitle, useCompanyNews } from './useCompanyNews';
 import { Banner, Btn, Card, KV, ListRow, Page, Pill, Row } from './isoUi';
@@ -421,6 +422,24 @@ export function AnnualWheelPage({ ctx }) {
             : 'Merk aktiviteter med «Lag oppgave i ProTop når måneden starter», så kommer de som oppgaver av seg selv.'}
         </Text>
       </Card>
+      {ctx.canSeeHrAnnual ? (
+        <Card
+          title={`HR-årshjulet – ${thisMonth.name.toLowerCase()}`}
+          right={ctx.requestTab ? <Btn small icon="arrow-forward-outline" label="Åpne HR-årshjulet" onPress={() => ctx.requestTab('hr', 'arshjul')} /> : null}
+        >
+          {HR_ANNUAL_ACTIVITIES.filter((a) => a.months.includes(now.getMonth())).map((a) => (
+            <ListRow
+              key={a.id}
+              icon={a.kind === 'lov' ? 'shield-checkmark-outline' : 'ellipse-outline'}
+              title={a.title}
+              subtitle={[a.kind === 'lov' ? 'Lovkrav' : 'Anbefalt', activityPeriod(a), a.law].filter(Boolean).join(' · ')}
+              onPress={ctx.requestTab ? () => ctx.requestTab('hr', 'arshjul') : undefined}
+            />
+          ))}
+          {!HR_ANNUAL_ACTIVITIES.some((a) => a.months.includes(now.getMonth())) ? <Muted>Ingen faste HR-aktiviteter denne måneden.</Muted> : null}
+          <Muted>HR-aktivitetene føres i HR → Rutiner → Årshjul. Der kan begge årshjulene vises samlet.</Muted>
+        </Card>
+      ) : null}
       <SimpleRegister
         ctx={ctx}
         registerKey="aarshjul"

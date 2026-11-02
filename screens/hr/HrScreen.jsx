@@ -26,6 +26,8 @@ import HrAnnual from './HrAnnual';
 import HrSickLeave from './HrSickLeave';
 import HrSurvey from './HrSurvey';
 import { hrDeadlinesHandled, useHrDeadlines } from './useHrDeadlines';
+import { useHrFormStart } from './useHrFormStart';
+import { useIsoAnnual } from './useIsoAnnual';
 import { useFormContext } from '../anbud/useFormContext';
 import { useKinTasks } from './useKinTasks';
 import { useHmsTasks } from './useHmsTasks';
@@ -60,6 +62,12 @@ export default function HrScreen({ subView = 'oversikt' }) {
   );
   const access = useCompanyAccess();
   const forms = useFormContext();
+  // Personalskjema (KS-maler): samme start og visning under Skjemaer og under Oppfølging.
+  const formStart = useHrFormStart(familyId);
+  const formKit = useMemo(
+    () => ({ start: formStart.start, actor: forms.actor, company: forms.company, logo: forms.logo }),
+    [formStart.start, forms.actor, forms.company, forms.logo],
+  );
   const page = defaultHrSubView(subView);
   const hrResource = ({
     oversikt: 'hr',
@@ -347,6 +355,22 @@ export default function HrScreen({ subView = 'oversikt' }) {
 
   // Kompetanse og opplæring eies av ISO. Personens «Lovpålagt»-fane viser status derfra.
   const canSeeIso = typeof access.canView === 'function' && access.canView('iso');
+  // Samlet årshjul: ISO-årshjulet i HR-årshjulet, lastet bare når det er slått på.
+  const [showIsoWheel, setShowIsoWheel] = useState(false);
+  const isoAnnual = useIsoAnnual({
+    companyId: familyId,
+    uid,
+    enabled: canSeeIso && page === 'arshjul' && showIsoWheel,
+    family,
+    employees: access.employees,
+  });
+  const isoWheel = useMemo(() => ({
+    available: canSeeIso,
+    show: showIsoWheel,
+    onToggle: () => setShowIsoWheel((v) => !v),
+    status: isoAnnual.status,
+    state: isoAnnual.state,
+  }), [canSeeIso, showIsoWheel, isoAnnual.status, isoAnnual.state]);
   const isoEmployee = useMemo(
     () => employees.find((row) => row.id === selectedEmployeeId) || null,
     [employees, selectedEmployeeId],
@@ -394,6 +418,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
           isoCompetence={isoCompetence}
           onOpenIso={canSeeIso ? openIsoCompetence : null}
           onOpenLibraryTemplate={(key) => requestShellTab?.('skjema', null, { type: 'openLibraryTemplate', key })}
+          formKit={formKit}
           listPreset={peopleFilter}
           onBackToSalary={() => {
             setSelectedEmployeeId('');
@@ -450,6 +475,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
             else go(target);
           }}
           onOpenIso={canSeeIso ? (target) => requestShellTab?.('iso', target) : null}
+          iso={isoWheel}
         />
       );
     }
@@ -489,6 +515,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
           colors={colors}
           employees={employees}
           canWrite={canWrite}
+          onPatch={onPatch}
           familyId={familyId}
           actor={forms.actor}
           company={forms.company}
@@ -543,7 +570,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
     focusCaseId, canWrite, onPatch, go, familyId, uid, assigneeName,
     openEmployee, openCase, openLinkedTask, createTask, saveSalaries, forms.actor, forms.company, forms.logo, kin,
     isoCompetence, canSeeIso, openIsoCompetence, peopleFilter, recruitFocus, ownCompany, retention, access,
-    deadlines, requestShellTab,
+    deadlines, requestShellTab, formKit, isoWheel,
   ]);
 
   if (access.active && access.ready && !canSee) {

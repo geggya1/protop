@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  HR_ANNUAL_ONGOING, MONTHS_NB, annualSummary, hrAnnualWheel, normalizeAnnualSettings, reviewFormsFromFilled,
-  reviewProgress, toggleAnnualDone, toggleAnnualOff, wheelLayout,
+  HR_ANNUAL_ONGOING, MONTHS_NB, annualSummary, hrAnnualWheel, isoAnnualItems, normalizeAnnualSettings,
+  reviewFormsFromFilled, reviewProgress, toggleAnnualDone, toggleAnnualOff, wheelLayout,
 } from '../../src/hr/annualWheel';
+import { annualWheel as isoAnnualWheel } from '../../src/iso/planning';
 import { loadFilledDocs, peekFilledDocs } from '../../src/forms/filledStore';
 import { formatNbDate } from '../../src/hr/model';
 import { toneColor } from '../../src/hr/uiHelpers';
@@ -101,6 +102,28 @@ function ActivityRow({ colors, item, year, canWrite, onToggleDone, onToggleOff, 
   );
 }
 
+/** En aktivitet fra ISO-årshjulet i den samlede visningen. Føres i ISO, så bare lenke dit. */
+function IsoRow({ colors, item, onOpenIso }) {
+  const chart = chartColorsFor(colors);
+  const a = item.activity;
+  return (
+    <View style={[styles.activity, { borderColor: colors.line }]} nativeID={`hr-annual-${a.id.replace(/[^a-z0-9_-]/gi, '_')}`}>
+      <View style={styles.activityHead}>
+        <View style={[styles.isoDot, { backgroundColor: chart.iso }]} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.activityTitle, { color: colors.ink }]}>{a.title}</Text>
+          <Text style={[styles.small, { color: colors.muted }]}>
+            {['ISO-årshjulet', item.period, a.responsible].filter(Boolean).join(' · ')}
+          </Text>
+        </View>
+        {onOpenIso ? (
+          <HrButton colors={colors} icon="shield-checkmark" label="Åpne i ISO" onPress={() => onOpenIso(a.page || 'arshjul')} />
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 /** Tall med forklaring, og en strek som viser andelen (gjort av alle). */
 function Kpi({ colors, label, value, hint, share = null, nativeID }) {
   const chart = chartColorsFor(colors);
@@ -128,6 +151,7 @@ const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Se
  */
 export default function HrAnnual({
   colors, hr, canWrite, onPatch, familyId, actorName, staff = [], onOpen, onOpenIso, onRefreshTasks, today = new Date(),
+  iso = null,
 }) {
   const { isPhone, width } = useLayout();
   const thisYear = today.getFullYear();
@@ -154,10 +178,16 @@ export default function HrAnnual({
     // settings lages på nytt hver gang, men følger hr.annual.
     [hr?.annual, year, staff.length, extra, today],
   );
-  const layout = useMemo(() => wheelLayout(wheel), [wheel]);
+  // Samlet visning: ISO-årshjulet i samme hjul og tidslinje (iso: { show, onToggle, status, state }).
+  const isoItems = useMemo(
+    () => (iso?.show && iso.status === 'ready' && iso.state ? isoAnnualItems(isoAnnualWheel(iso.state, { year })) : []),
+    [iso?.show, iso?.status, iso?.state, year],
+  );
+  const layout = useMemo(() => wheelLayout(wheel, { extra: isoItems }), [wheel, isoItems]);
   const summary = annualSummary(wheel);
   const nowMonth = year === thisYear ? today.getMonth() : -1;
-  const inMonth = layout.items.filter((i) => i.activity.months.includes(month));
+  const inMonth = layout.items.filter((i) => i.status !== 'iso' && i.activity.months.includes(month));
+  const isoInMonth = layout.items.filter((i) => i.status === 'iso' && i.activity.months.includes(month));
   const wheelSize = isPhone ? Math.max(260, Math.min(340, width - 64)) : 340;
 
   const patchAnnual = (fn) => onPatch?.((state) => ({ annual: fn(state.annual) }));
@@ -184,6 +214,15 @@ export default function HrAnnual({
                 <HrChip key={y} colors={colors} label={String(y)} active={year === y} onPress={() => setYear(y)} />
               ))}
             </View>
+            {iso?.available ? (
+              <HrChip
+                colors={colors}
+                label={iso.show ? 'Viser også ISO-årshjulet ✓' : 'Vis også ISO-årshjulet'}
+                active={!!iso.show}
+                onPress={iso.onToggle}
+                nativeID="hr-annual-iso"
+              />
+            ) : null}
             {canWrite ? (
               <HrChip
                 colors={colors}
@@ -206,7 +245,9 @@ export default function HrAnnual({
                 size={wheelSize}
                 today={today}
               />
-              <StatusLegend colors={colors} />
+              <StatusLegend colors={colors} withIso={!!iso?.show} />
+              {iso?.show && iso.status === 'loading' ? <Text style={[styles.small, { color: colors.muted }]}>Henter ISO-årshjulet …</Text> : null}
+              {iso?.show && iso.status === 'error' ? <Text style={[styles.small, { color: colors.muted }]}>Kunne ikke hente ISO-årshjulet.</Text> : null}
             </View>
             <View style={styles.detailCol}>
               <View style={styles.kpis}>
@@ -235,6 +276,12 @@ export default function HrAnnual({
                   onOpenIso={onOpenIso}
                 />
               )) : <EmptyHint colors={colors} text="Ingen faste HR-aktiviteter denne måneden." />}
+              {isoInMonth.length ? (
+                <View style={styles.stack} nativeID="hr-annual-iso-month">
+                  <Text style={[styles.small, { color: colors.muted }]}>Fra ISO-årshjulet (føres i ISO / K-HMS)</Text>
+                  {isoInMonth.map((item) => <IsoRow key={item.activity.id} colors={colors} item={item} onOpenIso={onOpenIso} />)}
+                </View>
+              ) : null}
             </View>
           </View>
         </View>
@@ -243,7 +290,7 @@ export default function HrAnnual({
       <HrCard colors={colors}>
         <View style={styles.stack}>
           <HrSectionTitle colors={colors} title="Året i oversikt" subtitle="Hver aktivitet på én linje over månedene den gjelder. Trykk en linje for å åpne måneden over." />
-          <StatusLegend colors={colors} />
+          <StatusLegend colors={colors} withIso={!!iso?.show} />
           <HrAnnualTimeline colors={colors} layout={layout} nowMonth={nowMonth} selectedMonth={month} onSelectMonth={setMonth} compact={isPhone} />
         </View>
       </HrCard>
@@ -296,6 +343,7 @@ const styles = StyleSheet.create({
   activity: { borderWidth: 1, borderRadius: radius.control, padding: space.xs, gap: 6 },
   activityHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   activityTitle: { ...type.bodyStrong },
+  isoDot: { width: 10, height: 10, borderRadius: radius.pill },
   activityBody: { gap: 6, paddingLeft: 26 },
   body: { ...type.label, fontWeight: '400' },
   small: { ...type.caption },

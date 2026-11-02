@@ -126,3 +126,39 @@ console.log('annualWheel ok');
   assert.ok(Math.abs(yearFraction(new Date(2026, 6, 2)) - 0.5) < 0.01);
   console.log('wheel layout ok');
 }
+
+// Samlet visning: ISO-årshjulet som egne elementer i HR-hjulet.
+{
+  const { isoAnnualItems, wheelLayout: layoutOf } = await import('./annualWheel.js');
+  const isoMonths = Array.from({ length: 12 }, (_, month) => ({ month, planned: [], dated: [] }));
+  const ledelse = { id: 'r1', title: 'Ledelsens gjennomgang', months: ['Januar', 'Juni'], page: 'ledelse', ownerName: 'Kari' };
+  isoMonths[0].planned.push(ledelse);
+  isoMonths[5].planned.push(ledelse);
+  isoMonths[3].dated.push({ key: 'risiko:Revurdering:3', month: 3, title: 'Revurdering av risiko', count: 4, page: 'risiko' });
+  const items = isoAnnualItems(isoMonths);
+  assert.equal(items.length, 2, 'fast aktivitet over to måneder står én gang');
+  assert.deepEqual(items[0].activity.months, [0, 5]);
+  assert.equal(items[0].status, 'iso');
+  assert.equal(items[0].activity.responsible, 'Kari');
+  assert.equal(items[1].activity.title, 'Revurdering av risiko (4)');
+  const wheel = hrAnnualWheel({}, { year: 2026, today: new Date(2026, 2, 15), staffCount: 12 });
+  const merged = layoutOf(wheel, { extra: items });
+  assert.equal(merged.items.filter((i) => i.status === 'iso').length, 2);
+  assert.ok(merged.items.filter((i) => i.status === 'iso').every((i) => i.track >= 0));
+  // Oppsummeringen (Gjort x av y) gjelder bare HR.
+  assert.equal(annualSummary(wheel).total, annualSummary(hrAnnualWheel({}, { year: 2026, today: new Date(2026, 2, 15), staffCount: 12 })).total);
+  console.log('combined wheel ok');
+}
+
+// Måneder med opphold tegnes som egne perioder.
+{
+  const { monthRuns, isoAnnualItems, wheelLayout: layoutOf } = await import('./annualWheel.js');
+  assert.deepEqual(monthRuns([5, 0]), [[0, 0], [5, 5]]);
+  assert.deepEqual(monthRuns([2, 3]), [[2, 3]]);
+  assert.deepEqual(monthRuns([0, 3, 6, 9]), [[0, 0], [3, 3], [6, 6], [9, 9]]);
+  const isoMonths = Array.from({ length: 12 }, (_, month) => ({ month, planned: [], dated: [] }));
+  isoMonths[0].planned.push({ id: 'r1', title: 'Ledelsens gjennomgang', months: ['Januar', 'Juni'] });
+  const merged = layoutOf([], { extra: isoAnnualItems(isoMonths) });
+  assert.deepEqual(merged.items[0].segments, [[0, 0], [5, 5]]);
+  console.log('month runs ok');
+}

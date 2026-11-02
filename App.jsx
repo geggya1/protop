@@ -106,6 +106,9 @@ import DashboardThemeGalleryScreen from './screens/v2/DashboardThemeGalleryScree
 import FakturaDemoScreen from './screens/economy/FakturaDemoScreen';
 import MeetingsDemoScreen from './screens/meetings/MeetingsDemoScreen';
 import AnbudDemoScreen, { anbudDemoAllowed } from './screens/anbud/AnbudDemoScreen';
+import HelpdeskPortalScreen from './screens/helpdesk/HelpdeskPortalScreen';
+import HelpdeskDemoScreen, { helpdeskDemoAllowed } from './screens/helpdesk/HelpdeskDemoScreen';
+import { installDiagnostics } from './src/helpdesk/diagnostics';
 import ChildDashboardThemeSettingsScreen from './screens/v2/ChildDashboardThemeSettingsScreen';
 import ChildDashboardThemeGalleryScreen from './screens/v2/ChildDashboardThemeGalleryScreen';
 import FamilyProgressScreen from './screens/v2/FamilyProgressScreen';
@@ -324,6 +327,9 @@ const ClassroomAssignmentDetailWithSwipe = withStackEdgeSwipe(ClassroomAssignmen
 const ClassroomAddStaffWithSwipe = withStackEdgeSwipe(ClassroomAddStaffScreen);
 const ClassroomAddStudentsWithSwipe = withStackEdgeSwipe(ClassroomAddStudentsScreen);
 const ClassroomStudentMapWithSwipe = withStackEdgeSwipe(ClassroomStudentMapScreen);
+
+// Teknisk info til supportsaker (konsollfeil, feilede kall, siste steg). Se src/helpdesk/diagnostics.js.
+installDiagnostics();
 
 export default function App() {
   usePhoneVisualViewport();
@@ -937,6 +943,8 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       if (p === '/start') return null;
       if (p === '/dashboard-themes') return 'DashboardThemeGallery';
       if (p === '/faktura-demo') return 'FakturaDemo';
+      if (p === '/helpdesk-demo' && helpdeskDemoAllowed()) return 'HelpdeskDemo';
+      if (p === '/helpdesk' || p.startsWith('/helpdesk/')) return 'Helpdesk';
       if (p === '/moter-demo') return 'MeetingsDemo';
       if (p === '/anbud-demo' && anbudDemoAllowed()) return 'AnbudDemo';
       if (p === '/child-dashboard-themes') return 'ChildDashboardThemeGallery';
@@ -1101,6 +1109,8 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         <Stack.Screen name="Licenses" component={LicensesScreen} options={{ headerShown: false }} />
         <Stack.Screen name="DashboardThemeGallery" component={DashboardThemeGalleryScreen} options={{ headerShown: false }} />
         <Stack.Screen name="FakturaDemo" component={FakturaDemoScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Helpdesk" component={HelpdeskPortalScreen} options={{ headerShown: false, title: 'ProTop Helpdesk' }} />
+        {helpdeskDemoAllowed() ? <Stack.Screen name="HelpdeskDemo" component={HelpdeskDemoScreen} options={{ headerShown: false }} /> : null}
         <Stack.Screen name="MeetingsDemo" component={MeetingsDemoScreen} options={{ headerShown: false }} />
         {anbudDemoAllowed() ? <Stack.Screen name="AnbudDemo" component={AnbudDemoScreen} options={{ headerShown: false }} /> : null}
         <Stack.Screen name="ChildDashboardThemeGallery" component={ChildDashboardThemeGalleryScreen} options={{ headerShown: false }} />

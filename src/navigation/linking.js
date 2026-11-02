@@ -104,6 +104,24 @@ function parseAddFriendFromPath(path) {
   return null;
 }
 
+/** /hjelp-lenker fra e-post og meny → intent til hjelpesenteret. */
+export function helpCenterLinkIntent(path) {
+  const raw = String(path || '');
+  const pathOnly = raw.split('?')[0].replace(/\/+$/, '');
+  const m = pathOnly.match(/^\/?hjelp(?:\/(sak|artikkel|ny|saker|assistent)(?:\/([^/?#]+))?)?$/i);
+  if (!m) return null;
+  const params = new URLSearchParams(raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : '');
+  let id = '';
+  try { id = m[2] ? decodeURIComponent(m[2]) : ''; } catch { id = m[2] || ''; }
+  const kind = (m[1] || '').toLowerCase();
+  if (kind === 'sak' && id) return { type: 'helpdesk', view: 'ticket', id, rate: params.get('vurder') ? (params.get('svar') || 'ask') : null };
+  if (kind === 'artikkel' && id) return { type: 'helpdesk', view: 'article', id };
+  if (kind === 'ny') return { type: 'helpdesk', view: 'new' };
+  if (kind === 'saker') return { type: 'helpdesk', view: 'tickets' };
+  if (kind === 'assistent') return { type: 'helpdesk', view: 'assistant' };
+  return { type: 'helpdesk', view: 'home' };
+}
+
 export const linking = {
   prefixes,
   getPathFromState(state, options) {
@@ -223,6 +241,16 @@ export const linking = {
           },
         }],
       };
+    }
+    // Helpdesk-portalen: /helpdesk/sak/:id åpner saken.
+    const helpdeskTicket = String(path || '').match(/^\/?helpdesk\/sak\/([^/?#]+)/i);
+    if (helpdeskTicket?.[1]) {
+      return { routes: [{ name: 'Helpdesk', params: { ticketId: decodeURIComponent(helpdeskTicket[1]) } }] };
+    }
+    // Hjelpesenteret: /hjelp, /hjelp/ny, /hjelp/saker, /hjelp/sak/:id, /hjelp/artikkel/:id (lenker i e-post).
+    const help = helpCenterLinkIntent(path);
+    if (help && linkingSignedIn) {
+      return { routes: [{ name: 'Home', params: { openShell: { tab: 'more', subView: 'help', intent: help } } }] };
     }
     // Gamle adresser: /register-invited → registrering, /note/new → Notater, nytt notat.
     const legacyRegister = legacyRegisterInvitedState(path, { signedIn: linkingSignedIn });
@@ -344,6 +372,8 @@ export const linking = {
       Confirmation: 'confirmation',
       // Auth-frie forhåndsvisninger (samme path som welcomePathEntry i App.jsx).
       FakturaDemo: 'faktura-demo',
+      HelpdeskDemo: 'helpdesk-demo',
+      Helpdesk: 'helpdesk',
       MeetingsDemo: 'moter-demo',
       AnbudDemo: 'anbud-demo',
       DashboardThemeGallery: 'dashboard-themes',

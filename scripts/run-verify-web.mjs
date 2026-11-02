@@ -35,6 +35,8 @@ export const FILES = [
   'src/privacy/myDataExport.test.mjs',
   'functions/deleteAccount.test.mjs',
   'functions/helpKnowledge.test.mjs',
+  'src/helpdesk/helpdesk.test.mjs',
+  'functions/helpdesk.test.mjs',
   'src/utils/reverseGeocode.test.mjs',
   'src/privacy/companyClosure.test.mjs',
   'src/privacy/companyArchive.test.mjs',

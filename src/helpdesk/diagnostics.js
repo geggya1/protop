@@ -53,7 +53,8 @@ export function recordNetwork({ method = 'GET', url = '', status = 0, ok = false
 }
 
 export function recordBreadcrumb(type, label) {
-  const text = redactSecrets(String(label || '')).replace(/\s+/g, ' ').trim().slice(0, 120);
+  // Ikon-fonter gir tegn i privat område (U+E000–U+F8FF), som blir □ i e-post.
+  const text = redactSecrets(String(label || '')).replace(/[-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
   if (!text) return;
   const last = state.crumbs[state.crumbs.length - 1];
   if (last && last.label === text) return;
@@ -176,6 +177,18 @@ function osName(ua) {
   return '';
 }
 
+/** Siste side brukeren var på før hjelpesenteret (der problemet som regel er). */
+function previousPage(current) {
+  const here = String(current || '');
+  for (let i = state.crumbs.length - 1; i >= 0; i -= 1) {
+    const c = state.crumbs[i];
+    if (c.type !== 'side') continue;
+    if (c.label === here || /\/(apper|more)\/help\b|\/hjelp\b/.test(c.label)) continue;
+    return c.label;
+  }
+  return '';
+}
+
 /** Øyeblikksbilde som sendes med saken. `page` kommer fra skallet (fane, bedrift …). */
 export function collectDiagnostics(page = {}) {
   const win = Dimensions.get('window');
@@ -215,7 +228,7 @@ export function collectDiagnostics(page = {}) {
   try { env.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* ignore */ }
   return {
     capturedAtMs: Date.now(),
-    page: { ...page, path, title },
+    page: { ...page, path, title, from: page.from || previousPage(path) },
     env,
     console: state.console.slice(-40),
     network: state.network.slice(-25),

@@ -95,7 +95,12 @@ export default function HelpCenterScreen({ initial = null, demo = false }) {
   const scrollRef = useRef(null);
   // Hjelpen viser bare sider brukeren har tilgang til, og sier fra om låste steg.
   const helpAccess = useHelpAccess();
-  const canSee = useCallback((a) => !a?.pageKey || helpAccess.canSee(a), [helpAccess]);
+  const canSee = useCallback((a) => {
+    if (!a) return false;
+    // Temaer for admin (f.eks. «Vis som») vises bare for dem som har rettigheten i bedriften.
+    if (a.requires) return helpAccess.active && helpAccess.checkNeed(a.requires).ok;
+    return !a.pageKey || helpAccess.canSee(a);
+  }, [helpAccess]);
 
   const go = useCallback((next) => {
     setHistory((h) => [...h, view].slice(-20));
@@ -561,7 +566,7 @@ function AssistantView({ ctx, ask }) {
 
 function NewTicketView({ ctx }) {
   const {
-    draft, user, family, company, shellTab, openArticle, go, viewed,
+    draft, user, family, company, shellTab, openArticle, go, viewed, canSee,
   } = ctx;
   const [category, setCategory] = useState(draft?.category || '');
   const [moduleId, setModuleId] = useState(draft?.module || (MODULES[shellTab] ? shellTab : 'general'));
@@ -586,11 +591,11 @@ function NewTicketView({ ctx }) {
   useEffect(() => {
     const id = setTimeout(() => {
       setSuggest(subject.trim().length >= 4 || body.trim().length >= 12
-        ? suggestForTicket({ subject, body, lang, limit: 3 })
+        ? suggestForTicket({ subject, body, lang, limit: 6 }).filter(canSee).slice(0, 3)
         : []);
     }, 350);
     return () => clearTimeout(id);
-  }, [subject, body]);
+  }, [subject, body, canSee]);
 
   const email = user?.email || '';
   const subjectErr = tried && subject.trim().length < 3 ? 'Skriv en kort tittel.' : '';

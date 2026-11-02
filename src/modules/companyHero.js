@@ -103,8 +103,8 @@ export const COMPANY_HERO = {
   },
   'hr-oppfolging': {
     wideArt: true,
-    name: 'Oppfølging',
-    kicker: t('HR', 'HR'),
+    name: 'Samtaler og saker',
+    kicker: t('HR · Oppfølging', 'HR · Follow-up'),
     title: t('Saker, samtaler og oppgaver', 'Cases, reviews and tasks'),
     pitch: t(
       'Medarbeidersamtaler, memo og tildelte gjøremål.',
@@ -117,8 +117,38 @@ export const COMPANY_HERO = {
     kicker: t('HR', 'HR'),
     title: t('Lovpålagt per ansatt', 'Statutory per employee'),
     pitch: t(
-      'Arbeidsavtale, oppfølging, verneutstyr og personvern per ansatt.',
-      'Employment agreement, follow-up, protective equipment and privacy per employee.',
+      'Arbeidsavtale, HMS-kort, verneutstyr og personvern per ansatt.',
+      'Employment agreement, HSE card, protective equipment and privacy per employee.',
+    ),
+  },
+  'hr-sykefravaer': {
+    wideArt: true,
+    name: 'Sykefravær',
+    kicker: t('HR · Oppfølging', 'HR · Follow-up'),
+    title: t('Frister ved sykefravær', 'Sick leave deadlines'),
+    pitch: t(
+      'Oppfølgingsplan, dialogmøte 1 og 2, regnet fra fraværet.',
+      'Follow-up plan and dialogue meetings, counted from the absence.',
+    ),
+  },
+  'hr-undersokelse': {
+    wideArt: true,
+    name: 'Medarbeiderundersøkelse',
+    kicker: t('HR · Oppfølging', 'HR · Follow-up'),
+    title: t('Anonym medarbeiderundersøkelse', 'Anonymous employee survey'),
+    pitch: t(
+      'Kartlegging av arbeidsmiljøet. De ansatte svarer på Min side.',
+      'Working environment survey. Employees answer on My page.',
+    ),
+  },
+  'hr-arshjul': {
+    wideArt: true,
+    name: 'Årshjul',
+    kicker: t('HR · Rutiner', 'HR · Routines'),
+    title: t('HR-årshjul', 'HR annual cycle'),
+    pitch: t(
+      'Faste HR-oppgaver måned for måned, med lovhenvisning.',
+      'Recurring HR tasks month by month, with legal references.',
     ),
   },
   'hr-handbok': {

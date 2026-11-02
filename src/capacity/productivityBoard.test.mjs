@@ -17,6 +17,20 @@ import {
   weekSeries,
 } from './plan.js';
 
+// Tavlen starter på inneværende uke. Testdataene gjelder oktober 2026, så klokken fryses der,
+// ellers forsvinner tildelingen ut av tavlen når datoen passerer (som 2. november 2026).
+const RealDate = Date;
+const FROZEN_NOW = new RealDate('2026-10-14T10:00:00').getTime();
+globalThis.Date = class extends RealDate {
+  constructor(...args) {
+    super(...(args.length ? args : [FROZEN_NOW]));
+  }
+
+  static now() {
+    return FROZEN_NOW;
+  }
+};
+
 const require = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const colors = {

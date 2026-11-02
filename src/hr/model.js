@@ -9,6 +9,8 @@ import {
 } from './compliance.js';
 import { emptyHandbook, handbookHasContent, normalizeHandbook } from './handbook.js';
 import { normalizeHmsCard, normalizeHmsSetting } from './hmsCard.js';
+import { normalizeAnnualSettings } from './annualWheel.js';
+import { normalizeSickFollowUp } from './sickLeave.js';
 
 export const HR_VERSION = 2;
 
@@ -130,6 +132,10 @@ export function emptyHrState() {
     // Kjøringer av lagringstiden (hvem slettet hva og når). Se retention.js.
     retentionRuns: [],
     handbook: emptyHandbook(),
+    // Det HR har gjort ved sykefravær (oppfølgingsplan, dialogmøter). Se sickLeave.js.
+    sickFollowUps: [],
+    // HR-årshjulet: av-slåtte aktiviteter, avkrysninger per år og automatiske oppgaver. Se annualWheel.js.
+    annual: normalizeAnnualSettings(null),
     // hmsCard: '' følger næringskoden, 'on' eller 'off' er valgt av bedriften. Se hmsCard.js.
     settings: { hmsCard: '' },
     updatedAt: '',
@@ -661,6 +667,8 @@ export function normalizeHrState(raw) {
     hmsCards: normalizeList(raw.hmsCards, normalizeHmsCard),
     retentionRuns: normalizeList(raw.retentionRuns, normalizeRetentionRun).slice(-20),
     handbook: normalizeHandbook(raw.handbook),
+    sickFollowUps: normalizeList(raw.sickFollowUps, normalizeSickFollowUp),
+    annual: normalizeAnnualSettings(raw.annual),
     settings: { hmsCard: normalizeHmsSetting(raw.settings?.hmsCard) },
     updatedAt: text(raw.updatedAt),
   };
@@ -712,7 +720,7 @@ export function hrStateHasData(state) {
   const src = normalizeHrState(state);
   return [
     'contracts', 'reviews', 'cases', 'memos', 'tasks',
-    'salaries', 'jobs', 'applications', 'compliance', 'files', 'hmsCards',
+    'salaries', 'jobs', 'applications', 'compliance', 'files', 'hmsCards', 'sickFollowUps',
   ].some((key) => (src[key] || []).length > 0) || handbookHasContent(src.handbook);
 }
 

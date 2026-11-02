@@ -709,37 +709,35 @@ let caseHtml = '';
 // HR bruker modulmenyen i skallet (ModuleTabs), som de andre modulene (UX-19).
 const ModuleTabs = component('components/ModuleTabs.jsx');
 const { moduleTabsFor } = load(path.join(ROOT, 'src/navigation/moduleTabs.js'));
-const sectionLabels = ['Oversikt', 'Personell', 'Avtaler', 'Lønn', 'Oppfølging', 'Lovpålagt', 'Rekruttering'];
+const sectionLabels = ['Oversikt', 'Ansatte', 'Oppfølging', 'Rekruttering', 'Rutiner'];
 
 let phoneNavHtml = '';
 let phoneSheetHtml = '';
 {
-  // Testmiljøet er 390 px bredt (telefon): tre faner og «Mer».
+  // HR har deler som ISO: første rad er delene, andre rad sidene i delen du står i.
   phoneNavHtml = renderToStaticMarkup(React.createElement(ModuleTabs, {
-    menu: moduleTabsFor('hr', 'oversikt'),
+    menu: moduleTabsFor('hr', 'lonn'),
     onSelect: () => {},
   }));
-  assert.match(phoneNavHtml, /id="module-tab-hr-oversikt"/);
-  assert.match(phoneNavHtml, /id="module-tab-hr-personell"/);
-  assert.match(phoneNavHtml, /id="module-tabs-more"/);
-  assert.match(phoneNavHtml, /Flere sider i HR \(6\)/);
-  for (const label of ['Lønn', 'Rekruttering', 'Personalhåndbok']) {
-    assert.equal(phoneNavHtml.includes(label), false, `lukket «Mer» skal ikke vise ${label}`);
+  for (const label of sectionLabels) assert.match(phoneNavHtml, new RegExp(label));
+  assert.match(phoneNavHtml, /id="module-tab-del-ansatte"/);
+  assert.match(phoneNavHtml, /Ansatte \(4 sider\)/);
+  for (const id of ['personell', 'avtaler', 'lonn', 'compliance']) {
+    assert.match(phoneNavHtml, new RegExp(`id="module-tab-hr-${id}"`));
   }
+  // Sidene i de andre delene står ikke i andre rad.
+  assert.equal(phoneNavHtml.includes('module-tab-hr-sykefravaer'), false);
+  assert.equal(phoneNavHtml.includes('module-tab-hr-handbok'), false);
 }
 
 {
+  // Oversikt er en del med én side: ingen andre rad.
   phoneSheetHtml = renderToStaticMarkup(React.createElement(ModuleTabs, {
     menu: moduleTabsFor('hr', 'oversikt'),
     onSelect: () => {},
-    moreOpen: true,
   }));
-  assert.match(phoneSheetHtml, /id="module-tabs-sheet"/);
-  for (const label of sectionLabels) {
-    assert.match(phoneSheetHtml, new RegExp(label.replace('&', '&amp;')));
-  }
-  assert.match(phoneSheetHtml, /id="module-tab-hr-lonn"/);
-  assert.match(phoneSheetHtml, /id="module-tab-hr-rekruttering"/);
+  assert.match(phoneSheetHtml, /id="module-tab-del-oversikt"/);
+  assert.equal(phoneSheetHtml.includes('module-tab-hr-personell'), false);
 }
 
 const previewDir = '/opt/cursor/artifacts';

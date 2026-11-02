@@ -689,7 +689,8 @@ service cloud.firestore {
         || coll == 'docComments' || coll == 'docControlSettings' || coll == 'docControl' || coll == 'docAcks'
         || coll == 'invoices' || coll == 'invoiceSeries' || coll == 'meetings'
         || coll == 'parents' || coll == 'memberInvites'
-        || coll == 'hr' || coll == 'hrSelf' || coll == 'absences' || coll == 'childAbsences' || coll == 'employeesPrivate'
+        || coll == 'hr' || coll == 'hrSelf' || coll == 'hrSurveys' || coll == 'hrSurveyAnswers' || coll == 'hrSurveyReceipts'
+        || coll == 'absences' || coll == 'childAbsences' || coll == 'employeesPrivate'
         || coll == 'notes' || coll == 'timeEntries' || coll == 'projectExpenses' || coll == 'events'
         || coll == 'timeEntryDeletions' || coll == 'accessLog';
     }
@@ -1233,6 +1234,51 @@ service cloud.firestore {
         allow get: if isFamilyMember(familyId) && (hrReader(familyId) || ownEmployeePost(familyId, empId));
         allow list: if isFamilyMemberLite(familyId) && hrReader(familyId);
         allow create, update, delete: if isFamilyMember(familyId) && hrWriter(familyId);
+      }
+
+      // Medarbeiderundersøkelse (src/hr/survey.js). Alle i bedriften leser undersøkelsen; HR lager
+      // og endrer den. En avsluttet undersøkelse kan ikke åpnes igjen.
+      match /hrSurveys/{surveyId} {
+        allow get: if isFamilyMember(familyId);
+        allow list: if isFamilyMemberLite(familyId);
+        allow create: if isFamilyMember(familyId) && hrWriter(familyId);
+        allow update: if isFamilyMember(familyId) && hrWriter(familyId)
+          && (resource.data.get('status', '') != 'closed' || request.resource.data.get('status', '') == 'closed');
+        allow delete: if isFamilyMember(familyId) && hrWriter(familyId);
+      }
+
+      // Svar uten bruker-id. Bare HR leser. Et svar må skrives sammen med en ny kvittering for
+      // samme person, så hver person svarer én gang, og bare mens undersøkelsen er åpen.
+      match /hrSurveyAnswers/{answerId} {
+        allow get: if isFamilyMember(familyId) && hrReader(familyId);
+        allow list: if isFamilyMemberLite(familyId) && hrReader(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.keys().hasOnly(['surveyId', 'answers', 'comment'])
+          && request.resource.data.surveyId is string
+          && request.resource.data.answers is map
+          && request.resource.data.answers.size() <= 60
+          && (!('comment' in request.resource.data)
+              || (request.resource.data.comment is string && request.resource.data.comment.size() <= 1500))
+          && get(/databases/$(database)/documents/families/$(familyId)/hrSurveys/$(request.resource.data.surveyId)).data.get('status', '') == 'open'
+          && !exists(/databases/$(database)/documents/families/$(familyId)/hrSurveyReceipts/$(request.resource.data.surveyId + '_' + request.auth.uid))
+          && existsAfter(/databases/$(database)/documents/families/$(familyId)/hrSurveyReceipts/$(request.resource.data.surveyId + '_' + request.auth.uid));
+        allow update: if false;
+        allow delete: if isFamilyMember(familyId) && hrWriter(familyId);
+      }
+
+      // Kvittering for at en person har svart (id: {surveyId}_{uid}). Ingen svar i den.
+      match /hrSurveyReceipts/{receiptId} {
+        allow get: if isFamilyMember(familyId)
+          && (receiptId.matches('^.+_' + request.auth.uid + '$') || hrReader(familyId));
+        allow list: if isFamilyMemberLite(familyId) && hrReader(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.keys().hasOnly(['surveyId', 'uid'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.surveyId is string
+          && receiptId == request.resource.data.surveyId + '_' + request.auth.uid
+          && get(/databases/$(database)/documents/families/$(familyId)/hrSurveys/$(request.resource.data.surveyId)).data.get('status', '') == 'open';
+        allow update: if false;
+        allow delete: if isFamilyMember(familyId) && hrWriter(familyId);
       }
 
       // Fravær (helseopplysninger, L-02). I bedrifter ser og fører hver ansatt sitt eget fravær;

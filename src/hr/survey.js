@@ -57,9 +57,70 @@ export const SURVEY_QUESTION_BANK = [
   { id: 'bli', area: 'Trivsel', text: 'Jeg ser for meg å jobbe her om to år.' },
 ];
 
+/**
+ * Motivasjon og mestring: ti faktorer fra forskningen på motivasjon i arbeidslivet (samme
+ * faktorer som KS sitt verktøy 10-FAKTOR, men med egne utsagn, to per faktor). Måler hva som
+ * driver engasjement og gode resultater, ikke risiko i arbeidsmiljøet.
+ */
+export const MOTIVATION_QUESTIONS = [
+  { id: 'mm_indre_1', area: 'Indre motivasjon', text: 'Arbeidsoppgavene mine engasjerer meg.' },
+  { id: 'mm_indre_2', area: 'Indre motivasjon', text: 'Jeg gleder meg ofte til å gå på jobb.' },
+  { id: 'mm_mestringstro_1', area: 'Mestringstro', text: 'Jeg er trygg på at jeg klarer oppgavene jeg får.' },
+  { id: 'mm_mestringstro_2', area: 'Mestringstro', text: 'Når noe går galt, finner jeg som regel en løsning.' },
+  { id: 'mm_autonomi_1', area: 'Autonomi', text: 'Jeg kan selv bestemme hvordan jeg løser oppgavene mine.' },
+  { id: 'mm_autonomi_2', area: 'Autonomi', text: 'Jeg kan planlegge arbeidsdagen min selv.' },
+  { id: 'mm_kompetanse_1', area: 'Bruk av kompetanse', text: 'Jeg får brukt det jeg kan i jobben.' },
+  { id: 'mm_kompetanse_2', area: 'Bruk av kompetanse', text: 'Oppgavene mine passer med utdanningen og erfaringen min.' },
+  { id: 'mm_ledelse_1', area: 'Mestringsorientert ledelse', text: 'Lederen min hjelper meg å bli bedre i jobben.' },
+  { id: 'mm_ledelse_2', area: 'Mestringsorientert ledelse', text: 'Lederen min gir meg nyttige tilbakemeldinger.' },
+  { id: 'mm_rolle_1', area: 'Rolleklarhet', text: 'Jeg vet hva som er mitt ansvar.' },
+  { id: 'mm_rolle_2', area: 'Rolleklarhet', text: 'Jeg vet hva som skal prioriteres når det er travelt.' },
+  { id: 'mm_utvikling_1', area: 'Relevant kompetanseutvikling', text: 'Opplæringen jeg får, gjør meg bedre i jobben.' },
+  { id: 'mm_utvikling_2', area: 'Relevant kompetanseutvikling', text: 'Jeg får lære det jeg trenger når arbeidet endrer seg.' },
+  { id: 'mm_fleksibel_1', area: 'Fleksibilitetsvilje', text: 'Jeg tar gjerne andre oppgaver når det trengs.' },
+  { id: 'mm_fleksibel_2', area: 'Fleksibilitetsvilje', text: 'Jeg er positiv til endringer som gjør arbeidet bedre.' },
+  { id: 'mm_klima_1', area: 'Mestringsklima', text: 'Hos oss lærer vi av hverandre i stedet for å konkurrere.' },
+  { id: 'mm_klima_2', area: 'Mestringsklima', text: 'Det er greit å spørre om hjelp og innrømme feil.' },
+  { id: 'mm_prososial_1', area: 'Prososial motivasjon', text: 'Det er viktig for meg at jobben min gjør nytte for andre.' },
+  { id: 'mm_prososial_2', area: 'Prososial motivasjon', text: 'Jeg ser at arbeidet vårt betyr noe for kundene.' },
+];
+
+/** Kort puls mellom de store undersøkelsene (fem minutter, samme id-er som standarden). */
+export const PULSE_IDS = ['trivsel', 'arbeidsmengde', 'leder', 'sikkerhet', 'trakassering', 'anbefale'];
+
+/**
+ * Maler for en ny undersøkelse. Alle bruker samme skala (1–5) og samme id-er fra år til år.
+ */
+export const SURVEY_TEMPLATES = [
+  {
+    id: 'arbeidsmiljo',
+    label: 'Arbeidsmiljø',
+    hint: 'Trivsel, arbeidsmengde, ledelse, samarbeid, HMS og trakassering. 12 spørsmål, cirka 5 minutter. Dekker kartleggingen arbeidsmiljøloven krever.',
+    questions: () => DEFAULT_SURVEY_QUESTIONS,
+  },
+  {
+    id: 'motivasjon',
+    label: 'Motivasjon og mestring (10 faktorer)',
+    hint: 'De ti faktorene som driver engasjement og gode resultater: indre motivasjon, mestringstro, autonomi, ledelse, rolleklarhet og mer. 20 spørsmål, cirka 7 minutter.',
+    questions: () => MOTIVATION_QUESTIONS,
+  },
+  {
+    id: 'puls',
+    label: 'Kort puls',
+    hint: 'Seks spørsmål mellom de store undersøkelsene, for eksempel hvert kvartal. Samme spørsmål som i Arbeidsmiljø, så tallene kan sammenlignes.',
+    questions: () => DEFAULT_SURVEY_QUESTIONS.filter((q) => PULSE_IDS.includes(q.id)),
+  },
+];
+
+export function surveyTemplate(id) {
+  return SURVEY_TEMPLATES.find((t) => t.id === id) || SURVEY_TEMPLATES[0];
+}
+
 /** Områdene i standardspørsmålene og spørsmålsbanken, til valg i redigeringen. */
-export const SURVEY_AREAS = [...new Set([...DEFAULT_SURVEY_QUESTIONS, ...SURVEY_QUESTION_BANK].map((q) => q.area))];
+export const SURVEY_AREAS = [...new Set([...DEFAULT_SURVEY_QUESTIONS, ...SURVEY_QUESTION_BANK, ...MOTIVATION_QUESTIONS].map((q) => q.area))];
 export const SURVEY_MAX_QUESTIONS = 40;
+
+const SURVEY_TEMPLATES_IDS = ['arbeidsmiljo', 'motivasjon', 'puls'];
 
 export const SURVEY_STATUSES = [
   { id: 'draft', label: 'Utkast' },
@@ -88,15 +149,19 @@ export function newSurveyId(now = new Date()) {
  * Ny undersøkelse. template: forrige undersøkelse. Da brukes de samme spørsmålene og
  * innledningen, så resultatene kan sammenlignes fra år til år.
  */
-export function newSurvey({ year = new Date().getFullYear(), uid = '', now = new Date(), template = null } = {}) {
+export function newSurvey({
+  year = new Date().getFullYear(), uid = '', now = new Date(), template = null, templateId = '',
+} = {}) {
   const base = template ? normalizeSurvey(template) : null;
+  const tmpl = templateId ? surveyTemplate(templateId) : null;
   return normalizeSurvey({
     id: newSurveyId(now),
-    title: `Medarbeiderundersøkelse ${year}`,
+    title: tmpl && tmpl.id !== 'arbeidsmiljo' ? `${tmpl.id === 'puls' ? 'Pulsmåling' : 'Motivasjon og mestring'} ${year}` : `Medarbeiderundersøkelse ${year}`,
     intro: base?.intro || 'Undersøkelsen er anonym. Ingen kan se hva du har svart. Resultatene vises bare samlet, når undersøkelsen er avsluttet og minst fem har svart.',
     status: 'draft',
     year,
-    questions: base?.questions?.length ? base.questions : DEFAULT_SURVEY_QUESTIONS,
+    questions: tmpl ? tmpl.questions() : (base?.questions?.length ? base.questions : DEFAULT_SURVEY_QUESTIONS),
+    templateId: tmpl ? tmpl.id : (base?.templateId || 'arbeidsmiljo'),
     createdBy: uid,
     createdAt: now.toISOString(),
   });
@@ -121,6 +186,7 @@ export function normalizeSurvey(raw = {}) {
     notifiedAt: text(raw.notifiedAt),
     remindedAt: text(raw.remindedAt),
     reminders: Number(raw.reminders) || 0,
+    templateId: SURVEY_TEMPLATES_IDS.includes(text(raw.templateId)) ? text(raw.templateId) : '',
     closedAt: text(raw.closedAt),
     createdBy: text(raw.createdBy),
     createdAt: text(raw.createdAt),
@@ -211,6 +277,16 @@ export const AREA_ADVICE = {
   Utvikling: 'Lag en kompetanseplan, og ta opp utviklingsønsker i medarbeidersamtalene.',
   'Fysisk arbeidsmiljø': 'Gjør en vernerunde med verneombudet, og meld og følg opp funn som avvik.',
   HMS: 'Gå gjennom avviksrutinen og varslingsrutinen med alle, og vis at meldte avvik blir fulgt opp.',
+  'Indre motivasjon': 'Snakk med hver enkelt om hvilke oppgaver som gir energi, og fordel arbeidet så flest mulig får noe av det.',
+  Mestringstro: 'Gi tydelige mål og tilbakemelding underveis, og la folk lykkes med gradvis større oppgaver.',
+  Autonomi: 'La teamene bestemme mer selv om rekkefølge og arbeidsmåte, innenfor tydelige rammer.',
+  'Bruk av kompetanse': 'Kartlegg hva de ansatte kan, og bruk det når oppgaver og prosjekter fordeles.',
+  'Mestringsorientert ledelse': 'Gi lederne tid til jevnlige en-til-en-samtaler med fokus på læring, ikke bare resultat.',
+  Rolleklarhet: 'Skriv ned ansvar og prioriteringer for hver rolle, og gå gjennom dem ved oppstart av prosjekter.',
+  'Relevant kompetanseutvikling': 'Lag en kompetanseplan som henger sammen med oppgavene, og spør hva folk trenger å lære.',
+  Fleksibilitetsvilje: 'Forklar hvorfor endringer gjøres, og ta de ansatte med i planleggingen.',
+  Mestringsklima: 'Del erfaringer og feil åpent på møtene, og ros samarbeid mer enn enkeltprestasjoner.',
+  'Prososial motivasjon': 'Vis de ansatte hva arbeidet betyr for kundene, for eksempel med tilbakemeldinger fra kundeundersøkelsen.',
   Helse: 'Kartlegg belastninger sammen med verneombudet og bedriftshelsetjenesten, og tilpass arbeidet der det trengs.',
   Trakassering: 'Gå gjennom rutinen for varsling og håndtering av trakassering med verneombudet, og gjør den kjent for alle (arbeidsmiljøloven § 4-3).',
 };
@@ -286,12 +362,18 @@ export function surveyAnalysis(results, previous = null) {
   };
 }
 
-/** Forrige avsluttede undersøkelse før denne (for sammenligning). */
+/** Malen undersøkelsen bygger på. Eldre undersøkelser uten mal er Arbeidsmiljø. */
+export function surveyKind(survey) {
+  return normalizeSurvey(survey).templateId || 'arbeidsmiljo';
+}
+
+/** Forrige avsluttede undersøkelse av samme slag før denne (for sammenligning). */
 export function previousSurvey(surveys, survey) {
   const s = normalizeSurvey(survey);
+  const kind = surveyKind(s);
   return (surveys || [])
     .map(normalizeSurvey)
-    .filter((x) => x.id !== s.id && x.status === 'closed' && String(x.closedAt) < String(s.closedAt || '9999'))
+    .filter((x) => x.id !== s.id && x.status === 'closed' && surveyKind(x) === kind && String(x.closedAt) < String(s.closedAt || '9999'))
     .sort((a, b) => String(b.closedAt).localeCompare(String(a.closedAt)))[0] || null;
 }
 
@@ -402,16 +484,16 @@ export function defaultDeadline(today = new Date()) {
  * Punktene til utviklingen over tid (src/surveys/trend.js), ett per avsluttet undersøkelse
  * med resultat. resultsById: { [surveyId]: surveyResults(...) }.
  */
-export function hrTrendPoints(surveys, resultsById = {}, invited = 0) {
+export function hrTrendPoints(surveys, resultsById = {}, invited = 0, kind = 'arbeidsmiljo') {
   return (surveys || [])
     .map(normalizeSurvey)
-    .filter((s) => s.status === 'closed' && resultsById[s.id]?.ready)
+    .filter((s) => s.status === 'closed' && resultsById[s.id]?.ready && surveyKind(s) === kind)
     .map((s) => {
       const r = resultsById[s.id];
       const a = surveyAnalysis(r);
       return {
         id: s.id,
-        label: s.title.replace(/^Medarbeiderundersøkelse\s*/i, '') || String(s.year),
+        label: s.title.replace(/^(Medarbeiderundersøkelse|Motivasjon og mestring|Pulsmåling)\s*/i, '') || String(s.year),
         date: s.closedAt || s.openedAt || s.createdAt,
         index: a?.index ?? null,
         count: r.count,

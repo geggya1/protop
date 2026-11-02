@@ -12,6 +12,7 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { useLayout } from '../../src/theme';
 import { radius, space, type } from '../../src/ui/tokens';
 import { HrButton, HrChip } from '../hr/HrShared';
+import { formatNbDate } from '../../src/hr/model';
 
 /** Avrundede ender på søylene (diagrammenes merker). */
 const MARK_RADIUS = 4;
@@ -122,20 +123,35 @@ function AreaBars({ colors, areas, isPhone }) {
 
 function FollowUpRow({ colors, row, canWrite, onFollowUp }) {
   const [note, setNote] = useState(row.followUp?.note || '');
+  const [reply, setReply] = useState('');
+  const [replying, setReplying] = useState(false);
   const [busy, setBusy] = useState(false);
   const done = row.followUp?.done;
-  const save = async (next) => {
+  const save = async (data) => {
     setBusy(true);
     try {
-      await onFollowUp(row.id, { done: next, note });
+      return await onFollowUp(row.id, { done: !!done, note, ...data });
     } finally {
       setBusy(false);
     }
   };
+  const sendReply = async () => {
+    if (!reply.trim()) return;
+    const ok = await save({ reply: reply.trim(), done: true });
+    if (ok !== false) {
+      setReply('');
+      setReplying(false);
+    }
+  };
+  const status = done
+    ? { icon: 'checkmark-circle', color: colors.success, text: 'Fulgt opp' }
+    : row.overdue
+      ? { icon: 'time', color: colors.danger, text: `Fristen gikk ut ${formatNbDate(row.due)}` }
+      : { icon: 'alert-circle', color: colors.warn, text: row.due ? `Følg opp innen ${formatNbDate(row.due)}${row.daysLeft != null ? ` (${row.daysLeft} ${row.daysLeft === 1 ? 'dag' : 'dager'})` : ''}` : 'Ikke fulgt opp' };
   return (
     <View style={[styles.followRow, { borderColor: colors.line }]} nativeID={`customer-survey-followup-${row.id}`}>
       <View style={styles.followHead}>
-        <Ionicons name={done ? 'checkmark-circle' : 'alert-circle'} size={18} color={done ? colors.success : colors.warn} />
+        <Ionicons name={status.icon} size={18} color={status.color} />
         <View style={{ flex: 1, minWidth: 160 }}>
           <Text style={[styles.bodyStrong, { color: colors.ink }]}>{row.customerName || row.recipientName || 'Kunde'}</Text>
           <Text style={[styles.caption, { color: colors.muted }]}>
@@ -147,19 +163,52 @@ function FollowUpRow({ colors, row, canWrite, onFollowUp }) {
             ].filter(Boolean).join(' · ')}
           </Text>
         </View>
-        <Text style={[styles.caption, { color: done ? colors.successInk || colors.ink : colors.ink }]}>{done ? 'Fulgt opp' : 'Ikke fulgt opp'}</Text>
-      </View>
-      {canWrite ? (
-        <View style={styles.followTools}>
-          <TextInput
-            value={note}
-            onChangeText={setNote}
-            placeholder="Hva ble gjort? (f.eks. ringt kunden, avtalt befaring)"
-            placeholderTextColor={colors.muted}
-            style={[styles.input, { flex: 1, minWidth: 200, color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-          />
-          <HrButton colors={colors} icon={done ? 'refresh' : 'checkmark'} label={done ? 'Åpne igjen' : 'Merk som fulgt opp'} disabled={busy} onPress={() => save(!done)} />
+        <View style={[styles.pill, { borderColor: status.color }]}>
+          <Text style={[styles.caption, { color: colors.ink }]}>{status.text}</Text>
         </View>
+      </View>
+      {row.followUp?.repliedAt ? (
+        <View style={[styles.replied, { borderLeftColor: colors.success }]}>
+          <Text style={[styles.caption, { color: colors.muted }]}>{`Svar sendt til kunden ${formatNbDate(row.followUp.repliedAt)}`}</Text>
+          <Text style={[styles.caption, { color: colors.ink }]} numberOfLines={3}>{row.followUp.reply}</Text>
+        </View>
+      ) : null}
+      {canWrite ? (
+        <>
+          <View style={styles.followTools}>
+            <TextInput
+              value={note}
+              onChangeText={setNote}
+              placeholder="Internt notat: hva ble gjort? (f.eks. ringt kunden, avtalt befaring)"
+              placeholderTextColor={colors.muted}
+              style={[styles.input, { flex: 1, minWidth: 200, color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+            />
+            <HrButton colors={colors} icon={done ? 'refresh' : 'checkmark'} label={done ? 'Åpne igjen' : 'Merk som fulgt opp'} disabled={busy} onPress={() => save({ done: !done })} />
+            {!replying ? (
+              <HrButton colors={colors} icon="mail-outline" label="Svar kunden" disabled={busy} onPress={() => setReplying(true)} nativeID={`customer-survey-reply-${row.id}`} />
+            ) : null}
+          </View>
+          {replying ? (
+            <View style={[styles.replyBox, { borderColor: colors.line, backgroundColor: colors.sunken }]}>
+              <Text style={[styles.caption, { color: colors.muted }]}>
+                {`Kunden får en e-post fra bedriften med teksten under. Fortell hva dere har gjort med tilbakemeldingen. Det viser at svaret ble tatt på alvor.`}
+              </Text>
+              <TextInput
+                value={reply}
+                onChangeText={setReply}
+                multiline
+                placeholder="Takk for ærlig tilbakemelding. Vi har …"
+                placeholderTextColor={colors.muted}
+                nativeID={`customer-survey-reply-text-${row.id}`}
+                style={[styles.input, styles.replyInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+              />
+              <View style={styles.followTools}>
+                <HrButton colors={colors} primary icon="send" label={busy ? 'Sender …' : 'Send og merk som fulgt opp'} disabled={busy || !reply.trim()} onPress={sendReply} nativeID={`customer-survey-reply-send-${row.id}`} />
+                <HrButton colors={colors} label="Avbryt" onPress={() => setReplying(false)} />
+              </View>
+            </View>
+          ) : null}
+        </>
       ) : (row.followUp?.note ? <Text style={[styles.caption, { color: colors.ink }]}>{row.followUp.note}</Text> : null)}
     </View>
   );
@@ -209,8 +258,8 @@ export default function CustomerSurveyResults({
       {!survey.anonymous && results.unhappy.length ? (
         <View style={styles.stack} nativeID="customer-survey-unhappy">
           <Text style={[styles.title, { color: colors.ink }]}>Følg opp misfornøyde kunder</Text>
-          <Text style={[styles.caption, { color: colors.muted }]}>Kunder som ga 0–6 på anbefaling eller 1–2 på et spørsmål. Ta kontakt, finn årsaken og registrer det som en reklamasjon eller et avvik når det trengs (ISO 9001 punkt 9.1.2 og 10.2).</Text>
-          {results.unhappy.map((u) => (
+          <Text style={[styles.caption, { color: colors.muted }]}>Kunder som ga 0–6 på anbefaling eller 1–2 på et spørsmål. Ta kontakt innen 14 dager, finn årsaken, og fortell kunden hva dere har gjort. Registrer det som reklamasjon eller avvik når det trengs (ISO 9001 punkt 9.1.2 og 10.2).</Text>
+          {[...results.unhappy].sort((a, b) => (!!a.followUp?.done - !!b.followUp?.done) || (b.overdue - a.overdue) || String(a.due).localeCompare(String(b.due))).map((u) => (
             <FollowUpRow key={u.id || u.customerName} colors={colors} row={u} canWrite={canWrite && !!onFollowUp} onFollowUp={onFollowUp} />
           ))}
         </View>
@@ -341,6 +390,10 @@ const styles = StyleSheet.create({
   followRow: { borderTopWidth: 1, paddingTop: space.xs, gap: 6 },
   followHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.xs },
   followTools: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  pill: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  replied: { borderLeftWidth: 3, paddingLeft: space.xs, gap: 2 },
+  replyBox: { borderWidth: 1, borderRadius: radius.control, padding: space.xs, gap: 6 },
+  replyInput: { minHeight: 80, textAlignVertical: 'top' },
   input: { borderWidth: 1, borderRadius: radius.control, paddingHorizontal: space.xs, paddingVertical: 8, ...type.body },
   tableRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, borderBottomWidth: 1, paddingVertical: 6 },
   tableBlock: { borderBottomWidth: 1, paddingVertical: 6, gap: 4 },

@@ -37,6 +37,7 @@ export default function SurveyAnswerScreen({ route }) {
   const [texts, setTexts] = useState({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [missing, setMissing] = useState('');
 
   useEffect(() => {
     let live = true;
@@ -68,10 +69,17 @@ export default function SurveyAnswerScreen({ route }) {
     setError('');
     const clean = cleanCustomerAnswer(survey, values, texts);
     if (!clean) {
-      const missing = survey.questions.find((q) => q.required && (q.type === 'text' ? !String(texts[q.id] || '').trim() : values[q.id] == null));
-      setError(missing ? `Svar på spørsmål ${survey.questions.indexOf(missing) + 1} før du sender.` : 'Svar på minst ett spørsmål før du sender.');
+      const first = survey.questions.find((q) => q.required && (q.type === 'text' ? !String(texts[q.id] || '').trim() : values[q.id] == null))
+        || survey.questions[0];
+      setMissing(first?.id || '');
+      setError(first?.required ? `Svar på spørsmål ${survey.questions.indexOf(first) + 1} før du sender.` : 'Svar på minst ett spørsmål før du sender.');
+      // Til spørsmålet som mangler.
+      if (Platform.OS === 'web' && typeof document !== 'undefined' && first) {
+        document.getElementById(`survey-q-${first.id}`)?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
+    setMissing('');
     setBusy(true);
     try {
       await customerSurveyCall('submit', { token, values, texts });
@@ -87,8 +95,27 @@ export default function SurveyAnswerScreen({ route }) {
 
   const total = survey?.questions?.length || 0;
   const done = survey ? answeredCount(survey, values, texts) : 0;
+  const form = state.phase === 'form' && !!survey;
+  const share = total ? Math.round((done / total) * 100) : 0;
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.bg }}
+      contentContainerStyle={styles.page}
+      keyboardShouldPersistTaps="handled"
+      stickyHeaderIndices={form ? [0] : undefined}
+    >
+      {form ? (
+        // Fast fremdriftslinje øverst mens kunden svarer.
+        <View style={[styles.sticky, { backgroundColor: colors.bg }]} nativeID="survey-answer-progress">
+          <View style={styles.stickyRow}>
+            <Text style={[styles.caption, { color: colors.ink }]}>{`${done} av ${total} besvart`}</Text>
+            <Text style={[styles.caption, { color: colors.muted }]}>{done === total ? 'Klar til å sende' : 'Du kan hoppe over spørsmål'}</Text>
+          </View>
+          <View style={[styles.progressTrack, { backgroundColor: colors.line }]} accessibilityLabel={`${share} prosent besvart`}>
+            <View style={[styles.progressFill, { width: `${share}%`, backgroundColor: colors.brandInk || colors.brand }]} />
+          </View>
+        </View>
+      ) : null}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]} nativeID="survey-answer">
         {survey?.companyName ? <Text style={[styles.company, { color: colors.muted }]}>{survey.companyName}</Text> : null}
 
@@ -143,6 +170,7 @@ export default function SurveyAnswerScreen({ route }) {
               survey={survey}
               values={values}
               texts={texts}
+              missing={missing}
               onValue={(id, v) => setValues((p) => {
                 const next = { ...p };
                 if (v == null) delete next[id];
@@ -175,5 +203,9 @@ const styles = StyleSheet.create({
   h1: { ...type.h1 },
   body: { ...type.body },
   caption: { ...type.caption },
+  sticky: { paddingVertical: space.xs, gap: 4, zIndex: 2 },
+  stickyRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.xs },
+  progressTrack: { height: 6, borderRadius: radius.pill, overflow: 'hidden' },
+  progressFill: { height: 6, borderRadius: radius.pill },
   footer: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space.xs, borderTopWidth: 0, paddingTop: space.xs },
 });

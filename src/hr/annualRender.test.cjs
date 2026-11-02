@@ -207,6 +207,35 @@ const has = (html, id) => assert.ok(html.includes(`id="${id}"`), `mangler ${id}`
   assert.match(trendHtml, /HMS/);
   assert.match(trendHtml, /under målet og ned fra forrige/);
 
+  // Tiltaksplan: fem trinn, tiltak med ansvar og frist, forslag fra resultatet, og «Virket tiltakene?».
+  const planMod = load('screens/hr/HrSurveyPlan.jsx');
+  const sp = await import('./surveyPlan.js');
+  let plan = sp.toggleStep(sp.emptyPlan(done.id), 'ledelse');
+  plan = sp.addAction(plan, { area: 'Arbeidsmengde', text: 'Gå gjennom bemanningen', owner: 'Kari', due: '2020-01-01' });
+  const planHtml = renderToStaticMarkup(React.createElement(planMod.default, {
+    colors, survey: done, plan, analysis, canWrite: true, onUpdate() {}, onCreateTask: async () => 'id',
+  }));
+  for (const id of [`hr-survey-plan-${done.id}`, 'hr-survey-plan-steps', 'hr-survey-plan-step-ledelse', 'hr-survey-plan-step-evaluert', 'hr-survey-plan-add', `hr-survey-plan-action-${plan.actions[0].id}`]) has(planHtml, id);
+  assert.match(planHtml, /3 av 5 trinn/);
+  assert.match(planHtml, /Fristen er passert/);
+  assert.match(planHtml, /Gjort ut fra tiltakene/);
+  const eff = renderToStaticMarkup(React.createElement(planMod.ActionEffects, {
+    colors, previousTitle: 'Medarbeiderundersøkelse 2025',
+    effects: sp.actionEffects(plan, [{ area: 'Arbeidsmengde', score: 40 }], [{ area: 'Arbeidsmengde', score: 52 }]),
+  }));
+  has(eff, 'hr-survey-effects');
+  assert.match(eff, /40 → 52/);
+  assert.match(eff, /Bedre/);
+
+  // Svarprosent med mål.
+  const Meter = load('components/surveys/ResponseMeter.jsx');
+  assert.equal(Meter.responseLevel(72).level, 'good');
+  assert.equal(Meter.responseLevel(55).level, 'ok');
+  assert.equal(Meter.responseLevel(30, { open: false }).level, 'low');
+  const meterHtml = renderToStaticMarkup(React.createElement(Meter.default, { colors, pct: 45, count: 9, of: 20, nativeID: 'm' }));
+  assert.match(meterHtml, /9 av 20 har svart/);
+  assert.match(meterHtml, /Lav svarprosent/);
+
   // Min side viser svarfristen.
   // Uten åpen undersøkelse vises ingenting på Min side (første rendering, før lasting).
   assert.equal(renderToStaticMarkup(React.createElement(EmployeeSurveyCard, { colors, companyId: 'c1', uid: 'u1' })), '');

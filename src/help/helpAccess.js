@@ -51,7 +51,7 @@ export const PAGE_ACCESS = {
   'hr.compliance': { res: 'hrCompliance', steps: [S, R, R, R] },
   'hr.sykefravaer': { res: 'hrFollowup', steps: [S, W] },
   // Lage, åpne, purre og avslutte krever Begrenset redigering på Oppfølging (surveyWriter i reglene).
-  'hr.undersokelse': { res: 'hrFollowup', steps: [R, R, R, S, S] },
+  'hr.undersokelse': { res: 'hrFollowup', steps: [R, R, R, S, R, S] },
   'hr.arshjul': { res: 'hr', steps: [S, W] },
   'hr.rekruttering': { res: 'hrRecruitment', steps: [R, R, R, R] },
   'hr.handbok': { res: 'hr', steps: [W, W, W, R, R] },

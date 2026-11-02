@@ -3,6 +3,7 @@
  * Stamdata i Ansatte; HR eier avtaler, samtaler, saker, memo/filer, lønn,
  * compliance, stillinger og søknader (ATS-kanban).
  */
+import { normalizeSurveyPlan } from './surveyPlan.js';
 import {
   amlContractCompleteness,
   normalizeComplianceItem,
@@ -134,6 +135,8 @@ export function emptyHrState() {
     handbook: emptyHandbook(),
     // Det HR har gjort ved sykefravær (oppfølgingsplan, dialogmøter). Se sickLeave.js.
     sickFollowUps: [],
+    // Tiltaksplaner etter medarbeiderundersøkelsene (fem trinn). Se surveyPlan.js.
+    surveyPlans: [],
     // HR-årshjulet: av-slåtte aktiviteter, avkrysninger per år og automatiske oppgaver. Se annualWheel.js.
     annual: normalizeAnnualSettings(null),
     // hmsCard: '' følger næringskoden, 'on' eller 'off' er valgt av bedriften. Se hmsCard.js.
@@ -670,6 +673,7 @@ export function normalizeHrState(raw) {
     retentionRuns: normalizeList(raw.retentionRuns, normalizeRetentionRun).slice(-20),
     handbook: normalizeHandbook(raw.handbook),
     sickFollowUps: normalizeList(raw.sickFollowUps, normalizeSickFollowUp),
+    surveyPlans: normalizeList(raw.surveyPlans, normalizeSurveyPlan),
     annual: normalizeAnnualSettings(raw.annual),
     settings: {
       hmsCard: normalizeHmsSetting(raw.settings?.hmsCard),
@@ -726,7 +730,7 @@ export function hrStateHasData(state) {
   const src = normalizeHrState(state);
   return [
     'contracts', 'reviews', 'cases', 'memos', 'tasks',
-    'salaries', 'jobs', 'applications', 'compliance', 'files', 'hmsCards', 'sickFollowUps',
+    'salaries', 'jobs', 'applications', 'compliance', 'files', 'hmsCards', 'sickFollowUps', 'surveyPlans',
   ].some((key) => (src[key] || []).length > 0) || handbookHasContent(src.handbook)
     || src.annual.tasks || src.annual.off.length > 0 || Object.keys(src.annual.done).length > 0;
 }

@@ -9,7 +9,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 import { getApps, initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { createHash, randomBytes } from 'node:crypto';
 import { sendMail } from './mail.js';
 import { resolveMailApiKey } from './mailApiKey.js';
@@ -57,6 +57,13 @@ function deps(req) {
       const snap = await db.doc(`families/${familyId}`).get();
       const data = snap.exists ? snap.data() || {} : {};
       return String(data.name || data.company?.name || data.navn || '').trim();
+    },
+    async notify(uids, payload) {
+      await Promise.all((uids || []).filter(Boolean).map((uid) => db.collection(`users/${uid}/notifications`).add({
+        ...payload,
+        createdAt: FieldValue.serverTimestamp(),
+        seen: false,
+      })));
     },
     newToken: () => randomBytes(24).toString('base64url'),
     hashToken: async (token) => createHash('sha256').update(String(token)).digest('hex'),

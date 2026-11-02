@@ -7,6 +7,7 @@
  */
 import React from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import {
   CUSTOMER_SCALE, CUSTOMER_SCALE_LABELS, CUSTOMER_TEXT_MAX, NPS_SCALE,
 } from '../../src/surveys/customerSurvey';
@@ -38,17 +39,28 @@ export function answeredCount(survey, values = {}, texts = {}) {
 }
 
 export default function SurveyAnswerForm({
-  colors, survey, values = {}, texts = {}, onValue, onText, disabled,
+  colors, survey, values = {}, texts = {}, onValue, onText, disabled, missing = '',
 }) {
   const questions = survey?.questions || [];
   return (
     <View style={styles.stack}>
       {questions.map((q, i) => (
-        <View key={q.id} style={[styles.question, { borderColor: colors.line }]} nativeID={`survey-q-${q.id}`}>
-          <Text style={[styles.qText, { color: colors.ink }]}>
-            {`${i + 1}. ${q.text}`}
-            {q.required ? <Text style={{ color: colors.muted }}> (må besvares)</Text> : null}
-          </Text>
+        <View
+          key={q.id}
+          style={[styles.question, { borderColor: colors.line }, missing === q.id && { borderColor: colors.danger, backgroundColor: colors.dangerSoft }]}
+          nativeID={`survey-q-${q.id}`}
+        >
+          <View style={styles.qHead}>
+            {(q.type === 'text' ? String(texts[q.id] || '').trim() : values[q.id] != null) ? (
+              <Ionicons name="checkmark-circle" size={18} color={colors.success} accessibilityLabel="Besvart" />
+            ) : (
+              <View style={[styles.qNum, { borderColor: colors.line }]}><Text style={[styles.qNumText, { color: colors.muted }]}>{String(i + 1)}</Text></View>
+            )}
+            <Text style={[styles.qText, { color: colors.ink, flex: 1 }]}>
+              {q.text}
+              {q.required ? <Text style={{ color: colors.muted }}> (må besvares)</Text> : null}
+            </Text>
+          </View>
           {q.type === 'text' ? (
             <TextInput
               value={texts[q.id] || ''}
@@ -94,8 +106,11 @@ export default function SurveyAnswerForm({
 
 const styles = StyleSheet.create({
   stack: { gap: space.sm },
-  question: { borderTopWidth: 1, paddingTop: space.sm, gap: space.xs },
+  question: { borderTopWidth: 1, paddingTop: space.sm, paddingBottom: 2, gap: space.xs, borderRadius: radius.control },
   qText: { ...type.body },
+  qHead: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs },
+  qNum: { width: 18, height: 18, borderRadius: 9, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  qNumText: { ...type.caption },
   caption: { ...type.caption },
   right: { textAlign: 'right' },
   scaleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

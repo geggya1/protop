@@ -506,6 +506,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
           uid={uid || ''}
           onCreateTask={createTask}
           onOpenHandbook={() => go('handbok')}
+          plans={hrView.surveyPlans}
+          onPatch={canWrite ? onPatch : undefined}
         />
       );
     }

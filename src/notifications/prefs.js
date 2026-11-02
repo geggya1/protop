@@ -64,6 +64,10 @@ export const NOTIFICATION_TYPES = [
     id: 'hrReviewUpdate', group: 'work', label: 'Medarbeidersamtale: forberedelse og signatur fra medarbeideren', push: true, email: true,
     scope: 'company', audience: 'Lederen som holder samtalen',
   },
+  {
+    id: 'customerSurveyAlert', group: 'work', label: 'Misfornøyd kunde i kundeundersøkelsen', push: true, email: true, recommended: true,
+    scope: 'company', audience: 'Den som laget og sendte kundeundersøkelsen',
+  },
   { id: 'vacationPlan', group: 'work', label: 'Ferieplan', push: true, email: 'own', recommended: true, scope: 'company', audience: 'Alle ansatte' },
   {
     id: 'timeEntryChanged', group: 'work', label: 'Noen har endret timene du førte', push: true, email: false,

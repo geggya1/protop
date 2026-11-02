@@ -60,3 +60,26 @@ ${lines.map((l) => `<p style="margin:0 0 12px">${esc(l)}</p>`).join('\n')}
 </table></td></tr></table></body></html>`;
   return { subject, text: textBody, html };
 }
+
+/** Svar til kunden etter oppfølging: hva bedriften har gjort med tilbakemeldingen. */
+export function customerReplyMail({ survey, recipient = {}, reply }) {
+  const company = String(survey?.companyName || '').trim() || 'oss';
+  const hello = firstName(recipient.name) ? `Hei ${firstName(recipient.name)},` : 'Hei,';
+  const body = String(reply || '').trim();
+  const sign = [survey?.senderName, company].filter(Boolean).join('\n');
+  const subject = `Takk for tilbakemeldingen – ${company}`.slice(0, 160);
+  const textBody = [hello, '', `Takk for at du svarte på ${String(survey?.title || 'kundeundersøkelsen').toLowerCase()}.`, '', body, '', 'Hilsen', sign].join('\n');
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f6f9;font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#1a2744">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:24px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fff;border:1px solid #e2e8f0;border-radius:12px">
+<tr><td style="padding:20px 28px;border-bottom:1px solid #e2e8f0;font-weight:700;font-size:18px;color:#1a2744">${esc(company)}</td></tr>
+<tr><td style="padding:24px 28px;font-size:15px;line-height:1.55">
+<p style="margin:0 0 12px">${esc(hello)}</p>
+<p style="margin:0 0 12px">${esc(`Takk for at du svarte på ${String(survey?.title || 'kundeundersøkelsen').toLowerCase()}.`)}</p>
+<p style="margin:0 0 12px">${esc(body).replace(/\n/g, '<br>')}</p>
+<p style="margin:0">Hilsen<br>${esc(sign).replace(/\n/g, '<br>')}</p>
+</td></tr>
+<tr><td style="padding:16px 28px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b">Sendt med ProTop på vegne av ${esc(company)}. Svar på denne e-posten for å nå oss direkte.</td></tr>
+</table></td></tr></table></body></html>`;
+  return { subject, text: textBody, html };
+}

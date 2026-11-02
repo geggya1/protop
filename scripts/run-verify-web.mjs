@@ -40,6 +40,7 @@ export const FILES = [
   // Kundeundersøkelse og medarbeiderundersøkelse: modell, utvikling over tid, server og varsler.
   'src/surveys/surveys.test.mjs',
   'src/surveys/surveysRender.test.cjs',
+  'src/hr/surveyPlan.test.mjs',
   'functions/hrSurveyNotify.test.mjs',
   'src/utils/reverseGeocode.test.mjs',
   'src/privacy/companyClosure.test.mjs',

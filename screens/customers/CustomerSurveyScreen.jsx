@@ -32,6 +32,7 @@ import { useLayout } from '../../src/theme';
 import { radius, space, type } from '../../src/ui/tokens';
 import SurveyTrend from '../../components/surveys/SurveyTrend';
 import SurveyAnswerForm from '../../components/surveys/SurveyAnswerForm';
+import ResponseMeter from '../../components/surveys/ResponseMeter';
 import {
   EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle,
 } from '../hr/HrShared';
@@ -238,7 +239,6 @@ function SurveyDetail({
   const [editDeadline, setEditDeadline] = useState(false);
   const [deadline, setDeadline] = useState(survey.closesOn || '');
   const confirm = useConfirm();
-  const chart = chartColorsFor(colors);
 
   const loadRecipients = useCallback(() => {
     api('recipients', { surveyId: survey.id })
@@ -316,9 +316,12 @@ function SurveyDetail({
   const followUp = async (answerId, data) => {
     try {
       await api('followUp', { surveyId: survey.id, answerId, ...data });
+      if (data.reply) showSaveToast?.('Svaret er sendt til kunden.');
       loadResults();
+      return true;
     } catch (err) {
       showSaveToast?.(err?.message || 'Kunne ikke lagre oppfølgingen');
+      return false;
     }
   };
 
@@ -371,10 +374,7 @@ function SurveyDetail({
               <Text style={[styles.caption, { color: colors.ink, flex: 1 }]}>Svarfristen er ute. Avslutt undersøkelsen for å låse resultatet og ta det med i utviklingen over tid.</Text>
             </View>
           ) : null}
-          <View style={[styles.meter, { backgroundColor: chart.barTrack }]}>
-            <View style={[styles.meterFill, { width: `${pct}%`, backgroundColor: chart.bar }]} />
-          </View>
-          <Text style={[styles.caption, { color: colors.ink }]}>{`${survey.stats.answered} av ${sentCount} har svart (${pct} %).`}</Text>
+          <ResponseMeter colors={colors} pct={sentCount ? pct : null} count={survey.stats.answered} of={sentCount} target={50} nativeID="customer-survey-response" />
           {canWrite ? (editDeadline ? (
             <View style={styles.deadlineRow}>
               <View style={{ minWidth: 200 }}>

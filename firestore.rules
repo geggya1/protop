@@ -1021,6 +1021,21 @@ service cloud.firestore {
               || resource.data.get('intercompany', {}).get('supplierApproved', false) == true))));
     }
 
+    // Speilede utlegg: beløp, prosjekt og fakturerbarhet settes av serveren; godkjent bare når
+    // arbeidsgiveren har godkjent.
+    function icExpenseMirrorKept() {
+      let d = request.resource.data;
+      let o = resource.data;
+      return o.get('icMirror', false) != true
+        || (d.get('icMirror', false) == true
+          && icMetaKept()
+          && d.get('amountExVat', 0) == o.get('amountExVat', 0)
+          && d.get('amountInclVat', 0) == o.get('amountInclVat', 0)
+          && d.get('projectId', '') == o.get('projectId', '')
+          && d.get('billable', true) == o.get('billable', true)
+          && (d.get('status', '') != 'approved' || o.get('intercompany', {}).get('supplierApproved', false) == true));
+    }
+
     function timeEntryCoreKept() {
       let d = request.resource.data;
       let o = resource.data;
@@ -1478,12 +1493,14 @@ service cloud.firestore {
       match /projectExpenses/{expenseId} {
         allow get: if isFamilyMember(familyId);
         allow list: if isFamilyMemberLite(familyId);
-        allow create: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId) && request.resource.data.get('icMirror', false) != true;
         allow update: if isFamilyMember(familyId)
+          && icExpenseMirrorKept()
           && (sameInvoiceLink() || invoiceBiller(familyId))
           && (!entryLocked(resource.data, 'invoiced') || expenseCoreKept())
           && (!entryInvoiced(resource.data) || unchanged('status') || invoiceBiller(familyId));
-        allow delete: if isFamilyMember(familyId) && (resource == null || !entryLocked(resource.data, 'invoiced'));
+        allow delete: if isFamilyMember(familyId) && (resource == null
+          || (!entryLocked(resource.data, 'invoiced') && resource.data.get('icMirror', false) != true));
       }
 
       // Medlemsdokumentene: se memberDocCreateOk / memberDocUpdateOk.

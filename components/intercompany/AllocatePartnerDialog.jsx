@@ -80,7 +80,7 @@ export default function AllocatePartnerDialog({ visible, onClose, links = [], fa
         <Pressable style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.line }]} nativeID="ic-allocate">
           <Text style={[styles.title, { color: colors.ink }]}>Fra tilknyttet selskap</Text>
           <Text style={{ color: colors.muted, fontSize: 13, marginBottom: 10 }}>
-            {`Personene fører timer i sitt eget selskap på en kopi av prosjekt ${project?.number || ''}. Timene godkjennes der først, og kommer så til godkjenning her.`}
+            {`Personene fører timer og utlegg som vanlig i sitt eget selskap, på en kopi av prosjekt ${project?.number || ''} med dere som kunde. Arbeidsgiveren godkjenner og fakturerer dere; radene vises også her med fakturaen de belastes på.`}
           </Text>
           {links.length > 1 ? (
             <View style={styles.chips}>

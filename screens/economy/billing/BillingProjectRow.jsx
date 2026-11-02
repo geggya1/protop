@@ -153,9 +153,18 @@ export default function BillingProjectRow({
       />
     ) },
     { key: 'employeeName', label: 'Navn', flex: 1.4, render: (row) => (
-      <Text style={{ color: colors.brand, fontSize: 13 }} numberOfLines={1}>
-        {row.employeeName}{row.timeTypeLabel ? ` (${row.timeTypeLabel})` : ''}
-      </Text>
+      <View>
+        <Text style={{ color: colors.brand, fontSize: 13 }} numberOfLines={1}>
+          {row.employeeName}{row.timeTypeLabel ? ` (${row.timeTypeLabel})` : ''}
+        </Text>
+        {row.supplierName ? (
+          <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={2}>
+            {row.supplierInvoices?.length
+              ? `Fra ${row.supplierName} · faktura ${row.supplierInvoices.join(', ')}`
+              : `Fra ${row.supplierName}`}
+          </Text>
+        ) : null}
+      </View>
     ) },
     { key: 'activityName', label: 'Aktivitet', flex: 1.2 },
     { key: 'lock', label: 'Levert t.o.m.', width: 104, render: (row) => (

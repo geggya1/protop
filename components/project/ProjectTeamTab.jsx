@@ -61,7 +61,7 @@ export default function ProjectTeamTab({
     const names = (res?.allocated || []).map((row) => row.name).join(', ');
     showSaveToast(names ? `${names} tildelt.` : 'Tildelt.');
     if (res?.rateMissing) {
-      setError('Prosjektet har ingen timepris, så rabatten i avtalen har ingen pris å regne fra. Sett timepris på prosjektet, eller avtal fast timepris med selskapet.');
+      setError('Prosjektet har ingen timepris, så kopien hos arbeidsgiveren fikk heller ingen. De setter pris og betingelser på sin kopi som vanlig.');
     }
   }
 
@@ -192,11 +192,11 @@ export default function ProjectTeamTab({
           <Ionicons name="git-merge-outline" size={16} color={colors.brand} />
           <Text style={{ color: colors.ink, flex: 1, fontSize: 13 }}>
             {isSupplierCopy && project.intercompany.rateMissing
-              ? 'Prosjekteier har ikke timepris på prosjektet, så rabatten i avtalen har ingen pris å regne fra. Sett timepris på prosjektet her, eller avtal fast timepris. '
+              ? 'Prosjektet mangler timepris. Sett pris og betingelser på prosjektet som vanlig. '
               : ''}
             {isSupplierCopy
-              ? `${icLabel}. Timer godkjennes her først og går deretter til ${project.intercompany.ownerCompanyName || 'prosjekteier'}, som faktureres herfra.`
-              : `${icLabel}. Timene deres kommer til godkjenning her når hjemmeselskapet har godkjent dem.`}
+              ? `${icLabel}. Kunden er ${project.intercompany.ownerCompanyName || 'prosjekteier'}. Timer og utlegg føres som vanlig, godkjennes her og faktureres ${project.intercompany.ownerCompanyName || 'prosjekteier'} herfra.`
+              : `${icLabel}. Timer og utlegg føres og godkjennes hos arbeidsgiveren og vises her. Når de er godkjent, kan de faktureres kunden, og hver rad viser hvilken faktura den belastes på.`}
           </Text>
         </View>
       ) : null}

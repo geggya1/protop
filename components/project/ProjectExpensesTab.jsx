@@ -26,6 +26,7 @@ import { removeExpenseRow, saveExpenseChange } from '../../src/economy/expenseSa
 import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { mirrorStatusText } from '../../src/intercompany/model';
 
 function statusTone(status) {
   if (status === 'invoiced') return { bg: '#dcfce7', fg: '#166534', label: 'Fakturert' };
@@ -267,7 +268,12 @@ export default function ProjectExpensesTab({
           return (
             <View key={row.id} style={[styles.tableRow, { borderColor: colors.line }]}>
               <Text style={[styles.td, { color: colors.ink }]}>{formatDate(row.date)}</Text>
-              <Text style={[styles.td, { color: colors.ink, flex: 1.4 }]} numberOfLines={2}>{row.description || '—'}</Text>
+              <View style={[styles.td, { flex: 1.4 }]}>
+                <Text style={{ color: colors.ink }} numberOfLines={2}>{row.description || '—'}</Text>
+                {row.icMirror ? (
+                  <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={2}>{mirrorStatusText(row)}</Text>
+                ) : null}
+              </View>
               <Text style={[styles.td, { color: colors.ink }]}>{expenseCategory(row.category).label}</Text>
               <Text style={[styles.td, { color: colors.ink, fontWeight: '600' }]}>{formatMoney(row.amountExVat)}</Text>
               <Text style={[styles.td, { color: colors.ink }]}>{row.billable ? (row.chargeType === 'outlay' ? 'Ja, i kundens navn' : 'Ja') : 'Nei, internkostnad'}</Text>
@@ -281,7 +287,7 @@ export default function ProjectExpensesTab({
                 <Text style={{ color: colors.muted, fontSize: 12 }}>{row.receiptUri ? 1 : 0}</Text>
               </View>
               <View style={styles.td}>
-                {isAdmin ? (
+                {isAdmin && !row.icMirror ? (
                   <TouchableOpacity
                     onPress={() => { setMenuId(menuId === row.id ? '' : row.id); setConfirmId(''); }}
                     accessibilityRole="button"

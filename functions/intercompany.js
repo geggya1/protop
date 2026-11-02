@@ -300,24 +300,20 @@ export const icUpdateLinkSettings = onCall(CALL, async (req) => {
   return { ok: true, link, proposed };
 });
 
-/** Svar på prisforslaget. Godtatte priser gjelder også prosjektkopiene som finnes. */
+/**
+ * Svar på forslag om nye standardpriser. De gjelder prosjekter som tildeles etterpå; pris og
+ * betingelser på prosjekter som finnes, settes på prosjektet som vanlig.
+ */
 export const icAnswerLinkSettings = onCall(CALL, async (req) => {
   const accept = req.data?.accept === true;
   const { link, uid, companyId } = await changeLink(req, (row, ctx) => answerLinkSettings(row, { ...ctx, accept }));
-  let repriced = 0;
-  if (accept) {
-    repriced = await repriceClones(link).catch((error) => {
-      logger.warn('reprice clones failed', { linkId: link.id, message: error?.message });
-      return 0;
-    });
-  }
   const view = linkView(link, companyId);
   await notifyCompany(view.partner.id, {
     title: accept ? 'Nye priser godtatt' : 'Prisforslaget er avslått',
     body: `Prisene for tilknytningen mellom «${link.parent.name}» og «${link.child.name}» ${accept ? 'er oppdatert' : 'står som før'}.`,
     exclude: [uid],
   });
-  return { ok: true, link, repriced };
+  return { ok: true, link };
 });
 
 // ── Tildeling på prosjekt ─────────────────────────────────────────────────
@@ -536,30 +532,3 @@ export const icRemoveMember = onCall(CALL, async (req) => {
   }, { merge: true });
   return { ok: true };
 });
-
-/** Oppdater prisen på alle kopier i avtalen etter nye innstillinger. */
-async function repriceClones(link) {
-  const snap = await linkRef(link.id).collection('projects').get();
-  let count = 0;
-  for (const doc of snap.docs) {
-    const alloc = doc.data() || {};
-    const supplierId = text(alloc.supplierCompanyId);
-    const ownerId = text(alloc.ownerCompanyId);
-    if (!supplierId || !ownerId) continue;
-    const ownerState = stateOf(await stateRef(ownerId).get());
-    const ownerProject = ownerState.projects.find((row) => row?.id === alloc.ownerProjectId);
-    if (!ownerProject) continue;
-    const ownerData = await companyDoc(ownerId);
-    await db.runTransaction(async (tx) => {
-      const ref = stateRef(supplierId);
-      const state = stateOf(await tx.get(ref));
-      const existing = state.projects.find((row) => row?.id === alloc.cloneProjectId);
-      if (!existing) return;
-      const clone = buildCloneProject({ link, owner: partyOf(ownerId, ownerData), ownerProject, existing, projects: state.projects });
-      tx.set(ref, { state: { projects: stored(upsertProject(state.projects, clone)) }, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    });
-    count += 1;
-  }
-  return count;
-}
-

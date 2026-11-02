@@ -41,17 +41,17 @@ test('timer fra datter faktureres hos mor først når datter har godkjent', () =
   const withReady = buildReadyProjects({ projects: [PROJECT], timeEntries: [ready], periodEnd: '2026-10-31', today: '2026-11-02' });
   assert.equal(withReady[0].hourGroups[0].hours, 5);
   assert.equal(withReady[0].hourGroups[0].amount, 5000);
+  assert.equal(withReady[0].hourGroups[0].supplierName, 'Datter AS');
+  assert.equal(withReady[0].hourGroups[0].approvedCount, 1, 'godkjent hos arbeidsgiveren teller som godkjent');
 });
 
-test('salg fra datter venter til det er klart der, og godkjennes så hos mor', () => {
+test('salg fra datter venter til det er klart der', () => {
   const draft = mirrorSale({ source: { id: 's1', projectId: CLONE.id, date: '2026-10-05', name: 'Gips', quantity: 2, unitPrice: 100, status: 'draft' }, clone: CLONE, supplier: SUPPLIER }).row;
   const ready = mirrorSale({ source: { id: 's1', projectId: CLONE.id, date: '2026-10-05', name: 'Gips', quantity: 2, unitPrice: 100, status: 'approved' }, clone: CLONE, supplier: SUPPLIER }).row;
   assert.equal(buildReadyProjects({ projects: [PROJECT], sales: [draft], periodEnd: '2026-10-31', today: '2026-11-02' }).length, 0);
   const built = buildReadyProjects({ projects: [PROJECT], sales: [ready], periodEnd: '2026-10-31', today: '2026-11-02' });
   assert.equal(built[0].sales.length, 1);
-  assert.equal(built[0].sales[0].approved, false, 'klar hos datter, men ikke godkjent hos mor ennå');
-  const approved = buildReadyProjects({ projects: [PROJECT], sales: [{ ...ready, status: 'approved' }], periodEnd: '2026-10-31', today: '2026-11-02' });
-  assert.equal(approved[0].sales[0].approved, true);
+  assert.equal(built[0].sales[0].approved, true, 'klar hos arbeidsgiveren = klar hos mor');
   assert.equal(built[0].sales[0].intercompany.sourceCompanyName, 'Datter AS');
 });
 
@@ -91,4 +91,15 @@ test('reservasjon av utleieutstyr på prosjekt blir salgsrad i prosjektstate', a
   assert.equal(ready[0].sales[0].amount, 1500, 'én dag à 1500 eks. mva');
   const cancelled = cancelBooking(booked.state, booked.state.equipmentBookings[0].id);
   assert.equal(cancelled.state.sales.length, 0);
+});
+
+test('utlegg fra datter faktureres hos mor når datter har godkjent', async () => {
+  const { mirrorExpense } = await import('./model.js');
+  const src = { id: 'e1', projectId: CLONE.id, date: '2026-10-03', description: 'Hotell', amountExVat: 1000, amountInclVat: 1120, status: 'submitted' };
+  const waiting = mirrorExpense({ source: src, clone: CLONE, supplier: SUPPLIER }).row;
+  const ready = mirrorExpense({ source: { ...src, status: 'approved' }, clone: CLONE, supplier: SUPPLIER }).row;
+  assert.equal(buildReadyProjects({ projects: [PROJECT], expenses: [waiting], periodEnd: '2026-10-31', today: '2026-11-02' }).length, 0);
+  const built = buildReadyProjects({ projects: [PROJECT], expenses: [ready], periodEnd: '2026-10-31', today: '2026-11-02' });
+  assert.equal(built[0].expenses.length, 1);
+  assert.equal(built[0].expenses[0].intercompany.sourceCompanyName, 'Datter AS');
 });

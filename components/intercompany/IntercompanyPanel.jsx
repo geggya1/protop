@@ -126,8 +126,9 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
   return (
     <View style={styles.block} nativeID="intercompany-panel">
       <Text style={[styles.lead, { color: colors.muted }]}>
-        Tilknyttede selskaper kan tildele medarbeidere på hverandres prosjekter. Timer, produktsalg og utleie
-        føres hos selskapet som leverer, godkjennes der, og går deretter til godkjenning og fakturering hos prosjekteier.
+        Tilknyttede selskaper kan tildele medarbeidere på hverandres prosjekter. Timer, utlegg, produktsalg og utleie
+        føres som vanlig hos arbeidsgiveren og vises hos begge. Arbeidsgiveren godkjenner og fakturerer prosjekteier,
+        som fakturerer sluttkunden. Hos prosjekteier viser hver rad hvilken faktura den belastes på.
       </Text>
       {!ready ? <ActivityIndicator color={colors.brand} /> : null}
       {loadError ? <Text style={{ color: colors.danger }}>{loadError}</Text> : null}
@@ -171,7 +172,7 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
               {canEdit ? (
                 <View style={styles.actions}>
                   {link.settingsToAnswer ? (
-                    <Button nativeID={`ic-prices-accept-${link.id}`} primary label="Godta prisene" colors={colors} disabled={!!busyId} onPress={() => run(link.id, () => answerLinkSettings({ companyId: familyId, linkId: link.id, accept: true }), 'De nye prisene gjelder nå, også på prosjektkopiene.')} />
+                    <Button nativeID={`ic-prices-accept-${link.id}`} primary label="Godta prisene" colors={colors} disabled={!!busyId} onPress={() => run(link.id, () => answerLinkSettings({ companyId: familyId, linkId: link.id, accept: true }), 'De nye standardprisene gjelder for prosjekter som tildeles fra nå. Prosjekter som finnes, beholder sine priser.')} />
                   ) : null}
                   <Button label={link.settingsToAnswer ? 'Avslå' : 'Trekk forslaget'} colors={colors} disabled={!!busyId} onPress={() => run(link.id, () => answerLinkSettings({ companyId: familyId, linkId: link.id, accept: false }), 'Prisene står som før.')} />
                 </View>
@@ -183,7 +184,7 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
               <LinkSettingsForm value={editDraft} onChange={setEditDraft} colors={colors} disabled={busyId === link.id} ourCompanyId={familyId} />
               <View style={styles.actions}>
                 <Button primary label={busyId === link.id ? 'Sender…' : 'Foreslå nye priser'} colors={colors} disabled={!!busyId} onPress={async () => {
-                  const out = await run(link.id, () => saveLinkSettings({ companyId: familyId, linkId: link.id, settings: editDraft }), `Forslaget er sendt. Prisene gjelder når «${link.partner.name}» har godtatt dem.`);
+                  const out = await run(link.id, () => saveLinkSettings({ companyId: familyId, linkId: link.id, settings: editDraft }), `Forslaget er sendt. De nye standardprisene gjelder nye prosjekter når «${link.partner.name}» har godtatt dem.`);
                   if (out) setEditingId('');
                 }} />
                 <Button label="Avbryt" colors={colors} disabled={!!busyId} onPress={() => setEditingId('')} />

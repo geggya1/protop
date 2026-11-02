@@ -313,6 +313,8 @@ export {
   icRequestLink, icRespondLink, icWithdrawLink, icEndLink, icUpdateLinkSettings, icAnswerLinkSettings,
   icListPartnerEmployees, icAllocateMembers, icRemoveMember,
 } from './intercompany.js';
-export { onIcTimeEntryWritten, onIcProjectStateWritten } from './intercompanyTriggers.js';
+export {
+  onIcTimeEntryWritten, onIcProjectStateWritten, onIcProjectExpenseWritten, onIcInvoiceWritten,
+} from './intercompanyTriggers.js';
 export { recordUsage, listEmployeeUsage } from './usageLog.js';
 export { logSensitiveAccess, listAccessLog } from './accessLog.js';

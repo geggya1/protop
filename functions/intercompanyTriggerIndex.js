@@ -3,4 +3,6 @@
  */
 import './setRegion.js';
 
-export { onIcTimeEntryWritten, onIcProjectStateWritten } from './intercompanyTriggers.js';
+export {
+  onIcTimeEntryWritten, onIcProjectStateWritten, onIcProjectExpenseWritten, onIcInvoiceWritten,
+} from './intercompanyTriggers.js';

@@ -1795,7 +1795,7 @@ export function upsertTimeEntry(state, input) {
 /** Timer speilet fra et tilknyttet selskap rettes der de er ført. */
 function mirrorEditText(row) {
   const from = text(row?.intercompany?.sourceCompanyName) || 'det tilknyttede selskapet';
-  return `Timene er ført i ${from} og rettes der. Her kan de godkjennes og faktureres.`;
+  return `Timene er ført i ${from} og rettes og godkjennes der. Her kan de faktureres kunden når de er godkjent.`;
 }
 
 export function deleteTimeEntry(state, entryId) {

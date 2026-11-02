@@ -7,10 +7,11 @@
  * 2. Prosjekteier (A) tildeler en ansatt fra partneren (B) på et prosjekt. B får en kopi av
  *    prosjektet med A sitt prosjektnummer og A som kunde, og den ansatte blir deltaker der.
  *    Hos A blir personen en innleid medarbeider med hjemmeselskap B.
- * 3. Timer føres hos B på kopien og speiles til A. B godkjenner som vanlig. Først da legger
- *    timene seg til godkjenning hos A (status låst), og A fakturerer sluttkunden.
- * 4. B fakturerer A for de samme timene etter avtalens pris (rabatt eller fast timepris).
- *    Produktsalg og utstyrsutleie på kopien følger samme vei.
+ * 3. Timer føres som vanlig hos B på kopien og er synlige hos begge. B (arbeidsgiveren) godkjenner
+ *    og fakturerer A for dem, med prisen og betingelsene som er satt på kopien, som på ethvert
+ *    prosjekt. Når B har godkjent, kan A fakturere sluttkunden. Raden hos A viser at timene
+ *    belastes A på faktura fra B, og hvilken faktura.
+ * 4. Utlegg, produktsalg og utleie på kopien følger samme vei.
  *
  * Modulen er ren (ingen Firebase), så appen og Cloud Functions bruker de samme reglene.
  */
@@ -486,9 +487,11 @@ export function buildCloneProject({ link, owner, ownerProject, customer = null, 
     end: text(base.end) || text(ownerProject.end),
     place: text(base.place) || text(ownerProject.place),
     description: text(base.description) || `Underleveranse til ${text(owner.name)}, prosjekt ${text(ownerProject.number)}.`,
-    pricingModel: pricing.pricingModel,
-    pricingSettings: { ...(base.pricingSettings || {}), ...pricing.pricingSettings },
-    invoiceSettings: { ...(base.invoiceSettings || {}), ...pricing.invoiceSettings },
+    // Pris og betingelser settes på kopien som på ethvert prosjekt. Avtalens priser er bare
+    // utgangspunktet når kopien lages; en kopi som finnes, beholder sine egne.
+    pricingModel: existing ? base.pricingModel : pricing.pricingModel,
+    pricingSettings: existing ? (base.pricingSettings || {}) : pricing.pricingSettings,
+    invoiceSettings: existing ? (base.invoiceSettings || {}) : pricing.invoiceSettings,
     workSettings: base.workSettings || { requireDescription: !!ownerProject?.workSettings?.requireDescription },
     intercompany: {
       linkId: row.id,
@@ -498,8 +501,12 @@ export function buildCloneProject({ link, owner, ownerProject, customer = null, 
       ownerProjectId: text(ownerProject.id),
       ownerProjectNumber: text(ownerProject.number),
       ownerProjectName: text(ownerProject.name),
-      rentalDiscountPercent: pricing.rentalDiscountPercent,
-      rateMissing: cloneRateMissing({ settings: row.settings, ownerProject }),
+      rentalDiscountPercent: existing && base.intercompany?.rentalDiscountPercent != null
+        ? base.intercompany.rentalDiscountPercent
+        : pricing.rentalDiscountPercent,
+      rateMissing: existing
+        ? (!!base.intercompany?.rateMissing && !(Number(base.pricingSettings?.hourlyRate) > 0))
+        : cloneRateMissing({ settings: row.settings, ownerProject }),
       clonedAt: text(base.intercompany?.clonedAt) || stamp,
       updatedAt: stamp,
     },
@@ -708,14 +715,27 @@ function sameCore(a, b) {
   return CORE_KEYS.every((key) => String(a?.[key] ?? '') === String(b?.[key] ?? ''));
 }
 
+/** Leverandørens faktura til eier for raden: id, nummer og status (null når ikke fakturert). */
+export function supplierInvoiceMeta(source, invoice = null) {
+  const id = text(source?.invoiceId);
+  if (!id) return null;
+  return {
+    id,
+    number: text(invoice?.invoiceNumber),
+    status: text(invoice?.status) || 'draft',
+    date: text(invoice?.invoiceDate),
+  };
+}
+
 /**
- * Timeføringen slik prosjekteier ser den. Kildens godkjenning (godkjent hos leverandøren)
- * sender føringen til godkjenning hos eier (låst). Eiers egen godkjenning og fakturakobling
- * står så lenge kjernen (dato, timer, timeart) er uendret. Fakturerte føringer endres ikke;
+ * Timeføringen slik prosjekteier ser den. Arbeidsgiveren (leverandøren) godkjenner; når den har
+ * godkjent eller fakturert, er føringen godkjent også hos eier og kan faktureres sluttkunden.
+ * Eiers fakturakobling og egne felt står. Fakturerte føringer hos eier endres ikke i kjernen;
  * da merkes avviket i stedet.
+ * invoice: leverandørens faktura (families/{leverandør}/invoices/{source.invoiceId}) når den finnes.
  * Svar: { action: 'set', row } | { action: 'delete' } | { action: 'none' }.
  */
-export function mirrorTimeEntry({ source, existing = null, clone, supplier, ownerEmployeeId, at = '' }) {
+export function mirrorTimeEntry({ source, existing = null, clone, supplier, ownerEmployeeId, invoice = null, at = '' }) {
   const stamp = text(at) || new Date().toISOString();
   const ic = clone?.intercompany || {};
   if (!source) {
@@ -739,6 +759,7 @@ export function mirrorTimeEntry({ source, existing = null, clone, supplier, owne
     sourceProjectId: text(source.projectId),
     sourceStatus: text(source.status) || 'registrert',
     supplierApproved,
+    supplierInvoice: supplierInvoiceMeta(source, invoice),
     sourceUpdatedAt: text(source.updatedAt) || stamp,
   };
   const core = {
@@ -754,8 +775,7 @@ export function mirrorTimeEntry({ source, existing = null, clone, supplier, owne
       row: { ...existing, intercompany: { ...meta, sourceChangedAfterInvoice: drift || !!existing.intercompany?.sourceChangedAfterInvoice } },
     };
   }
-  let status = supplierApproved ? 'låst' : 'registrert';
-  if (existing && existing.status === 'godkjent' && supplierApproved && sameCore(existing, core)) status = 'godkjent';
+  const status = supplierApproved ? 'godkjent' : 'registrert';
   const history = Array.isArray(existing?.history) ? existing.history : [];
   // Eiers egne felt (internt notat, avskriving, historikk) står; resten kommer fra kilden.
   const own = existing && typeof existing === 'object' ? existing : {};
@@ -795,61 +815,6 @@ export function mirrorAwaitingSupplier(row) {
   return isMirrorRow(row) && row?.intercompany?.supplierApproved !== true;
 }
 
-/** Til godkjenning hos eier: speilet, godkjent hos leverandøren, ikke godkjent eller fakturert her. */
-export function mirrorAwaitingOwner(row) {
-  return isMirrorRow(row)
-    && row?.intercompany?.supplierApproved === true
-    && row?.status !== 'godkjent'
-    && !text(row?.invoiceId);
-}
-
-/** Godkjenningskøen fra tilknyttede selskaper: gruppert per selskap og medarbeider. */
-export function ownerApprovalQueue(entries = []) {
-  const groups = new Map();
-  for (const row of entries || []) {
-    if (!mirrorAwaitingOwner(row)) continue;
-    const companyId = text(row.intercompany?.sourceCompanyId);
-    const key = `${companyId}|${text(row.employeeId)}`;
-    if (!groups.has(key)) {
-      groups.set(key, {
-        key,
-        companyId,
-        companyName: text(row.intercompany?.sourceCompanyName) || 'Tilknyttet selskap',
-        employeeId: text(row.employeeId),
-        employeeName: text(row.employeeName) || 'Medarbeider',
-        hours: 0,
-        from: row.date,
-        through: row.date,
-        entries: [],
-      });
-    }
-    const group = groups.get(key);
-    group.entries.push(row);
-    group.hours = round2(group.hours + (Number(row.hours) || 0));
-    if (text(row.date) < group.from) group.from = row.date;
-    if (text(row.date) > group.through) group.through = row.date;
-  }
-  return [...groups.values()]
-    .map((group) => ({ ...group, entries: group.entries.sort((a, b) => text(a.date).localeCompare(text(b.date))) }))
-    .sort((a, b) => a.companyName.localeCompare(b.companyName, 'nb') || a.employeeName.localeCompare(b.employeeName, 'nb'));
-}
-
-/**
- * Godkjenn speilede føringer hos eier: bare de som er godkjent hos leverandøren og ikke
- * fakturert. Svar: { state, count }.
- */
-export function approveMirrorEntries(state, ids = [], at = '') {
-  const wanted = new Set((ids || []).map((id) => text(id)));
-  const stamp = text(at) || new Date().toISOString();
-  let count = 0;
-  const timeEntries = (state?.timeEntries || []).map((row) => {
-    if (!wanted.has(text(row?.id)) || !mirrorAwaitingOwner(row)) return row;
-    count += 1;
-    return { ...row, status: 'godkjent', updatedAt: stamp };
-  });
-  return { state: count ? { ...state, timeEntries } : state, count };
-}
-
 // ── Speiling av salg og utleie ───────────────────────────────────────────
 
 /**
@@ -857,7 +822,7 @@ export function approveMirrorEntries(state, ids = [], at = '') {
  * ordinær pris, uten rabatten leverandøren gir eieren. Eiers egne innstillinger gjelder
  * mot sluttkunden. Klar hos leverandøren = kan faktureres hos eier.
  */
-export function mirrorSale({ source, existing = null, clone, supplier, at = '' }) {
+export function mirrorSale({ source, existing = null, clone, supplier, invoice = null, at = '' }) {
   const stamp = text(at) || new Date().toISOString();
   const ic = clone?.intercompany || {};
   if (!source || source.status === 'rejected') {
@@ -867,7 +832,7 @@ export function mirrorSale({ source, existing = null, clone, supplier, at = '' }
     }
     return { action: 'delete' };
   }
-  const supplierApproved = source.status === 'approved' || source.status === 'invoiced';
+  const supplierApproved = source.status === 'approved' || source.status === 'invoiced' || !!text(source.invoiceId);
   const meta = {
     mirror: true,
     linkId: text(ic.linkId),
@@ -877,19 +842,14 @@ export function mirrorSale({ source, existing = null, clone, supplier, at = '' }
     sourceProjectId: text(source.projectId),
     sourceStatus: text(source.status) || 'draft',
     supplierApproved,
+    supplierInvoice: supplierInvoiceMeta(source, invoice),
     sourceUpdatedAt: text(source.updatedAt) || stamp,
   };
   if (existing && (text(existing.invoiceId) || existing.status === 'invoiced')) {
     return { action: 'set', row: { ...existing, intercompany: meta } };
   }
-  // Som timene: klar hos leverandøren = til godkjenning hos eier (utkast), eier setter Klar.
-  // Eiers godkjenning står så lenge vare, mengde og pris er de samme.
+  // Som timene: klar hos arbeidsgiveren = klar til fakturering hos eier.
   const own = existing && typeof existing === 'object' ? existing : {};
-  const sameGoods = existing
-    && Number(existing.quantity) === (Number(source.quantity) || 1)
-    && Number(existing.unitPrice) === (Number(source.unitPrice) || 0)
-    && text(existing.name) === text(source.name);
-  const keepOwnerStatus = existing && supplierApproved && existing.status === 'approved' && sameGoods;
   return {
     action: 'set',
     row: {
@@ -915,7 +875,7 @@ export function mirrorSale({ source, existing = null, clone, supplier, at = '' }
       projectName: text(ic.ownerProjectName),
       employeeId: '',
       employeeName: text(source.employeeName),
-      status: keepOwnerStatus ? 'approved' : 'draft',
+      status: supplierApproved ? 'approved' : 'draft',
       invoiceId: '',
       createdAt: text(existing?.createdAt) || text(source.createdAt) || stamp,
       updatedAt: stamp,
@@ -933,6 +893,108 @@ export function mirrorSale({ source, existing = null, clone, supplier, at = '' }
   };
 }
 
+/**
+ * Utlegg på kopien slik eier ser det: samme beløp, mva og kvittering. Godkjent (eller fakturert)
+ * hos arbeidsgiveren = godkjent hos eier og kan faktureres sluttkunden. Eiers påslag og notater står.
+ */
+export function mirrorExpense({ source, existing = null, clone, supplier, invoice = null, at = '' }) {
+  const stamp = text(at) || new Date().toISOString();
+  const ic = clone?.intercompany || {};
+  if (!source || source.status === 'rejected') {
+    if (!existing) return { action: 'none' };
+    if (text(existing.invoiceId) || existing.status === 'invoiced') {
+      return { action: 'set', row: { ...existing, intercompany: { ...(existing.intercompany || {}), sourceDeleted: true } } };
+    }
+    return { action: 'delete' };
+  }
+  const supplierApproved = ['approved', 'invoiced', 'reimbursed'].includes(source.status) || !!text(source.invoiceId);
+  const meta = {
+    mirror: true,
+    linkId: text(ic.linkId),
+    sourceCompanyId: supplier.id,
+    sourceCompanyName: text(supplier.name),
+    sourceExpenseId: text(source.id),
+    sourceProjectId: text(source.projectId),
+    sourceStatus: text(source.status) || 'draft',
+    supplierApproved,
+    supplierInvoice: supplierInvoiceMeta(source, invoice),
+    sourceUpdatedAt: text(source.updatedAt) || stamp,
+  };
+  if (existing && (text(existing.invoiceId) || existing.status === 'invoiced')) {
+    return { action: 'set', row: { ...existing, intercompany: meta } };
+  }
+  const own = existing && typeof existing === 'object' ? existing : {};
+  return {
+    action: 'set',
+    row: {
+      ...own,
+      id: mirrorId(supplier.id, source.id),
+      date: text(source.date),
+      employeeId: text(source.employeeId) ? mirrorId(supplier.id, source.employeeId) : '',
+      employeeName: text(source.employeeName),
+      category: text(source.category),
+      description: text(source.description),
+      purpose: text(source.purpose),
+      vendor: text(source.vendor),
+      // Betalt av arbeidsgiveren; hos eier er det en kostnad som faktureres derfra, ikke et refusjonskrav.
+      paidBy: 'company',
+      currency: text(source.currency) || 'NOK',
+      amountExVat: Number(source.amountExVat) || 0,
+      vatCode: text(source.vatCode),
+      vatAmount: Number(source.vatAmount) || 0,
+      amountInclVat: Number(source.amountInclVat) || 0,
+      vatSplit: text(source.vatSplit),
+      chargeType: source.chargeType === 'outlay' ? 'outlay' : 'reinvoice',
+      markupPercent: existing ? (Number(own.markupPercent) || 0) : 0,
+      billable: source.billable !== false && source.billingChoice !== 'no',
+      billingChoice: source.billingChoice === 'unsure' ? 'unsure' : 'yes',
+      projectId: text(ic.ownerProjectId),
+      projectNumber: text(ic.ownerProjectNumber),
+      projectName: text(ic.ownerProjectName),
+      customerId: text(own.customerId),
+      customerNumber: text(own.customerNumber),
+      customerName: text(own.customerName),
+      receiptUri: text(source.receiptUri),
+      receiptName: text(source.receiptName),
+      attachments: Array.isArray(source.attachments) ? source.attachments : [],
+      activityName: text(source.activityName),
+      status: supplierApproved ? 'approved' : 'draft',
+      invoiceId: '',
+      notes: text(own.notes),
+      createdAt: text(own.createdAt) || text(source.createdAt) || stamp,
+      updatedAt: stamp,
+      externalStore: true,
+      storage: 'projectExpenses',
+      icMirror: true,
+      intercompany: meta,
+    },
+  };
+}
+
+/** Utlegg som skal speiles: alle utlegg på en prosjektkopi. */
+export function expensesToMirror(expenses = []) {
+  return (expenses || []).filter((row) => row && isCloneProjectId(row.projectId));
+}
+
+/**
+ * Kort tekst på en speilet rad hos eier: hvor den er ført, om arbeidsgiveren har godkjent, og
+ * hvilken faktura den belastes på. Tom tekst for vanlige rader.
+ */
+export function mirrorStatusText(row) {
+  if (!isMirrorRow(row)) return '';
+  const ic = row.intercompany || {};
+  const from = text(ic.sourceCompanyName) || 'tilknyttet selskap';
+  const inv = ic.supplierInvoice;
+  if (ic.sourceDeleted) return `Slettet i ${from} etter at den ble fakturert her`;
+  if (inv?.id) {
+    const number = text(inv.number);
+    if (number) return `Ført i ${from} · belastes dere på faktura ${number} fra ${from}`;
+    return `Ført i ${from} · på fakturautkast fra ${from} til dere`;
+  }
+  if (ic.supplierApproved) return `Ført i ${from} · godkjent der, faktureres dere fra ${from}`;
+  return `Ført i ${from} · venter på godkjenning der`;
+}
+
 /** Salg som skal speiles: på en prosjektkopi, med områdene avtalen omfatter. */
 export function salesToMirror(sales = [], settings = {}) {
   const s = normalizeLinkSettings(settings);
@@ -943,7 +1005,7 @@ export function salesToMirror(sales = [], settings = {}) {
   });
 }
 
-/** Endrede og fjernede salg på prosjektkopier mellom to versjoner av listen. */
+/** Endrede og fjernede rader (salg, utlegg) på prosjektkopier mellom to versjoner av listen. */
 export function diffCloneSales(before = [], after = []) {
   const prev = new Map((before || []).filter((row) => row?.id && isCloneProjectId(row.projectId)).map((row) => [row.id, row]));
   const next = new Map((after || []).filter((row) => row?.id && isCloneProjectId(row.projectId)).map((row) => [row.id, row]));

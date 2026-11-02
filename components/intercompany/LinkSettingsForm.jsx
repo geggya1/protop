@@ -77,6 +77,9 @@ export default function LinkSettingsForm({ value, onChange, colors, disabled = f
 
   return (
     <View style={styles.block}>
+      <Text style={{ color: colors.muted, fontSize: 13 }}>
+        Standardpriser for nye felles prosjekter. Pris og betingelser kan settes på hvert prosjekt som vanlig etterpå.
+      </Text>
       <Area
         title="Timer"
         hint="Timer ført på prosjekter hos det andre selskapet."

@@ -4,7 +4,6 @@ import {
   answerLinkSettings,
   linkIdFor,
   proposeLinkSettings,
-  approveMirrorEntries,
   buildCloneProject,
   buildLinkRequest,
   cloneProjectId,
@@ -15,14 +14,14 @@ import {
   groupLinks,
   lendableEmployees,
   linkView,
-  mirrorAwaitingOwner,
+  mirrorExpense,
+  mirrorStatusText,
   mirrorAwaitingSupplier,
   mirrorId,
   mirrorSale,
   mirrorTimeEntry,
   normalizeLinkSettings,
   openLinkBetween,
-  ownerApprovalQueue,
   parseCloneProjectId,
   rentalQuantity,
   rentalSaleFromBooking,
@@ -133,8 +132,8 @@ test('kopien har eierens nummer, eieren som kunde og avtalt pris', () => {
 
   const fixedLink = { ...link, settings: { hours: { mode: 'fixed', fixedRate: 900 } } };
   const fixedClone = buildCloneProject({ link: fixedLink, owner: MOR, ownerProject, existing: { ...clone, manager: 'Kari' } });
-  assert.equal(fixedClone.pricingSettings.hourlyRate, 900);
-  assert.equal(fixedClone.invoiceSettings.discountHours, null);
+  assert.equal(fixedClone.pricingSettings.hourlyRate, 1200, 'en kopi som finnes, beholder sin egen pris');
+  assert.equal(buildCloneProject({ link: fixedLink, owner: MOR, ownerProject }).pricingSettings.hourlyRate, 900, 'ny kopi får avtalens pris');
   assert.equal(fixedClone.manager, 'Kari', 'leverandørens egne felt står');
   assert.equal(fixedClone.number, '24017');
 });
@@ -201,7 +200,7 @@ test('nye priser i aktiv avtale må godtas av den andre parten', () => {
   assert.equal(proposeLinkSettings(pending, { companyId: DATTER.id, settings: {} }).ok, false);
 });
 
-test('timer speiles: godkjent hos datter legger seg til godkjenning hos mor', () => {
+test('timer speiles: arbeidsgiveren godkjenner, og fakturaen vises hos mor', () => {
   const source = { id: 'tid1', projectId: CLONE.id, employeeId: 'emp7', employeeName: 'Ola', date: '2026-11-02', hours: 7.5, status: 'registrert' };
   const first = mirrorTimeEntry({ source, clone: CLONE, supplier: DATTER, ownerEmployeeId: 'ic_famDatter_emp7' });
   assert.equal(first.action, 'set');
@@ -209,20 +208,22 @@ test('timer speiles: godkjent hos datter legger seg til godkjenning hos mor', ()
   assert.equal(first.row.projectId, 'prjA');
   assert.equal(first.row.status, 'registrert');
   assert.equal(mirrorAwaitingSupplier(first.row), true);
-  assert.equal(mirrorAwaitingOwner(first.row), false);
+  assert.match(mirrorStatusText(first.row), /venter på godkjenning i|venter på godkjenning der/);
 
   const approved = mirrorTimeEntry({ source: { ...source, status: 'godkjent' }, existing: first.row, clone: CLONE, supplier: DATTER, ownerEmployeeId: 'ic_famDatter_emp7' });
-  assert.equal(approved.row.status, 'låst');
-  assert.equal(mirrorAwaitingOwner(approved.row), true);
-  assert.equal(ownerApprovalQueue([approved.row])[0].hours, 7.5);
+  assert.equal(approved.row.status, 'godkjent', 'godkjent hos arbeidsgiveren = godkjent hos mor, ingen ny godkjenning');
+  assert.equal(mirrorAwaitingSupplier(approved.row), false);
 
-  const ownerApproved = { ...approved.row, status: 'godkjent' };
-  const again = mirrorTimeEntry({ source: { ...source, status: 'godkjent', description: 'rettet' }, existing: ownerApproved, clone: CLONE, supplier: DATTER, ownerEmployeeId: 'x' });
-  assert.equal(again.row.status, 'godkjent', 'eiers godkjenning står når kjernen er lik');
-  const changed = mirrorTimeEntry({ source: { ...source, status: 'godkjent', hours: 8 }, existing: ownerApproved, clone: CLONE, supplier: DATTER, ownerEmployeeId: 'x' });
-  assert.equal(changed.row.status, 'låst', 'nye timer må godkjennes på nytt');
-  const reopened = mirrorTimeEntry({ source: { ...source, status: 'registrert' }, existing: ownerApproved, clone: CLONE, supplier: DATTER, ownerEmployeeId: 'x' });
-  assert.equal(reopened.row.status, 'registrert');
+  const draft = mirrorTimeEntry({ source: { ...source, status: 'låst', invoiceId: 'invD1' }, existing: approved.row, clone: CLONE, supplier: DATTER, ownerEmployeeId: 'x', invoice: { status: 'draft' } });
+  assert.equal(draft.row.status, 'godkjent');
+  assert.equal(draft.row.intercompany.supplierInvoice.id, 'invD1');
+  assert.match(mirrorStatusText(draft.row), /fakturautkast/);
+  const issued = mirrorTimeEntry({ source: { ...source, status: 'låst', invoiceId: 'invD1' }, existing: draft.row, clone: CLONE, supplier: DATTER, ownerEmployeeId: 'x', invoice: { status: 'issued', invoiceNumber: '10023' } });
+  assert.equal(issued.row.intercompany.supplierInvoice.number, '10023');
+  assert.equal(mirrorStatusText(issued.row), 'Ført i Datter AS · belastes dere på faktura 10023 fra Datter AS');
+
+  const reopened = mirrorTimeEntry({ source: { ...source, status: 'registrert' }, existing: approved.row, clone: CLONE, supplier: DATTER, ownerEmployeeId: 'x' });
+  assert.equal(reopened.row.status, 'registrert', 'godkjenning trukket hos arbeidsgiveren');
 });
 
 test('fakturerte speilede timer endres ikke, og slettede fjernes', () => {
@@ -243,15 +244,11 @@ test('salg og utleie speiles til eier', () => {
   assert.equal(first.row.discountPercent, 0, 'rabatten til mor følger ikke med til sluttkunden');
   assert.equal(first.row.intercompany.supplierApproved, false);
   const ready = mirrorSale({ source: { ...sale, status: 'approved' }, existing: first.row, clone: CLONE, supplier: DATTER });
-  assert.equal(ready.row.status, 'draft', 'klar hos datter = til godkjenning hos mor');
-  assert.equal(ready.row.intercompany.supplierApproved, true);
-  const ownerOk = { ...ready.row, status: 'approved', discountPercent: 5, comment: 'Mors notat' };
-  const touched = mirrorSale({ source: { ...sale, status: 'approved', comment: 'ny' }, existing: ownerOk, clone: CLONE, supplier: DATTER });
-  assert.equal(touched.row.status, 'approved', 'mors godkjenning står når varen er lik');
+  assert.equal(ready.row.status, 'approved', 'klar hos arbeidsgiveren = klar til fakturering hos mor');
+  const ownerSet = { ...ready.row, discountPercent: 5, comment: 'Mors notat' };
+  const touched = mirrorSale({ source: { ...sale, status: 'approved', comment: 'ny' }, existing: ownerSet, clone: CLONE, supplier: DATTER });
   assert.equal(touched.row.discountPercent, 5, 'mors rabatt mot sluttkunden står');
   assert.equal(touched.row.comment, 'Mors notat');
-  const repriced = mirrorSale({ source: { ...sale, status: 'approved', unitPrice: 120 }, existing: ownerOk, clone: CLONE, supplier: DATTER });
-  assert.equal(repriced.row.status, 'draft', 'ny pris må godkjennes på nytt');
   assert.equal(mirrorSale({ source: { ...sale, status: 'rejected' }, existing: ready.row, clone: CLONE, supplier: DATTER }).action, 'delete');
 
   const rows = salesToMirror([sale, { id: 'r', kind: 'rental', projectId: CLONE.id }, { id: 'own', projectId: 'prj1' }], { rental: { enabled: false } });
@@ -290,11 +287,31 @@ test('utleie: booking på prosjekt blir salgsrad med utleiepris', () => {
   assert.equal(invoiced.sales.length, 1, 'fakturert utleie blir stående');
 });
 
-test('eier godkjenner speilede timer som leverandøren har godkjent', () => {
-  const ready = { id: 'a', icMirror: true, status: 'låst', intercompany: { mirror: true, supplierApproved: true } };
-  const waiting = { id: 'b', icMirror: true, status: 'registrert', intercompany: { mirror: true, supplierApproved: false } };
-  const invoiced = { ...ready, id: 'c', invoiceId: 'F1' };
-  const out = approveMirrorEntries({ timeEntries: [ready, waiting, invoiced] }, ['a', 'b', 'c']);
-  assert.equal(out.count, 1);
-  assert.deepEqual(out.state.timeEntries.map((row) => row.status), ['godkjent', 'registrert', 'låst']);
+
+test('utlegg speiles: godkjent hos arbeidsgiveren kan faktureres sluttkunden hos mor', () => {
+  const source = { id: 'e1', projectId: CLONE.id, employeeId: 'emp7', description: 'Hotell', amountExVat: 1000, amountInclVat: 1120, vatAmount: 120, status: 'submitted', paidBy: 'personal' };
+  const first = mirrorExpense({ source, clone: CLONE, supplier: DATTER });
+  assert.equal(first.row.id, 'ic_famDatter_e1');
+  assert.equal(first.row.projectId, 'prjA');
+  assert.equal(first.row.status, 'draft');
+  assert.equal(first.row.paidBy, 'company', 'mor skal ikke refundere den ansatte');
+  assert.equal(first.row.employeeId, 'ic_famDatter_emp7');
+  const approved = mirrorExpense({ source: { ...source, status: 'approved' }, existing: { ...first.row, markupPercent: 10 }, clone: CLONE, supplier: DATTER });
+  assert.equal(approved.row.status, 'approved');
+  assert.equal(approved.row.markupPercent, 10, 'mors påslag står');
+  const invoiced = mirrorExpense({ source: { ...source, status: 'invoiced', invoiceId: 'invD1' }, existing: approved.row, clone: CLONE, supplier: DATTER, invoice: { invoiceNumber: '10023', status: 'sent' } });
+  assert.match(mirrorStatusText(invoiced.row), /faktura 10023/);
+  assert.equal(mirrorExpense({ source: { ...source, status: 'rejected' }, existing: approved.row, clone: CLONE, supplier: DATTER }).action, 'delete');
+});
+
+test('pris på kopien settes som på ethvert prosjekt; avtalens pris er bare utgangspunkt', () => {
+  const link = { ...pendingFromMor({ hours: { mode: 'fixed', fixedRate: 900 } }), status: 'active' };
+  const ownerProject = { id: 'prjA', number: '24017', name: 'Skole' };
+  const first = buildCloneProject({ link, owner: MOR, ownerProject });
+  assert.equal(first.pricingSettings.hourlyRate, 900);
+  const edited = { ...first, pricingModel: 'fixed', pricingSettings: { fixedFee: 50000 } };
+  const again = buildCloneProject({ link, owner: MOR, ownerProject: { ...ownerProject, name: 'Skole, trinn 2' }, existing: edited });
+  assert.equal(again.pricingModel, 'fixed', 'egne betingelser på prosjektet står');
+  assert.equal(again.pricingSettings.fixedFee, 50000);
+  assert.equal(again.name, 'Skole, trinn 2');
 });

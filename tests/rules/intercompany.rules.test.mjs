@@ -61,6 +61,10 @@ beforeEach(async () => {
       id: 'ic_famDatter_s1', name: 'Gips', quantity: 10, unitPrice: 99, projectId: 'prjA', status: 'draft',
       icMirror: true, intercompany: { mirror: true, supplierApproved: false },
     });
+    await setDoc(doc(db, 'families', M, 'projectExpenses', 'ic_famDatter_e1'), {
+      id: 'ic_famDatter_e1', description: 'Hotell', amountExVat: 1000, amountInclVat: 1120, projectId: 'prjA', status: 'draft',
+      billable: true, invoiceId: '', icMirror: true, intercompany: { mirror: true, supplierApproved: false },
+    });
     await setDoc(doc(db, 'families', M, 'productSales', 'own1'), { id: 'own1', name: 'Egen', quantity: 1, unitPrice: 10, status: 'draft' });
   });
 });
@@ -107,4 +111,15 @@ test('speilede salg: eier fakturerer, men lager, sletter og endrer ikke varen', 
   await assertSucceeds(updateDoc(ref('ic_famDatter_s1'), { comment: 'Sjekk leveranse' }));
   await assertSucceeds(updateDoc(ref('own1'), { quantity: 3 }));
   await assertSucceeds(deleteDoc(ref('own1')));
+});
+
+test('speilede utlegg: eier fakturerer, men lager, sletter og endrer ikke beløpet', async () => {
+  const ref = (id) => doc(as('mor'), 'families', M, 'projectExpenses', id);
+  await assertFails(setDoc(ref('ic_famDatter_e9'), { description: 'Falsk', amountExVat: 1, icMirror: true }));
+  await assertFails(updateDoc(ref('ic_famDatter_e1'), { amountExVat: 2000 }));
+  await assertFails(updateDoc(ref('ic_famDatter_e1'), { status: 'approved' }), 'ikke godkjent hos arbeidsgiveren');
+  await assertFails(updateDoc(ref('ic_famDatter_e1'), { 'intercompany.supplierApproved': true }));
+  await assertFails(deleteDoc(ref('ic_famDatter_e1')));
+  await assertSucceeds(updateDoc(ref('ic_famDatter_e1'), { markupPercent: 10 }));
+  await assertSucceeds(setDoc(ref('own-e'), { description: 'Eget', amountExVat: 10, projectId: 'p1', status: 'draft' }));
 });

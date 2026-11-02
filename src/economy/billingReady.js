@@ -277,9 +277,17 @@ export function buildReadyProjects({
         count: 0,
         approvedCount: 0,
         entries: [],
+        // Timer fra et tilknyttet selskap: hvem som leverte, og fakturaene de belastes på.
+        supplierName: '',
+        supplierInvoices: [],
       });
     }
     const group = hourGroups.get(key);
+    if (row.intercompany?.mirror) {
+      group.supplierName = text(row.intercompany.sourceCompanyName) || group.supplierName;
+      const number = text(row.intercompany.supplierInvoice?.number);
+      if (number && !group.supplierInvoices.includes(number)) group.supplierInvoices.push(number);
+    }
     const hours = entryHours(row);
     group.entries.push({ ...row, _hours: hours, _rate: rate });
     group.hours = roundHours(group.hours + hours);
@@ -305,6 +313,7 @@ export function buildReadyProjects({
   for (const raw of expenses || []) {
     const row = normalizeExpense(raw);
     if (!isOpenOperation(row) || text(row.date) > until) continue;
+    if (mirrorAwaitingSupplier(row)) continue;
     const target = slot(row.projectId);
     if (!target) continue;
     // Utlegg i kundens navn går videre med bruttobeløpet, uten påslag og mva.
@@ -330,6 +339,7 @@ export function buildReadyProjects({
       discountPercent: 0,
       amount: round2(base + markup),
       hasReceipt: !!row.receiptUri,
+      intercompany: row.intercompany?.mirror ? row.intercompany : null,
     });
   }
   for (const raw of trips || []) {

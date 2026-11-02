@@ -271,6 +271,7 @@ export default function CompanyUnitsScreen() {
       <Text style={[styles.section, { color: colors.ink }]}>Tilknyttede selskaper</Text>
       <IntercompanyPanel
         familyId={familyId}
+        family={family}
         colors={colors}
         canEdit={canEdit}
         actorName={userProfile?.name || ''}

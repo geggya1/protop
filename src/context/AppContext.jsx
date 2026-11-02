@@ -1,3 +1,4 @@
+import { setActiveNumberSeries } from '../intercompany/numberSeries.js';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -90,6 +91,10 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
   const familyPickRef = useRef(false);
   const [familyId, setFamilyIdState] = useState(childFamilyId || null);
   const [family, setFamily] = useState(null);
+  // Konsernets nummerserie for valgt selskap (kunder og prosjekter), se src/intercompany/numberSeries.js.
+  useEffect(() => {
+    setActiveNumberSeries(family?.numberSeries);
+  }, [family?.numberSeries]);
   const [parents, setParents] = useState([]);
   const [kids, setKids] = useState([]);
   const [friends, setFriends] = useState([]);

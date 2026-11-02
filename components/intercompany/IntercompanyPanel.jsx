@@ -8,13 +8,15 @@ import { useIntercompanyLinks } from '../../src/intercompany/useIntercompanyLink
 import {
   answerLinkSettings, endLinkAgreement, requestLink, respondLink, saveLinkSettings, withdrawLinkRequest,
 } from '../../src/intercompany/client';
-import { normalizeLinkSettings, settingsSummary } from '../../src/intercompany/model';
+import { konsernChildren, normalizeLinkSettings, roleSentence, settingsSummary } from '../../src/intercompany/model';
+import NumberSeriesPanel from './NumberSeriesPanel';
 import { digitsOrgnr } from '../../src/project/companyRegistry';
 import { findCompanyByOrgnr } from '../../src/project/companyLookupClient';
 
 const ROLE_OPTIONS = [
-  { id: 'child', label: 'Datterselskap', hint: 'De er vårt datterselskap' },
-  { id: 'parent', label: 'Morselskap', hint: 'De er vårt morselskap' },
+  { id: 'partner', label: 'Samarbeidspartner / underentreprenør', hint: 'Et annet selskap dere jobber sammen med på prosjekter' },
+  { id: 'child', label: 'Datterselskap', hint: 'De er vårt datterselskap i konsernet' },
+  { id: 'parent', label: 'Morselskap', hint: 'De er vårt morselskap i konsernet' },
 ];
 
 function Button({ label, onPress, colors, primary = false, danger = false, disabled = false, nativeID, icon = null }) {
@@ -95,14 +97,19 @@ function LinkRow({ link, colors, children, badge }) {
  * priser, og ny forespørsel. Brukes på Bedrift → Underenheter. canEdit: Admin på underenheter.
  * legacy: selskaper som er koblet med den gamle koblingen uten godkjenning (parentCompanyId/subUnits).
  */
-export default function IntercompanyPanel({ familyId, colors, canEdit, actorName = '', legacy = [] }) {
-  const { groups, ready, error: loadError } = useIntercompanyLinks(familyId);
+export default function IntercompanyPanel({ familyId, family = null, colors, canEdit, actorName = '', legacy = [] }) {
+  const { links, groups, ready, error: loadError } = useIntercompanyLinks(familyId);
+  const konsern = useMemo(() => {
+    const children = konsernChildren(links, familyId);
+    if (!children.length) return [];
+    return [{ id: familyId, name: family?.company?.navn || family?.name || 'Vårt selskap' }, ...children];
+  }, [links, familyId, family]);
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [composing, setComposing] = useState(false);
   const [orgnr, setOrgnr] = useState('');
-  const [role, setRole] = useState('child');
+  const [role, setRole] = useState('partner');
   const [message, setMessage] = useState('');
   const [draft, setDraft] = useState(() => normalizeLinkSettings({}));
   const [editingId, setEditingId] = useState('');
@@ -176,8 +183,8 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
       <View style={[styles.intro, { backgroundColor: colors.brandSoft }]}>
         <Ionicons name="git-network-outline" size={20} color={colors.brandInk} />
         <Text style={[styles.lead, { color: colors.ink, flex: 1 }]}>
-          Del folk og prosjekter med mor- og datterselskaper. Timer og utlegg føres hos arbeidsgiveren og vises hos begge.
-          Arbeidsgiveren godkjenner og fakturerer prosjekteier, som fakturerer sluttkunden.
+          Del folk og prosjekter med samarbeidspartnere, underentreprenører og selskaper i konsernet. Timer og utlegg føres
+          hos arbeidsgiveren og vises hos begge. Arbeidsgiveren godkjenner og fakturerer prosjekteier, som fakturerer sluttkunden.
         </Text>
       </View>
       {!ready ? <ActivityIndicator color={colors.brand} /> : null}
@@ -188,7 +195,7 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
       {groups.incoming.map((link) => (
         <LinkRow key={link.id} link={link} colors={colors} badge="Svar trengs">
           <Text style={{ color: colors.ink, fontSize: 13 }}>
-            {`«${link.partner.name}» vil knyttes til dere som ${link.partnerRole === 'parent' ? 'morselskap' : 'datterselskap'}${link.requestedByName ? ` (sendt av ${link.requestedByName})` : ''}.`}
+            {`«${link.partner.name}» vil knyttes til dere ${roleSentence(link)}${link.requestedByName ? ` (sendt av ${link.requestedByName})` : ''}.`}
           </Text>
           {canEdit ? (
             <View style={styles.actions}>
@@ -337,6 +344,8 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
           </View>
         </View>
       ) : null}
+
+      <NumberSeriesPanel familyId={familyId} family={family} companies={konsern} canEdit={canEdit} colors={colors} />
 
       {groups.closed.length ? (
         <Text style={{ color: colors.muted, fontSize: 12 }}>

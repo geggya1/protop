@@ -9,7 +9,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
-import { DATTER, DATTER_EMP, MOR, MOR_PROJECT, PASSWORD, getDoc, listDocs, putDoc } from './seed-intercompany.mjs';
+import { DATTER, DATTER_EMP, MOR, MOR_PROJECT, PARTNER, PASSWORD, getDoc, listDocs, putDoc } from './seed-intercompany.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -358,6 +358,74 @@ await step('Mor og Datter: prosjektlisten merker felles prosjekter', async () =>
   await open(mor.page, 'projects');
   await seeText(mor.page, 'Med Datter Elektro AS', 60000);
   return shot(mor.page, 'mor-prosjektliste');
+});
+
+await step('Mor: knytter til en samarbeidspartner (ikke konsern), partneren godtar', async () => {
+  await open(mor.page, 'selskap', 'underenheter');
+  await clickId(mor.page, '#ic-new');
+  await fillId(mor.page, '#ic-orgnr', PARTNER.orgnr);
+  await seeText(mor.page, 'Partner Rør AS finnes i ProTop', 30000);
+  await clickId(mor.page, '#ic-role-partner');
+  await shot(mor.page, 'mor-ny-partner');
+  await clickId(mor.page, '#ic-send');
+  await seeText(mor.page, 'Forespørselen er sendt', 60000);
+  const partner = await login(PARTNER.email, 'desktop', 'partner');
+  await open(partner.page, 'selskap', 'underenheter');
+  await seeText(partner.page, 'som samarbeidspartner', 60000);
+  await shot(partner.page, 'partner-innkommende');
+  await clickId(partner.page, '[id^="ic-accept-"]');
+  await seeText(partner.page, 'Tilknytningen er godkjent', 60000);
+  await shot(partner.page, 'partner-aktiv');
+  await partner.browser.close();
+  const links = await listDocs('intercompanyLinks');
+  const link = links.find((row) => row.relation === 'partner');
+  if (!link || link.status !== 'active') throw new Error('partneravtalen er ikke aktiv');
+  const fam = await getDoc(`families/${PARTNER.id}`);
+  if (fam?.parentCompanyId) throw new Error('partner fikk morselskap');
+  return 'partner aktiv, ikke i konsernet';
+});
+
+await step('Mor: fordeler nummerserier i konsernet (ikke til partneren)', async () => {
+  await open(mor.page, 'selskap', 'underenheter');
+  await seeText(mor.page, 'Nummerserier i konsernet', 60000);
+  await clickId(mor.page, '#ic-series-edit');
+  await clickId(mor.page, '#ic-series-suggest');
+  await shot(mor.page, 'mor-nummerserier-utkast');
+  await clickId(mor.page, '#ic-series-save');
+  await seeText(mor.page, 'Nummerseriene er lagret', 60000);
+  const datterFam = await until(async () => {
+    const f = await getDoc(`families/${DATTER.id}`);
+    return f?.numberSeries?.project ? f : null;
+  }, { what: 'serie hos datter' });
+  if (datterFam.numberSeries.project.from !== 20000) throw new Error(`datter ${JSON.stringify(datterFam.numberSeries)}`);
+  const partnerFam = await getDoc(`families/${PARTNER.id}`);
+  if (partnerFam?.numberSeries) throw new Error('partneren fikk nummerserie');
+  await mor.page.waitForTimeout(1500);
+  return shot(mor.page, 'mor-nummerserier');
+});
+
+await step('Mor: nytt prosjekt får neste nummer i serien', async () => {
+  await mor.page.reload({ waitUntil: 'domcontentloaded' });
+  await mor.page.waitForFunction(() => !!window.__protopBot, null, { timeout: 240000 });
+  await mor.page.waitForTimeout(2500);
+  await open(mor.page, 'projects');
+  await clickText(mor.page, 'Nytt prosjekt');
+  await mor.page.waitForTimeout(1000);
+  await clickText(mor.page, 'Opprett prosjekt', { exact: true });
+  await mor.page.waitForTimeout(1500);
+  const has = await mor.page.evaluate(() => [...document.querySelectorAll('input')].some((el) => el.value === '10000'));
+  await shot(mor.page, 'mor-nytt-prosjekt-nummer');
+  if (!has) throw new Error('prosjektnummer 10000 ble ikke foreslått');
+});
+
+await step('Datter: ser nummerserien fra morselskapet', async () => {
+  await datter.page.reload({ waitUntil: 'domcontentloaded' });
+  await datter.page.waitForFunction(() => !!window.__protopBot, null, { timeout: 240000 });
+  await datter.page.waitForTimeout(2500);
+  await open(datter.page, 'selskap', 'underenheter');
+  await seeText(datter.page, 'Nummerserie i konsernet', 60000);
+  await seeText(datter.page, '20000–29999', 30000);
+  return shot(datter.page, 'datter-nummerserie');
 });
 
 await mor.browser.close();

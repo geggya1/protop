@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { activeRange, nextInRange } from '../../src/intercompany/numberSeries';
 import IntercompanyTag from '../../components/intercompany/IntercompanyTag';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -972,7 +973,10 @@ export default function ProjectWorkScreen() {
   }
 
   function startNew() {
-    setForm(EMPTY_FORM);
+    // Konsernets nummerserie for selskapet: foreslå neste prosjektnummer i serien.
+    const series = activeRange('project');
+    const next = series ? nextInRange((state.projects || []).map((row) => row.number), series) : null;
+    setForm(next ? { ...EMPTY_FORM, number: next.number } : EMPTY_FORM);
     setSelectedId('');
     setError('');
     setNote('');

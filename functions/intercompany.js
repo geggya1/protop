@@ -36,12 +36,15 @@ import {
   openLinkBetween,
   proposeLinkSettings,
   respondToLink,
+  roleSentence,
+  konsernChildren,
   upsertMember,
   upsertProject,
   withSupplierOnOwnerProject,
   withdrawLink,
 } from '../src/intercompany/model.js';
 import { companyOrgnr } from '../src/project/orgnrIndex.js';
+import { normalizeSeries, seriesConflict } from '../src/intercompany/numberSeries.js';
 import { isOrganizationType } from '../src/utils/groupTypes.js';
 import { companyRecipients } from '../src/notifications/audience.js';
 import { resolveOrgnrOwner } from './companyJoin.js';
@@ -140,6 +143,8 @@ async function notifyCompany(companyId, { title, body, exclude = [] }) {
 
 /** Morselskapet vises på datterselskapet (som den gamle koblingen), bare mens avtalen er aktiv. */
 async function syncParentField(link) {
+  // Samarbeidspartnere er ikke i samme konsern.
+  if (link.relation === 'partner') return;
   const ref = db.doc(`families/${link.child.id}`);
   if (link.status === LINK_STATUS.active) {
     await ref.set({ parentCompanyId: link.parent.id, parentCompanyName: link.parent.name, parentLinkId: link.id }, { merge: true });
@@ -187,7 +192,7 @@ export const icRequestLink = onCall(CALL, async (req) => {
     id,
     requester: partyOf(companyId, ownData),
     target: partyOf(targetId, targetData),
-    role: req.data?.role === 'parent' ? 'parent' : 'child',
+    role: ['parent', 'partner'].includes(req.data?.role) ? req.data.role : 'child',
     uid,
     name: actorName(req),
     message: req.data?.message,
@@ -210,7 +215,7 @@ export const icRequestLink = onCall(CALL, async (req) => {
   if (!autoAccept) {
     await notifyCompany(targetId, {
       title: 'Forespørsel om tilknytning',
-      body: `«${companyName(ownData)}» vil knyttes til dere som ${view.partnerRoleLabel.toLowerCase()}${link.requestedByName ? ` (sendt av ${link.requestedByName})` : ''}. Godta eller avslå under Bedrift → Underenheter.`,
+      body: `«${companyName(ownData)}» vil knyttes til dere ${roleSentence(view)}${link.requestedByName ? ` (sendt av ${link.requestedByName})` : ''}. Godta eller avslå under Bedrift → Underenheter.`,
       exclude: [uid],
     });
   }
@@ -531,4 +536,51 @@ export const icRemoveMember = onCall(CALL, async (req) => {
     updatedAt: at,
   }, { merge: true });
   return { ok: true };
+});
+
+// ── Nummerserier i konsernet ──────────────────────────────────────────────
+
+/**
+ * Morselskapet fordeler prosjekt- og kundenummer mellom selskapene i konsernet (seg selv og
+ * datterselskaper med aktiv konsernavtale). Seriene skrives på hvert selskap (numberSeries) og
+ * samlet på morselskapet (konsernNumberSeries), så alle ser sin egen og mor ser helheten.
+ */
+export const icSetNumberSeries = onCall(CALL, async (req) => {
+  const uid = requireAuth(req.auth);
+  const parentId = safeDocId(req.data?.companyId);
+  await assertLinkAdmin(parentId, uid);
+  const parentData = await companyDoc(parentId);
+  const links = await openLinksFor(parentId);
+  const children = konsernChildren(links, parentId);
+  const allowed = new Map([[parentId, companyName(parentData)], ...children.map((row) => [row.id, row.name])]);
+  const raw = req.data?.assignments && typeof req.data.assignments === 'object' ? req.data.assignments : {};
+  const assignments = {};
+  for (const [id, series] of Object.entries(raw)) {
+    if (!allowed.has(id)) throw new HttpsError('permission-denied', 'Bare selskaper i konsernet kan få nummerserie herfra.');
+    assignments[id] = series;
+  }
+  const names = Object.fromEntries(allowed);
+  const conflict = seriesConflict(assignments, names);
+  if (conflict) throw new HttpsError('invalid-argument', conflict);
+  const at = new Date().toISOString();
+  const batch = db.batch();
+  const summary = {};
+  for (const id of allowed.keys()) {
+    const series = normalizeSeries(assignments[id]);
+    summary[id] = { ...series, name: names[id] };
+    batch.set(db.doc(`families/${id}`), {
+      numberSeries: Object.keys(series).length ? { ...series, setByCompanyId: parentId, setByName: names[parentId], setAt: at } : FieldValue.delete(),
+    }, { merge: true });
+  }
+  batch.set(db.doc(`families/${parentId}`), { konsernNumberSeries: { companies: summary, updatedAt: at, updatedBy: uid } }, { merge: true });
+  await batch.commit();
+  for (const id of allowed.keys()) {
+    if (id === parentId) continue;
+    await notifyCompany(id, {
+      title: 'Nummerserie fra morselskapet',
+      body: `«${names[parentId]}» har satt nummerserier for dere i konsernet. Nye prosjekter og kunder får nummer i serien.`,
+      exclude: [uid],
+    });
+  }
+  return { ok: true, companies: summary };
 });

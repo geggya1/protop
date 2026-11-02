@@ -1,5 +1,6 @@
 /** Kunderegister for bedriften. Knyttes til avtaler via customerId. */
 import { collapseNameTokens, displayName, isActiveEmployee } from '../employees/model.js';
+import { activeRange, nextInRange } from '../intercompany/numberSeries.js';
 
 function text(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -202,7 +203,15 @@ function stripCustomerNumberNote(notes, number) {
     .trim();
 }
 
-export function nextCustomerNumber(customers) {
+/**
+ * Neste kundenummer. Har selskapet fått en nummerserie i konsernet (series, eller den som er satt
+ * for valgt selskap), blir det neste i serien.
+ */
+export function nextCustomerNumber(customers, series = activeRange('customer')) {
+  if (series) {
+    const hit = nextInRange((Array.isArray(customers) ? customers : []).map((row) => normalizeCustomerNumber(row?.customerNumber)), series);
+    if (hit) return hit.number;
+  }
   let max = 0;
   for (const row of Array.isArray(customers) ? customers : []) {
     const number = Number(normalizeCustomerNumber(row?.customerNumber));

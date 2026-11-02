@@ -146,6 +146,9 @@ export function normalizeLink(raw = {}, id = '') {
   return {
     id: text(id || src.id),
     status,
+    // konsern: mor og datter (parent/child). partner: samarbeidspartner eller underentreprenør,
+    // likestilte selskaper (parent/child er da bare den som spurte og den som ble spurt).
+    relation: src.relation === 'partner' ? 'partner' : 'konsern',
     parent,
     child,
     companyIds: [parent.id, child.id].filter(Boolean),
@@ -186,12 +189,13 @@ export function linkView(link, companyId) {
   if (!weAreParent && !weAreChild) return null;
   const partner = weAreParent ? row.child : row.parent;
   const incoming = row.status === LINK_STATUS.pending && row.requestedByCompanyId !== id;
+  const isPartner = row.relation === 'partner';
   return {
     ...row,
-    ourRole: weAreParent ? 'parent' : 'child',
+    ourRole: isPartner ? 'partner' : (weAreParent ? 'parent' : 'child'),
     partner,
-    partnerRole: weAreParent ? 'child' : 'parent',
-    partnerRoleLabel: weAreParent ? 'Datterselskap' : 'Morselskap',
+    partnerRole: isPartner ? 'partner' : (weAreParent ? 'child' : 'parent'),
+    partnerRoleLabel: isPartner ? 'Samarbeidspartner' : (weAreParent ? 'Datterselskap' : 'Morselskap'),
     incoming,
     outgoing: row.status === LINK_STATUS.pending && row.requestedByCompanyId === id,
     active: row.status === LINK_STATUS.active,
@@ -219,6 +223,21 @@ export function groupLinks(links = [], companyId = '') {
   };
 }
 
+/** Rollen til partneren i én setning: «som datterselskap», «som samarbeidspartner». */
+export function roleSentence(view) {
+  if (!view) return '';
+  if (view.partnerRole === 'partner') return 'som samarbeidspartner';
+  return view.partnerRole === 'parent' ? 'som morselskap' : 'som datterselskap';
+}
+
+/** Selskapene i konsernet sett fra morselskapet: aktive konsernavtaler der vi er mor. */
+export function konsernChildren(links = [], companyId = '') {
+  return (links || [])
+    .map((row) => linkView(row, companyId))
+    .filter((row) => row && row.active && row.relation === 'konsern' && row.ourRole === 'parent')
+    .map((row) => row.partner);
+}
+
 /** Finnes det allerede en åpen (ventende eller aktiv) avtale mellom de to? */
 export function openLinkBetween(links = [], a = '', b = '') {
   return (links || []).map((row) => normalizeLink(row, row?.id)).find((row) => (
@@ -229,7 +248,8 @@ export function openLinkBetween(links = [], a = '', b = '') {
 
 /**
  * Ny forespørsel. role er partnerens rolle sett fra den som spør:
- * 'child' = «de er vårt datterselskap», 'parent' = «de er vårt morselskap».
+ * 'child' = «de er vårt datterselskap», 'parent' = «de er vårt morselskap»,
+ * 'partner' = samarbeidspartner eller underentreprenør (ikke i samme konsern).
  */
 export function buildLinkRequest({
   id, requester, target, role = 'child', uid = '', name = '', message = '', settings = {}, at = '',
@@ -238,6 +258,7 @@ export function buildLinkRequest({
   const tgt = party(target);
   if (!req.id || !tgt.id) return { ok: false, error: 'Selskapet mangler.' };
   if (req.id === tgt.id) return { ok: false, error: 'Et selskap kan ikke knyttes til seg selv.' };
+  const partnerLink = role === 'partner';
   const targetIsChild = role !== 'parent';
   const stamp = text(at) || new Date().toISOString();
   const error = settingsError(settings);
@@ -247,6 +268,7 @@ export function buildLinkRequest({
     link: normalizeLink({
       id,
       status: LINK_STATUS.pending,
+      relation: partnerLink ? 'partner' : 'konsern',
       parent: targetIsChild ? req : tgt,
       child: targetIsChild ? tgt : req,
       requestedByCompanyId: req.id,

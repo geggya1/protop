@@ -165,6 +165,7 @@ export default function ProjectTeamTab({
     <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]} nativeID="project-team-tab">
       <View style={styles.head}>
         <Text style={[styles.title, { color: colors.ink }]}>Team ({members.length} deltakere)</Text>
+        <View style={styles.headActions}>
         {isAdmin && partnerLinks.length && !isSupplierCopy ? (
           <TouchableOpacity
             onPress={() => setPartnerOpen(true)}
@@ -186,6 +187,7 @@ export default function ProjectTeamTab({
             <Text style={{ color: '#fff', fontWeight: '700' }}>+ Legg til medlem</Text>
           </TouchableOpacity>
         ) : null}
+        </View>
       </View>
       {icLabel ? (
         <View style={[styles.icBanner, { backgroundColor: colors.brandSoft }]} nativeID="project-intercompany-label">
@@ -343,5 +345,6 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   ghost: { borderWidth: 1, borderRadius: 8, paddingVertical: 10 },
+  headActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   icBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 8, padding: 10, marginBottom: 10 },
 });

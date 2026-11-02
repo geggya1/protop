@@ -26,7 +26,7 @@ import { removeExpenseRow, saveExpenseChange } from '../../src/economy/expenseSa
 import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { showSaveToast } from '../../src/ui/saveToast';
-import { mirrorStatusText } from '../../src/intercompany/model';
+import IntercompanyTag from '../intercompany/IntercompanyTag';
 
 function statusTone(status) {
   if (status === 'invoiced') return { bg: '#dcfce7', fg: '#166534', label: 'Fakturert' };
@@ -270,9 +270,7 @@ export default function ProjectExpensesTab({
               <Text style={[styles.td, { color: colors.ink }]}>{formatDate(row.date)}</Text>
               <View style={[styles.td, { flex: 1.4 }]}>
                 <Text style={{ color: colors.ink }} numberOfLines={2}>{row.description || '—'}</Text>
-                {row.icMirror ? (
-                  <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={2}>{mirrorStatusText(row)}</Text>
-                ) : null}
+                {row.icMirror ? <IntercompanyTag row={row} colors={colors} /> : null}
               </View>
               <Text style={[styles.td, { color: colors.ink }]}>{expenseCategory(row.category).label}</Text>
               <Text style={[styles.td, { color: colors.ink, fontWeight: '600' }]}>{formatMoney(row.amountExVat)}</Text>

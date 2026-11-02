@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
@@ -10,15 +10,16 @@ import {
 } from '../../src/intercompany/client';
 import { normalizeLinkSettings, settingsSummary } from '../../src/intercompany/model';
 import { digitsOrgnr } from '../../src/project/companyRegistry';
+import { findCompanyByOrgnr } from '../../src/project/companyLookupClient';
 
 const ROLE_OPTIONS = [
   { id: 'child', label: 'Datterselskap', hint: 'De er vårt datterselskap' },
   { id: 'parent', label: 'Morselskap', hint: 'De er vårt morselskap' },
 ];
 
-function Button({ label, onPress, colors, primary = false, danger = false, disabled = false, nativeID }) {
-  const bg = primary ? colors.brand : colors.sunken;
-  const fg = primary ? '#fff' : (danger ? colors.danger : colors.ink);
+function Button({ label, onPress, colors, primary = false, danger = false, disabled = false, nativeID, icon = null }) {
+  const bg = primary ? colors.brand : colors.card;
+  const fg = primary ? colors.onBrand : (danger ? colors.danger : colors.ink);
   return (
     <Pressable
       nativeID={nativeID}
@@ -26,32 +27,64 @@ function Button({ label, onPress, colors, primary = false, danger = false, disab
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[styles.btn, { backgroundColor: bg, opacity: disabled ? 0.6 : 1 }]}
+      style={({ pressed }) => [styles.btn, {
+        backgroundColor: bg,
+        borderColor: primary ? colors.brand : colors.line,
+        opacity: disabled ? 0.55 : (pressed ? 0.85 : 1),
+      }]}
     >
-      <Text style={{ color: fg, fontWeight: '500' }}>{label}</Text>
+      {icon ? <Ionicons name={icon} size={16} color={fg} /> : null}
+      <Text style={{ color: fg, fontWeight: '600', fontSize: 14 }}>{label}</Text>
     </Pressable>
+  );
+}
+
+function initials(name) {
+  const words = String(name || '').replace(/\b(AS|ASA|ANS|DA|SA|BA)\b/gi, '').trim().split(/\s+/).filter(Boolean);
+  return (words.slice(0, 2).map((w) => w[0]).join('') || '?').toUpperCase();
+}
+
+const STATUS_TONE = {
+  active: 'success',
+  pending: 'warn',
+  declined: 'muted',
+  withdrawn: 'muted',
+  ended: 'muted',
+};
+
+function Pill({ text, tone, colors }) {
+  const fg = tone === 'success' ? colors.successInk : tone === 'warn' ? colors.warnInk : tone === 'brand' ? colors.brandInk : colors.muted;
+  const bg = tone === 'success' ? colors.successSoft : tone === 'warn' ? `${colors.warn}22` : tone === 'brand' ? colors.brandSoft : colors.sunken;
+  return (
+    <View style={[styles.pill, { backgroundColor: bg }]}>
+      <Text style={{ color: fg, fontSize: 12, fontWeight: '600' }}>{text}</Text>
+    </View>
   );
 }
 
 function LinkRow({ link, colors, children, badge }) {
   return (
-    <View style={[styles.row, { borderColor: colors.line, backgroundColor: colors.card }]}>
+    <View style={[styles.row, { borderColor: link.incoming || link.settingsToAnswer ? colors.brand : colors.line, backgroundColor: colors.card }]}>
       <View style={styles.rowHead}>
-        <Ionicons name="git-merge-outline" size={18} color={colors.brand} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: colors.ink, fontWeight: '600' }}>{link.partner.name}</Text>
+        <View style={[styles.avatar, { backgroundColor: colors.brandSoft }]}>
+          <Text style={{ color: colors.brandInk, fontWeight: '700', fontSize: 14 }}>{initials(link.partner.name)}</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 160 }}>
+          <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 15 }} numberOfLines={1}>{link.partner.name}</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {[link.partnerRoleLabel, link.partner.orgnr, link.statusLabel].filter(Boolean).join(' · ')}
+            {[link.partnerRoleLabel, link.partner.orgnr ? `Org.nr. ${link.partner.orgnr}` : ''].filter(Boolean).join(' · ')}
           </Text>
         </View>
-        {badge ? (
-          <View style={[styles.badge, { backgroundColor: colors.brandSoft }]}>
-            <Text style={{ color: colors.brand, fontSize: 12 }}>{badge}</Text>
-          </View>
-        ) : null}
+        <View style={styles.pills}>
+          {badge ? <Pill text={badge} tone="brand" colors={colors} /> : null}
+          <Pill text={link.statusLabel} tone={STATUS_TONE[link.status] || 'muted'} colors={colors} />
+        </View>
       </View>
-      <Text style={{ color: colors.muted, fontSize: 13 }}>{settingsSummary(link.settings)}</Text>
-      {link.message ? <Text style={{ color: colors.ink, fontSize: 13 }}>«{link.message}»</Text> : null}
+      <View style={[styles.summary, { backgroundColor: colors.sunken }]}>
+        <Ionicons name="pricetags-outline" size={14} color={colors.muted} />
+        <Text style={{ color: colors.ink, fontSize: 13, flex: 1 }}>{`Standardpriser: ${settingsSummary(link.settings)}`}</Text>
+      </View>
+      {link.message ? <Text style={{ color: colors.ink, fontSize: 13, fontStyle: 'italic' }}>«{link.message}»</Text> : null}
       {children}
     </View>
   );
@@ -74,6 +107,21 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
   const [draft, setDraft] = useState(() => normalizeLinkSettings({}));
   const [editingId, setEditingId] = useState('');
   const [editDraft, setEditDraft] = useState(null);
+  const [found, setFound] = useState(null);
+
+  // Slå opp org.nr. mens det skrives, så brukeren ser hvilket selskap forespørselen går til.
+  useEffect(() => {
+    const number = digitsOrgnr(orgnr);
+    setFound(null);
+    if (number.length !== 9) return undefined;
+    let alive = true;
+    const timer = setTimeout(() => {
+      findCompanyByOrgnr(number)
+        .then((company) => { if (alive) setFound(company ? { ...company, orgnr: number } : { missing: true, orgnr: number }); })
+        .catch(() => { if (alive) setFound(null); });
+    }, 350);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [orgnr]);
 
   const linkedIds = useMemo(() => new Set([
     ...groups.active, ...groups.incoming, ...groups.outgoing,
@@ -125,20 +173,22 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
 
   return (
     <View style={styles.block} nativeID="intercompany-panel">
-      <Text style={[styles.lead, { color: colors.muted }]}>
-        Tilknyttede selskaper kan tildele medarbeidere på hverandres prosjekter. Timer, utlegg, produktsalg og utleie
-        føres som vanlig hos arbeidsgiveren og vises hos begge. Arbeidsgiveren godkjenner og fakturerer prosjekteier,
-        som fakturerer sluttkunden. Hos prosjekteier viser hver rad hvilken faktura den belastes på.
-      </Text>
+      <View style={[styles.intro, { backgroundColor: colors.brandSoft }]}>
+        <Ionicons name="git-network-outline" size={20} color={colors.brandInk} />
+        <Text style={[styles.lead, { color: colors.ink, flex: 1 }]}>
+          Del folk og prosjekter med mor- og datterselskaper. Timer og utlegg føres hos arbeidsgiveren og vises hos begge.
+          Arbeidsgiveren godkjenner og fakturerer prosjekteier, som fakturerer sluttkunden.
+        </Text>
+      </View>
       {!ready ? <ActivityIndicator color={colors.brand} /> : null}
       {loadError ? <Text style={{ color: colors.danger }}>{loadError}</Text> : null}
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
       {note ? <Text style={{ color: colors.brand }}>{note}</Text> : null}
 
       {groups.incoming.map((link) => (
-        <LinkRow key={link.id} link={link} colors={colors} badge="Venter på dere">
+        <LinkRow key={link.id} link={link} colors={colors} badge="Svar trengs">
           <Text style={{ color: colors.ink, fontSize: 13 }}>
-            {`${link.requestedByName || link.partner.name} vil knytte selskapene sammen. «${link.partner.name}» blir ${link.partnerRole === 'parent' ? 'morselskap' : 'datterselskap'} til dere.`}
+            {`«${link.partner.name}» vil knyttes til dere som ${link.partnerRole === 'parent' ? 'morselskap' : 'datterselskap'}${link.requestedByName ? ` (sendt av ${link.requestedByName})` : ''}.`}
           </Text>
           {canEdit ? (
             <View style={styles.actions}>
@@ -150,7 +200,7 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
       ))}
 
       {groups.outgoing.map((link) => (
-        <LinkRow key={link.id} link={link} colors={colors} badge="Sendt">
+        <LinkRow key={link.id} link={link} colors={colors} badge="Sendt av dere">
           <Text style={{ color: colors.muted, fontSize: 13 }}>Venter på at «{link.partner.name}» godkjenner.</Text>
           {canEdit ? (
             <View style={styles.actions}>
@@ -225,7 +275,7 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
 
       {canEdit && !composing ? (
         <View style={styles.actions}>
-          <Button nativeID="ic-new" primary label="Knytt til selskap" colors={colors} onPress={() => setComposing(true)} />
+          <Button nativeID="ic-new" primary icon="add" label="Knytt til selskap" colors={colors} onPress={() => setComposing(true)} />
         </View>
       ) : null}
 
@@ -242,6 +292,18 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
+          {found?.name ? (
+            <View style={styles.found} nativeID="ic-found">
+              <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+              <Text style={{ color: colors.ink, fontSize: 13 }}>{`${found.name} finnes i ProTop`}</Text>
+            </View>
+          ) : null}
+          {found?.missing ? (
+            <View style={styles.found}>
+              <Ionicons name="alert-circle-outline" size={16} color={colors.warnInk} />
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Selskapet er ikke registrert i ProTop ennå. Det må opprettes før det kan knyttes til.</Text>
+            </View>
+          ) : null}
           <Text style={[styles.label, { color: colors.muted }]}>Selskapet er vårt</Text>
           <View style={styles.actions}>
             {ROLE_OPTIONS.map((row) => {
@@ -270,7 +332,7 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
           <View style={styles.actions}>
-            <Button nativeID="ic-send" primary label={busyId === 'new' ? 'Sender…' : 'Send forespørsel'} colors={colors} disabled={!!busyId} onPress={send} />
+            <Button nativeID="ic-send" primary icon="paper-plane-outline" label={busyId === 'new' ? 'Sender…' : 'Send forespørsel'} colors={colors} disabled={!!busyId || !!found?.missing} onPress={send} />
             <Button label="Avbryt" colors={colors} disabled={!!busyId} onPress={() => setComposing(false)} />
           </View>
         </View>
@@ -287,13 +349,19 @@ export default function IntercompanyPanel({ familyId, colors, canEdit, actorName
 
 
 const styles = StyleSheet.create({
-  block: { gap: 10 },
+  block: { gap: 12, maxWidth: 920 },
+  intro: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 14, padding: 14 },
   lead: { fontSize: 14, lineHeight: 20 },
-  row: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
-  rowHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  row: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 },
+  rowHead: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
+  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  pills: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  summary: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  found: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  btn: { borderRadius: 12, minHeight: 38, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  btn: { flexDirection: 'row', gap: 6, borderWidth: 1, borderRadius: 12, minHeight: 40, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
   choice: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   proposal: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 8 },
   label: { fontSize: 12 },

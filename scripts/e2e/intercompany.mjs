@@ -63,6 +63,8 @@ async function login(email, view = 'desktop', tag = '') {
   await ctx.addInitScript(() => {
     const now = new Date().toISOString();
     localStorage.setItem('protop.lang', 'nb');
+    // Informasjonen om lagring i nettleseren er lest (den ligger ellers over toppraden på mobil).
+    localStorage.setItem('protop.storageNotice', '1');
     localStorage.setItem('protop.consents', JSON.stringify({ version: '2.0.0', termsAt: now, privacyAt: now, gdprAt: now, dataAt: now, copyrightAt: now, language: 'nb' }));
   });
   const page = await ctx.newPage();
@@ -160,6 +162,7 @@ await step('Mor: Underenheter viser Tilknyttede selskaper', async () => {
 await step('Mor: ber Datter om tilknytning som datterselskap', async () => {
   await clickId(mor.page, '#ic-new');
   await fillId(mor.page, '#ic-orgnr', DATTER.orgnr);
+  await seeText(mor.page, 'Datter Elektro AS finnes i ProTop', 30000);
   await clickId(mor.page, '#ic-role-child');
   await clickId(mor.page, '#ic-hours-discount');
   await mor.page.locator('#ic-hours-discount').fill('10');
@@ -177,7 +180,7 @@ await step('Mor: ber Datter om tilknytning som datterselskap', async () => {
 
 await step('Datter: ser forespørselen og godtar', async () => {
   await open(datter.page, 'selskap', 'underenheter');
-  await seeText(datter.page, 'Venter på dere', 60000);
+  await seeText(datter.page, 'Svar trengs', 60000);
   await shot(datter.page, 'datter-innkommende');
   await clickId(datter.page, `[id^="ic-accept-"]`);
   await seeText(datter.page, 'Tilknytningen er godkjent', 60000);

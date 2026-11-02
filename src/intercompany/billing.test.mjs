@@ -103,3 +103,12 @@ test('utlegg fra datter faktureres hos mor når datter har godkjent', async () =
   assert.equal(built[0].expenses.length, 1);
   assert.equal(built[0].expenses[0].intercompany.sourceCompanyName, 'Datter AS');
 });
+
+test('timer fra datter regnes som levert i Til fakturering (ingen «Timeliste ikke levert»)', () => {
+  const ready = normalizeTimeEntryRow(mirrored('godkjent'));
+  const built = buildReadyProjects({ projects: [PROJECT], timeEntries: [ready], periodEnd: '2026-10-31', today: '2026-11-02' });
+  const group = built[0].hourGroups[0];
+  assert.equal(group.fromSupplier, true);
+  assert.equal(group.lockBehind, false);
+  assert.ok(!(built[0].warnings || []).some((w) => /ikke levert/.test(w.message || w.text || '')));
+});

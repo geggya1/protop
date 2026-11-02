@@ -80,6 +80,8 @@ async function login(view) {
   await ctx.addInitScript(() => {
     const now = new Date().toISOString();
     localStorage.setItem('protop.lang', 'nb');
+    // Informasjonen om lagring i nettleseren er lest (den ligger ellers over toppraden på mobil).
+    localStorage.setItem('protop.storageNotice', '1');
     localStorage.setItem('protop.consents', JSON.stringify({
       version: '2.0.0', termsAt: now, privacyAt: now, gdprAt: now, dataAt: now, copyrightAt: now, language: 'nb',
     }));

@@ -185,7 +185,7 @@ export default function ProjectTeamTab({
         ) : null}
       </View>
       {icLabel ? (
-        <View style={[styles.icBanner, { backgroundColor: colors.brandSoft || `${colors.brand}14` }]} nativeID="project-intercompany-label">
+        <View style={[styles.icBanner, { backgroundColor: colors.brandSoft }]} nativeID="project-intercompany-label">
           <Ionicons name="git-merge-outline" size={16} color={colors.brand} />
           <Text style={{ color: colors.ink, flex: 1, fontSize: 13 }}>
             {isSupplierCopy

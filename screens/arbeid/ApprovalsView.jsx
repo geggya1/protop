@@ -332,7 +332,7 @@ export function ApprovalsBody({
                 nativeID={`godkjenning-tilknyttet-${group.key}`}
                 style={[styles.btn, { backgroundColor: colors.brand }]}
               >
-                <Text style={{ color: colors.onBrand || '#fff', fontWeight: '700' }}>Godkjenn</Text>
+                <Text style={{ color: colors.onBrand, fontWeight: '700' }}>Godkjenn</Text>
               </TouchableOpacity>
             </View>
           ))}

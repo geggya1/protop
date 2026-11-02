@@ -125,7 +125,7 @@ export default function AllocatePartnerDialog({ visible, onClose, links = [], fa
           </ScrollView>
           <Text style={{ color: colors.muted, marginTop: 10, marginBottom: 6 }}>Rolle</Text>
           <OptionPicker options={PROJECT_ROLES} value={role} onChange={(r) => { if (r) setRole(r); }} title="Rolle" clearable={false} small />
-          {error ? <Text style={{ color: colors.danger || '#b42318', marginTop: 8 }}>{error}</Text> : null}
+          {error ? <Text style={{ color: colors.danger, marginTop: 8 }}>{error}</Text> : null}
           <View style={styles.buttons}>
             <TouchableOpacity onPress={onClose} style={[styles.ghost, { borderColor: colors.line }]}>
               <Text style={{ color: colors.ink, textAlign: 'center' }}>Avbryt</Text>

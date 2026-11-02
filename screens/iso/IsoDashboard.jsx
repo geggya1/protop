@@ -90,12 +90,18 @@ export default function IsoDashboard({ ctx }) {
       actions={(
         <>
           <Btn kind="primary" icon="add" label="Meld avvik" onPress={() => go('avvik', { create: true })} />
+          {/* «Meld RUH» står i knapperaden, ikke som eget rødt felt øverst: samme hurtigskjema, mindre blikkfang. */}
+          <QuickReportButton
+            onSent={ctx.onQuickSent}
+            renderTrigger={({ open, waiting }) => (
+              <Btn icon="alert-circle-outline" label={waiting ? `Meld RUH · ${waiting} venter på nett` : 'Meld RUH'} onPress={open} />
+            )}
+          />
           {caps.manage ? <Btn icon="git-network-outline" label="Prosessbygger" onPress={() => go('prosesser')} /> : null}
           {caps.manage ? <Btn icon="warning-outline" label="Ny risikovurdering" onPress={() => go('risiko', { create: true })} /> : null}
         </>
       )}
     >
-      <QuickReportButton onSent={ctx.onQuickSent} />
       <Banner tone="info" text="Statusene her er interne vurderinger av eget ledelsessystem. De er ikke en sertifisering eller bekreftet lovetterlevelse." />
 
       {profile?.vision || profile?.values?.length || policies.length || news.length ? (

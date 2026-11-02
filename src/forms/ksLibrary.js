@@ -803,14 +803,15 @@ function medarbeidersamtale() {
       half('Leder', { required: true, placeholder: '{{bruker}}' }),
       halfDate('Dato for samtalen', { required: true }),
       note('Alle ansatte skal ha medarbeidersamtale minst én gang i året. Nyansatte skal ha samtale i løpet av de seks første månedene. Samtalen er planlagt, strukturert og fortrolig, og gjennomføres i gjensidig respekt mellom likeverdige, men ikke likestilte parter. Leder kan ikke delegere medarbeidersamtaler.'),
-      note('Forberedelse: Tidspunkt avtales én til to uker før. Skjemaet deles ut i god tid, slik at begge kan forberede seg. Sett av nok tid, og sørg for et uforstyrret rom.\nEtterarbeid: Samtalen skal munne ut i en forpliktende handlingsplan som begge signerer. Leder gir snarest mulig tilbakemelding på beslutninger som har betydning for oppfølgingen.'),
+      note('Forberedelse: Tidspunkt avtales én til to uker før. Temaene sendes til medarbeideren i god tid, slik at begge kan forberede seg. Medarbeideren kan skrive stikkord på Min side og sende dem inn før samtalen. Det er frivillig, men gir en bedre samtale. Sett av nok tid, og sørg for et uforstyrret rom.\nEtterarbeid: Samtalen skal munne ut i en forpliktende handlingsplan som begge signerer digitalt. Begge får en signert kopi på e-post. Leder gir snarest mulig tilbakemelding på beslutninger som har betydning for oppfølgingen.'),
       title('Tema'),
       table('Tema', [['fixed', 'Pos', 1], ['fixed', 'Tema', 6], ['long', 'Før samtalen (notater)', 5], ['long', 'Under samtalen (notater)', 5]], tema, { allowAdd: false }),
       title('Handlingsplan'),
       note('Partene er i medarbeidersamtalen blitt enige om følgende tiltak, endringer og forbedringer:'),
       table('Handlingsplan', [['fixed', 'Pos', 1], ['long', 'Tiltak', 8], ['text', 'Ansvar', 3], ['date', 'Frist', 2]], [['1.'], ['2.'], ['3.'], ['4.']]),
+      long('Merknad fra medarbeider', { editor: 'fast', help: 'Medarbeideren kan skrive en merknad når hen signerer, for eksempel om noe hen ser annerledes.' }),
       sign('Signatur for {{firma}}'),
-      sign('Signatur medarbeider'),
+      sign('Signatur medarbeider', { editor: 'fast', help: 'Signeres av medarbeideren selv: digitalt på Min side, eller på papir.' }),
     ],
   };
 }

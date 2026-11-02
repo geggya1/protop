@@ -834,8 +834,8 @@ export const PROTOP_PAGES = {
     kicker: tx('Samtaler, saker og oppgaver', 'Reviews, cases and tasks'),
     title: tx('Medarbeidersamtaler og oppfølging', 'Reviews and follow-up'),
     pitch: tx(
-      'Her følger dere opp hver ansatt: hold medarbeidersamtaler fra mal, opprett saker og tildel oppgaver. Samtalen sammenlignes med forrige, og oppgavene vises på den ansattes Min side.',
-      'Follow up each employee here: hold reviews from a template, create cases and assign tasks. The review is compared with the previous one, and tasks show on the employee’s My page.',
+      'Her følger dere opp hver ansatt: hold medarbeidersamtaler fra mal, send temaene på forhånd, signer begge digitalt med kopi på e-post, opprett saker og tildel oppgaver. Samtalen sammenlignes med forrige, og oppgavene vises på den ansattes Min side.',
+      'Follow up each employee here: hold reviews from a template, send the topics in advance, both sign digitally with a copy by email, create cases and assign tasks. The review is compared with the previous one, and tasks show on the employee’s My page.',
     ),
     steps: [
       step(tx('Velg ansatt', 'Pick the employee'),
@@ -850,6 +850,10 @@ export const PROTOP_PAGES = {
         'Under «Samtaler» trykker du «Ny samtale». Samtalen fylles ut i KS-skjemaet «Medarbeidersamtale», det samme skjemaet som under Rutiner → Skjemaer, med handlingsplanen fra forrige samtale over. Når samtalen er ferdig, blir handlingsplanen en sak.',
         'Under “Reviews” tap “New review”. The review is filled in using the QMS form “Employee review”, the same form as under Routines → Forms, with the action plan from the previous review above it. When the review is done, the action plan becomes a case.',
         { find: ['#hr-review-new', 'Ny samtale'], via: ['#hr-follow-tab-reviews', '#hr-row-*'], viaText: tx('Velg en ansatt først: trykk den markerte raden, så åpnes personen og jeg viser deg resten.', 'Pick an employee first: tap the highlighted row, the person opens and I show you the rest.') }),
+      step(tx('Forberedelse og signering', 'Preparation and signing'),
+        'Over skjemaet trykker du «Send temaene til …» med dato, klokkeslett og ønsket svarfrist. Den ansatte får varsel og kan skrive stikkord per tema på Min side. Det er frivillig. Svarene settes inn i «Før samtalen» med «Sett inn i skjemaet». Etter samtalen trykker du «Signer og send til …»: skjemaet låses, den ansatte signerer med egen innlogging, og begge får en signert kopi (PDF) på e-post.',
+        'Above the form, tap “Send the topics to …” with date, time and a preferred reply date. The employee is notified and can write notes per topic on My page. It is optional. Insert the notes in “Before the review” with “Insert in form”. After the review tap “Sign and send to …”: the form locks, the employee signs with their own login, and both get a signed copy (PDF) by email.',
+        { find: ['#hr-review-prepare', '#hr-review-sign'], via: ['#hr-review-new', '#hr-follow-tab-reviews', '#hr-row-*'], viaText: tx('Åpne en samtale først, så viser jeg deg resten.', 'Open a review first, then I show you the rest.') }),
       step(tx('Memo og filer', 'Memo and files'),
         'Under «Memo & filer» lagres notater og dokumenter på personen. Velg «Kun HR» eller «Synlig for ansatt».',
         'Under “Memo & files” notes and documents are stored on the person. Choose “HR only” or “Visible to employee”.',
@@ -859,7 +863,7 @@ export const PROTOP_PAGES = {
         'Under “Tasks”, “Assign task” gives the employee a task with a deadline shown on My page.',
         { find: ['Tildel oppgave'], via: ['#hr-follow-tab-tasks', '#hr-row-*'], viaText: tx('Velg en ansatt først: trykk den markerte raden, så åpnes personen og jeg viser deg resten.', 'Pick an employee first: tap the highlighted row, the person opens and I show you the rest.') }),
     ],
-    keywords: ['medarbeidersamtale', 'samtale', 'oppfølging', 'sak', 'memo', 'sykefravær'],
+    keywords: ['medarbeidersamtale', 'samtale', 'oppfølging', 'sak', 'memo', 'sykefravær', 'forberedelse', 'signering', 'signere'],
   }),
   'hr.compliance': page({
     section: 'company-people',

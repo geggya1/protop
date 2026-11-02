@@ -9,14 +9,15 @@ import { textWidth } from '../economy/invoicePdf.js';
 import { fitLogoBox, logoForDocument } from '../project/companyLogo.js';
 import { minutesDocument } from './minutesDoc.js';
 
-const PAGE_W = 595;
-const PAGE_H = 842;
-const LEFT = 48;
-const RIGHT = 547;
-const WIDTH = RIGHT - LEFT;
+export const PAGE_W = 595;
+export const PAGE_H = 842;
+export const LEFT = 48;
+export const RIGHT = 547;
+export const WIDTH = RIGHT - LEFT;
 const BOTTOM = 64;
 
-const C = {
+// Fargene og tegnehjelperne under brukes også av andre A4-dokumenter (signert medarbeidersamtale).
+export const C = {
   ink: [0.07, 0.11, 0.18],
   navy: [0.027, 0.153, 0.298],
   muted: [0.42, 0.46, 0.53],
@@ -71,7 +72,7 @@ function rgb(c) {
   return c.map((v) => Number(v).toFixed(3)).join(' ');
 }
 
-function measure(value, size, bold) {
+export function measure(value, size, bold) {
   return textWidth(pdfSafe(value), size, bold);
 }
 
@@ -106,7 +107,7 @@ export function wrapText(value, maxWidth, size, bold = false) {
   return out;
 }
 
-function pageWriter({ onNewPage } = {}) {
+export function pageWriter({ onNewPage } = {}) {
   const pages = [[]];
   let y = 0;
   const api = {
@@ -173,7 +174,7 @@ function pageWriter({ onNewPage } = {}) {
 
 /* ───────── Byggeklosser ───────── */
 
-function heading(page, label, { count = null, gap = 22 } = {}) {
+export function heading(page, label, { count = null, gap = 22 } = {}) {
   page.ensure(gap + 40);
   page.y += gap;
   page.text(label, LEFT, page.y, { size: 12.5, bold: true, color: C.navy });
@@ -186,7 +187,7 @@ function heading(page, label, { count = null, gap = 22 } = {}) {
 }
 
 /** Avsnitt med punktlister («- », «* », «• »). */
-function paragraphs(page, value, x, maxWidth, { size = 9.5, lead = 13.6, color = C.ink } = {}) {
+export function paragraphs(page, value, x, maxWidth, { size = 9.5, lead = 13.6, color = C.ink } = {}) {
   const raw = pdfSafe(value).replace(/\s+$/, '');
   if (!raw) return;
   for (const para of raw.split(/\r?\n/)) {
@@ -221,7 +222,7 @@ function badge(page, label, x, top, tone) {
   page.text(label, x - w + (w - measure(label, 7, true)) / 2, top + 2.8, { size: 7, bold: true, color: fg });
 }
 
-function drawHeader(page, doc, logo) {
+export function drawHeader(page, doc, logo) {
   page.rect(0, 0, PAGE_W, 5, C.brand);
   let logoBottom = 0;
   if (logo) {
@@ -253,7 +254,7 @@ function drawHeader(page, doc, logo) {
   page.y = Math.max(y + 14, logoBottom + 14);
 }
 
-function drawFacts(page, doc) {
+export function drawFacts(page, doc) {
   const cols = 3;
   const gap = 14;
   const pad = 14;
@@ -287,7 +288,7 @@ function drawFacts(page, doc) {
   }
 }
 
-function accentBox(page, label, value, { fill = C.brandSoft, bar = C.brand, size = 9.5 } = {}) {
+export function accentBox(page, label, value, { fill = C.brandSoft, bar = C.brand, size = 9.5 } = {}) {
   const inner = WIDTH - 30;
   const lines = wrapText(value, inner, size);
   const lead = size * 1.45;
@@ -495,7 +496,7 @@ function signatures(page) {
   page.y += 24;
 }
 
-function finish(pages, doc) {
+export function finish(pages, doc) {
   const total = pages.length;
   return pages.map((ops, index) => {
     const pre = [];

@@ -20,6 +20,8 @@ const EVENT_MODULE = {
   documentApproval: 'skjema',
   documentPublished: 'skjema',
   documentComment: 'skjema',
+  hrReviewInvite: 'ansatte',
+  hrReviewUpdate: 'hr',
   birthdayReminder: 'rememberDates',
   boligReminder: 'boligmappa',
 };
@@ -43,6 +45,8 @@ const EVENT_LABELS = {
   documentApproval: 'Godkjenning',
   documentPublished: 'Dokument',
   documentComment: 'Merknad',
+  hrReviewInvite: 'Medarbeidersamtale',
+  hrReviewUpdate: 'Medarbeidersamtale',
   birthdayReminder: 'Bursdag',
   boligReminder: 'Boligen',
 };
@@ -66,6 +70,8 @@ const EVENT_ICONS = {
   documentApproval: 'ribbon',
   documentPublished: 'document-text',
   documentComment: 'chatbox-ellipses',
+  hrReviewInvite: 'chatbubbles',
+  hrReviewUpdate: 'chatbubbles',
   birthdayReminder: 'gift',
   boligReminder: 'home',
 };

@@ -8,7 +8,7 @@ import { setTableCell } from '../anbud/formBuilder.js';
 import { normalizeReview } from './model.js';
 import {
   REVIEW_FORM_KEY, isReviewDoc, previousActionPlan, reviewActionPlan, reviewDate, reviewEntries,
-  reviewFromFilledDoc, reviewRowId, syncReviewRows,
+  reviewDocsToSync, reviewFromFilledDoc, reviewRowId, syncReviewRows,
 } from './reviewForms.js';
 
 const form = { ...libraryForm(REVIEW_FORM_KEY), id: 'tmpl', libraryKey: REVIEW_FORM_KEY };
@@ -92,6 +92,13 @@ assert.equal(previousActionPlan(entries, 'd0'), null);
   assert.equal(cases.length, 1, 'ikke to ganger');
   assert.equal(casesFromReviewDoc([], doc, normalizeCase).length, 0, 'utkast');
   assert.equal(casesFromReviewDoc([], { ...fresh, status: 'ferdig' }, normalizeCase).length, 0, 'uten handlingsplan');
+}
+// Signert på Min side: serveren har ferdigstilt skjemaet; HR speiler det når samtalene lastes.
+{
+  const draftRow = reviewFromFilledDoc({ ...done, status: 'utkast' });
+  assert.deepEqual(reviewDocsToSync([{ ...draftRow, status: 'planned' }], [done, doc]).map((d) => d.id), [done.id]);
+  assert.deepEqual(reviewDocsToSync([reviewFromFilledDoc(done)], [done]), [], 'allerede speilet');
+  assert.deepEqual(reviewDocsToSync([], [{ ...done, subject: null }]), [], 'uten ansatt');
 }
 void completeFilledDoc;
 console.log('reviewForms ok');

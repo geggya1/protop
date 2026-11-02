@@ -10,6 +10,7 @@ import { fetchCompanyCpv } from '../../src/anbud/doffinClient';
 import { companyFromBrreg } from '../../src/project/company';
 import { digitsOrgnr } from '../../src/project/companyRegistry';
 import { findCompanyByOrgnr } from '../../src/project/companyLookupClient';
+import { requestLink } from '../../src/intercompany/client';
 import {
   addSubUnit,
   createDepartment,
@@ -149,11 +150,19 @@ export default function CompanyStructureSettings({
       if (!user) throw new Error('Du må være innlogget.');
       const owned = findOwnedOrganization(families, nextCompany.organisasjonsnummer);
       let companyId = owned?.id || '';
+      let requestNote = '';
       if (!companyId) {
         const existing = await findCompanyByOrgnr(digitsOrgnr(nextCompany.organisasjonsnummer));
         if (existing?.id) {
-          throw new Error('Organisasjonsnummeret er allerede registrert i ProTop. Åpne det selskapet hvis du er med, eller be om innpass.');
+          // Selskapet finnes i ProTop: det må godkjenne tilknytningen (konsernintegrasjon).
+          const res = await requestLink({ companyId: familyId, targetCompanyId: existing.id, role: 'child', actorName: userProfile?.name || '' });
+          companyId = existing.id;
+          requestNote = res?.autoAccepted
+            ? 'Selskapet er knyttet til som datterselskap.'
+            : `Forespørselen er sendt. «${existing.name || nextCompany.navn}» må godkjenne tilknytningen under Tilknyttede selskaper.`;
         }
+      }
+      if (!companyId) {
         companyId = await createGroup({
           name: nextCompany.navn,
           type: 'organization',
@@ -161,9 +170,10 @@ export default function CompanyStructureSettings({
           user,
           profile: userProfile,
         });
+        // Morselskapet settes av serveren når tilknytningen er godkjent (du eier begge, så den godkjennes med en gang).
         const patch = linkedCompanyFields({
-          parentId: familyId,
-          parentName: company?.navn || '',
+          parentId: '',
+          parentName: '',
           company: nextCompany,
         });
         if (patch.orgnr) {
@@ -177,11 +187,15 @@ export default function CompanyStructureSettings({
           }
         }
         await updateGroup(companyId, patch);
-      } else if (owned.id !== familyId) {
-        await updateGroup(owned.id, {
-          parentCompanyId: familyId,
-          parentCompanyName: company?.navn || '',
-        });
+        const res = await requestLink({ companyId: familyId, targetCompanyId: companyId, role: 'child', actorName: userProfile?.name || '' });
+        requestNote = res?.autoAccepted ? 'Selskapet er opprettet og knyttet til som datterselskap.' : 'Selskapet er opprettet. Tilknytningen venter på godkjenning.';
+      } else if (owned && owned.id !== familyId) {
+        // Tidligere ble morselskapet skrevet rett på det andre selskapet. Nå må det godkjennes der
+        // (automatisk når du administrerer begge).
+        const res = await requestLink({ companyId: familyId, targetCompanyId: owned.id, role: 'child', actorName: userProfile?.name || '' });
+        requestNote = res?.autoAccepted
+          ? 'Selskapet er knyttet til som datterselskap.'
+          : `Forespørselen er sendt. «${owned.name || nextCompany.navn}» må godkjenne tilknytningen.`;
       }
       const linked = { ...made.unit, companyId };
       const next = addSubUnit(units, linked);
@@ -189,6 +203,7 @@ export default function CompanyStructureSettings({
       await persist(next.list);
       setHits([]);
       setQueryText('');
+      if (requestNote) setAliasNote(requestNote);
     } catch (e) {
       setError(e?.message || 'Kunne ikke registrere underenheten.');
     } finally {

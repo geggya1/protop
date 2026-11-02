@@ -21,6 +21,11 @@ import {
   updateProjectMember,
 } from '../../src/project/engine.js';
 import { showSaveToast } from '../../src/ui/saveToast';
+import AllocatePartnerDialog from '../intercompany/AllocatePartnerDialog';
+import { useApp } from '../../src/context/AppContext';
+import { useIntercompanyLinks } from '../../src/intercompany/useIntercompanyLinks';
+import { removeAllocatedMember } from '../../src/intercompany/client';
+import { projectIntercompanyLabel, upsertMember, upsertProject } from '../../src/intercompany/model';
 
 /**
  * Team-fane med tabell, rollevalg, timer og legg til / fjern.
@@ -41,11 +46,28 @@ export default function ProjectTeamTab({
   const [pickId, setPickId] = useState('');
   const [menuId, setMenuId] = useState('');
   const [error, setError] = useState('');
+  const [partnerOpen, setPartnerOpen] = useState(false);
+  const { familyId } = useApp();
+  const { active: partnerLinks } = useIntercompanyLinks(familyId);
+  // En leveranse til et annet selskap (kopi) får ikke folk fra et tredje selskap herfra.
+  const isSupplierCopy = project?.intercompany?.role === 'supplier';
+  const icLabel = projectIntercompanyLabel(project);
+
+  function applyAllocation(res) {
+    let next = state;
+    for (const row of res?.members || []) next = { ...next, members: upsertMember(next.members, row) };
+    if (res?.project?.id) next = { ...next, projects: upsertProject(next.projects, res.project) };
+    onChangeState(next);
+    const names = (res?.allocated || []).map((row) => row.name).join(', ');
+    showSaveToast(names ? `${names} tildelt.` : 'Tildelt.');
+  }
 
   const rows = useMemo(() => memberHoursMap(timeEntries, members), [timeEntries, members]);
   const available = employees.filter((row) => (
     isActiveEmployee(row)
     && !members.some((mem) => mem.employeeId === row.id)
+    // Innleide fra et tilknyttet selskap legges til med «Fra tilknyttet selskap», så de får prosjektkopien.
+    && !row.company?.homeCompanyId
   ));
 
   function addMember() {
@@ -99,7 +121,26 @@ export default function ProjectTeamTab({
     }
   }
 
-  function drop(memberId) {
+  async function drop(memberId) {
+    const member = members.find((row) => row.id === memberId);
+    // Tildelt fra et tilknyttet selskap: fjernes hos begge selskapene via serveren.
+    if (member?.intercompany?.linkId && member.intercompany.employeeId) {
+      try {
+        await removeAllocatedMember({
+          companyId: familyId,
+          linkId: member.intercompany.linkId,
+          projectId: project.id,
+          supplierEmployeeId: member.intercompany.employeeId,
+        });
+        const result = removeProjectMember(state, memberId);
+        if (result.ok) onChangeState(result.state);
+        setMenuId('');
+        showSaveToast('Deltaker fjernet hos begge selskapene.');
+      } catch (cause) {
+        setError(cause?.message || 'Kunne ikke fjerne deltakeren.');
+      }
+      return;
+    }
     if (members.some((row) => row.id === memberId && row.derived)) {
       setError('Personen har ført timer på prosjektet og vises derfor i teamet.');
       return;
@@ -121,6 +162,16 @@ export default function ProjectTeamTab({
     <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]} nativeID="project-team-tab">
       <View style={styles.head}>
         <Text style={[styles.title, { color: colors.ink }]}>Team ({members.length} deltakere)</Text>
+        {isAdmin && partnerLinks.length && !isSupplierCopy ? (
+          <TouchableOpacity
+            onPress={() => setPartnerOpen(true)}
+            style={[styles.ghost, { borderColor: colors.brand, paddingHorizontal: 12 }]}
+            accessibilityRole="button"
+            nativeID="project-team-add-partner"
+          >
+            <Text style={{ color: colors.brand, fontWeight: '700' }}>+ Fra tilknyttet selskap</Text>
+          </TouchableOpacity>
+        ) : null}
         {isAdmin ? (
           <TouchableOpacity
             onPress={() => setOpen(true)}
@@ -133,6 +184,16 @@ export default function ProjectTeamTab({
           </TouchableOpacity>
         ) : null}
       </View>
+      {icLabel ? (
+        <View style={[styles.icBanner, { backgroundColor: colors.brandSoft || `${colors.brand}14` }]} nativeID="project-intercompany-label">
+          <Ionicons name="git-merge-outline" size={16} color={colors.brand} />
+          <Text style={{ color: colors.ink, flex: 1, fontSize: 13 }}>
+            {isSupplierCopy
+              ? `${icLabel}. Timer godkjennes her først og går deretter til ${project.intercompany.ownerCompanyName || 'prosjekteier'}, som faktureres herfra.`
+              : `${icLabel}. Timene deres kommer til godkjenning her når hjemmeselskapet har godkjent dem.`}
+          </Text>
+        </View>
+      ) : null}
       {error ? <Text style={{ color: colors.danger || '#b42318', marginBottom: 8 }}>{error}</Text> : null}
 
       <View style={[styles.tableHead, { borderColor: colors.line }]}>
@@ -152,7 +213,12 @@ export default function ProjectTeamTab({
                   <Ionicons name="person" size={14} color={colors.brand} />
                 </View>
               )}
-              <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }} numberOfLines={1}>{row.employeeName}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={1}>{row.employeeName}</Text>
+                {row.intercompany?.companyName ? (
+                  <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>{`Innleid fra ${row.intercompany.companyName}`}</Text>
+                ) : null}
+              </View>
             </View>
             <Text style={[styles.td, { color: colors.ink }]} numberOfLines={1}>{row.role}</Text>
             <Text style={[styles.td, { color: colors.ink }]}>{formatHours(row.hours)}</Text>
@@ -194,6 +260,16 @@ export default function ProjectTeamTab({
           Ingen deltakere. Legg til medlemmer så de kan føre timer på prosjektet.
         </Text>
       ) : null}
+
+      <AllocatePartnerDialog
+        visible={partnerOpen}
+        onClose={() => setPartnerOpen(false)}
+        links={partnerLinks}
+        familyId={familyId}
+        project={project}
+        colors={colors}
+        onAllocated={applyAllocation}
+      />
 
       <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.modalBg} onPress={() => setOpen(false)}>
@@ -261,4 +337,5 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   ghost: { borderWidth: 1, borderRadius: 8, paddingVertical: 10 },
+  icBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 8, padding: 10, marginBottom: 10 },
 });

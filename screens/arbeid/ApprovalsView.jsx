@@ -30,6 +30,8 @@ import Breadcrumb from '../../components/Breadcrumb';
 import { radius } from '../../src/ui/tokens';
 import { BREAKPOINTS } from '../../src/ui/layout.js';
 import { formatDate } from '../../src/format/nb';
+import { formatHours } from '../../src/arbeid/hours.js';
+import { approveMirrorEntries, ownerApprovalQueue } from '../../src/intercompany/model.js';
 
 function applyMutation(workspace, result) {
   if (!result.ok) {
@@ -84,6 +86,21 @@ export function ApprovalsBody({
     locks: workspace.state?.timesheetLocks || [],
     archive: workspace.state?.timesheetLockArchive || [],
   }), [people, workspace.state?.timesheetLocks, workspace.state?.timesheetLockArchive]);
+
+  // Timer fra tilknyttede selskaper (konsernintegrasjon): godkjent der, venter på godkjenning her.
+  const partnerQueue = useMemo(
+    () => (workspace.manager ? ownerApprovalQueue(workspace.state?.timeEntries || []) : []),
+    [workspace.manager, workspace.state?.timeEntries],
+  );
+
+  function approvePartner(group) {
+    const out = approveMirrorEntries(workspace.state, group.entries.map((row) => row.id));
+    if (!out.count) return;
+    workspace.setState(out.state);
+    workspace.setError('');
+    setApprovedName(`${group.employeeName} (${group.companyName})`);
+    onApproved?.();
+  }
 
   const lockedRows = useMemo(
     () => queues.locked.filter((row) => lockNeedsControl(workspace.state, row.lock)),
@@ -293,6 +310,32 @@ export function ApprovalsBody({
               <Text style={{ color: colors.onBrand, fontWeight: '700' }}>{billingReadyLabel(readyCount)}</Text>
             </TouchableOpacity>
           ) : null}
+        </View>
+      ) : null}
+      {partnerQueue.length ? (
+        <View style={[styles.pane, { borderColor: colors.line }]} nativeID="godkjenning-tilknyttede">
+          <Text style={[styles.paneTitle, { color: colors.ink }]}>Fra tilknyttede selskaper</Text>
+          <Text style={{ color: colors.muted }}>
+            Godkjent i hjemmeselskapet. Når du godkjenner her, er timene klare for fakturering til kunden.
+          </Text>
+          {partnerQueue.map((group) => (
+            <View key={group.key} style={[styles.done, { borderColor: colors.line, backgroundColor: colors.card }]}>
+              <View style={{ flex: 1, minWidth: 200 }}>
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>{group.employeeName}</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {`${group.companyName} · ${formatHours(group.hours)} · ${formatDate(group.from)}${group.through !== group.from ? ` – ${formatDate(group.through)}` : ''}`}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => approvePartner(group)}
+                accessibilityRole="button"
+                nativeID={`godkjenning-tilknyttet-${group.key}`}
+                style={[styles.btn, { backgroundColor: colors.brand }]}
+              >
+                <Text style={{ color: colors.onBrand || '#fff', fontWeight: '700' }}>Godkjenn</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
         </View>
       ) : null}
       {!wide ? (

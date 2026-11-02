@@ -981,6 +981,33 @@ service cloud.firestore {
         : request.resource.data.get('status', '') != 'godkjent';
     }
 
+    // Konsernintegrasjon: føringer speilet fra et tilknyttet selskap (icMirror) lages, endres i
+    // kjernen og slettes bare av serveren (functions/intercompanyTriggers.js). Prosjekteier kan
+    // godkjenne og fakturere dem, men godkjenne bare når leverandøren har godkjent først.
+    function icTimeMirrorKept() {
+      return resource.data.get('icMirror', false) != true
+        || (request.resource.data.get('icMirror', false) == true
+          && timeEntryCoreKept()
+          && (request.resource.data.get('status', '') != 'godkjent'
+            || resource.data.get('status', '') == 'godkjent'
+            || resource.data.get('intercompany', {}).get('supplierApproved', false) == true));
+    }
+
+    // Speilede salg (productSales med icMirror): som timene. Eier kan fakturere dem og sette status,
+    // men ikke lage, slette eller endre vare, mengde, pris og prosjekt.
+    function icSaleMirrorOk(coll) {
+      return coll != 'productSales'
+        || (request.method == 'create' && request.resource.data.get('icMirror', false) != true)
+        || (request.method == 'delete' && (resource == null || resource.data.get('icMirror', false) != true))
+        || (request.method == 'update' && (resource.data.get('icMirror', false) != true
+          || (request.resource.data.get('icMirror', false) == true
+            && request.resource.data.get('quantity', 0) == resource.data.get('quantity', 0)
+            && request.resource.data.get('unitPrice', 0) == resource.data.get('unitPrice', 0)
+            && request.resource.data.get('projectId', '') == resource.data.get('projectId', '')
+            && (request.resource.data.get('status', '') != 'approved'
+              || resource.data.get('intercompany', {}).get('supplierApproved', false) == true))));
+    }
+
     function timeEntryCoreKept() {
       let d = request.resource.data;
       let o = resource.data;
@@ -1407,14 +1434,17 @@ service cloud.firestore {
         allow get: if isFamilyMember(familyId);
         allow list: if isFamilyMemberLite(familyId);
         allow create: if isFamilyMember(familyId)
+          && request.resource.data.get('icMirror', false) != true
           && ((ownTimeEntryByAcl(familyId, request.resource.data)
                 && request.resource.data.get('status', '') != 'godkjent')
             || timeEntryCreateOk(familyId, timeRights(familyId)));
         allow update: if isFamilyMember(familyId)
+          && icTimeMirrorKept()
           && ((ownTimeEntryByAcl(familyId, resource.data) && sameTimeEntryEmployee()
                 && timeEntryChangeOk(timeRightsOwn()))
             || timeEntryUpdateOk(familyId, timeRights(familyId)));
         allow delete: if isFamilyMember(familyId)
+          && (resource == null || resource.data.get('icMirror', false) != true)
           && (resource == null
             || (ownTimeEntryByAcl(familyId, resource.data) && timeEntryRemovable(timeRightsOwn()))
             || timeEntryDeleteOk(familyId, timeRights(familyId)));
@@ -1497,8 +1527,8 @@ service cloud.firestore {
       match /{coll}/{docId} {
         allow get: if !isProtected(coll) && isFamilyMember(familyId);
         allow list: if !isProtected(coll) && isFamilyMemberLite(familyId);
-        allow create, update, delete: if !(coll in ['employees', 'children']) && !isProtected(coll) && isFamilyMember(familyId);
-        allow create: if !(coll in ['employees', 'children']) && !isProtected(coll) && foundsFamily(familyId);
+        allow create, update, delete: if !(coll in ['employees', 'children']) && !isProtected(coll) && icSaleMirrorOk(coll) && isFamilyMember(familyId);
+        allow create: if !(coll in ['employees', 'children']) && !isProtected(coll) && icSaleMirrorOk(coll) && foundsFamily(familyId);
       }
 
       // Underlag (f.eks. oppgavelogg, prefs på ansattposten): som dokumentet de hører til.
@@ -2153,6 +2183,19 @@ service cloud.firestore {
     // leser og skriver, i transaksjon, så ingen kan ta over et annet firmas orgnummer.
     match /orgnrIndex/{orgnr} {
       allow read, write: if false;
+    }
+
+    // Konsernintegrasjon: avtaler mellom to selskaper (mor og datter). Medlemmer i begge
+    // selskapene kan lese; bare serveren skriver (functions/intercompany.js), så en tilknytning
+    // alltid er godkjent av det inviterte selskapet. Appen spør etter parentCompanyId eller childCompanyId.
+    // Tildelingene under (projects) leses bare av serveren.
+    match /intercompanyLinks/{linkId} {
+      allow get, list: if isSignedIn()
+        && (isFamilyMemberLite(resource.data.parentCompanyId) || isFamilyMemberLite(resource.data.childCompanyId));
+      allow write: if false;
+      match /{rest=**} {
+        allow read, write: if false;
+      }
     }
   }
 }

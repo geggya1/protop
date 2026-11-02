@@ -179,6 +179,15 @@ export function normalizeSale(input = {}) {
     writeOffReason: text(row.writeOffReason).slice(0, 300),
     writeOffBy: text(row.writeOffBy).slice(0, 120),
     source: row.source && typeof row.source === 'object' ? row.source : null,
+    // Utleie av utstyr (src/intercompany/model.js rentalSaleFromBooking) og speilede salg.
+    ...(row.kind === 'rental' ? {
+      kind: 'rental',
+      bookingId: text(row.bookingId),
+      equipmentId: text(row.equipmentId),
+      equipmentName: text(row.equipmentName),
+    } : {}),
+    ...(row.icMirror === true ? { icMirror: true } : {}),
+    ...(row.intercompany && typeof row.intercompany === 'object' ? { intercompany: { ...row.intercompany } } : {}),
     amountExVat: explicitEx != null ? explicitEx : calc.amountExVat,
     vatAmount: explicitVat != null ? explicitVat : calc.vatAmount,
     amountInclVat: explicitIncl != null

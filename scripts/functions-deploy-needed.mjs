@@ -55,6 +55,8 @@ export const DEPLOY_ENTRIES = [
   'collectionAutoIndex.js',
   'aiCleanupIndex.js',
   'indeksSsbDailyIndex.js',
+  'intercompanyIndex.js',
+  'intercompanyTriggerIndex.js',
 ];
 
 const SPECIFIER_RE = [

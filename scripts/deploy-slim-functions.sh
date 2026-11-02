@@ -234,10 +234,16 @@ MEETINGS="functions:sendMeetingMail,functions:aiMeeting"
 queue_entry meetingIndex.js "$MEETINGS"
 open_for meetingIndex.js "$MEETINGS"
 
+# Konsernintegrasjon: avtaler mellom selskaper, tildeling på prosjekt og speiling av timer og salg.
+INTERCOMPANY="functions:icRequestLink,functions:icRespondLink,functions:icWithdrawLink,functions:icEndLink,functions:icUpdateLinkSettings,functions:icListPartnerEmployees,functions:icAllocateMembers,functions:icRemoveMember"
+queue_entry intercompanyIndex.js "$INTERCOMPANY"
+open_for intercompanyIndex.js "$INTERCOMPANY"
+
 deploy_queued
 open_queued
 
 deploy_entry pushIndex.js functions:onChatMessageCreated,functions:onFriendChatMessageCreated
+deploy_entry intercompanyTriggerIndex.js functions:onIcTimeEntryWritten,functions:onIcProjectStateWritten
 deploy_entry notifyPushIndex.js functions:onNotificationPush
 deploy_entry vacationPlanDailyIndex.js functions:vacationPlanDaily
 deploy_entry powerOfficeSyncScheduledIndex.js functions:powerOfficeSyncScheduled

@@ -48,6 +48,7 @@ import {
   upsertEquipment,
   upsertPersonalVehicle,
 } from '../../src/equipment/state';
+import { RENTAL_UNITS } from '../../src/intercompany/model';
 import EquipmentBookingAccess from '../../components/equipment/EquipmentBookingAccess';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import DateInput from '../../components/DateInput';
@@ -164,6 +165,7 @@ const EMPTY_GEAR = {
   vegvesenSummary: '', ownerEmployeeId: '', ownerName: '',
   trackOdometer: false, odometerStart: '', odometerSince: '',
   measuring: false, controls: [],
+  rental: { enabled: false, price: null, unit: 'dag', account: '3600' },
 };
 
 function categoryForGroup(group) {
@@ -196,6 +198,7 @@ export default function EquipmentScreen() {
   const [purpose, setPurpose] = useState('Prosjekt');
   const [projectQuery, setProjectQuery] = useState('');
   const [projectId, setProjectId] = useState('');
+  const [billRental, setBillRental] = useState(true);
   const [lookupNote, setLookupNote] = useState('');
   // Sletting bekreftes først (UX-27): utstyret og reservasjonene kan ikke hentes tilbake.
   const [pendingDelete, setPendingDelete] = useState(null);
@@ -519,6 +522,7 @@ export default function EquipmentScreen() {
       startTime,
       endTime,
       purpose,
+      billable: billRental,
       enforceAccess: true,
       manage: canEditAccess,
       employees,
@@ -764,6 +768,50 @@ export default function EquipmentScreen() {
                 <Field label="Garanti til" value={gear.warrantyUntil} onChange={(value) => setGear((row) => ({ ...row, warrantyUntil: value }))} colors={colors} date />
                 <Field label="Garantigiver" value={gear.warrantyVendor} onChange={(value) => setGear((row) => ({ ...row, warrantyVendor: value }))} colors={colors} />
               </View>
+              <View style={{ gap: 6 }} nativeID="equipment-rental">
+                <Chip
+                  nativeID="equipment-rental-toggle"
+                  label={gear.rental?.enabled ? 'Utleie på prosjekt: på' : 'Utleie på prosjekt: av'}
+                  active={!!gear.rental?.enabled}
+                  onPress={() => setGear((row) => ({ ...row, rental: { ...(row.rental || {}), enabled: !row.rental?.enabled } }))}
+                  colors={colors}
+                />
+                {gear.rental?.enabled ? (
+                  <>
+                    <View style={styles.row}>
+                      <Field
+                        label="Utleiepris eks. mva"
+                        value={gear.rental?.price == null ? '' : String(gear.rental.price)}
+                        onChange={(value) => setGear((row) => ({ ...row, rental: { ...(row.rental || {}), price: value } }))}
+                        colors={colors}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                      />
+                      <Field
+                        label="Inntektskonto"
+                        value={gear.rental?.account || '3600'}
+                        onChange={(value) => setGear((row) => ({ ...row, rental: { ...(row.rental || {}), account: value } }))}
+                        colors={colors}
+                        keyboardType="number-pad"
+                      />
+                    </View>
+                    <View style={styles.row}>
+                      {RENTAL_UNITS.map((unit) => (
+                        <Chip
+                          key={unit.id}
+                          label={`Per ${unit.label}`}
+                          active={(gear.rental?.unit || 'dag') === unit.id}
+                          onPress={() => setGear((row) => ({ ...row, rental: { ...(row.rental || {}), unit: unit.id } }))}
+                          colors={colors}
+                        />
+                      ))}
+                    </View>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      Reservasjoner på et prosjekt blir en utleielinje under Til fakturering. Leverer dere til et tilknyttet selskap, gjelder rabatten i avtalen.
+                    </Text>
+                  </>
+                ) : null}
+              </View>
               <Field label="Garantibevis (lenke)" value={gear.warrantyUri} onChange={(value) => setGear((row) => ({ ...row, warrantyUri: value }))} colors={colors} placeholder="https://" />
               <ControlsEditor gear={gear} setGear={setGear} colors={colors} />
             </View>
@@ -949,6 +997,17 @@ export default function EquipmentScreen() {
                   <Text style={{ color: projectId === option.project.id ? colors.brand : colors.ink, fontSize: 13 }}>{option.label}</Text>
                 </TouchableOpacity>
               ))}
+              {projectId && companyGear.find((row) => row.id === bookingGearId)?.rental?.enabled ? (
+                <Chip
+                  nativeID="booking-bill-rental"
+                  label={billRental
+                    ? `Fakturer utleie (${companyGear.find((row) => row.id === bookingGearId)?.rental?.price ?? 0} kr per ${RENTAL_UNITS.find((u) => u.id === companyGear.find((row) => row.id === bookingGearId)?.rental?.unit)?.label || 'dag'})`
+                    : 'Ikke fakturer utleie'}
+                  active={billRental}
+                  onPress={() => setBillRental((on) => !on)}
+                  colors={colors}
+                />
+              ) : null}
               <TouchableOpacity onPress={saveBooking} style={[styles.btn, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]}>
                 <Text style={{ color: '#fff', fontWeight: '600' }}>Reserver</Text>
               </TouchableOpacity>

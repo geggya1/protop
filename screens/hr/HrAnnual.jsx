@@ -39,7 +39,7 @@ const PAGE_LABEL = {
 
 function ActivityRow({ colors, item, year, canWrite, onToggleDone, onToggleOff, onOpen, onOpenIso }) {
   const [open, setOpen] = useState(false);
-  const { activity, status, done, auto } = item;
+  const { activity, status, done, auto, period } = item;
   const st = STATUS[status] || STATUS.later;
   const muted = status === 'off' || status === 'na';
   return (
@@ -51,6 +51,7 @@ function ActivityRow({ colors, item, year, canWrite, onToggleDone, onToggleOff, 
           <Text style={[styles.small, { color: colors.muted }]}>
             {[
               activity.kind === 'lov' ? 'Lovkrav' : 'Anbefalt',
+              period,
               st.label,
               done?.at ? formatNbDate(done.at) : '',
               auto?.label || '',

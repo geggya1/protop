@@ -42,6 +42,15 @@ assert.equal(activityApplies(amu, null), true);
   assert.equal(status('lonnsoppgjor'), 'later');
   // Medarbeidersamtaler går over mars og april og er derfor «nå».
   assert.equal(status('medarbeidersamtaler'), 'now');
+  // En aktivitet over flere måneder står én gang, i første måned, med perioden.
+  const all = wheel.flatMap((m) => m.items.map((i) => i.activity.id));
+  assert.equal(new Set(all).size, all.length, 'ingen aktivitet står to ganger');
+  const samtaler = wheel[2].items.find((i) => i.activity.id === 'medarbeidersamtaler');
+  assert.equal(samtaler.period, 'Mars–april');
+  assert.equal(wheel[3].items.some((i) => i.activity.id === 'medarbeidersamtaler'), false);
+  // Midt i perioden (april) er den fortsatt «nå».
+  const april = hrAnnualWheel({}, { year: 2026, today: new Date(2026, 3, 10), staffCount: 12 });
+  assert.equal(april.flatMap((m) => m.items).find((i) => i.activity.id === 'medarbeidersamtaler').status, 'now');
   // Et tidligere år: alt som ikke er gjort, er forsinket.
   const last = hrAnnualWheel({}, { year: 2025, today, staffCount: 12 });
   assert.ok(last.flatMap((m) => m.items).filter((i) => i.status !== 'na').every((i) => i.status === 'late'));
@@ -72,6 +81,9 @@ assert.equal(activityApplies(amu, null), true);
   assert.equal(annualTaskPlan(on, { today, existingIds: plan.map((t) => t.id) }).length, 0);
   const done = toggleAnnualDone(on, 2026, 'ferie_fastsett');
   assert.deepEqual(annualTaskPlan(done, { today }).map((t) => t.activityId), ['medarbeidersamtaler']);
+  // Én oppgave per periode: frist ved periodens slutt, og ingen ny oppgave i april.
+  assert.equal(plan.find((t) => t.activityId === 'medarbeidersamtaler').deadline, '2026-04-30');
+  assert.equal(annualTaskPlan(on, { today: new Date(2026, 3, 2) }).some((t) => t.activityId === 'medarbeidersamtaler'), false);
 }
 
 // Fremdrift for medarbeidersamtaler.

@@ -198,6 +198,15 @@ function text(value) {
   return String(value ?? '').trim();
 }
 
+/** «Januar–februar» for aktiviteter over flere måneder, ellers tom. */
+export function activityPeriod(activity) {
+  const months = activity?.months || [];
+  if (months.length < 2) return '';
+  const first = Math.min(...months);
+  const last = Math.max(...months);
+  return `${MONTHS_NB[first]}–${MONTHS_NB[last].toLowerCase()}`;
+}
+
 export function activityById(id) {
   return HR_ANNUAL_ACTIVITIES.find((row) => row.id === id) || null;
 }
@@ -240,7 +249,8 @@ export function hrAnnualWheel(settings, { year, today = new Date(), staffCount =
   const nowMonth = today.getMonth();
   const off = new Set(s.off);
   return MONTHS_NB.map((name, month) => {
-    const items = HR_ANNUAL_ACTIVITIES.filter((a) => a.months.includes(month)).map((activity) => {
+    // En aktivitet over flere måneder står én gang, i første måned, med perioden (Januar–februar).
+    const items = HR_ANNUAL_ACTIVITIES.filter((a) => Math.min(...a.months) === month).map((activity) => {
       const doneRow = s.done[doneKey(y, activity.id)] || null;
       const auto = extra[activity.id] || null;
       const lastMonth = Math.max(...activity.months);
@@ -250,7 +260,7 @@ export function hrAnnualWheel(settings, { year, today = new Date(), staffCount =
       else if (doneRow || auto?.done) status = 'done';
       else if (y < nowYear || (y === nowYear && lastMonth < nowMonth)) status = 'late';
       else if (y === nowYear && activity.months.includes(nowMonth)) status = 'now';
-      return { activity, status, done: doneRow, auto };
+      return { activity, status, done: doneRow, auto, period: activityPeriod(activity) };
     });
     return { month, name, items };
   });
@@ -302,7 +312,7 @@ export function annualTaskId(activityId, year, month) {
 }
 
 /**
- * Oppgaver for inneværende måned: aktiviteter som gjelder, ikke er slått av eller krysset av,
+ * Oppgaver for aktiviteter som starter i inneværende måned: som gjelder, ikke er slått av eller krysset av,
  * og som ikke allerede har oppgave (fast id per aktivitet og måned). Bare når bedriften har slått
  * på oppgaver. existingIds er id-ene til oppgavene som finnes.
  */
@@ -314,7 +324,8 @@ export function annualTaskPlan(settings, { today = new Date(), staffCount = null
   const have = new Set(existingIds);
   const out = [];
   for (const activity of HR_ANNUAL_ACTIVITIES) {
-    if (!activity.months.includes(month)) continue;
+    // Én oppgave per aktivitet: når perioden starter, med frist siste dag i perioden.
+    if (Math.min(...activity.months) !== month) continue;
     if (s.off.includes(activity.id) || !activityApplies(activity, staffCount)) continue;
     if (s.done[doneKey(year, activity.id)]) continue;
     const id = annualTaskId(activity.id, year, month);
@@ -327,7 +338,7 @@ export function annualTaskPlan(settings, { today = new Date(), staffCount = null
         activity.law ? `Grunnlag: ${activity.law}.` : '',
         'Kryss av under HR → Rutiner → Årshjul når det er gjort.',
       ].filter(Boolean).join('\n'),
-      deadline: lastDayOfMonth(year, month),
+      deadline: lastDayOfMonth(year, Math.max(...activity.months)),
       deadlineTime: null,
       participants: [],
       assignedTo: text(uid) || null,

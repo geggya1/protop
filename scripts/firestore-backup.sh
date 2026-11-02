@@ -65,8 +65,8 @@ json_field() {
 # Lokasjonen til databasen → lokasjonen til arkivbøtta (samme område).
 bucket_location() {
   case "$1" in
-    eur3|eur*) printf 'EU' ;;
-    nam5|nam*) printf 'US' ;;
+    eur3) printf 'EU' ;;
+    nam5|nam7) printf 'US' ;;
     *) printf '%s' "$1" ;;
   esac
 }

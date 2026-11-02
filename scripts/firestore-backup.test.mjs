@@ -165,6 +165,17 @@ test('arkiv: lager bøtta i EU med låst oppbevaring og starter eksport', () => 
   assert.match(res.out, /Eksport startet .*op123/);
 });
 
+test('arkiv: en database i én region får bøtta i samme region', () => {
+  const answers = healthy();
+  answers['firestore databases describe'] = { out: { ...DB_ON, locationId: 'europe-west1' } };
+  answers['storage buckets describe'] = { out: 'ERROR: not found', code: 1 };
+  answers['storage buckets create'] = { out: '' };
+  answers['storage buckets update'] = { out: '' };
+  answers['firestore export'] = { out: 'op' };
+  const res = run('arkiv', answers);
+  assert.match(res.calls.find((c) => c.startsWith('storage buckets create')), /--location=europe-west1/);
+});
+
 test('ukjent handling avvises', () => {
   const res = run('slett-alt', healthy());
   assert.equal(res.code, 2);

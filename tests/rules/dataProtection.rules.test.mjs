@@ -568,6 +568,35 @@ describe('endringshistorikk, slettelogg og innsynslogg', () => {
     await assertFails(deleteDoc(doc(as('own'), 'families', A, 'timeEntryDeletions', 'del1')));
   });
 
+  test('gjenoppretting: slettingen tar vare på føringen, og leder legger den inn igjen som ny føring', async () => {
+    const snapshot = {
+      id: 'te_gone', employeeId: 'emp_bob', projectId: 'p1', date: '2026-10-20', hours: 7.5, description: 'Montering',
+      status: 'registrert', createdByUid: 'bob', history: [{ at: '2026-10-20T08:00:00Z', kind: 'created', byUid: 'bob', byName: 'bob' }],
+    };
+    const record = {
+      entryId: 'te_gone', employeeId: 'emp_bob', date: '2026-10-20', hours: 7.5, projectId: 'p1',
+      at: '2026-10-21T09:00:00Z', kind: 'deleted', byUid: 'bob', byName: 'bob', snapshot,
+    };
+    await assertSucceeds(setDoc(doc(as('bob'), 'families', A, 'timeEntryDeletions', 'd_snap'), record));
+    // Kopien kan ikke endres eller fjernes etterpå, heller ikke av eieren.
+    await assertFails(updateDoc(doc(as('own'), 'families', A, 'timeEntryDeletions', 'd_snap'), { snapshot: {} }));
+    await assertFails(deleteDoc(doc(as('own'), 'families', A, 'timeEntryDeletions', 'd_snap')));
+    // Listen som skjermen henter: nyeste først.
+    const { orderBy, limit } = await import('firebase/firestore');
+    await assertSucceeds(getDocs(query(collection(as('own'), 'families', A, 'timeEntryDeletions'), orderBy('at', 'desc'), limit(200))));
+    // Gjenopprettet føring: ny id, restoredFrom, status registrert, uten faktura.
+    const { history: _h, ...rest } = snapshot;
+    const restored = {
+      ...rest, id: 'te_gone_gjenopprettet', restoredFrom: 'te_gone', invoiceId: null, status: 'registrert',
+      history: [{ at: '2026-11-02T10:00:00Z', kind: 'created', byUid: 'own', byName: 'own', reason: 'Gjenopprettet' }],
+    };
+    await assertSucceeds(setDoc(doc(as('own'), 'families', A, 'timeEntries', 'te_gone_gjenopprettet'), restored, { merge: true }));
+    await assertSucceeds(getDocs(query(collection(as('own'), 'families', A, 'timeEntries'), where('restoredFrom', 'in', ['te_gone']))));
+    // En ansatt kan ikke legge inn en annens slettede time, og ingen utenfor bedriften.
+    await assertFails(setDoc(doc(as('eve'), 'families', A, 'timeEntries', 'te_x_gjenopprettet'), { ...restored, id: 'te_x_gjenopprettet' }, { merge: true }));
+    await assertFails(setDoc(doc(as('ext'), 'families', A, 'timeEntries', 'te_y_gjenopprettet'), { ...restored, id: 'te_y_gjenopprettet' }, { merge: true }));
+  });
+
   test('innsynsloggen er stengt for alle klienter', async () => {
     for (const uid of ['own', 'adm', 'bob']) {
       await assertFails(getDoc(doc(as(uid), 'families', A, 'accessLog', 'log1')), uid);

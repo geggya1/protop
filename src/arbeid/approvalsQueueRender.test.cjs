@@ -53,6 +53,8 @@ function loadJsx(rel) {
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
     if (id.includes('components/Breadcrumb')) return { __esModule: true, default: function Breadcrumb() { return null; } };
+    // Slettede timer har egen test (deletedTimeEntriesRender.test.cjs).
+    if (id === './DeletedTimeEntries') return { __esModule: true, default: function DeletedTimeEntries() { return null; } };
     return orig(id);
   };
   m._compile(out.code, full);

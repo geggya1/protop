@@ -54,7 +54,31 @@ const deleted = deletedTimeEntryRecord(entry, { actor: leader, at: '2026-10-21T0
 assert.deepEqual(deleted, {
   entryId: 't1', employeeId: 'e1', date: '2026-10-19', hours: 7.5, projectId: 'p1',
   at: '2026-10-21T09:00:00.000Z', kind: 'deleted', byUid: 'u-leder', byName: 'Leder', reason: 'Dobbeltført',
+  snapshot: entry,
 });
+
+// Slettingen tar vare på føringen, så den kan gjenopprettes, men ikke fakturakobling,
+// konsernspeil eller hele Excel-raden fra en import.
+{
+  const record = deletedTimeEntryRecord({
+    ...entry,
+    description: 'Montering',
+    invoiceId: 'f1',
+    icMirror: true,
+    intercompany: { linkId: 'l1' },
+    writeOffAt: '2026-10-20',
+    source: { filename: 'timer.xlsx', importedAt: '2026-10-01', values: { A: 1 } },
+    history: [{ kind: 'created' }],
+  }, { actor: leader });
+  assert.equal(record.snapshot.description, 'Montering');
+  assert.deepEqual(record.snapshot.history, [{ kind: 'created' }]);
+  assert.deepEqual(record.snapshot.source, { filename: 'timer.xlsx', importedAt: '2026-10-01' });
+  for (const key of ['invoiceId', 'icMirror', 'intercompany', 'writeOffAt']) {
+    assert.equal(key in record.snapshot, false, key);
+  }
+  // Uten prosjekt, ansatt eller dato er det ingen føring å gjenopprette.
+  assert.equal('snapshot' in deletedTimeEntryRecord({ id: 'x' }, { actor: leader }), false);
+}
 
 // Den ansatte varsles når andre endrer.
 assert.equal(changedByOther(entry, 'u-leder'), true);

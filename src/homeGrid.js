@@ -591,7 +591,7 @@ export function addWidgetToGrid(list, type, role, { newWidgetId, widgetMeta }) {
 }
 
 /** ProTop-widgetene som fyller hele bredden når de legges til. */
-const PRO_WIDE_TYPES = new Set(['dayBrief', 'weekAgenda', 'quickActions', 'myHours', 'companyNews']);
+const PRO_WIDE_TYPES = new Set(['dayBrief', 'weekAgenda', 'quickActions', 'myHours', 'companyNews', 'mileage']);
 
 export function defaultSpanForType(type, role) {
   if (type === 'timeline') return GRID_SPANS.wide;

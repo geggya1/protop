@@ -221,16 +221,18 @@ export function teamToday(employees = [], todayRows = null, { meId = '', todayKe
  * Hurtigvalg på Hjem. Bedrift: arbeid først (timer, avvik, prosjekt). Privat: dagen.
  * modules: { iso, timer } — hva som er slått på.
  */
-export function quickActionsFor(board = 'private', { iso = false } = {}) {
+export function quickActionsFor(board = 'private', { iso = false, mileage = false } = {}) {
   if (board === 'company') {
-    return [
-      { id: 'hours', icon: 'time', label: 'Før timer', action: { type: 'tab', tab: 'timeliste' } },
-      iso
-        ? { id: 'ruh', icon: 'warning', label: 'Meld RUH', action: { type: 'ruh' }, tone: 'warn' }
-        : { id: 'project', icon: 'business', label: 'Prosjekter', action: { type: 'tab', tab: 'projects' } },
-      { id: 'task', icon: 'checkbox', label: 'Ny oppgave', action: { type: 'nav', screen: 'ParentTask' } },
-      { id: 'event', icon: 'calendar', label: 'Ny avtale', action: { type: 'nav', screen: 'EventForm' } },
-    ];
+    const hours = { id: 'hours', icon: 'time', label: 'Før timer', action: { type: 'tab', tab: 'timeliste' } };
+    const trip = { id: 'trip', icon: 'car', label: 'Kjøretur', action: { type: 'tab', tab: 'okonomi', subView: 'kjorebok' } };
+    const ruh = { id: 'ruh', icon: 'warning', label: 'Meld RUH', action: { type: 'ruh' }, tone: 'warn' };
+    const project = { id: 'project', icon: 'business', label: 'Prosjekter', action: { type: 'tab', tab: 'projects' } };
+    const task = { id: 'task', icon: 'checkbox', label: 'Ny oppgave', action: { type: 'nav', screen: 'ParentTask' } };
+    const event = { id: 'event', icon: 'calendar', label: 'Ny avtale', action: { type: 'nav', screen: 'EventForm' } };
+    const list = [hours];
+    if (mileage) list.push(trip);
+    list.push(iso ? ruh : project, task, event);
+    return list.slice(0, 4);
   }
   return [
     { id: 'event', icon: 'calendar', label: 'Ny avtale', action: { type: 'nav', screen: 'EventForm' } },
@@ -332,4 +334,61 @@ export function relativeDay(dateKey, today = new Date()) {
   if (days === 1) return 'I går';
   if (days < 7) return `${days} dager siden`;
   return `${d}.${m}.${y}`;
+}
+
+/**
+ * Kjøreboken min: denne måneden, i år (yrkeskjøring mot 6 000 km-grensen),
+ * turer som ikke er sendt, og de siste turene.
+ * trips: normaliserte turer (normalizeTrip). mine: Set med mine ansatt-id-er (tom = alle).
+ */
+export function mileageSummary(trips = [], { mine = null, today = new Date(), limitKm = 6000, recent = 3 } = {}) {
+  const todayKey = isoDay(today);
+  const monthKey = todayKey.slice(0, 7);
+  const yearKey = todayKey.slice(0, 4);
+  const own = (trips || []).filter((t) => t && t.date && t.date <= todayKey
+    && (!mine || !mine.size || mine.has(String(t.employeeId || ''))));
+  const round = (n) => Math.round(n * 10) / 10;
+  const month = own.filter((t) => t.date.startsWith(monthKey));
+  const yearDuty = own.filter((t) => t.date.startsWith(yearKey) && t.purpose === 'duty');
+  const monthKm = round(month.reduce((sum, t) => sum + (Number(t.km) || 0), 0));
+  const monthAmount = Math.round(month.reduce((sum, t) => sum + (Number(t.reimbursement) || 0), 0));
+  const yearKm = round(yearDuty.reduce((sum, t) => sum + (Number(t.km) || 0), 0));
+  const drafts = own.filter((t) => (t.status || 'draft') === 'draft').length;
+  const sorted = [...own].sort((a, b) => String(b.date).localeCompare(String(a.date))
+    || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  const placeShort = (value) => String(value || '').split(',')[0].trim();
+  return {
+    monthKm,
+    monthAmount,
+    monthTrips: month.length,
+    yearKm,
+    limitKm,
+    yearRatio: limitKm ? Math.min(1, yearKm / limitKm) : 0,
+    overLimit: yearKm >= limitKm,
+    drafts,
+    total: own.length,
+    recent: sorted.slice(0, recent).map((t) => ({
+      id: t.id,
+      date: t.date,
+      km: round(Number(t.km) || 0),
+      route: [placeShort(t.from), placeShort(t.to)].filter(Boolean).join(' → ')
+        || t.projectName || 'Kjøretur',
+      project: t.projectNumber || t.projectName || '',
+      draft: (t.status || 'draft') === 'draft',
+    })),
+  };
+}
+
+/** «1 234 km», «12,5 km». */
+export function kmLabel(value) {
+  const n = Math.round((Number(value) || 0) * 10) / 10;
+  const [int, dec] = String(n).split('.');
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${grouped}${dec ? `,${dec}` : ''} km`;
+}
+
+/** «1 092 kr». */
+export function krLabel(value) {
+  const n = Math.round(Number(value) || 0);
+  return `${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} kr`;
 }

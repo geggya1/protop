@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   weekDays, mondayOf, isoWeekNumber, hoursLabel, weekHoursSummary, homeProjects,
-  teamToday, quickActionsFor, countdownLabel, dayBrief, weekLoad, relativeDay, isoDay,
+  teamToday, quickActionsFor, mileageSummary, kmLabel, krLabel, countdownLabel, dayBrief, weekLoad, relativeDay, isoDay,
 } from './proHome.js';
 
 // Onsdag 4. november 2026.
@@ -81,6 +81,9 @@ assert.equal(hidden.headline, '1 ansatt');
 // Hurtigvalg: bedrift med og uten ISO, privat.
 assert.deepEqual(quickActionsFor('company', { iso: true }).map((a) => a.id), ['hours', 'ruh', 'task', 'event']);
 assert.deepEqual(quickActionsFor('company').map((a) => a.id), ['hours', 'project', 'task', 'event']);
+assert.deepEqual(quickActionsFor('company', { iso: true, mileage: true }).map((a) => a.id), ['hours', 'trip', 'ruh', 'task']);
+assert.deepEqual(quickActionsFor('company', { mileage: true }).map((a) => a.id), ['hours', 'trip', 'project', 'task']);
+assert.deepEqual(quickActionsFor('company', { mileage: true })[1].action, { type: 'tab', tab: 'okonomi', subView: 'kjorebok' });
 assert.deepEqual(quickActionsFor('private').map((a) => a.id), ['event', 'task', 'note', 'ai']);
 
 // Nedtelling.
@@ -113,5 +116,34 @@ assert.equal(relativeDay('2026-11-04', wed), 'I dag');
 assert.equal(relativeDay('2026-11-03', wed), 'I går');
 assert.equal(relativeDay('2026-11-01', wed), '3 dager siden');
 assert.equal(relativeDay('2026-10-01', wed), '1.10.2026');
+
+// Kjørebok: mine turer, denne måneden, yrkeskjøring i år og turer som ikke er sendt.
+const trips = [
+  { id: 'a', employeeId: 'e1', date: '2026-11-03', km: 24, reimbursement: 84, purpose: 'duty', status: 'draft', from: 'Kontoret, Oslo', to: 'Bjølsen skole, Oslo' },
+  { id: 'b', employeeId: 'e1', date: '2026-11-02', km: 12.5, reimbursement: 43.75, purpose: 'duty', status: 'submitted', projectName: 'Kai' },
+  { id: 'c', employeeId: 'e1', date: '2026-10-20', km: 100, reimbursement: 350, purpose: 'duty', status: 'approved' },
+  { id: 'd', employeeId: 'e1', date: '2026-10-21', km: 40, reimbursement: 0, purpose: 'private', status: 'approved' },
+  { id: 'e', employeeId: 'e2', date: '2026-11-03', km: 500, reimbursement: 1750, purpose: 'duty', status: 'draft' },
+  { id: 'f', employeeId: 'e1', date: '2025-12-30', km: 300, reimbursement: 1050, purpose: 'duty', status: 'approved' },
+  { id: 'g', employeeId: 'e1', date: '2026-11-09', km: 10, purpose: 'duty' }, // fremtidig: teller ikke
+];
+const mil = mileageSummary(trips, { mine: new Set(['e1']), today: wed });
+assert.equal(mil.monthKm, 36.5);
+assert.equal(mil.monthAmount, 128);
+assert.equal(mil.monthTrips, 2);
+assert.equal(mil.yearKm, 136.5);
+assert.equal(mil.drafts, 1);
+assert.equal(mil.total, 5);
+assert.deepEqual(mil.recent.map((t) => t.id), ['a', 'b', 'd']);
+assert.equal(mil.recent[0].route, 'Kontoret → Bjølsen skole');
+assert.equal(mil.recent[1].route, 'Kai');
+assert.equal(mil.recent[0].draft, true);
+assert.equal(mil.overLimit, false);
+assert.equal(mileageSummary(trips, { today: wed }).monthKm, 536.5); // uten filter: alle
+assert.equal(mileageSummary([], { today: wed }).yearRatio, 0);
+assert.equal(mileageSummary([{ id: 'x', employeeId: 'e1', date: '2026-05-01', km: 6100, purpose: 'duty' }], { today: wed }).overLimit, true);
+assert.equal(kmLabel(1234.56), '1\u00a0234,6 km');
+assert.equal(kmLabel(12), '12 km');
+assert.equal(krLabel(1092.4), '1\u00a0092 kr');
 
 console.log('proHome.test.mjs: ok');

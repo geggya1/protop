@@ -116,8 +116,8 @@ export const PROTOP_PAGES = {
       {
         q: tx('Hvorfor ser Hjem forskjellig ut i Privat og Bedrift?', 'Why does Home look different in Personal and Company?'),
         a: tx(
-          'Privat og Bedrift har hvert sitt Hjem. Privat viser dagen din: avtaler, oppgaver, notater og uken. Bedrift viser i tillegg timene dine, prosjektene, teamet i dag og nyheter fra bedriften. Trykk blyanten for å dra, endre størrelse og velge widgets – hvert Hjem husker sitt eget oppsett.',
-          'Personal and Company each have their own Home. Personal shows your day: appointments, tasks, notes and the week. Company also shows your hours, projects, the team today and company news. Tap the pencil to drag, resize and choose widgets – each Home remembers its own layout.',
+          'Privat og Bedrift har hvert sitt Hjem. Privat viser dagen din: avtaler, oppgaver, notater og uken. Bedrift viser i tillegg timene dine, kjøreboken, prosjektene, teamet i dag og nyheter fra bedriften. Trykk blyanten for å dra, endre størrelse og velge widgets – hvert Hjem husker sitt eget oppsett.',
+          'Personal and Company each have their own Home. Personal shows your day: appointments, tasks, notes and the week. Company also shows your hours, mileage log, projects, the team today and company news. Tap the pencil to drag, resize and choose widgets – each Home remembers its own layout.',
         ),
       },
     ],

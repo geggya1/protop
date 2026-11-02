@@ -86,6 +86,9 @@ function projectsSlice(raw) {
     projects: index.list,
     // Timelistelåsene ligger i samme dokument. Godkjenninger følger dem i sanntid.
     timesheetLocks: Array.isArray(state?.timesheetLocks) ? state.timesheetLocks : [],
+    // Kjøreboken ligger i samme dokument (Hjem-widgeten leser den herfra).
+    mileageTrips: Array.isArray(state?.mileageTrips) ? state.mileageTrips : [],
+    mileagePolicies: Array.isArray(state?.mileagePolicies) ? state.mileagePolicies : [],
     ready: raw.projects.ready,
     source: raw.projects.source,
     error: raw.projects.error,

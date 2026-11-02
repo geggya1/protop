@@ -98,7 +98,7 @@ function idsIn(sections) {
     companyItems.map((i) => i.id),
     [
       'selskap', 'selskapsinnstillinger', 'ansatte', 'hr', 'fravaer', 'arbeid', 'produktivitet', 'fremdrift',
-      'okonomi-inntjening', 'kunder', 'anbud', 'kontrakt', 'projects', 'moter', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
+      'okonomi-inntjening', 'kunder', 'kundeundersokelse', 'anbud', 'kontrakt', 'projects', 'moter', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
       'skjema',
     ],
   );

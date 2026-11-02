@@ -10,5 +10,5 @@ export { respondGroupInvite, syncMyInvites, invitePreview } from './groupInvite.
 export { findCompanyByOrgnr, claimCompanyOrgnr, requestCompanyJoin } from './companyJoin.js';
 export { recordUsage, listEmployeeUsage } from './usageLog.js';
 export { logSensitiveAccess, listAccessLog } from './accessLog.js';
-export { closeHrSurvey } from './hrSurvey.js';
+export { closeHrSurvey, notifyHrSurvey } from './hrSurvey.js';
 export { setEmploymentStatus, withdrawEmployeeInvite, leaveCompany } from './companyMembership.js';

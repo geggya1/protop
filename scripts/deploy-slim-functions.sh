@@ -174,7 +174,7 @@ open_for friendInviteIndex.js "$FRIENDS"
 queue_entry indeksIndex.js functions:interpretIndeksAvtale,functions:sendIndeksLetter
 open_for indeksIndex.js functions:sendIndeksLetter
 queue_entry importIndex.js functions:interpretImport
-INVITES="functions:claimEmployeeInvite,functions:respondGroupInvite,functions:syncMyInvites,functions:invitePreview,functions:findCompanyByOrgnr,functions:claimCompanyOrgnr,functions:requestCompanyJoin,functions:recordUsage,functions:listEmployeeUsage,functions:logSensitiveAccess,functions:listAccessLog,functions:closeHrSurvey,functions:setEmploymentStatus,functions:withdrawEmployeeInvite,functions:leaveCompany"
+INVITES="functions:claimEmployeeInvite,functions:respondGroupInvite,functions:syncMyInvites,functions:invitePreview,functions:findCompanyByOrgnr,functions:claimCompanyOrgnr,functions:requestCompanyJoin,functions:recordUsage,functions:listEmployeeUsage,functions:logSensitiveAccess,functions:listAccessLog,functions:closeHrSurvey,functions:notifyHrSurvey,functions:setEmploymentStatus,functions:withdrawEmployeeInvite,functions:leaveCompany"
 queue_entry employeeInviteIndex.js "$INVITES"
 open_for employeeInviteIndex.js "$INVITES"
 # Opprettelsen feilet før tilgangen ble satt. Oppdateringer gjør ikke callable offentlig.
@@ -242,6 +242,10 @@ open_for intercompanyIndex.js "$INTERCOMPANY"
 # Hjelpesenter og helpdesk-portal: saker, svar, team, e-post og AI-triage.
 queue_entry helpdeskIndex.js functions:helpdesk
 open_for helpdeskIndex.js functions:helpdesk
+
+# Kundeundersøkelse: utsending, purring og resultater, og svarsiden /svar/… (kunden er ikke innlogget).
+queue_entry customerSurveyIndex.js functions:customerSurvey
+open_for customerSurveyIndex.js functions:customerSurvey
 
 deploy_queued
 open_queued

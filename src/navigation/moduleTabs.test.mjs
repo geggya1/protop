@@ -44,13 +44,16 @@ test('modulmeny: ingen meny der modulen ikke har undersider', () => {
   assert.equal(moduleTabsFor('home', null), null);
 });
 
-test('modulmeny: Kunder, Kontrakter og Prosjekt står som faner seg imellom', () => {
-  for (const [tab, active] of [['kunder', 'kunder'], ['kontrakt', 'kontrakt'], ['projects', 'projects']]) {
-    const m = moduleTabsFor(tab, null);
+test('modulmeny: Kunder, Kundeundersøkelse, Kontrakter og Prosjekt står som faner seg imellom', () => {
+  for (const [tab, sub, active] of [['kunder', null, 'kunder'], ['kunder', 'undersokelse', 'kundeundersokelse'], ['kontrakt', null, 'kontrakt'], ['projects', null, 'projects']]) {
+    const m = moduleTabsFor(tab, sub);
     assert.equal(m.moduleId, 'company-customers');
     assert.equal(m.activeId, active);
-    assert.deepEqual(m.pages.map((p) => p.label), ['Kunder', 'Kontrakter', 'Prosjekt']);
+    assert.deepEqual(m.pages.map((p) => p.label), ['Kunder', 'Kundeundersøkelse', 'Kontrakter', 'Prosjekt']);
   }
+  // Kundeundersøkelsen følger tilgangen til Kunder.
+  const none = companyMenuItems({ grants: { companyPublic: 'read', contracts: 'read' } });
+  assert.equal(moduleTabsFor('kontrakt', null, none)?.pages.some((p) => p.id === 'kundeundersokelse') ?? false, false);
   const items = companyMenuItems({ grants: { customers: 'read', companyPublic: 'read' } });
   assert.equal(moduleTabsFor('kunder', null, items)?.pages.some((p) => p.id === 'projects') ?? false, false, 'bare sidene du har tilgang til');
 });

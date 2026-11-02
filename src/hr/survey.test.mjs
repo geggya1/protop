@@ -122,3 +122,62 @@ console.log('survey ok');
   assert.equal(r.count, 5);
   console.log('survey sparse ok');
 }
+
+// ------------------------------------------------------------------ redigering, frist, utvikling og eksport
+{
+  const {
+    SURVEY_QUESTION_BANK, addSurveyQuestion, availableBankQuestions, defaultDeadline, hrTrendPoints, moveSurveyQuestion,
+    newSurvey: make, questionIdFor, removeSurveyQuestion, surveyAnalysis: analyse, surveyCsvRows, surveyDeadline,
+    surveyResults: results, updateSurveyQuestion, normalizeSurvey,
+  } = await import('./survey.js');
+  const { surveyTrend } = await import('../surveys/trend.js');
+  let d = make({ year: 2027, now: new Date(2027, 8, 1) });
+  const n0 = d.questions.length;
+  // Fra spørsmålsbanken: id-en beholdes, så året etter kan sammenlignes.
+  d = addSurveyQuestion(d, SURVEY_QUESTION_BANK[0]);
+  assert.equal(d.questions.at(-1).id, SURVEY_QUESTION_BANK[0].id);
+  assert.ok(!availableBankQuestions(d).some((q) => q.id === SURVEY_QUESTION_BANK[0].id));
+  // Eget spørsmål får id fra teksten, unik.
+  d = addSurveyQuestion(d, { area: 'Trivsel', text: 'Jeg trives på jobben.' });
+  assert.equal(d.questions.at(-1).id, 'jeg_trives_pa_jobben');
+  assert.equal(questionIdFor('Jeg trives på jobben.', ['jeg_trives_pa_jobben']), 'jeg_trives_pa_jobben_2');
+  d = updateSurveyQuestion(d, 'trivsel', { text: 'Jeg trives godt.', id: 'hack' });
+  assert.equal(d.questions[0].id, 'trivsel');
+  assert.equal(d.questions[0].text, 'Jeg trives godt.');
+  d = moveSurveyQuestion(d, 'arbeidsmengde', -1);
+  assert.equal(d.questions[0].id, 'arbeidsmengde');
+  assert.equal(moveSurveyQuestion(d, 'arbeidsmengde', -1).questions[0].id, 'arbeidsmengde', 'øverst blir øverst');
+  d = removeSurveyQuestion(d, 'jeg_trives_pa_jobben');
+  assert.equal(d.questions.length, n0 + 1);
+  // Gjenta fra i fjor: samme spørsmål og innledning.
+  const again = make({ year: 2028, template: { ...d, intro: 'Egen tekst' } });
+  assert.deepEqual(again.questions.map((q) => q.id), d.questions.map((q) => q.id));
+  assert.equal(again.intro, 'Egen tekst');
+  assert.equal(again.title, 'Medarbeiderundersøkelse 2028');
+
+  // Frist.
+  const today = new Date(2027, 9, 10);
+  assert.deepEqual(surveyDeadline({ ...d, closesOn: '2027-10-12' }, today), { date: '2027-10-12', daysLeft: 2, passed: false });
+  assert.equal(surveyDeadline({ ...d, closesOn: '2027-10-09' }, today).passed, true);
+  assert.equal(surveyDeadline({ ...d, closesOn: 'snart' }, today).date, '');
+  assert.equal(defaultDeadline(today), '2027-10-24');
+  assert.equal(normalizeSurvey({ ...d, notifiedAt: 'x', reminders: 2 }).reminders, 2);
+
+  // Utvikling over tid fra to avsluttede undersøkelser.
+  const mk = (id, closedAt, v) => ({ ...make({ year: 2026 }), id, status: 'closed', closedAt, questions: [{ id: 'trivsel', area: 'Trivsel', text: 'T' }, { id: 'leder', area: 'Ledelse', text: 'L' }] });
+  const s1 = mk('a', '2025-11-01');
+  const s2 = mk('b', '2026-11-01');
+  const ans = (id, t, l) => Array.from({ length: 5 }, () => ({ surveyId: id, answers: { trivsel: t, leder: l } }));
+  const byId = { a: results(s1, ans('a', 3, 4)), b: results(s2, ans('b', 4, 3)) };
+  const pts = hrTrendPoints([s2, s1, { ...s1, id: 'c', status: 'open' }], byId, 10);
+  assert.deepEqual(pts.map((p) => [p.id, p.pct]), [['b', 50], ['a', 50]]);
+  const t = surveyTrend(pts);
+  assert.deepEqual(t.points.map((p) => p.id), ['a', 'b']);
+  assert.equal(t.matrix.find((m) => m.area === 'Ledelse').delta, -25);
+  assert.equal(t.mustImprove[0].area, 'Ledelse');
+
+  const rows = surveyCsvRows(s2, byId.b, analyse(byId.b, byId.a));
+  assert.ok(rows.some((r) => r[0] === 'Ledelse' && r[1] === 50 && r[2] === -25));
+  assert.ok(rows.every((r) => !r.includes('surveyId')), 'bare samlede tall');
+}
+console.log('survey.test.mjs: redigering, frist og utvikling OK');

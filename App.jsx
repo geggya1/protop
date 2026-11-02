@@ -108,6 +108,8 @@ import MeetingsDemoScreen from './screens/meetings/MeetingsDemoScreen';
 import AnbudDemoScreen, { anbudDemoAllowed } from './screens/anbud/AnbudDemoScreen';
 import HelpdeskPortalScreen from './screens/helpdesk/HelpdeskPortalScreen';
 import HelpdeskDemoScreen, { helpdeskDemoAllowed } from './screens/helpdesk/HelpdeskDemoScreen';
+import SurveyAnswerScreen from './screens/surveys/SurveyAnswerScreen';
+import CustomerSurveyDemoScreen, { customerSurveyDemoAllowed } from './screens/surveys/CustomerSurveyDemoScreen';
 import { installDiagnostics } from './src/helpdesk/diagnostics';
 import ChildDashboardThemeSettingsScreen from './screens/v2/ChildDashboardThemeSettingsScreen';
 import ChildDashboardThemeGalleryScreen from './screens/v2/ChildDashboardThemeGalleryScreen';
@@ -945,6 +947,9 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       if (p === '/faktura-demo') return 'FakturaDemo';
       if (p === '/helpdesk-demo' && helpdeskDemoAllowed()) return 'HelpdeskDemo';
       if (p === '/helpdesk' || p.startsWith('/helpdesk/')) return 'Helpdesk';
+      // Kundeundersøkelse: kunden svarer uten innlogging (lenke i e-post).
+      if (p.startsWith('/svar/')) return 'SurveyAnswer';
+      if (p === '/kundeundersokelse-demo' && customerSurveyDemoAllowed()) return 'CustomerSurveyDemo';
       if (p === '/moter-demo') return 'MeetingsDemo';
       if (p === '/anbud-demo' && anbudDemoAllowed()) return 'AnbudDemo';
       if (p === '/child-dashboard-themes') return 'ChildDashboardThemeGallery';
@@ -1111,6 +1116,8 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         <Stack.Screen name="FakturaDemo" component={FakturaDemoScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Helpdesk" component={HelpdeskPortalScreen} options={{ headerShown: false, title: 'ProTop Helpdesk' }} />
         {helpdeskDemoAllowed() ? <Stack.Screen name="HelpdeskDemo" component={HelpdeskDemoScreen} options={{ headerShown: false }} /> : null}
+        <Stack.Screen name="SurveyAnswer" component={SurveyAnswerScreen} options={{ headerShown: false, title: 'Kundeundersøkelse' }} />
+        {customerSurveyDemoAllowed() ? <Stack.Screen name="CustomerSurveyDemo" component={CustomerSurveyDemoScreen} options={{ headerShown: false }} /> : null}
         <Stack.Screen name="MeetingsDemo" component={MeetingsDemoScreen} options={{ headerShown: false }} />
         {anbudDemoAllowed() ? <Stack.Screen name="AnbudDemo" component={AnbudDemoScreen} options={{ headerShown: false }} /> : null}
         <Stack.Screen name="ChildDashboardThemeGallery" component={ChildDashboardThemeGalleryScreen} options={{ headerShown: false }} />

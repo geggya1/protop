@@ -242,6 +242,11 @@ export const linking = {
         }],
       };
     }
+    // Kundeundersøkelse: /svar/:lenke er svarsiden, uten innlogging og også for innloggede.
+    const surveyAnswer = String(path || '').match(/^\/?svar\/([A-Za-z0-9_-]{20,100})/);
+    if (surveyAnswer?.[1]) {
+      return { routes: [{ name: 'SurveyAnswer', params: { token: surveyAnswer[1] } }] };
+    }
     // Helpdesk-portalen: /helpdesk/sak/:id åpner saken.
     const helpdeskTicket = String(path || '').match(/^\/?helpdesk\/sak\/([^/?#]+)/i);
     if (helpdeskTicket?.[1]) {
@@ -374,6 +379,8 @@ export const linking = {
       FakturaDemo: 'faktura-demo',
       HelpdeskDemo: 'helpdesk-demo',
       Helpdesk: 'helpdesk',
+      SurveyAnswer: 'svar/:token',
+      CustomerSurveyDemo: 'kundeundersokelse-demo',
       MeetingsDemo: 'moter-demo',
       AnbudDemo: 'anbud-demo',
       DashboardThemeGallery: 'dashboard-themes',

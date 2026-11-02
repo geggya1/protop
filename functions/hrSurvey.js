@@ -12,6 +12,7 @@ import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { randomInt } from 'node:crypto';
 import { SURVEY_MIN_ANSWERS } from '../src/hr/survey.js';
+import { companyRecipients } from '../src/notifications/audience.js';
 import { assertCompanyAccess, assertRateLimit, hashRateKey, requireAuth } from './security.js';
 
 if (!getApps().length) initializeApp();
@@ -111,4 +112,74 @@ export const closeHrSurvey = onCall(CALL, async (req) => {
     message: 'Du har ikke tilgang til å avslutte undersøkelsen.',
   });
   return closeSurvey(db, { familyId, surveyId });
+});
+
+/** Purring tidligst så lenge etter forrige. */
+export const REMIND_GAP_MS = 20 * 60 * 60 * 1000;
+
+/**
+ * Varsle de ansatte om en åpen undersøkelse: kind 'open' (én gang, når den åpnes) eller
+ * 'remind' (purring, høyst én gang i døgnet). Bare de som ikke har svart, får varselet.
+ * Serveren ser hvem som har svart (id-en på det rå svaret), men HR får bare antallet varslede.
+ * store og stamp kan byttes i tester. Svar: { ok, notified, already? }.
+ */
+export async function notifySurvey(store, {
+  familyId, surveyId, kind = 'open', now = new Date(), stamp = null,
+}) {
+  const surveyRef = store.collection(`families/${familyId}/hrSurveys`).doc(surveyId);
+  const snap = await surveyRef.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Fant ikke undersøkelsen.');
+  const survey = snap.data() || {};
+  if (survey.status !== 'open') throw new HttpsError('failed-precondition', 'Undersøkelsen er ikke åpen for svar.');
+  if (kind === 'open' && survey.notifiedAt) return { ok: true, notified: 0, already: true };
+  if (kind === 'remind' && survey.remindedAt && now.getTime() - new Date(survey.remindedAt).getTime() < REMIND_GAP_MS) {
+    throw new HttpsError('failed-precondition', 'Det er allerede purret det siste døgnet. Prøv igjen i morgen.');
+  }
+  const famSnap = await store.collection('families').doc(familyId).get();
+  const family = famSnap.exists ? famSnap.data() || {} : {};
+  const employees = (await store.collection(`families/${familyId}/employees`).get())
+    .docs.map((row) => ({ id: row.id, ...row.data() }));
+  const uids = companyRecipients({ family, employees, type: 'hrSurvey' });
+  const answers = store.collection(`families/${familyId}/hrSurveyAnswers`);
+  const answered = await Promise.all(uids.map(async (uid) => (await answers.doc(`${surveyId}_${uid}`).get()).exists));
+  const targets = uids.filter((_, i) => !answered[i]);
+  const title = String(survey.title || 'Medarbeiderundersøkelse').slice(0, 120);
+  const due = /^\d{4}-\d{2}-\d{2}$/.test(String(survey.closesOn || ''))
+    ? ` Svarfrist ${String(survey.closesOn).split('-').reverse().join('.')}.`
+    : '';
+  const body = kind === 'remind'
+    ? `Husk å svare på ${title.toLowerCase()}. Det tar noen minutter, og svaret er anonymt.${due}`
+    : `${title} er åpen. Svar på Min side under Ansatte. Svaret er anonymt.${due}`;
+  await Promise.all(targets.map((uid) => store.collection(`users/${uid}/notifications`).add({
+    eventType: 'hrSurvey',
+    title: kind === 'remind' ? `Påminnelse: ${title}` : title,
+    body,
+    familyId,
+    surveyId,
+    createdAt: stamp || now.toISOString(),
+    seen: false,
+  })));
+  const nowIso = now.toISOString();
+  await surveyRef.update(kind === 'remind'
+    ? { remindedAt: nowIso, reminders: (Number(survey.reminders) || 0) + 1 }
+    : { notifiedAt: nowIso });
+  return { ok: true, notified: targets.length };
+}
+
+export const notifyHrSurvey = onCall(CALL, async (req) => {
+  const uid = requireAuth(req.auth);
+  const familyId = text(req.data?.familyId, 120);
+  const surveyId = text(req.data?.surveyId, 120);
+  const kind = req.data?.kind === 'remind' ? 'remind' : 'open';
+  if (!familyId || familyId.includes('/') || !surveyId || surveyId.includes('/')) {
+    throw new HttpsError('invalid-argument', 'Mangler bedrift eller undersøkelse.');
+  }
+  await assertRateLimit(db, { key: hashRateKey(['hr-survey-notify', uid]), limit: 20, windowMs: 60 * 60 * 1000 });
+  // Som å åpne undersøkelsen: HR → Oppfølging med Begrenset redigering (surveyWriter i reglene).
+  await assertCompanyAccess(db, familyId, uid, {
+    resource: 'hrFollowup',
+    action: 'read',
+    message: 'Du har ikke tilgang til å varsle om undersøkelsen.',
+  });
+  return notifySurvey(db, { familyId, surveyId, kind, stamp: FieldValue.serverTimestamp() });
 });

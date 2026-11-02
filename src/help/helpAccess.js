@@ -50,7 +50,8 @@ export const PAGE_ACCESS = {
   'hr.oppfolging': { res: 'hrFollowup', steps: [S, R, R, R, R] },
   'hr.compliance': { res: 'hrCompliance', steps: [S, R, R, R] },
   'hr.sykefravaer': { res: 'hrFollowup', steps: [S, W] },
-  'hr.undersokelse': { res: 'hrFollowup', steps: [W, S, S] },
+  // Lage, åpne, purre og avslutte krever Begrenset redigering på Oppfølging (surveyWriter i reglene).
+  'hr.undersokelse': { res: 'hrFollowup', steps: [R, R, R, S, S] },
   'hr.arshjul': { res: 'hr', steps: [S, W] },
   'hr.rekruttering': { res: 'hrRecruitment', steps: [R, R, R, R] },
   'hr.handbok': { res: 'hr', steps: [W, W, W, R, R] },
@@ -80,6 +81,8 @@ export const PAGE_ACCESS = {
   'okonomi.kjorebok': { res: 'mileage', steps: [R, R, R, S] },
 
   kunder: { res: 'customers', steps: [R, R, S, W, S] },
+  // Lage, sende, purre og avslutte krever Begrenset redigering på Kunder. Resultatet krever Lese.
+  'kunder.undersokelse': { res: 'customers', steps: [R, R, R, S] },
   kontrakt: { res: 'contracts', steps: [R, R, R, R, S] },
   // Nye prosjekter opprettes av Admin på Prosjekt; tildelte prosjekt kan åpnes.
   projects: { res: 'projects', steps: [W, W, null, R, W] },

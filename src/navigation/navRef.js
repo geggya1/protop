@@ -59,6 +59,8 @@ function shellForEvent(eventType) {
   if (eventType === 'attestPending') return { tab: 'more', subView: 'progress', intent: 'attest' };
   if (eventType === 'documentApproval' || eventType === 'documentComment') return { tab: 'skjema', intent: { type: 'docControl', tab: 'styring' } };
   if (eventType === 'documentPublished') return { tab: 'ansatte', intent: { type: 'myDocuments' } };
+  // Medarbeiderundersøkelse: Min side, der skjemaet står.
+  if (eventType === 'hrSurvey') return { tab: 'ansatte', intent: { type: 'mySurvey' } };
   // Forespørsel om å bli med i bedriften: Ansatte → Inviter brukere.
   if (eventType === 'companyJoinRequest') return { tab: 'ansatte', intent: { type: 'openInvite' } };
   // Tilknytning mellom selskaper: Bedrift → Underenheter, der avtalene godkjennes.

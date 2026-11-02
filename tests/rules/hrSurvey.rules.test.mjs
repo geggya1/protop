@@ -152,6 +152,15 @@ describe('Medarbeiderundersøkelse', () => {
     await assertFails(setDoc(doc(as('bob'), 'families', A, 'hrSurveyStats', 'mu_new'), { count: 1 }));
   });
 
+  test('svarfristen kan endres mens undersøkelsen er åpen (bare av HR), og et utkast kan slettes', async () => {
+    await assertSucceeds(updateDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu1'), { closesOn: '2026-12-01' }));
+    await assertFails(updateDoc(doc(as('bob'), 'families', A, 'hrSurveys', 'mu1'), { closesOn: '2026-12-01' }));
+    await assertFails(updateDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu1'), { closesOn: '2026-12-01', status: 'closed' }));
+    await assertFails(updateDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu_closed'), { closesOn: '2026-12-01' }));
+    await assertFails(deleteDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu1')));
+    await assertSucceeds(deleteDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu_draft')));
+  });
+
   test('kvitteringer fra første versjon kan verken leses eller skrives', async () => {
     for (const uid of ['bob', 'eve', 'hr', 'own']) {
       await assertFails(getDoc(doc(as(uid), 'families', A, 'hrSurveyReceipts', 'mu_old_eve')));

@@ -447,6 +447,12 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
     okonomiNavChild(INNTJENING_NAV),
     { id: 'kunder', icon: 'people', label: 'Kunder', action: { type: 'tab', tab: 'kunder' } },
     {
+      id: 'kundeundersokelse',
+      icon: 'chatbox-ellipses',
+      label: 'Kundeundersøkelse',
+      action: { type: 'tab', tab: 'kunder', subView: 'undersokelse' },
+    },
+    {
       id: 'anbud',
       icon: 'megaphone',
       label: 'Anbud',
@@ -605,7 +611,7 @@ export const COMPANY_DRAWER_GROUPS = [
     id: 'company-customers',
     label: 'Kunder og oppdrag',
     icon: 'briefcase',
-    itemIds: ['kunder', 'kontrakt', 'projects'],
+    itemIds: ['kunder', 'kundeundersokelse', 'kontrakt', 'projects'],
     processOrder: true,
     // Sidene har ingen undersider. De står som faner seg imellom, så sidene har samme meny som HR.
     tabs: true,

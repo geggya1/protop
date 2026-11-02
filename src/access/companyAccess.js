@@ -1201,6 +1201,7 @@ const NAV_RESOURCE = {
   produktivitet: 'productivity',
   fremdrift: 'productivity',
   kunder: 'customers',
+  kundeundersokelse: 'customers',
   'anbud-varsling': 'tenders',
   'anbud-foresporsel': 'tenderRequest',
   'anbud-vurdering': 'tenderReview',

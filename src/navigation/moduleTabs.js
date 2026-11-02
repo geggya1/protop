@@ -29,6 +29,7 @@ const SHORT = {
   'anbud-tilbud': 'Tilbud',
   'iso-avvik': 'Avvik',
   'hr-undersokelse': 'Undersøkelse',
+  kundeundersokelse: 'Undersøkelse',
   'fravaer-fravaer': 'Oversikt',
   'fravaer-fravaersrapport': 'Rapport',
   'fravaer-planlagt': 'Planlagt',
@@ -109,7 +110,7 @@ export function moduleTabsFor(tab, subView, items = null) {
   const list = items || companyNavItems({ includeUnderenheter: true });
   const sub = DEFAULT_SUB[tab] ? DEFAULT_SUB[tab](subView) : (subView || null);
   const module = list.find((item) => !item.locked && (item.children || []).length && isNavItemActive(item, tab, sub));
-  if (!module) return groupTabsFor(list, tab);
+  if (!module) return groupTabsFor(list, tab, sub);
   let pages = module.children.filter((p) => !p.locked && p.action?.type === 'tab');
   // Modulens egen side først når den ikke er en av undersidene (Selskapsinnstillinger → Generelt).
   if (module.action?.type === 'tab' && !pages.some((p) => sameAction(p.action, module.action))) {
@@ -128,13 +129,15 @@ export function moduleTabsFor(tab, subView, items = null) {
  * Grupper med `tabs` (Kunder og oppdrag): sidene i gruppen står som faner seg imellom,
  * så også sider uten undersider har meny under båndet. Sider med egne undersider hører ikke med.
  */
-function groupTabsFor(list, tab) {
+function groupTabsFor(list, tab, sub = null) {
   for (const group of COMPANY_DRAWER_GROUPS) {
     if (!group.tabs) continue;
     const pages = group.itemIds
       .map((id) => list.find((item) => item.id === id))
       .filter((item) => item && !item.locked && item.action?.type === 'tab' && !(item.children || []).length);
-    const active = pages.find((page) => page.action.tab === tab);
+    // Siden med samme underside først (Kunder → Kundeundersøkelse), ellers fanen.
+    const active = pages.find((page) => isNavItemActive(page, tab, sub))
+      || pages.find((page) => page.action.tab === tab);
     if (!active || pages.length < 2) continue;
     return { moduleId: group.id, label: group.label, pages, activeId: active.id };
   }

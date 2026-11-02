@@ -57,13 +57,17 @@ async function seed() {
     await setDoc(doc(db, 'families', A, 'hrSurveys', 'mu_draft'), { ...survey('draft'), id: 'mu_draft' });
     await setDoc(doc(db, 'families', A, 'hrSurveys', 'mu_closed'), { ...survey('closed'), id: 'mu_closed' });
     await setDoc(doc(db, 'families', A, 'hrSurveyResults', 'mu_closed'), { count: 6, ready: true, answers: [] });
+    // Åpnet med første versjon: uten teller, og med en gammel kvittering.
+    await setDoc(doc(db, 'families', A, 'hrSurveys', 'mu_old'), { ...survey('open'), id: 'mu_old' });
+    await setDoc(doc(db, 'families', A, 'hrSurveyReceipts', 'mu_old_eve'), { surveyId: 'mu_old', uid: 'eve' });
   });
 }
 
 function answer(db, uid, surveyId = 'mu1', extra = {}, { count = true } = {}) {
   const batch = writeBatch(db);
   batch.set(doc(db, 'families', A, 'hrSurveyAnswers', `${surveyId}_${uid}`), { surveyId, answers: { trivsel: 4 }, comment: '', ...extra });
-  if (count) batch.update(doc(db, 'families', A, 'hrSurveyStats', surveyId), { count: increment(1) });
+  // Som appen: merge, så telleren lages om den mangler.
+  if (count) batch.set(doc(db, 'families', A, 'hrSurveyStats', surveyId), { count: increment(1) }, { merge: true });
   return batch.commit();
 }
 
@@ -137,6 +141,23 @@ describe('Medarbeiderundersøkelse', () => {
     await answer(as('bob'), 'bob');
     await assertFails(updateDoc(doc(as('bob'), 'families', A, 'hrSurveyStats', 'mu1'), { count: increment(1) }));
     await assertFails(getDoc(doc(as('bob'), 'families', A, 'hrSurveyStats', 'mu1')), 'bare HR ser telleren');
+  });
+
+  test('undersøkelse åpnet før telleren fantes: første svar lager den med 1', async () => {
+    await assertSucceeds(answer(as('bob'), 'bob', 'mu_old'));
+    const stats = await assertSucceeds(getDoc(doc(as('hr'), 'families', A, 'hrSurveyStats', 'mu_old')));
+    if (stats.data().count !== 1) throw new Error(`teller ${stats.data().count}`);
+    await assertSucceeds(answer(as('eve'), 'eve', 'mu_old'));
+    // Uten eget nytt svar kan ingen lage telleren med 1.
+    await assertFails(setDoc(doc(as('bob'), 'families', A, 'hrSurveyStats', 'mu_new'), { count: 1 }));
+  });
+
+  test('kvitteringer fra første versjon kan verken leses eller skrives', async () => {
+    for (const uid of ['bob', 'eve', 'hr', 'own']) {
+      await assertFails(getDoc(doc(as(uid), 'families', A, 'hrSurveyReceipts', 'mu_old_eve')));
+      await assertFails(getDocs(collection(as(uid), 'families', A, 'hrSurveyReceipts')));
+    }
+    await assertFails(setDoc(doc(as('bob'), 'families', A, 'hrSurveyReceipts', 'x'), { surveyId: 'mu1', uid: 'bob' }));
   });
 
   test('resultatet leses bare av HR → Oppfølging, og skrives bare av serveren', async () => {

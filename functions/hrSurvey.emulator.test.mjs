@@ -49,6 +49,8 @@ async function seed(answers) {
   for (let i = 0; i < answers; i += 1) {
     await db.doc(`families/${A}/hrSurveyAnswers/${S}_u${i}`).set({ surveyId: S, answers: { trivsel: (i % 5) + 1, rot: 9 }, comment: i === 0 ? 'Bra' : '' });
   }
+  // Kvittering fra første versjon slettes ved avslutning.
+  await db.doc(`families/${A}/hrSurveyReceipts/${S}_u0`).set({ surveyId: S, uid: 'u0' });
   // Et svar til en annen undersøkelse skal ikke røres.
   await db.doc(`families/${A}/hrSurveyAnswers/annen_u1`).set({ surveyId: 'annen', answers: { trivsel: 3 }, comment: '' });
 }
@@ -80,6 +82,7 @@ test('HR avslutter: resultat uten id og tidspunkt, rå svar og teller slettes', 
   const raw = await db.collection(`families/${A}/hrSurveyAnswers`).get();
   assert.deepEqual(raw.docs.map((d) => d.id), ['annen_u1']);
   assert.equal((await db.doc(`families/${A}/hrSurveyStats/${S}`).get()).exists, false);
+  assert.equal((await db.collection(`families/${A}/hrSurveyReceipts`).get()).size, 0);
   // En avsluttet undersøkelse kan ikke avsluttes på nytt.
   await assert.rejects(call('hr', { familyId: A, surveyId: S }), (err) => err.code === 'failed-precondition');
 });
@@ -91,4 +94,18 @@ test('under fem svar lagres bare antallet', async () => {
   const result = (await db.doc(`families/${A}/hrSurveyResults/${S}`).get()).data();
   assert.deepEqual(result.answers, []);
   assert.equal(result.count, 3);
+});
+
+test('avbrutt avslutning (lukket uten resultat) kan kjøres på nytt', async () => {
+  await seed(5);
+  await db.doc(`families/${A}/hrSurveys/${S}`).update({ status: 'closed', closedAt: '2026-11-02T06:00:00.000Z' });
+  const res = await call('hr', { familyId: A, surveyId: S });
+  assert.deepEqual(res, { ok: true, count: 5, ready: true });
+  assert.equal((await db.collection(`families/${A}/hrSurveyAnswers`).where('surveyId', '==', S).get()).size, 0);
+});
+
+test('et utkast kan ikke avsluttes', async () => {
+  await seed(0);
+  await db.doc(`families/${A}/hrSurveys/${S}`).update({ status: 'draft' });
+  await assert.rejects(call('hr', { familyId: A, surveyId: S }), (err) => err.code === 'failed-precondition');
 });

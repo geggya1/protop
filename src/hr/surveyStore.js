@@ -86,7 +86,8 @@ export async function submitSurveyAnswer(companyId, survey, uid, values, comment
   if (!cid(companyId) || !uid) throw new Error('Ikke innlogget.');
   const batch = writeBatch(db);
   batch.set(ref(companyId, 'hrSurveyAnswers', receiptId(answer.surveyId, uid)), answer);
-  batch.update(ref(companyId, 'hrSurveyStats', answer.surveyId), { count: increment(1) });
+  // merge: lager telleren med 1 om den mangler (undersøkelse åpnet før telleren fantes).
+  batch.set(ref(companyId, 'hrSurveyStats', answer.surveyId), { count: increment(1) }, { merge: true });
   await batch.commit();
   return true;
 }

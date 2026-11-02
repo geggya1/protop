@@ -699,7 +699,7 @@ service cloud.firestore {
         || coll == 'invoices' || coll == 'invoiceSeries' || coll == 'meetings'
         || coll == 'parents' || coll == 'memberInvites'
         || coll == 'hr' || coll == 'hrSelf' || coll == 'hrSurveys' || coll == 'hrSurveyAnswers' || coll == 'hrSurveyStats'
-        || coll == 'hrSurveyResults'
+        || coll == 'hrSurveyResults' || coll == 'hrSurveyReceipts'
         || coll == 'absences' || coll == 'childAbsences' || coll == 'employeesPrivate'
         || coll == 'notes' || coll == 'timeEntries' || coll == 'projectExpenses' || coll == 'events'
         || coll == 'timeEntryDeletions' || coll == 'accessLog';
@@ -1279,17 +1279,27 @@ service cloud.firestore {
       }
 
       // Hvor mange som har svart mens undersøkelsen er åpen. HR lager telleren med 0 når den åpnes;
-      // den som svarer, øker den med 1 i samme skriving som sitt eget svar.
+      // den som svarer, øker den med 1 i samme skriving som sitt eget svar. Mangler telleren (åpnet
+      // før den fantes), lager det første svaret den med 1.
       match /hrSurveyStats/{surveyId} {
         allow get: if isFamilyMember(familyId) && surveyReader(familyId);
-        allow create: if isFamilyMember(familyId) && surveyWriter(familyId)
-          && request.resource.data.keys().hasOnly(['count']) && request.resource.data.count == 0;
+        allow create: if isFamilyMember(familyId) && request.resource.data.keys().hasOnly(['count'])
+          && ((surveyWriter(familyId) && request.resource.data.count == 0)
+              || (request.resource.data.count == 1
+                  && !exists(/databases/$(database)/documents/families/$(familyId)/hrSurveyAnswers/$(surveyId + '_' + request.auth.uid))
+                  && existsAfter(/databases/$(database)/documents/families/$(familyId)/hrSurveyAnswers/$(surveyId + '_' + request.auth.uid))));
         allow update: if isFamilyMember(familyId)
           && request.resource.data.keys().hasOnly(['count'])
           && request.resource.data.count == resource.data.count + 1
           && !exists(/databases/$(database)/documents/families/$(familyId)/hrSurveyAnswers/$(surveyId + '_' + request.auth.uid))
           && existsAfter(/databases/$(database)/documents/families/$(familyId)/hrSurveyAnswers/$(surveyId + '_' + request.auth.uid));
         allow list, delete: if false;
+      }
+
+      // Kvitteringer fra første versjon (bruker-id per svar). Ingen får lese eller skrive dem; serveren
+      // sletter dem når undersøkelsen avsluttes.
+      match /hrSurveyReceipts/{receiptId} {
+        allow read, write: if false;
       }
 
       // Resultatet, skrevet av serveren når undersøkelsen avsluttes: antall og svarene i tilfeldig

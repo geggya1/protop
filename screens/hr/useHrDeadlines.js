@@ -5,7 +5,7 @@ import { annualTaskPlan } from '../../src/hr/annualWheel';
 import { splitHrPeople } from '../../src/hr/dashboard';
 import { filterHrEmployees, localIsoDate } from '../../src/hr/model';
 import {
-  closeHrDeadlineTask, createAnnualTask, createSickTask, loadAnnualTasks, loadSickTasks,
+  closeHrDeadlineTask, createAnnualTask, createSickTask, loadAnnualTasks, loadSickTasks, reopenHrDeadlineTask,
 } from '../../src/hr/hrDeadlineTasks';
 import { notifyUsers } from '../../src/utils/notifications';
 
@@ -51,7 +51,8 @@ export function useHrDeadlines({
     setAbsences(null);
     setLoadFailed(false);
     if (!familyId || !enabled) return undefined;
-    loadAbsences(familyId, { fromDate: windowStart, toDate: addDays(today, 200) })
+    // strict: ingen lokal kopi eller tomt svar ved feil, ellers kunne oppgaver bli lukket.
+    loadAbsences(familyId, { fromDate: windowStart, toDate: addDays(today, 200), strict: true })
       .then((rows) => { if (live) setAbsences(Array.isArray(rows) ? rows : []); })
       .catch(() => { if (live) setLoadFailed(true); });
     return () => { live = false; };
@@ -98,7 +99,13 @@ export function useHrDeadlines({
       }
     }
     for (const task of plan.close) {
-      await closeHrDeadlineTask(familyId, task, 'Lukket: fristen er markert i HR, fraværet er over eller endret ✅', who);
+      await closeHrDeadlineTask(familyId, task, 'Lukket: fristen er markert i HR, eller fraværet er over ✅', who);
+    }
+    for (const task of plan.stale) {
+      await closeHrDeadlineTask(familyId, task, 'Lukket: fraværet er endret, og fristen gjelder ikke lenger', { ...who, closedReason: 'stale' });
+    }
+    for (const task of plan.reopen) {
+      await reopenHrDeadlineTask(familyId, task, who);
     }
   }, [familyId, ensureSalt]);
 
@@ -116,11 +123,26 @@ export function useHrDeadlines({
     }
   }, [familyId]);
 
+  // Én kjøring om gangen; trykk mens den går gir én kjøring til etterpå.
+  const busyRef = useRef(null);
+  const againRef = useRef(false);
   const run = useCallback(async ({ sick = canWriteSick, annual = canWriteAnnual } = {}) => {
     const who = { uid: actor?.uid || '', name: actor?.name || '' };
     if (!who.uid || !familyId) return;
-    if (sick) await runSick(who).catch((err) => console.warn('sick deadlines failed', err?.message || err));
-    if (annual) await runAnnual(who).catch((err) => console.warn('annual tasks failed', err?.message || err));
+    if (busyRef.current) {
+      againRef.current = true;
+      return;
+    }
+    busyRef.current = (async () => {
+      if (sick) await runSick(who).catch((err) => console.warn('sick deadlines failed', err?.message || err));
+      if (annual) await runAnnual(who).catch((err) => console.warn('annual tasks failed', err?.message || err));
+    })();
+    await busyRef.current;
+    busyRef.current = null;
+    if (againRef.current) {
+      againRef.current = false;
+      await run({ sick, annual });
+    }
   }, [actor?.uid, actor?.name, familyId, canWriteSick, canWriteAnnual, runSick, runAnnual]);
 
   // Venter til HR og ansatte er lastet, og fraværet er hentet (eller ikke trengs).

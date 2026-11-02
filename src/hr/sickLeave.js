@@ -300,15 +300,18 @@ export function sickTask(milestone, { uid = '', today = new Date() } = {}) {
 /**
  * Hva som skal gjøres med oppgavene nå. rows: alle tilfeller (sickFollowUpRows med all: true).
  *   create  [{ id, milestone }] for frister som er snart eller passert, uten oppgave
- *   close   åpne oppgaver der fristen er markert, ikke lenger trengs, eller som ikke hører til
- *           noe tilfelle lenger (fraværet er endret eller slettet)
- * Kall bare med fullstendig lastet fravær, ellers lukkes oppgaver som fortsatt gjelder.
+ *   close   åpne oppgaver der fristen er markert eller ikke lenger trengs
+ *   stale   åpne oppgaver som ikke hører til noe tilfelle (fraværet er endret eller slettet, eller
+ *           tilfellet startet før fraværet som er hentet). Lukkes med closedReason 'stale'.
+ *   reopen  oppgaver lukket som 'stale' der fristen likevel er snart eller passert
+ * Kall bare med fullstendig lastet fravær (loadAbsences strict).
  */
 export function sickTaskPlan(rows, tasks, { salt = '' } = {}) {
   const byId = new Map((Array.isArray(tasks) ? tasks : []).filter((t) => t?.id).map((t) => [t.id, t]));
   const open = (task) => task && task.deleted !== true && isParentTaskOpen(task);
   const create = [];
   const close = [];
+  const reopen = [];
   const keep = new Set();
   for (const row of rows || []) {
     for (const m of row.milestones) {
@@ -317,17 +320,22 @@ export function sickTaskPlan(rows, tasks, { salt = '' } = {}) {
       if (['soon', 'overdue'].includes(m.status)) {
         keep.add(id);
         if (!task) create.push({ id, milestone: m });
-      } else if (['paused', 'later', 'unknown'].includes(m.status)) {
+        // Lukket fordi den så utdatert ut (f.eks. etter et ufullstendig fravær), men fristen gjelder:
+        // åpnes igjen. En oppgave noen har krysset av selv, står.
+        else if (!open(task) && task.closedReason === 'stale') reopen.push(task);
+      } else if (['paused', 'later'].includes(m.status)) {
         // Frist som kan komme tilbake: oppgaven står.
         keep.add(id);
-      } else if (open(task)) {
+      } else if (['done', 'na', 'notNeeded'].includes(m.status) && open(task)) {
         close.push(task);
       }
+      // unknown: ikke beholdt, så en åpen oppgave lukkes som utdatert (stale) under.
     }
   }
   const closing = new Set(close.map((t) => t.id));
+  const stale = [];
   for (const task of byId.values()) {
-    if (task.source === SICK_SOURCE && open(task) && !keep.has(task.id) && !closing.has(task.id)) close.push(task);
+    if (task.source === SICK_SOURCE && open(task) && !keep.has(task.id) && !closing.has(task.id)) stale.push(task);
   }
-  return { create, close };
+  return { create, close, stale, reopen };
 }

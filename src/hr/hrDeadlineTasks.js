@@ -42,6 +42,20 @@ export function loadSickTasks(companyId) {
   return loadBySource(companyId, SICK_SOURCE);
 }
 
+/** Åpne igjen en oppgave som ble lukket som utdatert, når fristen likevel gjelder. */
+export async function reopenHrDeadlineTask(companyId, task, { uid = '', name = '' } = {}) {
+  if (!cid(companyId) || !task?.id) return false;
+  try {
+    await updateDoc(doc(db, 'families', cid(companyId), 'parentTodos', task.id), {
+      done: false, completedDates: [], closedReason: null, updatedAt: serverTimestamp(),
+    });
+    await log(companyId, task.id, 'Åpnet igjen: fristen gjelder fortsatt', { uid, name });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** task er ferdig bygget av annualTaskPlan (med id). */
 export async function createAnnualTask(companyId, task, who = {}) {
   const { id, ...data } = task;
@@ -57,11 +71,11 @@ export async function createSickTask(companyId, id, milestone, { uid = '', name 
   return { ...task, id };
 }
 
-export async function closeHrDeadlineTask(companyId, task, reason, { uid = '', name = '', now = new Date() } = {}) {
+export async function closeHrDeadlineTask(companyId, task, reason, { uid = '', name = '', now = new Date(), closedReason = 'done' } = {}) {
   if (!cid(companyId) || !task?.id) return false;
   try {
     await updateDoc(doc(db, 'families', cid(companyId), 'parentTodos', task.id), {
-      done: true, completedDates: [dateKey(now)], updatedAt: serverTimestamp(),
+      done: true, completedDates: [dateKey(now)], closedReason, updatedAt: serverTimestamp(),
     });
     await log(companyId, task.id, reason, { uid, name });
     return true;

@@ -160,7 +160,22 @@ const ada = { id: 'e1', person: { firstName: 'Ada' } };
   // En åpen oppgave som ikke hører til noe tilfelle (fraværet er slettet), lukkes.
   const stale = { id: 'sick_gammel_plan', source: SICK_SOURCE, done: false, active: true, deleted: false, type: 'task', completedDates: [] };
   const plan = sickTaskPlan(sickFollowUpRows([], [], { today: '2026-09-20', all: true }), [stale]);
-  assert.deepEqual(plan.close.map((t) => t.id), ['sick_gammel_plan']);
+  assert.deepEqual(plan.stale.map((t) => t.id), ['sick_gammel_plan']);
+  assert.equal(plan.close.length, 0);
+}
+
+{
+  // En oppgave lukket som utdatert åpnes igjen når fristen gjelder; en som er krysset av selv, står.
+  const rows = sickFollowUpRows(days('e1', '2026-09-01', '2026-11-30'), [], { today: '2026-09-20', all: true });
+  const id = sickTaskId(rows[0], 'plan', 's');
+  const closed = (reason) => ({ id, source: SICK_SOURCE, done: true, active: true, deleted: false, type: 'task', completedDates: ['2026-09-19'], closedReason: reason });
+  assert.deepEqual(sickTaskPlan(rows, [closed('stale')], { salt: 's' }).reopen.map((t) => t.id), [id]);
+  assert.equal(sickTaskPlan(rows, [closed('done')], { salt: 's' }).reopen.length, 0);
+  assert.equal(sickTaskPlan(rows, [closed('stale')], { salt: 's' }).create.length, 0);
+  // Et tilfelle med ukjent start: en åpen oppgave for det lukkes som utdatert.
+  const cut = sickFollowUpRows(days('e1', '2025-10-18', '2026-11-30', 'syk_uten'), [], { today: '2026-11-02', all: true, windowStart: '2025-10-18' });
+  const openTask = { ...closed(''), id: sickTaskId(cut[0], 'dm1', 's'), done: false, completedDates: [] };
+  assert.deepEqual(sickTaskPlan(cut, [openTask], { salt: 's' }).stale.map((t) => t.id), [openTask.id]);
 }
 
 console.log('sickLeave ok');

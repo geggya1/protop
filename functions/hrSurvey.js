@@ -58,17 +58,22 @@ export async function closeSurvey(store, { familyId, surveyId, now = new Date() 
   const snap = await surveyRef.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Fant ikke undersøkelsen.');
   const status = snap.data()?.status;
-  if (status === 'closed') throw new HttpsError('failed-precondition', 'Undersøkelsen er allerede avsluttet.');
-  if (status !== 'open') throw new HttpsError('failed-precondition', 'Bare en åpen undersøkelse kan avsluttes.');
-
-  // Steng først, så ingen svar kommer inn mens svarene samles (reglene krever status open).
-  await surveyRef.update({ status: 'closed', closedAt: now.toISOString() });
+  const resultRef = store.doc(`families/${familyId}/hrSurveyResults/${surveyId}`);
+  if (status === 'closed') {
+    // Avbrutt avslutning (lukket, men uten resultat): kjør resten på nytt.
+    if ((await resultRef.get()).exists) throw new HttpsError('failed-precondition', 'Undersøkelsen er allerede avsluttet.');
+  } else if (status !== 'open') {
+    throw new HttpsError('failed-precondition', 'Bare en åpen undersøkelse kan avsluttes.');
+  } else {
+    // Steng først, så ingen svar kommer inn mens svarene samles (reglene krever status open).
+    await surveyRef.update({ status: 'closed', closedAt: now.toISOString() });
+  }
 
   const raw = await store.collection(`families/${familyId}/hrSurveyAnswers`).where('surveyId', '==', surveyId).get();
   const answers = raw.docs.map((row) => cleanAnswer(row.data())).filter((row) => Object.keys(row.answers).length);
   const count = answers.length;
   const ready = count >= SURVEY_MIN_ANSWERS;
-  await store.doc(`families/${familyId}/hrSurveyResults/${surveyId}`).set({
+  await resultRef.set({
     surveyId,
     count,
     ready,
@@ -76,8 +81,13 @@ export async function closeSurvey(store, { familyId, surveyId, now = new Date() 
     closedAt: now.toISOString(),
     createdAt: FieldValue.serverTimestamp(),
   });
-  // Rå svar og telleren slettes. Ingen kan senere se hvem som svarte.
-  const refs = [...raw.docs.map((row) => row.ref), store.doc(`families/${familyId}/hrSurveyStats/${surveyId}`)];
+  // Rå svar, telleren og kvitteringer fra første versjon slettes. Ingen kan senere se hvem som svarte.
+  const receipts = await store.collection(`families/${familyId}/hrSurveyReceipts`).where('surveyId', '==', surveyId).get();
+  const refs = [
+    ...raw.docs.map((row) => row.ref),
+    ...receipts.docs.map((row) => row.ref),
+    store.doc(`families/${familyId}/hrSurveyStats/${surveyId}`),
+  ];
   for (let i = 0; i < refs.length; i += 400) {
     const batch = store.batch();
     refs.slice(i, i + 400).forEach((ref) => batch.delete(ref));

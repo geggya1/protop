@@ -197,7 +197,9 @@ async function queryAbsences(bits, companyId, { fromDate = '', toDate = '', empl
 
 /**
  * @param {string} companyId
- * @param {{ fromDate?: string, toDate?: string, employeeId?: string, all?: boolean }} [opts]
+ * @param {{ fromDate?: string, toDate?: string, employeeId?: string, all?: boolean, strict?: boolean }} [opts]
+ * strict: kast i stedet for å falle tilbake på lokal kopi, og krev tilgang til hele selskapets fravær.
+ *   Brukes der et tomt svar ellers ville blitt tolket som «ingen fravær» (oppgavene ved sykefravær).
  */
 export async function loadAbsences(companyId, opts = {}) {
   if (!companyId) return [];
@@ -217,6 +219,7 @@ export async function loadAbsences(companyId, opts = {}) {
   try {
     const bits = await firestoreBits();
     const scope = await readAbsenceScope(bits, companyId);
+    if (opts.strict && !scope.all) throw new Error('absences/scope');
     if (!scope.all) {
       // Bare eget fravær: spørringen filtrerer på egen ansattpost (reglene krever det),
       // og den lokale kopien av hele selskapets fravær fjernes.
@@ -248,7 +251,8 @@ export async function loadAbsences(companyId, opts = {}) {
       );
       return finishLoaded(companyId, rows, (clean) => writeLocalWindow(companyId, clean, range));
     }
-  } catch {
+  } catch (err) {
+    if (opts.strict) throw err;
     const cached = all ? await readLocal(companyId) : await readLocalWindow(companyId, range);
     return withoutDeletedAbsences(companyId, cached);
   }

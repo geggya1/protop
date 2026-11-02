@@ -24,6 +24,7 @@ function host(name) {
 }
 
 const rnMock = {
+  useWindowDimensions: () => ({ width: 1280, height: 800 }),
   View: host('View'),
   Text: host('Text'),
   Pressable: host('Pressable'),
@@ -65,6 +66,10 @@ function load(rel) {
     if (id === 'react-native') return rnMock;
     if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
     if (id.includes('surveyStore')) return surveyStoreMock;
+    if (id === 'react-native-svg') {
+      return { __esModule: true, default: host('Svg'), G: host('G'), Path: host('Path'), Line: host('Line'), Circle: host('Circle'), Text: host('SvgText') };
+    }
+    if (/src\/theme$/.test(id)) return { useLayout: () => ({ isPhone: false, width: 1280 }) };
     if (id.includes('filledStore')) return { peekFilledDocs: () => [], loadFilledDocs: async () => [] };
     if (id.includes('saveToast')) return { showSaveToast() {} };
     if (id.includes('ShellTitles')) return { useRepeatsShellTitle: () => false };
@@ -109,11 +114,13 @@ const has = (html, id) => assert.ok(html.includes(`id="${id}"`), `mangler ${id}`
     onOpenIso() {},
     onRefreshTasks() {},
   }));
-  for (const id of ['hr-annual-wheel', 'hr-annual-tasks', 'hr-annual-ferie_fastsett', 'hr-annual-medarbeiderundersokelse', 'hr-annual-ongoing-sykefravaer']) has(annual, id);
+  for (const id of ['hr-annual-wheel', 'hr-annual-wheel-graphic', 'hr-annual-timeline', 'hr-annual-kpi-done', 'hr-annual-tasks', 'hr-annual-month-0', 'hr-annual-ongoing-sykefravaer']) has(annual, id);
+  // Valgt måned (inneværende) viser aktivitetene sine; hjulet har tolv måneder og én bue per aktivitet.
+  assert.equal((annual.match(/<path/g) || []).length >= 12 + 10, true, 'måneder og aktiviteter i hjulet');
   assert.equal(annual.includes('id="hr-sick-followup"'), false, 'sykefravær er egen side');
   assert.equal(annual.includes('id="hr-survey"'), false, 'undersøkelsen er egen side');
   assert.equal(annual.includes('Ada Nordmann'), false, 'ingen navn i årshjulet');
-  assert.match(annual, /Åpne Sykefravær/);
+  assert.match(annual, /Åpne Sykefravær|Oppfølging ved sykefravær/);
   assert.match(annual, /Hele året/);
   assert.match(annual, /Lager oppgave når måneden starter/);
 
@@ -126,6 +133,21 @@ const has = (html, id) => assert.ok(html.includes(`id="${id}"`), `mangler ${id}`
 
   const survey = renderToStaticMarkup(React.createElement(HrSurvey, { colors, familyId: 'c1', canWrite: true, invited: 1, uid: 'u1' }));
   has(survey, 'hr-survey');
+
+  // Resultat og analyse: indeks, styrker, forbedringsområder, områder, svarfordeling og trakassering.
+  const HrSurveyResults = load('screens/hr/HrSurveyResults.jsx').default;
+  const sv = await import('./survey.js');
+  const done = sv.surveyTransition(sv.surveyTransition(sv.newSurvey({ year: 2026 }), 'open'), 'closed');
+  const answers = [5, 4, 4, 2, 5, 3].map((v, i) => ({ surveyId: done.id, answers: { trivsel: v, arbeidsmengde: 6 - v, trakassering: i === 0 ? 4 : 1 }, comment: i ? '' : 'Bra' }));
+  const results = sv.surveyResults(done, answers);
+  const analysis = sv.surveyAnalysis(results);
+  const resHtml = renderToStaticMarkup(React.createElement(HrSurveyResults, {
+    colors, survey: done, results, analysis, participation: sv.participation(6, 10), canWrite: true, onCreateTask: async () => 'id', onOpenHandbook() {},
+  }));
+  for (const id of ['hr-survey-index', 'hr-survey-harassment', 'hr-survey-strengths', 'hr-survey-improvements', 'hr-survey-areas', 'hr-survey-likert', 'hr-survey-actions']) has(resHtml, id);
+  assert.match(resHtml, /1 av 6 oppgir/);
+  assert.match(resHtml, /Lag oppgave for tiltak/);
+  assert.match(resHtml, /Svært positivt/);
 
   // Uten åpen undersøkelse vises ingenting på Min side (første rendering, før lasting).
   assert.equal(renderToStaticMarkup(React.createElement(EmployeeSurveyCard, { colors, companyId: 'c1', uid: 'u1' })), '');

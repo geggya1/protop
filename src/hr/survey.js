@@ -164,6 +164,115 @@ export function surveyResults(survey, answers, { min = SURVEY_MIN_ANSWERS } = {}
   return { ready, count, min, questions, areas, comments };
 }
 
+/** Forslag til tiltak per område, brukt i analysen og som tekst i oppgaven. */
+export const AREA_ADVICE = {
+  Trivsel: 'Snakk med de ansatte om hva som gjør hverdagen bedre, og følg opp i medarbeidersamtalene.',
+  Arbeidsmengde: 'Gå gjennom fordeling av oppgaver, frister og bemanning. Avklar prioriteringer når det er travelt.',
+  Ledelse: 'Avtal faste en-til-en-samtaler, og sørg for at informasjon og tilbakemeldinger kommer jevnlig.',
+  Samarbeid: 'Ta samarbeid opp på personalmøtet. Avklar roller og ansvar der det skurrer.',
+  Utvikling: 'Lag en kompetanseplan, og ta opp utviklingsønsker i medarbeidersamtalene.',
+  'Fysisk arbeidsmiljø': 'Gjør en vernerunde med verneombudet, og meld og følg opp funn som avvik.',
+  HMS: 'Gå gjennom avviksrutinen og varslingsrutinen med alle, og vis at meldte avvik blir fulgt opp.',
+  Trakassering: 'Gå gjennom rutinen for varsling og håndtering av trakassering med verneombudet, og gjør den kjent for alle (arbeidsmiljøloven § 4-3).',
+};
+
+/** Nivået der et område regnes som godt (0–100). */
+export const SURVEY_GOOD_SCORE = 70;
+export const SURVEY_WEAK_SCORE = 50;
+
+/**
+ * Fordeling i «god retning»: [svært negativt, negativt, nøytralt, positivt, svært positivt] i prosent.
+ * For snudde spørsmål (trakassering) er «helt enig» svært negativt.
+ */
+export function likertShares(dist, reverse = false) {
+  if (!dist) return null;
+  const counts = reverse ? [...dist].reverse() : [...dist];
+  const n = counts.reduce((a, b) => a + b, 0);
+  if (!n) return null;
+  const pct = counts.map((c) => (c / n) * 100);
+  return {
+    shares: pct.map((v) => Math.round(v * 10) / 10),
+    negative: Math.round(pct[0] + pct[1]),
+    neutral: Math.round(pct[2]),
+    positive: Math.round(pct[3] + pct[4]),
+  };
+}
+
+/**
+ * Analyse av et ferdig resultat: totalindeks, styrker og forbedringsområder (spørsmål), områder
+ * under SURVEY_WEAK_SCORE med forslag til tiltak, og hvor mange som har opplevd trakassering.
+ * previous: resultatet fra forrige avsluttede undersøkelse, for utvikling per område og spørsmål.
+ */
+export function surveyAnalysis(results, previous = null) {
+  if (!results?.ready) return null;
+  const scored = results.questions.filter((q) => q.score != null);
+  const index = scored.length ? Math.round(scored.reduce((a, q) => a + q.score, 0) / scored.length) : null;
+  const prevReady = previous?.ready ? previous : null;
+  const prevIndex = prevReady ? surveyAnalysis(prevReady)?.index ?? null : null;
+  const prevArea = new Map((prevReady?.areas || []).map((a) => [a.area, a.score]));
+  const prevQ = new Map((prevReady?.questions || []).map((q) => [q.id, q.score]));
+  const delta = (now, before) => (now == null || before == null ? null : now - before);
+  // Områder der alle spørsmålene er snudd (trakassering): 100 betyr at ingen har opplevd det.
+  const reversedAreas = new Set(
+    [...new Set(results.questions.map((q) => q.area))]
+      .filter((area) => results.questions.filter((q) => q.area === area).every((q) => q.reverse)),
+  );
+  const areas = results.areas.map((a) => ({
+    ...a,
+    note: reversedAreas.has(a.area) ? '100 = ingen har opplevd det' : '',
+    delta: delta(a.score, prevArea.get(a.area)),
+    level: a.score >= SURVEY_GOOD_SCORE ? 'good' : a.score < SURVEY_WEAK_SCORE ? 'weak' : 'ok',
+    advice: AREA_ADVICE[a.area] || '',
+  }));
+  const questions = scored.map((q) => ({ ...q, likert: likertShares(q.dist, q.reverse), delta: delta(q.score, prevQ.get(q.id)) }));
+  // Snudde spørsmål (trakassering) har eget varsel og står ikke blant styrker og forbedringsområder.
+  const byScore = questions.filter((q) => !q.reverse).sort((a, b) => b.score - a.score);
+  const shares = questions.map((q) => q.likert).filter(Boolean);
+  const avgOf = (key) => (shares.length ? Math.round(shares.reduce((a, l) => a + l[key], 0) / shares.length) : null);
+  // Trakassering: de som er nøytrale eller enige i at de har opplevd det (3–5), snudd spørsmål.
+  const harassQ = results.questions.find((q) => q.area === 'Trakassering' && q.reverse && q.dist);
+  const harassed = harassQ ? harassQ.dist[2] + harassQ.dist[3] + harassQ.dist[4] : null;
+  return {
+    index,
+    indexDelta: delta(index, prevIndex),
+    positive: avgOf('positive'),
+    negative: avgOf('negative'),
+    areas,
+    questions,
+    strengths: byScore.slice(0, 3),
+    improvements: byScore.slice(-3).reverse().filter((q) => q.score < SURVEY_GOOD_SCORE),
+    weakAreas: areas.filter((a) => a.level === 'weak'),
+    harassment: harassQ ? { count: harassed, of: harassQ.n } : null,
+    hasPrevious: !!prevReady,
+  };
+}
+
+/** Forrige avsluttede undersøkelse før denne (for sammenligning). */
+export function previousSurvey(surveys, survey) {
+  const s = normalizeSurvey(survey);
+  return (surveys || [])
+    .map(normalizeSurvey)
+    .filter((x) => x.id !== s.id && x.status === 'closed' && String(x.closedAt) < String(s.closedAt || '9999'))
+    .sort((a, b) => String(b.closedAt).localeCompare(String(a.closedAt)))[0] || null;
+}
+
+/** Oppgaveutkast for tiltak på et område (HR → Oppfølging → oppgave). */
+export function surveyActionDraft(survey, area, { today = new Date() } = {}) {
+  const s = normalizeSurvey(survey);
+  const due = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
+  const pad = (n) => String(n).padStart(2, '0');
+  return {
+    title: `Tiltak etter ${s.title.toLowerCase()}: ${area.area.toLowerCase()}`,
+    description: [
+      `Området «${area.area}» fikk ${area.score} av 100 i ${s.title}.`,
+      area.advice,
+      'Gå gjennom resultatet med verneombudet og de ansatte, og avtal tiltak med ansvar og frist (internkontrollforskriften § 5).',
+    ].filter(Boolean).join('\n'),
+    deadline: `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}`,
+    source: 'hr-survey',
+  };
+}
+
 /** Svarprosent ut fra hvor mange som kan svare (egne ansatte med brukerkonto). */
 export function participation(count, invited) {
   const n = Number(invited) || 0;

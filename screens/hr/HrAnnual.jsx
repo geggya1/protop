@@ -2,14 +2,18 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  HR_ANNUAL_ONGOING, annualSummary, hrAnnualWheel, normalizeAnnualSettings, reviewFormsFromFilled, reviewProgress,
-  toggleAnnualDone, toggleAnnualOff,
+  HR_ANNUAL_ONGOING, MONTHS_NB, annualSummary, hrAnnualWheel, normalizeAnnualSettings, reviewFormsFromFilled,
+  reviewProgress, toggleAnnualDone, toggleAnnualOff, wheelLayout,
 } from '../../src/hr/annualWheel';
 import { loadFilledDocs, peekFilledDocs } from '../../src/forms/filledStore';
 import { formatNbDate } from '../../src/hr/model';
 import { toneColor } from '../../src/hr/uiHelpers';
-import { EmptyHint, HrButton, HrCard, HrChip, HrSectionTitle, HrStat } from './HrShared';
+import { EmptyHint, HrButton, HrCard, HrChip, HrSectionTitle } from './HrShared';
 import { radius, space, type } from '../../src/ui/tokens';
+import { useLayout } from '../../src/theme';
+import { chartColorsFor } from '../../src/ui/chartColors';
+import HrAnnualWheel from './HrAnnualWheel';
+import HrAnnualTimeline, { StatusLegend } from './HrAnnualTimeline';
 
 /** ISO-sidene som fører det samme, når bedriften har ISO / K-HMS. */
 const ISO_LABEL = {
@@ -97,16 +101,38 @@ function ActivityRow({ colors, item, year, canWrite, onToggleDone, onToggleOff, 
   );
 }
 
+/** Tall med forklaring, og en strek som viser andelen (gjort av alle). */
+function Kpi({ colors, label, value, hint, share = null, nativeID }) {
+  const chart = chartColorsFor(colors);
+  return (
+    <View style={[styles.kpi, { borderColor: colors.line, backgroundColor: colors.bg }]} nativeID={nativeID}>
+      <Text style={[styles.kpiLabel, { color: colors.muted }]}>{label}</Text>
+      <Text style={[styles.kpiValue, { color: colors.ink }]}>{value}</Text>
+      {share != null ? (
+        <View style={[styles.meter, { backgroundColor: chart.barTrack }]}>
+          <View style={[styles.meterFill, { width: `${Math.round(share * 100)}%`, backgroundColor: chart.done }]} />
+        </View>
+      ) : null}
+      {hint ? <Text style={[styles.small, { color: colors.muted }]}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Des'];
+
 /**
- * HR → Rutiner → Årshjul: faste HR-aktiviteter måned for måned. Fristene ved sykefravær og
- * medarbeiderundersøkelsen er egne sider under Oppfølging, og aktivitetene lenker dit.
+ * HR → Rutiner → Årshjul: det grafiske hjulet med valgt måned ved siden av, og hele året som
+ * tidslinje under. Fristene ved sykefravær og medarbeiderundersøkelsen er egne sider under
+ * Oppfølging, og aktivitetene lenker dit.
  * onOpenIso: finnes når personen ser ISO, så HMS-aktivitetene føres der og ikke to steder.
  */
 export default function HrAnnual({
-  colors, hr, canWrite, onPatch, familyId, actorName, staff = [], onOpen, onOpenIso, onRefreshTasks,
+  colors, hr, canWrite, onPatch, familyId, actorName, staff = [], onOpen, onOpenIso, onRefreshTasks, today = new Date(),
 }) {
-  const thisYear = new Date().getFullYear();
+  const { isPhone, width } = useLayout();
+  const thisYear = today.getFullYear();
   const [year, setYear] = useState(thisYear);
+  const [month, setMonth] = useState(today.getMonth());
   const settings = normalizeAnnualSettings(hr?.annual);
   // Medarbeidersamtaler kan også være ført som KS-skjema under Skjemaer.
   const [filled, setFilled] = useState(() => peekFilledDocs(familyId) || []);
@@ -124,12 +150,15 @@ export default function HrAnnual({
   }, [hr?.reviews, staff, year, filled]);
 
   const wheel = useMemo(
-    () => hrAnnualWheel(settings, { year, staffCount: staff.length || null, extra }),
+    () => hrAnnualWheel(settings, { year, today, staffCount: staff.length || null, extra }),
     // settings lages på nytt hver gang, men følger hr.annual.
-    [hr?.annual, year, staff.length, extra],
+    [hr?.annual, year, staff.length, extra, today],
   );
+  const layout = useMemo(() => wheelLayout(wheel), [wheel]);
   const summary = annualSummary(wheel);
-  const currentMonth = new Date().getMonth();
+  const nowMonth = year === thisYear ? today.getMonth() : -1;
+  const inMonth = layout.items.filter((i) => i.activity.months.includes(month));
+  const wheelSize = isPhone ? Math.max(260, Math.min(340, width - 64)) : 340;
 
   const patchAnnual = (fn) => onPatch?.((state) => ({ annual: fn(state.annual) }));
   const toggleDone = (id) => patchAnnual((a) => toggleAnnualDone(a, year, id, { by: actorName || '' }));
@@ -147,40 +176,55 @@ export default function HrAnnual({
           <HrSectionTitle
             colors={colors}
             title="Årshjul"
-            subtitle={`Faste HR-oppgaver gjennom året, med lovhenvisning. ${staff.length} egne ansatte: aktiviteter som krever flere ansatte, er tonet ned. Trykk en aktivitet for detaljer.`}
+            subtitle={`Faste HR-oppgaver gjennom året, med lovhenvisning. Beregnet for ${staff.length} egne ansatte. Trykk en måned i hjulet.`}
           />
-          <View style={styles.actions}>
-            {[thisYear - 1, thisYear, thisYear + 1].map((y) => (
-              <HrChip key={y} colors={colors} label={String(y)} active={year === y} onPress={() => setYear(y)} />
-            ))}
+          <View style={styles.toolbar}>
+            <View style={styles.actions}>
+              {[thisYear - 1, thisYear, thisYear + 1].map((y) => (
+                <HrChip key={y} colors={colors} label={String(y)} active={year === y} onPress={() => setYear(y)} />
+              ))}
+            </View>
+            {canWrite ? (
+              <HrChip
+                colors={colors}
+                label={settings.tasks ? 'Lager oppgave når måneden starter ✓' : 'Lag oppgave når måneden starter'}
+                active={settings.tasks}
+                onPress={toggleTasks}
+                nativeID="hr-annual-tasks"
+              />
+            ) : null}
           </View>
-          <View style={styles.stats}>
-            <HrStat colors={colors} label="Gjort" value={`${summary.done} av ${summary.total}`} />
-            <HrStat colors={colors} label="Denne måneden" value={String(summary.now)} />
-            <HrStat colors={colors} label="Ikke krysset av" value={String(summary.late)} hint="Måneden er passert" />
-          </View>
-          {canWrite ? (
-            <HrChip
-              colors={colors}
-              label={settings.tasks ? 'Lager oppgave når måneden starter ✓' : 'Lag oppgave når måneden starter'}
-              active={settings.tasks}
-              onPress={toggleTasks}
-              nativeID="hr-annual-tasks"
-            />
-          ) : null}
-          {settings.tasks ? (
-            <Text style={[styles.small, { color: colors.muted }]}>
-              Oppgavene tildeles den i HR som først åpner HR i måneden, med frist siste dag i måneden.
-            </Text>
-          ) : null}
-          {wheel.map((m) => (
-            <View key={m.month} style={styles.month}>
-              <Text style={[styles.monthName, { color: year === thisYear && m.month === currentMonth ? colors.brand : colors.ink }]}>
-                {m.name}
+          <View style={[styles.hero, isPhone && styles.heroPhone]}>
+            <View style={styles.wheelCol}>
+              <HrAnnualWheel
+                colors={colors}
+                layout={layout}
+                summary={summary}
+                year={year}
+                selectedMonth={month}
+                onSelectMonth={setMonth}
+                size={wheelSize}
+                today={today}
+              />
+              <StatusLegend colors={colors} />
+            </View>
+            <View style={styles.detailCol}>
+              <View style={styles.kpis}>
+                <Kpi colors={colors} label="Gjort" value={`${summary.done} av ${summary.total}`} share={summary.total ? summary.done / summary.total : 0} nativeID="hr-annual-kpi-done" />
+                <Kpi colors={colors} label="Denne måneden" value={String(summary.now)} hint="Står for tur nå" />
+                <Kpi colors={colors} label="Ikke krysset av" value={String(summary.late)} hint="Perioden er passert" />
+              </View>
+              <View style={styles.monthChips} accessibilityRole="tablist">
+                {MONTH_SHORT.map((m, i) => (
+                  <HrChip key={m} colors={colors} label={m} active={month === i} onPress={() => setMonth(i)} nativeID={`hr-annual-month-${i}`} />
+                ))}
+              </View>
+              <Text style={[styles.monthTitle, { color: colors.ink }]}>
+                {`${MONTHS_NB[month]} ${year}${month === nowMonth ? ' · nå' : ''}`}
               </Text>
-              {m.items.length ? m.items.map((item) => (
+              {inMonth.length ? inMonth.map((item) => (
                 <ActivityRow
-                  key={`${m.month}-${item.activity.id}`}
+                  key={item.activity.id}
                   colors={colors}
                   item={item}
                   year={year}
@@ -190,13 +234,26 @@ export default function HrAnnual({
                   onOpen={onOpen}
                   onOpenIso={onOpenIso}
                 />
-              )) : <EmptyHint colors={colors} text="Ingen faste HR-aktiviteter." />}
+              )) : <EmptyHint colors={colors} text="Ingen faste HR-aktiviteter denne måneden." />}
             </View>
-          ))}
-          <View style={styles.month}>
-            <Text style={[styles.monthName, { color: colors.ink }]}>Hele året</Text>
+          </View>
+        </View>
+      </HrCard>
+
+      <HrCard colors={colors}>
+        <View style={styles.stack}>
+          <HrSectionTitle colors={colors} title="Året i oversikt" subtitle="Hver aktivitet på én linje over månedene den gjelder. Trykk en linje for å åpne måneden over." />
+          <StatusLegend colors={colors} />
+          <HrAnnualTimeline colors={colors} layout={layout} nowMonth={nowMonth} selectedMonth={month} onSelectMonth={setMonth} compact={isPhone} />
+        </View>
+      </HrCard>
+
+      <HrCard colors={colors}>
+        <View style={styles.stack}>
+          <HrSectionTitle colors={colors} title="Hele året" subtitle="Plikter uten fast måned." />
+          <View style={[styles.ongoing, isPhone && styles.heroPhone]}>
             {HR_ANNUAL_ONGOING.map((row) => (
-              <View key={row.id} style={[styles.activity, { borderColor: colors.line }]} nativeID={`hr-annual-ongoing-${row.id}`}>
+              <View key={row.id} style={[styles.ongoingItem, { borderColor: colors.line }]} nativeID={`hr-annual-ongoing-${row.id}`}>
                 <Text style={[styles.activityTitle, { color: colors.ink }]}>{row.title}</Text>
                 <Text style={[styles.body, { color: colors.ink }]}>{row.description}</Text>
                 <Text style={[styles.small, { color: colors.muted }]}>{`Grunnlag: ${row.law}`}</Text>
@@ -218,12 +275,24 @@ export default function HrAnnual({
 }
 
 const styles = StyleSheet.create({
-  page: { gap: 12 },
+  page: { gap: space.sm },
   stack: { gap: 10 },
-  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, alignItems: 'center', justifyContent: 'space-between' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
-  month: { gap: 6, marginTop: 4 },
-  monthName: { ...type.bodyStrong },
+  hero: { flexDirection: 'row', gap: space.lg, alignItems: 'flex-start' },
+  heroPhone: { flexDirection: 'column', alignItems: 'stretch' },
+  wheelCol: { alignItems: 'center', gap: space.sm },
+  detailCol: { flex: 1, minWidth: 0, gap: space.xs },
+  kpis: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  kpi: { flex: 1, minWidth: 140, borderWidth: 1, borderRadius: radius.card, padding: space.sm, gap: 4 },
+  kpiLabel: { ...type.caption },
+  kpiValue: { ...type.h2 },
+  meter: { height: 6, borderRadius: radius.pill, overflow: 'hidden' },
+  meterFill: { height: 6, borderRadius: radius.pill },
+  monthChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  monthTitle: { ...type.title, marginTop: 4 },
+  ongoing: { flexDirection: 'row', gap: space.xs },
+  ongoingItem: { flex: 1, borderWidth: 1, borderRadius: radius.control, padding: space.xs, gap: 6 },
   activity: { borderWidth: 1, borderRadius: radius.control, padding: space.xs, gap: 6 },
   activityHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   activityTitle: { ...type.bodyStrong },

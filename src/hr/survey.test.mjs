@@ -64,3 +64,51 @@ assert.deepEqual(participation(5, 10), { count: 5, invited: 10, pct: 50 });
 assert.deepEqual(participation(3, 0), { count: 3, invited: 0, pct: null });
 
 console.log('survey ok');
+
+// Analyse: fordeling i god retning, indeks, styrker/forbedringsområder, trakassering og utvikling.
+{
+  const { likertShares, surveyAnalysis, previousSurvey, surveyActionDraft } = await import('./survey.js');
+  assert.deepEqual(likertShares([1, 1, 2, 3, 3]), { shares: [10, 10, 20, 30, 30], negative: 20, neutral: 20, positive: 60 });
+  // Snudd: «helt enig» i at en har opplevd trakassering er svært negativt.
+  assert.equal(likertShares([8, 1, 1, 0, 0], true).positive, 90);
+
+  const make = (id, closedAt, vals) => {
+    const sv = { ...surveyTransition(surveyTransition(newSurvey({ year: 2026, now }), 'open', { now }), 'closed', { now }), id, closedAt };
+    const ans = vals.map((v, i) => ({ surveyId: id, answers: { trivsel: v, arbeidsmengde: 6 - v, trakassering: i === 0 ? 4 : 1 }, comment: '' }));
+    return { sv, res: surveyResults(sv, ans) };
+  };
+  const before = make('a', '2025-09-30', [3, 3, 4, 3, 3]);
+  const nowR = make('b', '2026-09-30', [5, 4, 4, 5, 4]);
+  assert.equal(previousSurvey([before.sv, nowR.sv], nowR.sv).id, 'a');
+  assert.equal(previousSurvey([nowR.sv], nowR.sv), null);
+  const an = surveyAnalysis(nowR.res, before.res);
+  assert.equal(an.hasPrevious, true);
+  assert.ok(an.index > 0 && an.index <= 100);
+  const trivsel = an.areas.find((a) => a.area === 'Trivsel');
+  assert.equal(trivsel.delta, trivsel.score - before.res.areas.find((a) => a.area === 'Trivsel').score);
+  assert.equal(an.strengths[0].id, 'trivsel');
+  assert.equal(an.improvements[0].id, 'arbeidsmengde');
+  assert.deepEqual(an.harassment, { count: 1, of: 5 });
+  const weak = an.areas.find((a) => a.area === 'Arbeidsmengde');
+  assert.equal(weak.level, 'weak');
+  assert.ok(weak.advice);
+  const draft = surveyActionDraft(nowR.sv, weak, { today: new Date(2026, 9, 1) });
+  assert.match(draft.title, /^Tiltak etter medarbeiderundersøkelse 2026: arbeidsmengde/);
+  assert.equal(draft.deadline, '2026-11-01');
+  assert.equal(draft.source, 'hr-survey');
+  // Ikke klar: ingen analyse.
+  assert.equal(surveyAnalysis({ ready: false }), null);
+  console.log('survey analysis ok');
+}
+
+// Snudde spørsmål står ikke blant styrker eller forbedringsområder, og området forklares.
+{
+  const { surveyAnalysis } = await import('./survey.js');
+  const sv = surveyTransition(surveyTransition(newSurvey({ year: 2026, now }), 'open', { now }), 'closed', { now });
+  const ans = [5, 4, 4, 5, 4].map((v) => ({ surveyId: sv.id, answers: { trivsel: v, trakassering: 1 }, comment: '' }));
+  const an = surveyAnalysis(surveyResults(sv, ans));
+  assert.equal(an.strengths.some((q) => q.reverse), false);
+  assert.equal(an.areas.find((a) => a.area === 'Trakassering').note, '100 = ingen har opplevd det');
+  assert.equal(an.areas.find((a) => a.area === 'Trivsel').note, '');
+  console.log('survey reverse ok');
+}

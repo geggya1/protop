@@ -1,29 +1,30 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import {
-  SURVEY_MIN_ANSWERS, newSurvey, participation, surveyResults, surveyTransition,
+  SURVEY_MIN_ANSWERS, newSurvey, participation, previousSurvey, surveyAnalysis, surveyResults, surveyTransition,
 } from '../../src/hr/survey';
 import { countSurveyReceipts, loadSurveyAnswers, loadSurveys, saveSurvey } from '../../src/hr/surveyStore';
 import { formatNbDate } from '../../src/hr/model';
-import { toneColor } from '../../src/hr/uiHelpers';
 import { showSaveToast } from '../../src/ui/saveToast';
-import { EmptyHint, HrButton, HrCard, HrSectionTitle, HrStat } from './HrShared';
+import { chartColorsFor } from '../../src/ui/chartColors';
+import { EmptyHint, HrButton, HrCard, HrChip, HrSectionTitle } from './HrShared';
 import { radius, space, type } from '../../src/ui/tokens';
+import HrSurveyResults from './HrSurveyResults';
 
 const STATUS_LABEL = { draft: 'Utkast', open: 'Åpen for svar', closed: 'Avsluttet' };
 
-function scoreTone(score) {
-  if (score == null) return 'muted';
-  if (score >= 70) return 'good';
-  if (score >= 50) return 'warn';
-  return 'bad';
-}
-
-/** Én undersøkelse: status, svarprosent og (når avsluttet) resultater. */
-function SurveyItem({ colors, survey, familyId, invited, canWrite, onChanged }) {
+/**
+ * Én undersøkelse: status, svarprosent og (når avsluttet) resultat og analyse.
+ * previous: forrige avsluttede undersøkelse, til utvikling per område og spørsmål.
+ */
+function SurveyItem({
+  colors, survey, previous, familyId, invited, canWrite, onChanged, onCreateTask, onOpenHandbook, open: startOpen,
+}) {
   const [count, setCount] = useState(null);
   const [results, setResults] = useState(null);
+  const [prevResults, setPrevResults] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(!!startOpen);
 
   useEffect(() => {
     let live = true;
@@ -36,11 +37,15 @@ function SurveyItem({ colors, survey, familyId, invited, canWrite, onChanged }) 
     (async () => {
       try {
         if (survey.status === 'closed') {
-          const answers = await loadSurveyAnswers(familyId, survey.id);
+          const [answers, prevAnswers] = await Promise.all([
+            loadSurveyAnswers(familyId, survey.id),
+            previous ? loadSurveyAnswers(familyId, previous.id).catch(() => []) : Promise.resolve([]),
+          ]);
           if (!live) return;
           const r = surveyResults(survey, answers);
           setCount(r.count);
           setResults(r);
+          setPrevResults(previous ? surveyResults(previous, prevAnswers) : null);
         } else {
           const n = await countSurveyReceipts(familyId, survey.id);
           if (live) setCount(n);
@@ -50,7 +55,7 @@ function SurveyItem({ colors, survey, familyId, invited, canWrite, onChanged }) 
       }
     })();
     return () => { live = false; };
-  }, [familyId, survey]);
+  }, [familyId, survey, previous]);
 
   const move = async (to) => {
     if (busy) return;
@@ -67,6 +72,8 @@ function SurveyItem({ colors, survey, familyId, invited, canWrite, onChanged }) 
   };
 
   const part = participation(count || 0, invited);
+  const chart = chartColorsFor(colors);
+  const analysis = results?.ready ? surveyAnalysis(results, prevResults) : null;
   return (
     <View style={[styles.item, { borderColor: colors.line }]} nativeID={`hr-survey-${survey.id}`}>
       <View style={styles.itemHead}>
@@ -88,48 +95,44 @@ function SurveyItem({ colors, survey, familyId, invited, canWrite, onChanged }) 
           <HrButton colors={colors} icon="lock-closed" label="Avslutt og vis resultat" onPress={() => move('closed')} disabled={busy} nativeID="hr-survey-close" />
         ) : null}
       </View>
-      {survey.status !== 'draft' ? (
-        <Text style={[styles.meta, { color: colors.ink }]}>
-          {count == null ? 'Teller svar …' : `${part.count} har svart${part.pct != null ? ` av ${part.invited} med brukerkonto (${part.pct} %)` : ''}.`}
-        </Text>
-      ) : (
-        <Text style={[styles.meta, { color: colors.muted }]}>Spørsmålene kan ikke endres etter at undersøkelsen er åpnet.</Text>
-      )}
       {survey.status === 'open' ? (
-        <Text style={[styles.meta, { color: colors.muted }]}>
-          {`Resultatene vises når undersøkelsen er avsluttet og minst ${SURVEY_MIN_ANSWERS} har svart. En avsluttet undersøkelse kan ikke åpnes igjen.`}
-        </Text>
+        <View style={styles.stack}>
+          <View style={[styles.meter, { backgroundColor: chart.barTrack }]}>
+            <View style={[styles.meterFill, { width: `${part.pct || 0}%`, backgroundColor: chart.bar }]} />
+          </View>
+          <Text style={[styles.meta, { color: colors.ink }]}>
+            {count == null ? 'Teller svar …' : `${part.count} har svart${part.pct != null ? ` av ${part.invited} med brukerkonto (${part.pct} %)` : ''}.`}
+          </Text>
+          <Text style={[styles.meta, { color: colors.muted }]}>
+            {`Resultatene vises når undersøkelsen er avsluttet og minst ${SURVEY_MIN_ANSWERS} har svart. En avsluttet undersøkelse kan ikke åpnes igjen.`}
+          </Text>
+        </View>
+      ) : null}
+      {survey.status === 'draft' ? (
+        <Text style={[styles.meta, { color: colors.muted }]}>Spørsmålene kan ikke endres etter at undersøkelsen er åpnet.</Text>
       ) : null}
       {survey.status === 'closed' && results && !results.ready ? (
         <EmptyHint colors={colors} text={`Bare ${results.count} svarte. Med færre enn ${SURVEY_MIN_ANSWERS} vises ingen resultater, så ingen kan kjennes igjen.`} />
       ) : null}
-      {results?.ready ? (
-        <View style={styles.stack} nativeID={`hr-survey-results-${survey.id}`}>
-          <View style={styles.stats}>
-            {results.areas.map((a) => (
-              <HrStat key={a.area} colors={colors} label={a.area} value={`${a.score}`} hint="av 100" />
-            ))}
-          </View>
-          {results.questions.map((q) => (
-            <View key={q.id} style={[styles.qRow, { borderColor: colors.line }]}>
-              <Text style={[styles.qText, { color: colors.ink }]}>{q.text}</Text>
-              <Text style={[styles.qScore, { color: toneColor(scoreTone(q.score), colors) }]}>
-                {q.avg == null ? `For få svar (${q.n})` : `${String(q.avg).replace('.', ',')} av 5${q.reverse ? ' (lavt er bra)' : ''}`}
-              </Text>
-            </View>
-          ))}
-          {results.comments.length ? (
-            <View style={styles.stack}>
-              <Text style={[styles.itemTitle, { color: colors.ink }]}>Kommentarer</Text>
-              {results.comments.map((c, i) => (
-                <Text key={`${i}-${c.slice(0, 12)}`} style={[styles.comment, { color: colors.ink, borderColor: colors.line }]}>{c}</Text>
-              ))}
-            </View>
-          ) : null}
-          <Text style={[styles.meta, { color: colors.muted }]}>
-            Lav score på et område er en fare i arbeidsmiljøet som skal vurderes og følges opp med tiltak (internkontrollforskriften § 5). Gå gjennom resultatene med verneombudet og de ansatte.
+      {analysis && !open ? (
+        <View style={styles.summaryRow}>
+          <Text style={[styles.meta, { color: colors.ink }]}>
+            {`Totalindeks ${analysis.index} av 100 · ${results.count} svar${analysis.weakAreas.length ? ` · ${analysis.weakAreas.length} forbedringsområde${analysis.weakAreas.length === 1 ? '' : 'r'}` : ''}`}
           </Text>
+          <HrChip colors={colors} label="Vis resultat" onPress={() => setOpen(true)} />
         </View>
+      ) : null}
+      {analysis && open ? (
+        <HrSurveyResults
+          colors={colors}
+          survey={survey}
+          results={results}
+          analysis={analysis}
+          participation={part}
+          canWrite={canWrite}
+          onCreateTask={onCreateTask}
+          onOpenHandbook={onOpenHandbook}
+        />
       ) : null}
     </View>
   );
@@ -138,7 +141,9 @@ function SurveyItem({ colors, survey, familyId, invited, canWrite, onChanged }) 
 /**
  * HR → Oppfølging → Medarbeiderundersøkelse. invited: egne ansatte med brukerkonto.
  */
-export default function HrSurvey({ colors, familyId, canWrite, invited, uid }) {
+export default function HrSurvey({
+  colors, familyId, canWrite, invited, uid, onCreateTask, onOpenHandbook,
+}) {
   const [surveys, setSurveys] = useState(null);
   const [error, setError] = useState('');
 
@@ -178,8 +183,20 @@ export default function HrSurvey({ colors, familyId, canWrite, invited, uid }) {
         {surveys && !surveys.length && !error ? (
           <EmptyHint colors={colors} text="Ingen undersøkelser ennå. Mange gjør dette hver høst." />
         ) : null}
-        {(surveys || []).map((s) => (
-          <SurveyItem key={s.id} colors={colors} survey={s} familyId={familyId} invited={invited} canWrite={canWrite} onChanged={reload} />
+        {(surveys || []).map((s, i) => (
+          <SurveyItem
+            key={s.id}
+            colors={colors}
+            survey={s}
+            previous={s.status === 'closed' ? previousSurvey(surveys, s) : null}
+            familyId={familyId}
+            invited={invited}
+            canWrite={canWrite}
+            onChanged={reload}
+            onCreateTask={onCreateTask}
+            onOpenHandbook={onOpenHandbook}
+            open={i === (surveys || []).findIndex((x) => x.status === 'closed')}
+          />
         ))}
         {surveys?.find((s) => s.status === 'draft') ? (
           <View style={styles.stack}>
@@ -196,13 +213,11 @@ export default function HrSurvey({ colors, familyId, canWrite, invited, uid }) {
 
 const styles = StyleSheet.create({
   stack: { gap: 8 },
-  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  meter: { height: 8, borderRadius: radius.pill, overflow: 'hidden' },
+  meterFill: { height: 8, borderRadius: radius.pill },
+  summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space.xs },
   item: { borderWidth: 1, borderRadius: radius.card, padding: space.sm, gap: space.xs },
   itemHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   itemTitle: { ...type.bodyStrong },
   meta: { ...type.label, fontWeight: '400' },
-  qRow: { borderTopWidth: 1, paddingTop: 6, gap: 2 },
-  qText: { ...type.body },
-  qScore: { ...type.label, fontWeight: '600' },
-  comment: { ...type.label, fontWeight: '400', borderLeftWidth: 3, paddingLeft: space.xs },
 });

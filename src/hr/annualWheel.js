@@ -380,3 +380,38 @@ export function reviewFormsFromFilled(docs) {
     .filter((d) => d?.scope === 'hr' && d.libraryKey === 'medarbeidersamtale' && d.status === 'ferdig' && d.subject?.id)
     .map((d) => ({ employeeId: text(d.subject.id), date: text(d.completedAt).slice(0, 10) }));
 }
+
+/**
+ * Plassering i det grafiske årshjulet og tidslinjen: hver aktivitet én gang, med første og siste
+ * måned og et spor (0, 1, 2 …) slik at aktiviteter som overlapper i tid ikke ligger oppå hverandre.
+ * Aktiviteter som er slått av eller ikke gjelder, kommer sist og får ikke spor i hjulet (track -1).
+ */
+export function wheelLayout(wheel) {
+  const items = (wheel || []).flatMap((m) => m.items).map((item) => ({
+    ...item,
+    start: Math.min(...item.activity.months),
+    end: Math.max(...item.activity.months),
+  }));
+  const active = items.filter((i) => i.status !== 'off' && i.status !== 'na')
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+  const trackEnds = [];
+  for (const item of active) {
+    let track = trackEnds.findIndex((end) => end < item.start);
+    if (track < 0) {
+      track = trackEnds.length;
+      trackEnds.push(item.end);
+    } else {
+      trackEnds[track] = item.end;
+    }
+    item.track = track;
+  }
+  const inactive = items.filter((i) => i.status === 'off' || i.status === 'na').map((i) => ({ ...i, track: -1 }));
+  return { items: [...active, ...inactive], tracks: trackEnds.length };
+}
+
+/** Hvor langt året har kommet (0–1), for viseren i hjulet. */
+export function yearFraction(today = new Date()) {
+  const start = new Date(today.getFullYear(), 0, 1);
+  const end = new Date(today.getFullYear() + 1, 0, 1);
+  return (today - start) / (end - start);
+}

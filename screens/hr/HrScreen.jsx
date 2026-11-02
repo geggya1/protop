@@ -458,6 +458,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
           canWrite={canWrite}
           invited={deadlines.staff.filter((e) => String(e?.personUid || '').trim()).length}
           uid={uid || ''}
+          onCreateTask={createTask}
+          onOpenHandbook={() => go('handbok')}
         />
       );
     }

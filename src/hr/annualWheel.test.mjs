@@ -104,3 +104,20 @@ assert.deepEqual(forms, [{ employeeId: 'e2', date: '2026-04-02' }]);
 assert.equal(reviewProgress(reviews, ['e1', 'e2', 'e3'], 2026, forms).label, '2 av 3 har hatt samtale i 2026');
 
 console.log('annualWheel ok');
+
+// Grafisk hjul: hver aktivitet én gang, overlappende aktiviteter på hvert sitt spor.
+{
+  const { wheelLayout, yearFraction } = await import('./annualWheel.js');
+  const wheel = hrAnnualWheel({ off: ['apenhetsloven'] }, { year: 2026, today: new Date(2026, 2, 15), staffCount: 60 });
+  const { items, tracks } = wheelLayout(wheel);
+  assert.equal(items.length, HR_ANNUAL_ACTIVITIES.length);
+  assert.equal(items.find((i) => i.activity.id === 'apenhetsloven').track, -1);
+  const jan = items.filter((i) => i.track >= 0 && i.start <= 0 && i.end >= 0);
+  assert.equal(new Set(jan.map((i) => i.track)).size, jan.length, 'januar: ingen deler spor');
+  const lik = items.find((i) => i.activity.id === 'likestilling');
+  const amu = items.find((i) => i.activity.id === 'amu_rapport');
+  assert.notEqual(lik.track, amu.track, 'likestilling (jan–feb) og AMU (feb) overlapper');
+  assert.ok(tracks >= 3 && tracks <= 4);
+  assert.ok(Math.abs(yearFraction(new Date(2026, 6, 2)) - 0.5) < 0.01);
+  console.log('wheel layout ok');
+}

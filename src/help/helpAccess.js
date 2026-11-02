@@ -50,7 +50,7 @@ export const PAGE_ACCESS = {
   'hr.oppfolging': { res: 'hrFollowup', steps: [S, R, R, R, R] },
   'hr.compliance': { res: 'hrCompliance', steps: [S, R, R, R] },
   'hr.sykefravaer': { res: 'hrFollowup', steps: [S, W] },
-  'hr.undersokelse': { res: 'hrFollowup', steps: [W, S] },
+  'hr.undersokelse': { res: 'hrFollowup', steps: [W, S, S] },
   'hr.arshjul': { res: 'hr', steps: [S, W] },
   'hr.rekruttering': { res: 'hrRecruitment', steps: [R, R, R, R] },
   'hr.handbok': { res: 'hr', steps: [W, W, W, R, R] },

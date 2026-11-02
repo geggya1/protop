@@ -3,6 +3,7 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { SURVEY_COMMENT_MAX, SURVEY_SCALE, SURVEY_SCALE_LABELS } from '../../src/hr/survey';
 import { hasAnswered, loadOpenSurveys, submitSurveyAnswer } from '../../src/hr/surveyStore';
 import { toneColor } from '../../src/hr/uiHelpers';
+import { chartColorsFor } from '../../src/ui/chartColors';
 import { HrButton, HrCard, HrChip, HrSectionTitle } from './HrShared';
 import { radius, space, type } from '../../src/ui/tokens';
 
@@ -63,28 +64,46 @@ export default function EmployeeSurveyCard({ colors, companyId, uid }) {
   };
 
   const answeredCount = Object.keys(values).length;
+  const total = survey.questions.length;
+  const chart = chartColorsFor(colors);
+  // Spørsmålene gruppert på område, i rekkefølgen de står.
+  const groups = [];
+  survey.questions.forEach((q, idx) => {
+    const area = q.area || 'Annet';
+    const last = groups[groups.length - 1];
+    if (last && last.area === area) last.items.push({ q, idx });
+    else groups.push({ area, items: [{ q, idx }] });
+  });
   return (
     <HrCard colors={colors}>
       <View nativeID="employee-survey" style={styles.stack}>
         <HrSectionTitle colors={colors} title={survey.title} subtitle={survey.intro} />
-        <Text style={[styles.scale, { color: colors.muted }]}>
-          {SURVEY_SCALE.map((v, i) => `${v} = ${SURVEY_SCALE_LABELS[i].toLowerCase()}`).join(' · ')}
-        </Text>
-        {survey.questions.map((q, idx) => (
-          <View key={q.id} style={[styles.question, { borderColor: colors.line }]}>
-            <Text style={[styles.qText, { color: colors.ink }]}>{`${idx + 1}. ${q.text}`}</Text>
-            <View style={styles.chips}>
-              {SURVEY_SCALE.map((v) => (
-                <HrChip
-                  key={v}
-                  colors={colors}
-                  label={String(v)}
-                  active={values[q.id] === v}
-                  onPress={() => setValues((prev) => ({ ...prev, [q.id]: v }))}
-                  nativeID={`employee-survey-${q.id}-${v}`}
-                />
-              ))}
-            </View>
+        <View style={styles.progress} nativeID="employee-survey-progress">
+          <View style={[styles.meter, { backgroundColor: chart.barTrack }]}>
+            <View style={[styles.meterFill, { width: `${Math.round((answeredCount / Math.max(1, total)) * 100)}%`, backgroundColor: chart.bar }]} />
+          </View>
+          <Text style={[styles.scale, { color: colors.muted }]}>{`${answeredCount} av ${total} besvart. Du kan hoppe over spørsmål.`}</Text>
+        </View>
+        {groups.map((g) => (
+          <View key={`${g.area}-${g.items[0].idx}`} style={styles.group}>
+            <Text style={[styles.area, { color: colors.ink }]}>{g.area}</Text>
+            {g.items.map(({ q, idx }) => (
+              <View key={q.id} style={[styles.question, { borderColor: colors.line }]}>
+                <Text style={[styles.qText, { color: colors.ink }]}>{`${idx + 1}. ${q.text}`}</Text>
+                <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={q.text}>
+                  {SURVEY_SCALE.map((v, i) => (
+                    <HrChip
+                      key={v}
+                      colors={colors}
+                      label={i === 0 || i === SURVEY_SCALE.length - 1 ? `${v} ${SURVEY_SCALE_LABELS[i].toLowerCase()}` : String(v)}
+                      active={values[q.id] === v}
+                      onPress={() => setValues((prev) => ({ ...prev, [q.id]: v }))}
+                      nativeID={`employee-survey-${q.id}-${v}`}
+                    />
+                  ))}
+                </View>
+              </View>
+            ))}
           </View>
         ))}
         <Text style={[styles.qText, { color: colors.ink }]}>Kommentar (valgfritt). Ikke skriv noe som avslører hvem du er.</Text>
@@ -101,7 +120,7 @@ export default function EmployeeSurveyCard({ colors, companyId, uid }) {
           colors={colors}
           primary
           icon="send"
-          label={`Send anonymt (${answeredCount} av ${survey.questions.length} besvart)`}
+          label={`Send anonymt (${answeredCount} av ${total} besvart)`}
           onPress={submit}
           disabled={busy || !answeredCount}
           nativeID="employee-survey-submit"
@@ -115,6 +134,11 @@ const styles = StyleSheet.create({
   stack: { gap: 10 },
   scale: { ...type.caption },
   question: { borderTopWidth: 1, paddingTop: 8, gap: 6 },
+  group: { gap: 6 },
+  area: { ...type.bodyStrong, marginTop: space.xs },
+  progress: { gap: 4 },
+  meter: { height: 8, borderRadius: radius.pill, overflow: 'hidden' },
+  meterFill: { height: 8, borderRadius: radius.pill },
   qText: { ...type.body },
   chips: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   input: { borderWidth: 1, borderRadius: radius.control, padding: space.xs, minHeight: 80, textAlignVertical: 'top', ...type.body },

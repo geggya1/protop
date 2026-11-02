@@ -49,6 +49,11 @@ export function answerLinkSettings({ companyId, linkId, accept }) {
   return call('icAnswerLinkSettings', { companyId, linkId, accept: !!accept }, 'Kunne ikke svare på prisforslaget.');
 }
 
+/** Morselskapet fordeler nummerserier i konsernet: assignments = { companyId: { project, customer } }. */
+export function setNumberSeries({ companyId, assignments }) {
+  return call('icSetNumberSeries', { companyId, assignments }, 'Kunne ikke lagre nummerseriene.');
+}
+
 export function listPartnerEmployees({ companyId, linkId }) {
   return call('icListPartnerEmployees', { companyId, linkId }, 'Kunne ikke hente medarbeiderne.');
 }

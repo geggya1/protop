@@ -8,6 +8,7 @@ import { toValue, PROJECT_ID, AUTH_HOST, FIRESTORE_HOST, LEGAL_VERSION, ACTIVATE
 
 export const MOR = { id: 'e2e-mor', name: 'Mor Bygg AS', orgnr: '911111111', email: 'mor@protop.test', person: 'Marit Mor' };
 export const DATTER = { id: 'e2e-datter', name: 'Datter Elektro AS', orgnr: '922222222', email: 'datter@protop.test', person: 'Dag Datter' };
+export const PARTNER = { id: 'e2e-partner', name: 'Partner Rør AS', orgnr: '944444444', email: 'partner@protop.test', person: 'Pia Partner' };
 export const PASSWORD = 'E2e-Konsern-2026!';
 export const MOR_PROJECT = { id: 'prj_e2e_mor1', number: '24017', name: 'Skole Fjordgata' };
 export const DATTER_EMP = { id: 'emp-per', name: 'Per Elektriker' };
@@ -154,7 +155,9 @@ export async function seedIntercompany() {
       rental: { enabled: true, price: 950, unit: 'dag', account: '3600', since: '2020-01-01' },
     }],
   });
-  return { morUid, datterUid };
+  const partnerUid = await ensureUser(PARTNER.email, PARTNER.person);
+  await seedCompany(PARTNER, partnerUid, { customers: [], state: { projects: [] } });
+  return { morUid, datterUid, partnerUid };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -13,4 +13,5 @@ export {
   icListPartnerEmployees,
   icAllocateMembers,
   icRemoveMember,
+  icSetNumberSeries,
 } from './intercompany.js';

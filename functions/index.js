@@ -311,7 +311,7 @@ export { respondGroupInvite, syncMyInvites, invitePreview } from './groupInvite.
 export { findCompanyByOrgnr, claimCompanyOrgnr, requestCompanyJoin } from './companyJoin.js';
 export {
   icRequestLink, icRespondLink, icWithdrawLink, icEndLink, icUpdateLinkSettings, icAnswerLinkSettings,
-  icListPartnerEmployees, icAllocateMembers, icRemoveMember,
+  icListPartnerEmployees, icAllocateMembers, icRemoveMember, icSetNumberSeries,
 } from './intercompany.js';
 export {
   onIcTimeEntryWritten, onIcProjectStateWritten, onIcProjectExpenseWritten, onIcInvoiceWritten,

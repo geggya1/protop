@@ -99,6 +99,7 @@ export const FILES = [
   // Konsernintegrasjon: avtaler, prosjektkopi, speiling av timer og salg, utleie.
   'src/intercompany/model.test.mjs',
   'src/intercompany/billing.test.mjs',
+  'src/intercompany/numberSeries.test.mjs',
   'screens/economy/productDetailRender.test.cjs',
   'components/sales/productSaleSheetRender.test.cjs',
   'src/ui/reportTable.test.mjs',

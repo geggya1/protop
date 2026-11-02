@@ -27,6 +27,7 @@ import {
 } from '../../src/arbeid/timesheetReview.js';
 import { billingReadyLabel } from '../../src/economy/billingChain.js';
 import Breadcrumb from '../../components/Breadcrumb';
+import DeletedTimeEntries from './DeletedTimeEntries';
 import { radius } from '../../src/ui/tokens';
 import { BREAKPOINTS } from '../../src/ui/layout.js';
 import { formatDate } from '../../src/format/nb';
@@ -70,6 +71,11 @@ export function ApprovalsBody({
   const [queue, setQueue] = useState('locked');
   const [approvedName, setApprovedName] = useState('');
 
+  // Alle ansatte, også sluttede, så en slettet time viser navnet.
+  const allPeople = useMemo(
+    () => (workspace.employees || []).map((row) => ({ id: row.id, name: employeeDisplayName(row) })),
+    [workspace.employees],
+  );
   const people = useMemo(() => {
     const active = filterEmployeesForPicker(workspace.employees, '')
       .filter((row) => employeeActivityTab(row) === 'active');
@@ -391,6 +397,13 @@ export function ApprovalsBody({
         </View>
         ) : null}
       </View>
+      {workspace.manager && workspace.workspaceId ? (
+        <DeletedTimeEntries
+          familyId={workspace.workspaceId}
+          employees={allPeople}
+          projects={workspace.state?.projects || []}
+        />
+      ) : null}
     </ScrollView>
   );
 }

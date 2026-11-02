@@ -642,6 +642,8 @@ export function normalizeTimeEntryRow(row) {
       history: row.history.filter((item) => item && typeof item === 'object').slice(-100),
     } : {}),
     ...(text(row.sourceCompanyId) ? { sourceCompanyId: text(row.sourceCompanyId) } : {}),
+    // Gjenopprettet fra slettelogg (timeEntryDeletions): id-en til føringen som ble slettet.
+    ...(text(row.restoredFrom) ? { restoredFrom: text(row.restoredFrom).slice(0, 120) } : {}),
     // Speilet fra et tilknyttet selskap (konsernintegrasjon). Skrives bare av serveren.
     ...(row.icMirror === true ? { icMirror: true } : {}),
     ...(row.intercompany && typeof row.intercompany === 'object' ? { intercompany: { ...row.intercompany } } : {}),

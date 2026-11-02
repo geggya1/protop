@@ -8,8 +8,7 @@
  * - Faktura: når leverandøren fakturerer eier, får de speilede radene fakturaens nummer og status.
  *
  * Hendelser kan komme i feil rekkefølge, så kilden leses på nytt: speilet blir alltid som kilden
- * er nå, uansett hvilken hendelse som kom sist. Forbigående feil prøves på nytt (retry), og
- * hendelser eldre enn et døgn droppes. Alt annet (vanlige prosjekter) slipper gjennom uten lesing.
+ * er nå, uansett hvilken hendelse som kom sist. Hendelser eldre enn et døgn droppes. Alt annet (vanlige prosjekter) slipper gjennom uten lesing.
  */
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
@@ -35,7 +34,9 @@ import {
 if (!getApps().length) initializeApp();
 const db = getFirestore();
 
-const TRIGGER = { region: 'europe-west1', timeoutSeconds: 120, memory: '256MiB', retry: true };
+// Uten automatiske nye forsøk: slim-deploy kjører uten --force, som Firebase krever for retry.
+// Hver hendelse leser kilden på nytt, så neste endring retter et speil som ble stående.
+const TRIGGER = { region: 'europe-west1', timeoutSeconds: 120, memory: '256MiB', retry: false };
 const MAX_EVENT_AGE_MS = 24 * 60 * 60 * 1000;
 // gRPC-koder og navn for feil som går over: avbrutt transaksjon, utilgjengelig, tidsavbrudd, kvote.
 const TRANSIENT = new Set(['aborted', 'unavailable', 'deadline-exceeded', 'resource-exhausted', 'internal', '10', '14', '4', '8', '13']);

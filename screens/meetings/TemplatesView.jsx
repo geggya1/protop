@@ -1,6 +1,8 @@
 /**
  * Møtemaler: bedriftens egne og ProTops ferdige maler. En egen mal kan lages
  * blank, fra et skjema i Skjemabygger, med AI eller som kopi av en ProTop-mal.
+ * Brukere med admin-rett på Møter kan også redigere ProTop-malene for bedriften.
+ * Endringen lagres som bedriftens versjon og kan tilbakestilles til ProTops original.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -12,7 +14,8 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { RECURRENCE, VISIBILITY, createMeetingId, durationLabel, normalizeChapter, text } from '../../src/meetings/model';
 import {
-  MEETING_TYPES, agendaFromForm, builtinTemplates, meetingType, normalizeTemplate, templateStats,
+  MEETING_TYPES, agendaFromForm, builtinTemplates, meetingType, normalizeTemplate, originalTemplate, ownTemplates,
+  templateStats,
 } from '../../src/meetings/templates';
 import { suggestAgenda } from '../../src/meetings/ai';
 import AgendaPreview from './AgendaPreview';
@@ -20,7 +23,7 @@ import {
   Banner, Btn, Card, Choice, Empty, Field, IconBtn, Label, Pill, SearchBox, SectionHead, TypeIcon,
 } from './meetingUi';
 
-function TemplateTile({ template, onUse, onEdit, onCopy, onDelete, canEdit }) {
+function TemplateTile({ template, onUse, onEdit, onCopy, onDelete, onReset, canEdit, canAdmin }) {
   const colors = useColors();
   const stats = templateStats(template);
   const type = meetingType(template.typeId);
@@ -31,12 +34,13 @@ function TemplateTile({ template, onUse, onEdit, onCopy, onDelete, canEdit }) {
       <View style={styles.rowWrap}>
         <TypeIcon typeId={template.typeId} size={38} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ fontSize: 15, fontWeight: '800', color: colors.ink }} numberOfLines={1}>{template.name}</Text>
+          <Text style={{ fontSize: 15, fontWeight: '500', color: colors.ink }} numberOfLines={1}>{template.name}</Text>
           <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>
             {stats.items} punkter · {durationLabel(template.durationMin || stats.minutes)}
             {template.recurrence !== 'none' ? ` · ${RECURRENCE.find((r) => r.id === template.recurrence)?.short}` : ''}
           </Text>
         </View>
+        {template.customized ? <Pill label="Tilpasset" tone="brand" small /> : null}
         {template.visibility === 'deltakere' ? <Pill label="Lukket" icon="lock-closed" small /> : null}
       </View>
       {template.summary ? <Text style={{ fontSize: 13, color: colors.muted, lineHeight: 19 }} numberOfLines={3}>{template.summary}</Text> : null}
@@ -47,9 +51,10 @@ function TemplateTile({ template, onUse, onEdit, onCopy, onDelete, canEdit }) {
       {open ? <AgendaPreview chapters={template.chapters} /> : null}
       <View style={[styles.rowWrap, { marginTop: 'auto', paddingTop: 4 }]}>
         <Btn small label="Bruk" icon="add" tone="primary" onPress={() => onUse(template.id)} nativeID={`tpl-use-${template.id}`} />
-        {canEdit && !template.builtin ? <Btn small label="Rediger" icon="create-outline" tone="ghost" onPress={() => onEdit(template)} /> : null}
+        {(template.builtin ? canAdmin : canEdit) ? <Btn small label="Rediger" icon="create-outline" tone="ghost" onPress={() => onEdit(template)} nativeID={`tpl-edit-${template.id}`} /> : null}
         {canEdit && template.builtin ? <Btn small label="Kopier og tilpass" icon="copy-outline" tone="ghost" onPress={() => onCopy(template)} /> : null}
         {canEdit && !template.builtin ? <IconBtn icon="trash-outline" label={`Slett ${template.name}`} onPress={() => onDelete(template)} /> : null}
+        {canAdmin && template.customized ? <IconBtn icon="refresh" label={`Tilbakestill ${template.name} til ProTops mal`} onPress={() => onReset(template)} /> : null}
       </View>
     </View>
   );
@@ -140,7 +145,13 @@ function TemplateEditor({ visible, template, onClose, onSave, store, companyId, 
     if (!chapters.length) { setError('Malen trenger minst ett kapittel med ett punkt.'); return; }
     setBusy(true);
     try {
-      await onSave(normalizeTemplate({ ...draft, chapters, builtin: false, source: draft.source === 'protop' ? 'egen' : draft.source }));
+      await onSave(normalizeTemplate({
+        ...draft,
+        chapters,
+        builtin: false,
+        customized: false,
+        source: draft.baseId ? 'protop' : (draft.source === 'protop' ? 'egen' : draft.source),
+      }));
     } catch (cause) {
       setError(String(cause?.message || 'Malen ble ikke lagret.'));
     } finally {
@@ -151,7 +162,7 @@ function TemplateEditor({ visible, template, onClose, onSave, store, companyId, 
   return (
     <DialogShell
       visible={visible}
-      title={template?.createdAt ? 'Rediger møtemal' : 'Ny møtemal'}
+      title={template?.baseId ? 'Rediger ProTop-mal' : (template?.createdAt ? 'Rediger møtemal' : 'Ny møtemal')}
       onClose={onClose}
       colors={colors}
       width={880}
@@ -163,6 +174,11 @@ function TemplateEditor({ visible, template, onClose, onSave, store, companyId, 
       )}
     >
       {error ? <Banner tone="danger" icon="alert-circle">{error}</Banner> : null}
+      {draft.baseId ? (
+        <Banner tone="info" icon="information-circle">
+          Endringene gjelder for hele bedriften og brukes når nye møter lages fra malen. Du kan tilbakestille til ProTops mal senere.
+        </Banner>
+      ) : null}
       <View style={[styles.split, phone && { flexDirection: 'column' }]}>
         <View style={{ flex: 1, gap: 12, minWidth: 0 }}>
           <Field label="Navn" value={draft.name} onChange={(v) => patch({ name: v })} placeholder="For eksempel Byggemøte (vår mal)" nativeID="template-name" />
@@ -211,14 +227,15 @@ function TemplateEditor({ visible, template, onClose, onSave, store, companyId, 
   );
 }
 
-export default function TemplatesView({ templates, store, canEdit, viewer, onUse, width, companyId }) {
+export default function TemplatesView({ templates, store, canEdit, canAdmin = false, viewer, onUse, width, companyId }) {
   const colors = useColors();
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
-  const builtin = useMemo(() => builtinTemplates(), []);
+  const [resetting, setResetting] = useState(null);
+  const builtin = useMemo(() => builtinTemplates(templates), [templates]);
   const match = (t) => !query || `${t.name} ${t.summary} ${meetingType(t.typeId).label}`.toLowerCase().includes(query.toLowerCase());
-  const own = templates.filter(match);
+  const own = useMemo(() => ownTemplates(templates), [templates]).filter(match);
   const ours = builtin.filter(match);
 
   function startNew() {
@@ -226,7 +243,20 @@ export default function TemplatesView({ templates, store, canEdit, viewer, onUse
   }
 
   function copy(template) {
-    setEditing(normalizeTemplate({ ...template, id: createMeetingId('mal'), name: `${template.name} (vår mal)`, builtin: false, source: 'egen', createdAt: '', createdBy: viewer?.uid, createdByName: viewer?.name }));
+    setEditing(normalizeTemplate({ ...template, id: createMeetingId('mal'), name: `${template.name} (vår mal)`, builtin: false, customized: false, baseId: '', source: 'egen', createdAt: '', createdBy: viewer?.uid, createdByName: viewer?.name }));
+  }
+
+  /** ProTop-malen redigeres som bedriftens versjon, lagret med samme id som ProTop-malen. */
+  function edit(template) {
+    if (!template.builtin) { setEditing(template); return; }
+    setEditing(normalizeTemplate({
+      ...template,
+      baseId: template.id,
+      builtin: false,
+      customized: false,
+      createdBy: template.createdBy || viewer?.uid,
+      createdByName: template.createdByName || viewer?.name,
+    }));
   }
 
   async function save(template) {
@@ -245,13 +275,14 @@ export default function TemplatesView({ templates, store, canEdit, viewer, onUse
       <SectionHead title="Bedriftens maler" count={own.length} />
       {own.length ? (
         <View style={styles.grid}>
-          {own.map((t) => <TemplateTile key={t.id} template={t} onUse={onUse} onEdit={setEditing} onCopy={copy} onDelete={setDeleting} canEdit={canEdit} />)}
+          {own.map((t) => <TemplateTile key={t.id} template={t} onUse={onUse} onEdit={edit} onCopy={copy} onDelete={setDeleting} onReset={setResetting} canEdit={canEdit} canAdmin={canAdmin} />)}
         </View>
       ) : (
         <Card>
           <Empty
             icon="albums-outline"
             title="Ingen egne maler ennå"
+            titleWeight="500"
             text="Lagre et møte som mal fra menyen i møtet, kopier en ProTop-mal og tilpass den, eller lag en ny fra et skjema eller med AI."
             action={canEdit ? <Btn label="Ny mal" icon="add" tone="soft" onPress={startNew} /> : null}
           />
@@ -260,7 +291,7 @@ export default function TemplatesView({ templates, store, canEdit, viewer, onUse
 
       <SectionHead title="ProTop-maler" count={ours.length} />
       <View style={styles.grid}>
-        {ours.map((t) => <TemplateTile key={t.id} template={t} onUse={onUse} onEdit={setEditing} onCopy={copy} onDelete={setDeleting} canEdit={canEdit} />)}
+        {ours.map((t) => <TemplateTile key={t.id} template={t} onUse={onUse} onEdit={edit} onCopy={copy} onDelete={setDeleting} onReset={setResetting} canEdit={canEdit} canAdmin={canAdmin} />)}
       </View>
 
       <TemplateEditor visible={!!editing} template={editing} onClose={() => setEditing(null)} onSave={save} store={store} companyId={companyId} width={width} />
@@ -276,6 +307,19 @@ export default function TemplatesView({ templates, store, canEdit, viewer, onUse
           setDeleting(null);
           await store.deleteTemplate(row.id);
           showSaveToast('Malen er slettet.');
+        }}
+      />
+      <ConfirmDialog
+        visible={!!resetting}
+        title="Tilbakestille malen?"
+        message={resetting ? `Bedriftens endringer i «${resetting.name}» fjernes, og ProTops mal «${originalTemplate(resetting.baseId || resetting.id)?.name || resetting.name}» brukes igjen. Møter som er laget fra malen, beholder dagsordenen sin.` : ''}
+        confirmText="Tilbakestill"
+        onCancel={() => setResetting(null)}
+        onConfirm={async () => {
+          const row = resetting;
+          setResetting(null);
+          await store.deleteTemplate(row.baseId || row.id);
+          showSaveToast('Malen er tilbakestilt til ProTops versjon.');
         }}
       />
     </View>

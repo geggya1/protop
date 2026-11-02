@@ -318,6 +318,9 @@ export function normalizeTemplate(raw = {}) {
     visibility: raw.visibility === 'deltakere' ? 'deltakere' : 'alle',
     source: text(raw.source) || 'egen',
     builtin: !!raw.builtin,
+    /** ProTop-malen bedriften har tilpasset (id-en på ProTop-malen), ellers tom. */
+    baseId: text(raw.baseId),
+    customized: !!raw.customized,
     chapters,
     createdAt: text(raw.createdAt),
     createdBy: text(raw.createdBy),
@@ -326,14 +329,33 @@ export function normalizeTemplate(raw = {}) {
   };
 }
 
-export function builtinTemplates() {
-  return BUILTIN_TEMPLATES.map((row) => normalizeTemplate({ ...row, builtin: true, source: 'protop' }));
+/** ProTops originale maler, uten bedriftens tilpasninger. */
+export function originalTemplate(id) {
+  const row = BUILTIN_TEMPLATES.find((t) => t.id === id);
+  return row ? normalizeTemplate({ ...row, builtin: true, source: 'protop' }) : null;
 }
 
-/** Bedriftens egne maler først, deretter ProTop-malene. */
+/**
+ * ProTop-malene. Har bedriften tilpasset en av dem (en egen mal med baseId lik
+ * ProTop-malens id), brukes bedriftens versjon i stedet, med samme id.
+ */
+export function builtinTemplates(own = []) {
+  const custom = new Map((own || []).filter((t) => t?.baseId).map((t) => [t.baseId, t]));
+  return BUILTIN_TEMPLATES.map((row) => {
+    const mine = custom.get(row.id);
+    if (!mine) return normalizeTemplate({ ...row, builtin: true, source: 'protop' });
+    return normalizeTemplate({ ...mine, id: row.id, baseId: row.id, builtin: true, customized: true, source: 'protop' });
+  });
+}
+
+/** Bedriftens egne maler (ikke tilpasninger av ProTop-maler). */
+export function ownTemplates(own = []) {
+  return (own || []).map(normalizeTemplate).filter((t) => !t.baseId);
+}
+
+/** Bedriftens egne maler først, deretter ProTop-malene (med bedriftens tilpasninger). */
 export function allTemplates(own = []) {
-  const mine = (own || []).map(normalizeTemplate);
-  return [...mine, ...builtinTemplates()];
+  return [...ownTemplates(own), ...builtinTemplates(own)];
 }
 
 export function templateStats(template) {

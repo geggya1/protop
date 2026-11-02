@@ -166,6 +166,7 @@ export default function MeetingsModule({
         templates={templates}
         store={store}
         canEdit={canCreate}
+        canAdmin={isAdmin}
         viewer={viewer}
         width={width}
         onUse={(templateId) => { setNewPreset({ step: 'mal', source: 'mal', templateId }); setNewOpen(true); }}

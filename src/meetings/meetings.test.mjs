@@ -41,6 +41,8 @@ import {
   bestTemplateFor,
   builtinTemplates,
   guessType,
+  originalTemplate,
+  ownTemplates,
   templateFromMeeting,
   templateStats,
 } from './templates.js';
@@ -185,6 +187,19 @@ assert.equal(own.name, 'Vår byggemøtemal');
 assert.equal(own.durationMin, 90);
 assert.ok(own.chapters.every((c) => c.items.every((i) => !('notes' in i) || !i.notes)));
 assert.equal(allTemplates([own])[0].name, 'Vår byggemøtemal');
+
+// Bedriftens tilpasning av en ProTop-mal erstatter ProTops versjon, med samme id.
+const protopBygg = builtinTemplates().find((t) => t.id === 'mal_byggemote');
+const tilpasset = { ...protopBygg, id: 'mal_byggemote', baseId: 'mal_byggemote', builtin: false, name: 'Byggemøte (vår)', chapters: [{ title: 'Saker', items: [{ title: 'Status', minutes: 10 }] }] };
+const merged = builtinTemplates([own, tilpasset]);
+assert.equal(merged.length, builtinTemplates().length);
+const mergedBygg = merged.find((t) => t.id === 'mal_byggemote');
+assert.equal(mergedBygg.name, 'Byggemøte (vår)');
+assert.ok(mergedBygg.builtin && mergedBygg.customized);
+assert.deepEqual(ownTemplates([own, tilpasset]).map((t) => t.name), ['Vår byggemøtemal']);
+assert.equal(allTemplates([own, tilpasset]).filter((t) => t.id === 'mal_byggemote').length, 1);
+assert.equal(originalTemplate('mal_byggemote').name, protopBygg.name);
+assert.ok(!builtinTemplates().some((t) => t.customized));
 assert.equal(guessType('Byggemøte nr 3 på plassen'), 'byggemote');
 assert.equal(guessType('Kvartalsvis AMU'), 'hms');
 assert.equal(bestTemplateFor('styremøte med budsjett').typeId, 'styre');

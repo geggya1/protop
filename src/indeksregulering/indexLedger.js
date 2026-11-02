@@ -1,6 +1,8 @@
 /** Tabell over benyttede indekser og nye SSB-punkt siden forrige registrering. */
 
 import { seriesById } from './catalog.js';
+import { periodLabel } from './engine.js';
+import { formatIndex } from './letter.js';
 import { effectiveRegulation } from './settings.js';
 
 /** Standardseriene avtalene oftest peker på, mest brukt først. */
@@ -201,6 +203,121 @@ export function indexTimeTable({
   return {
     columns: columns.map(({ points, ...column }) => column),
     rows,
+  };
+}
+
+/**
+ * Omtrent hvor mange dager etter periodens slutt SSB publiserer tallet.
+ * SSB oppgir ikke datoen i tabellen, så dette er et anslag for visning, ikke for beregning.
+ */
+export const PUBLISH_LAG_DAYS = {
+  '08651': 12,
+  '08653': 12,
+  '08655': 12,
+  '04534': 15,
+  '14710': 10,
+  '08662': 21,
+  '14335': 55,
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MONTHS_SHORT = ['jan.', 'feb.', 'mars', 'april', 'mai', 'juni', 'juli', 'aug.', 'sep.', 'okt.', 'nov.', 'des.'];
+
+function periodEnd(period) {
+  const month = /^(\d{4})M(\d{2})$/.exec(period || '');
+  if (month) return new Date(Date.UTC(Number(month[1]), Number(month[2]), 0));
+  const quarter = /^(\d{4})K([1-4])$/.exec(period || '');
+  if (quarter) return new Date(Date.UTC(Number(quarter[1]), Number(quarter[2]) * 3, 0));
+  return null;
+}
+
+export function nextPeriod(period) {
+  const month = /^(\d{4})M(\d{2})$/.exec(period || '');
+  if (month) {
+    const next = Number(month[2]) + 1;
+    return next > 12 ? `${Number(month[1]) + 1}M01` : `${month[1]}M${String(next).padStart(2, '0')}`;
+  }
+  const quarter = /^(\d{4})K([1-4])$/.exec(period || '');
+  if (quarter) {
+    const next = Number(quarter[2]) + 1;
+    return next > 4 ? `${Number(quarter[1]) + 1}K1` : `${quarter[1]}K${next}`;
+  }
+  return '';
+}
+
+export function expectedPublishDate(period, table) {
+  const end = periodEnd(period);
+  const lag = PUBLISH_LAG_DAYS[table];
+  if (!end || lag == null) return null;
+  return new Date(end.getTime() + lag * DAY_MS);
+}
+
+function dayStart(date) {
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+export function shortDate(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const utc = value instanceof Date;
+  const day = utc ? date.getUTCDate() : date.getDate();
+  const month = utc ? date.getUTCMonth() : date.getMonth();
+  const year = utc ? date.getUTCFullYear() : date.getFullYear();
+  return `${day}. ${MONTHS_SHORT[month]} ${year}`;
+}
+
+function signedPercent(value) {
+  const rounded = Math.round(value * 10) / 10;
+  const sign = rounded > 0 ? '+' : rounded < 0 ? '−' : '±';
+  return `${sign}${Math.abs(rounded).toFixed(1).replace('.', ',')} %`;
+}
+
+/**
+ * Forklaring til siste publiserte punkt i en serie: når det kom,
+ * endringen fra forrige punkt og når neste tall ventes.
+ */
+export function latestPointInfo({ id, series = null, history = [], now = new Date() } = {}) {
+  const meta = seriesById(id) || {};
+  const live = series?.[id] || {};
+  const table = live.table || meta.table || '';
+  const points = (Array.isArray(live.points) ? live.points : [])
+    .filter((point) => point?.period && Number.isFinite(Number(point.value)));
+  const latest = points[points.length - 1];
+  if (!latest) return null;
+  const previous = points[points.length - 2] || null;
+  const lines = [];
+
+  const found = (Array.isArray(history) ? history : [])
+    .find((row) => row.id === id && row.period === latest.period && row.foundAt);
+  const published = expectedPublishDate(latest.period, table);
+  if (found) {
+    lines.push(`Publisert av SSB, registrert i ProTop ${shortDate(found.foundAt)}.`);
+  } else if (published) {
+    lines.push(`Publisert av SSB ca. ${shortDate(published)}.`);
+  }
+
+  if (previous && Number(previous.value)) {
+    const change = ((Number(latest.value) - Number(previous.value)) / Number(previous.value)) * 100;
+    lines.push(`${signedPercent(change)} fra ${periodLabel(previous.period)}.`);
+  }
+
+  const upcoming = nextPeriod(latest.period);
+  const expected = expectedPublishDate(upcoming, table);
+  if (upcoming && expected) {
+    const days = Math.round((expected.getTime() - dayStart(now)) / DAY_MS);
+    if (days > 0) {
+      lines.push(`Gjelder til ${periodLabel(upcoming)} kommer, ventet ca. ${shortDate(expected)} (om ${days} ${days === 1 ? 'dag' : 'dager'}).`);
+    } else {
+      lines.push(`${periodLabel(upcoming)} var ventet ca. ${shortDate(expected)}, men er ikke hentet ennå.`);
+    }
+  }
+
+  if (table) lines.push(`Kilde: SSB tabell ${table}. Datoene er anslag.`);
+
+  return {
+    period: latest.period,
+    title: `${periodLabel(latest.period)}: ${formatIndex(latest.value)}`,
+    lines,
   };
 }
 

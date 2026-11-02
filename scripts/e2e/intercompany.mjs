@@ -410,6 +410,8 @@ await step('Mor: nytt prosjekt får neste nummer i serien', async () => {
   await mor.page.waitForTimeout(2500);
   await open(mor.page, 'projects');
   await clickText(mor.page, 'Nytt prosjekt');
+  await mor.page.waitForTimeout(1000);
+  await clickText(mor.page, 'Opprett prosjekt', { exact: true });
   await mor.page.waitForTimeout(1500);
   const has = await mor.page.evaluate(() => [...document.querySelectorAll('input')].some((el) => el.value === '10000'));
   await shot(mor.page, 'mor-nytt-prosjekt-nummer');

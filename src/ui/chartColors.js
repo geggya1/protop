@@ -7,6 +7,8 @@
  * (dataviz validate_palette.js). Segmentene skilles i tillegg av et mellomrom, og prosenttall og
  * forklaring gir samme informasjon uten farge.
  *
+ * Områdene i ISO-årshjulet vises alltid med forklaring, og aktivitetene står som tekst ved siden av.
+ *
  * Status (gjort, nå, forsinket, planlagt) bruker appens statusfarger og vises alltid med ikon og tekst.
  */
 import { DARK } from '../appearance/palette.js';
@@ -19,6 +21,8 @@ const LIGHT_CHART = {
   idle: '#e5e7eb',
   segment: '#eef2f7',
   segmentNow: '#d7ebfd',
+  // Områdene i ISO-årshjulet: ledelse, kvalitet, miljø, HMS, annet.
+  areas: { ledelse: '#256abf', kvalitet: '#6b4ee6', miljo: '#0f8a6d', hms: '#d97706', annet: '#8b98ab' },
 };
 
 const DARK_CHART = {
@@ -29,6 +33,7 @@ const DARK_CHART = {
   idle: '#3a3a3e',
   segment: '#2c2c2e',
   segmentNow: '#0f3557',
+  areas: { ledelse: '#5598e7', kvalitet: '#a78bfa', miljo: '#34c79f', hms: '#fbbf24', annet: '#8e8e93' },
 };
 
 export const LIKERT_LABELS = ['Svært negativt', 'Negativt', 'Nøytralt', 'Positivt', 'Svært positivt'];

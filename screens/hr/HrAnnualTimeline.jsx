@@ -33,9 +33,13 @@ export function StatusLegend({ colors, withIso = false }) {
  * Året som tidslinje: én rad per aktivitet, med en strek over månedene den gjelder (farge = status)
  * og inneværende måned markert. Trykk en rad for å velge måneden aktiviteten starter i.
  * layout fra wheelLayout(). compact: telefon (navnet over streken).
+ * itemColor: fargen per strek (ISO-årshjulet farger etter område), ellers status.
  */
-export default function HrAnnualTimeline({ colors, layout, nowMonth = -1, selectedMonth, onSelectMonth, compact = false }) {
+export default function HrAnnualTimeline({
+  colors, layout, nowMonth = -1, selectedMonth, onSelectMonth, compact = false, itemColor = null, nativeID = 'hr-annual-timeline',
+}) {
   const chart = chartColorsFor(colors);
+  const colorOf = itemColor || ((i) => statusColor(i.status, chart));
   const head = (
     <View style={styles.months}>
       {MONTH_LETTER.map((l, m) => (
@@ -49,7 +53,7 @@ export default function HrAnnualTimeline({ colors, layout, nowMonth = -1, select
     </View>
   );
   return (
-    <View nativeID="hr-annual-timeline" style={styles.wrap}>
+    <View nativeID={nativeID} style={styles.wrap}>
       <View style={[styles.row, compact && styles.rowCompact]}>
         {compact ? null : <View style={styles.name} />}
         {head}
@@ -78,7 +82,7 @@ export default function HrAnnualTimeline({ colors, layout, nowMonth = -1, select
               ))}
               {(i.segments || [[i.start, i.end]]).map(([from, to]) => (
                 <View key={from} style={[styles.barSlot, { left: `${(from / 12) * 100}%`, width: `${((to - from + 1) / 12) * 100}%` }]}>
-                  <View style={[styles.bar, { backgroundColor: statusColor(i.status, chart) }]} />
+                  <View style={[styles.bar, { backgroundColor: colorOf(i) }]} />
                 </View>
               ))}
             </View>

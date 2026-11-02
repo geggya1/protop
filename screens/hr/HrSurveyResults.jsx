@@ -223,17 +223,17 @@ export default function HrSurveyResults({
   return (
     <View style={styles.stack} nativeID={`hr-survey-results-${survey.id}`}>
       <View style={styles.tiles}>
-        <Tile colors={colors} label="Totalindeks" value={`${analysis.index} av 100`} nativeID="hr-survey-index">
+        <Tile colors={colors} label="Totalindeks" value={analysis.index == null ? "–" : `${analysis.index} av 100`} nativeID="hr-survey-index">
           <DeltaText colors={colors} delta={analysis.indexDelta} suffix=" fra forrige" />
         </Tile>
         <Tile colors={colors} label="Svarprosent" value={part.pct != null ? `${part.pct} %` : String(results.count)}>
           {part.pct != null ? <Meter colors={colors} share={part.pct} /> : null}
           <Text style={[styles.caption, { color: colors.muted }]}>{`${results.count} av ${part.invited || '?'} svarte`}</Text>
         </Tile>
-        <Tile colors={colors} label="Positive svar" value={`${analysis.positive} %`}>
+        <Tile colors={colors} label="Positive svar" value={analysis.positive == null ? "–" : `${analysis.positive} %`}>
           <Text style={[styles.caption, { color: colors.muted }]}>Snitt av alle spørsmål</Text>
         </Tile>
-        <Tile colors={colors} label="Negative svar" value={`${analysis.negative} %`}>
+        <Tile colors={colors} label="Negative svar" value={analysis.negative == null ? "–" : `${analysis.negative} %`}>
           <Text style={[styles.caption, { color: colors.muted }]}>Snitt av alle spørsmål</Text>
         </Tile>
       </View>

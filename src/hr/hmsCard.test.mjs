@@ -139,7 +139,7 @@ assert.equal(hmsCardFor('', cards), null);
   assert.equal(hmsCardRequirement({ naeringskode: '43.210', setting: 'tull' }).required, true, 'ukjent valg følger næringskoden');
 
   // Innstillingen lagres i HR, og bare kjente verdier.
-  assert.deepEqual(emptyHrState().settings, { hmsCard: '' });
+  assert.deepEqual(emptyHrState().settings, { hmsCard: '', sickSalt: '' });
   assert.equal(normalizeHrState({ settings: { hmsCard: 'on' } }).settings.hmsCard, 'on');
   assert.equal(normalizeHrState({ settings: { hmsCard: 'ja' } }).settings.hmsCard, '');
   assert.equal(normalizeHrState({ hmsRequired: false }).hmsRequired, undefined, 'utregnet krav lagres ikke');

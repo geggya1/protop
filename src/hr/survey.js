@@ -136,8 +136,7 @@ export function surveyResults(survey, answers, { min = SURVEY_MIN_ANSWERS } = {}
   const s = normalizeSurvey(survey);
   const rows = (Array.isArray(answers) ? answers : []).filter((a) => a && text(a.surveyId) === s.id);
   const count = rows.length;
-  const ready = s.status === 'closed' && count >= min;
-  if (!ready) return { ready, count, min, questions: [], areas: [], comments: [] };
+  if (!(s.status === 'closed' && count >= min)) return { ready: false, count, min, questions: [], areas: [], comments: [] };
   const questions = s.questions.map((q) => {
     const vals = rows.map((a) => Number(a.answers?.[q.id])).filter((v) => SURVEY_SCALE.includes(v));
     const n = vals.length;
@@ -161,7 +160,9 @@ export function surveyResults(survey, answers, { min = SURVEY_MIN_ANSWERS } = {}
   })).sort((a, b) => a.score - b.score);
   // Kommentarene sorteres alfabetisk, så rekkefølgen ikke viser hvem som svarte først.
   const comments = rows.map((a) => text(a.comment)).filter(Boolean).sort((a, b) => a.localeCompare(b, 'nb'));
-  return { ready, count, min, questions, areas, comments };
+  // Uten ett eneste spørsmål med nok svar er det ingenting å vise (unngår «null av 100»).
+  if (!questions.some((q) => q.score != null)) return { ready: false, count, min, questions: [], areas: [], comments: [] };
+  return { ready: true, count, min, questions, areas, comments };
 }
 
 /** Forslag til tiltak per område, brukt i analysen og som tekst i oppgaven. */

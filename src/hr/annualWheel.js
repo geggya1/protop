@@ -307,8 +307,14 @@ function lastDayOfMonth(year, month) {
   return isoDay(new Date(year, month + 1, 0));
 }
 
-export function annualTaskId(activityId, year, month) {
-  return `hrahj_${activityId}_${year}_${String(month + 1).padStart(2, '0')}`;
+/** Én oppgave per aktivitet og år. */
+export function annualTaskId(activityId, year) {
+  return `hrahj_${activityId}_${year}`;
+}
+
+/** Id-er brukt før (én per måned), så en oppgave som allerede er laget ikke lages på nytt. */
+function legacyTaskIds(activity, year) {
+  return activity.months.map((m) => `hrahj_${activity.id}_${year}_${String(m + 1).padStart(2, '0')}`);
 }
 
 /**
@@ -324,12 +330,13 @@ export function annualTaskPlan(settings, { today = new Date(), staffCount = null
   const have = new Set(existingIds);
   const out = [];
   for (const activity of HR_ANNUAL_ACTIVITIES) {
-    // Én oppgave per aktivitet: når perioden starter, med frist siste dag i perioden.
-    if (Math.min(...activity.months) !== month) continue;
+    // Én oppgave per aktivitet og år, laget i perioden (også midt i den, om ingen åpnet HR da den
+    // startet eller oppgaver ble slått på senere), med frist siste dag i perioden.
+    if (!activity.months.includes(month)) continue;
     if (s.off.includes(activity.id) || !activityApplies(activity, staffCount)) continue;
     if (s.done[doneKey(year, activity.id)]) continue;
-    const id = annualTaskId(activity.id, year, month);
-    if (have.has(id)) continue;
+    const id = annualTaskId(activity.id, year);
+    if (have.has(id) || legacyTaskIds(activity, year).some((old) => have.has(old))) continue;
     out.push({
       id,
       title: `HR-årshjul: ${activity.title}`,

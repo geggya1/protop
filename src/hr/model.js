@@ -137,7 +137,7 @@ export function emptyHrState() {
     // HR-årshjulet: av-slåtte aktiviteter, avkrysninger per år og automatiske oppgaver. Se annualWheel.js.
     annual: normalizeAnnualSettings(null),
     // hmsCard: '' følger næringskoden, 'on' eller 'off' er valgt av bedriften. Se hmsCard.js.
-    settings: { hmsCard: '' },
+    settings: { hmsCard: '', sickSalt: '' },
     updatedAt: '',
   };
 }
@@ -669,7 +669,11 @@ export function normalizeHrState(raw) {
     handbook: normalizeHandbook(raw.handbook),
     sickFollowUps: normalizeList(raw.sickFollowUps, normalizeSickFollowUp),
     annual: normalizeAnnualSettings(raw.annual),
-    settings: { hmsCard: normalizeHmsSetting(raw.settings?.hmsCard) },
+    settings: {
+      hmsCard: normalizeHmsSetting(raw.settings?.hmsCard),
+      // Nøkkel til id-ene på oppgavene ved sykefravær (sickLeave.js sickTaskId). Bare HR leser den.
+      sickSalt: /^[0-9a-f]{32}$/.test(text(raw.settings?.sickSalt)) ? text(raw.settings.sickSalt) : '',
+    },
     updatedAt: text(raw.updatedAt),
   };
 }
@@ -721,7 +725,8 @@ export function hrStateHasData(state) {
   return [
     'contracts', 'reviews', 'cases', 'memos', 'tasks',
     'salaries', 'jobs', 'applications', 'compliance', 'files', 'hmsCards', 'sickFollowUps',
-  ].some((key) => (src[key] || []).length > 0) || handbookHasContent(src.handbook);
+  ].some((key) => (src[key] || []).length > 0) || handbookHasContent(src.handbook)
+    || src.annual.tasks || src.annual.off.length > 0 || Object.keys(src.annual.done).length > 0;
 }
 
 export function employeeVisibleSlice(state, employeeId) {

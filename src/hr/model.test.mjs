@@ -328,3 +328,12 @@ import {
 }
 
 console.log('hr/model.test.mjs ok');
+
+// Nøkkelen til oppgave-id-ene ved sykefravær: bare 32 heks-tegn beholdes, og den er ikke i utsnittet til den ansatte.
+{
+  const { normalizeHrState: norm, employeeVisibleSlice: slice } = await import('./model.js');
+  const salt = '0123456789abcdef0123456789abcdef';
+  assert.equal(norm({ settings: { sickSalt: salt } }).settings.sickSalt, salt);
+  assert.equal(norm({ settings: { sickSalt: 'tull' } }).settings.sickSalt, '');
+  assert.equal(JSON.stringify(slice({ settings: { sickSalt: salt } }, 'e1')).includes(salt), false);
+}

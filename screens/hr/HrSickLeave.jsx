@@ -11,6 +11,8 @@ const STATUS = {
   done: { label: 'Gjort', tone: 'good' },
   na: { label: 'Ikke nødvendig', tone: 'muted' },
   notNeeded: { label: 'Ikke aktuelt lenger', tone: 'muted' },
+  paused: { label: 'Tilbake i arbeid før fristen', tone: 'muted' },
+  unknown: { label: 'Ukjent: startet før fraværet som er hentet', tone: 'muted' },
   overdue: { label: 'Forsinket', tone: 'bad' },
   soon: { label: 'Snart', tone: 'warn' },
   later: { label: 'Senere', tone: 'muted' },
@@ -20,7 +22,7 @@ const STATUS = {
  * HR → Oppfølging → Sykefravær: fristene per sykefraværstilfelle. rows fra sickFollowUpRows.
  * Navn vises bare her, i HR.
  */
-export default function HrSickLeave({ colors, rows, loading, canWrite, onPatch, actorName }) {
+export default function HrSickLeave({ colors, rows, loading, loadFailed = false, canWrite, onPatch, actorName }) {
   const mark = (row, milestoneId, status) => {
     if (!canWrite) return;
     onPatch?.((state) => ({
@@ -37,7 +39,8 @@ export default function HrSickLeave({ colors, rows, loading, canWrite, onPatch, 
           subtitle="Regnet fra første sykedag i Fravær. Oppfølgingsplan innen 4 uker og dialogmøte 1 innen 7 uker (arbeidsmiljøloven § 4-6). NAV kaller inn til dialogmøte 2 innen 26 uker. HR får oppgave før fristen, uten navn i oppgaven."
         />
         {loading ? <EmptyHint colors={colors} text="Henter fravær …" /> : null}
-        {!loading && !rows.length ? (
+        {loadFailed ? <EmptyHint colors={colors} text="Kunne ikke hente fraværet. Fristene vises når det er hentet." /> : null}
+        {!loading && !loadFailed && !rows.length ? (
           <EmptyHint colors={colors} text="Ingen pågående sykefravær over to uker, og ingen åpne frister." />
         ) : null}
         {rows.map((row) => (
@@ -46,8 +49,13 @@ export default function HrSickLeave({ colors, rows, loading, canWrite, onPatch, 
               {row.employee ? displayName(row.employee) : 'Ukjent ansatt'}
             </Text>
             <Text style={[styles.meta, { color: colors.muted }]}>
-              {`Syk fra ${formatNbDate(row.start)}${row.ongoing ? '' : ` til ${formatNbDate(row.end)}`} · ${row.length} dager${row.ongoing ? ' så langt' : ''}`}
+              {`Syk fra ${row.truncated ? 'før ' : ''}${formatNbDate(row.start)}${row.ongoing ? '' : ` til ${formatNbDate(row.end)}`} · ${row.length} dager${row.ongoing ? ' så langt' : ''}`}
             </Text>
+            {row.truncated ? (
+              <Text style={[styles.meta, { color: colors.muted }]}>
+                Fraværet startet for mer enn halvannet år siden. Fristene regnes ikke ut, og det lages ingen oppgaver. Følg opp manuelt.
+              </Text>
+            ) : null}
             {row.milestones.map((m) => {
               const st = STATUS[m.status] || STATUS.later;
               const marked = m.status === 'done' || m.status === 'na';
@@ -59,7 +67,7 @@ export default function HrSickLeave({ colors, rows, loading, canWrite, onPatch, 
                       {marked && m.mark?.date ? `${st.label} ${formatNbDate(m.mark.date)}` : st.label}
                     </Text>
                   </View>
-                  {canWrite && m.status !== 'notNeeded' ? (
+                  {canWrite && m.status !== 'notNeeded' && m.status !== 'unknown' ? (
                     <View style={styles.actions}>
                       <HrChip
                         colors={colors}

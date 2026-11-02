@@ -25,7 +25,7 @@ export const PAYROLL_YEARS = 5;
 const MAX_RUNS = 20;
 
 /** Lister i HR-tilstanden som er personalmappe for én ansatt (employeeId). */
-export const PERSONNEL_LISTS = ['reviews', 'cases', 'memos', 'tasks', 'files', 'contracts', 'compliance', 'hmsCards'];
+export const PERSONNEL_LISTS = ['reviews', 'cases', 'memos', 'tasks', 'files', 'contracts', 'compliance', 'hmsCards', 'sickFollowUps'];
 
 function text(value) {
   return String(value ?? '').trim();

@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import {
-  SICK_SOURCE, addDays, markSickMilestone, sickCases, sickFollowUpRows, sickTask, sickTaskId, sickTaskPlan,
+  SICK_SOURCE, addDays, markSickMilestone, newSickSalt, sickCases, sickFollowUpRows, sickTask, sickTaskId, sickTaskPlan,
 } from './sickLeave.js';
 
 /** Hverdager fra start til og med slutt. */
@@ -105,6 +105,77 @@ const ada = { id: 'e1', person: { firstName: 'Ada' } };
   const marked = markSickMilestone([], rows[0], 'plan', 'done');
   plan = sickTaskPlan(sickFollowUpRows(absences, marked, { today: '2026-09-21' }), [task]);
   assert.deepEqual(plan.close.map((t) => t.id), [id]);
+}
+
+{
+  // Én sykedag gir ingen frist og ingen oppgave (gjennomgang: «Snart» for en egenmelding).
+  const one = [{ employeeId: 'e1', date: '2026-10-19', type: 'egenmelding' }];
+  const all = sickFollowUpRows(one, [], { today: '2026-11-02', all: true });
+  assert.equal(all[0].milestones[0].status, 'paused');
+  assert.equal(sickTaskPlan(all, []).create.length, 0);
+  assert.equal(sickFollowUpRows(one, [], { today: '2026-11-02' }).length, 0);
+  // 20 dager senere er den over.
+  assert.equal(sickFollowUpRows(one, [], { today: '2026-11-25', all: true })[0].milestones[0].status, 'notNeeded');
+}
+
+{
+  // Tilbake i arbeid før dialogmøte 1: ingen «snart» og ingen oppgave for den.
+  const rows = sickFollowUpRows(days('e1', '2026-09-01', '2026-10-02'), [], { today: '2026-10-08', all: true });
+  const dm1 = rows[0].milestones.find((m) => m.id === 'dm1');
+  assert.equal(dm1.status, 'paused');
+  assert.equal(rows[0].milestones[0].status, 'overdue', 'planen (4 uker) var passert mens hen var syk');
+}
+
+{
+  // Tilfellet startet før fraværet som er hentet: fristene er ukjente, og ingen oppgaver lages.
+  const absences = days('e1', '2025-10-18', '2026-11-30', 'syk_uten');
+  const rows = sickFollowUpRows(absences, [], { today: '2026-11-02', all: true, windowStart: '2025-10-18' });
+  assert.ok(rows[0].milestones.every((m) => m.status === 'unknown'));
+  assert.equal(sickTaskPlan(rows, []).create.length, 0);
+}
+
+{
+  // En tidligere sykedag registrert i ettertid: markeringen og oppgave-id-en følger tilfellet.
+  const first = days('e1', '2026-09-07', '2026-11-30');
+  let rows = sickFollowUpRows(first, [], { today: '2026-10-01', all: true });
+  const marked = markSickMilestone([], rows[0], 'plan', 'done', { today: '2026-10-01' });
+  rows = sickFollowUpRows(first, marked, { today: '2026-10-01', all: true });
+  const idBefore = sickTaskId(rows[0], 'dm1', 'salt');
+  const later = [...days('e1', '2026-09-03', '2026-09-04'), ...first];
+  rows = sickFollowUpRows(later, marked, { today: '2026-10-01', all: true });
+  assert.equal(rows[0].start, '2026-09-03');
+  assert.equal(rows[0].milestones[0].status, 'done', 'markeringen er beholdt');
+  assert.equal(sickTaskId(rows[0], 'dm1', 'salt'), idBefore, 'samme oppgave');
+  // Ny markering lagres på det samme tilfellet, ikke som et nytt.
+  const again = markSickMilestone(marked, rows[0], 'dm1', 'na');
+  assert.equal(again.length, 1);
+}
+
+{
+  // Nøkkelen endrer id-en, så den ikke kan regnes ut uten HR-data.
+  const rows = sickFollowUpRows(days('e1', '2026-09-01', '2026-11-30'), [], { today: '2026-09-20' });
+  assert.notEqual(sickTaskId(rows[0], 'plan', 'a'), sickTaskId(rows[0], 'plan', 'b'));
+  assert.equal(newSickSalt().length, 32);
+  assert.notEqual(newSickSalt(), newSickSalt());
+  // En åpen oppgave som ikke hører til noe tilfelle (fraværet er slettet), lukkes.
+  const stale = { id: 'sick_gammel_plan', source: SICK_SOURCE, done: false, active: true, deleted: false, type: 'task', completedDates: [] };
+  const plan = sickTaskPlan(sickFollowUpRows([], [], { today: '2026-09-20', all: true }), [stale]);
+  assert.deepEqual(plan.stale.map((t) => t.id), ['sick_gammel_plan']);
+  assert.equal(plan.close.length, 0);
+}
+
+{
+  // En oppgave lukket som utdatert åpnes igjen når fristen gjelder; en som er krysset av selv, står.
+  const rows = sickFollowUpRows(days('e1', '2026-09-01', '2026-11-30'), [], { today: '2026-09-20', all: true });
+  const id = sickTaskId(rows[0], 'plan', 's');
+  const closed = (reason) => ({ id, source: SICK_SOURCE, done: true, active: true, deleted: false, type: 'task', completedDates: ['2026-09-19'], closedReason: reason });
+  assert.deepEqual(sickTaskPlan(rows, [closed('stale')], { salt: 's' }).reopen.map((t) => t.id), [id]);
+  assert.equal(sickTaskPlan(rows, [closed('done')], { salt: 's' }).reopen.length, 0);
+  assert.equal(sickTaskPlan(rows, [closed('stale')], { salt: 's' }).create.length, 0);
+  // Et tilfelle med ukjent start: en åpen oppgave for det lukkes som utdatert.
+  const cut = sickFollowUpRows(days('e1', '2025-10-18', '2026-11-30', 'syk_uten'), [], { today: '2026-11-02', all: true, windowStart: '2025-10-18' });
+  const openTask = { ...closed(''), id: sickTaskId(cut[0], 'dm1', 's'), done: false, completedDates: [] };
+  assert.deepEqual(sickTaskPlan(cut, [openTask], { salt: 's' }).stale.map((t) => t.id), [openTask.id]);
 }
 
 console.log('sickLeave ok');

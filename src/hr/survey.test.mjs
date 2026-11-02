@@ -112,3 +112,13 @@ console.log('survey ok');
   assert.equal(an.areas.find((a) => a.area === 'Trivsel').note, '');
   console.log('survey reverse ok');
 }
+
+// Fem svar, men ingen spørsmål med fem svar: ikke klart (ingen «null av 100»).
+{
+  const sv = surveyTransition(surveyTransition(newSurvey({ year: 2026, now }), 'open', { now }), 'closed', { now });
+  const ans = ['trivsel', 'trivsel', 'leder', 'leder', 'kolleger'].map((id) => ({ surveyId: sv.id, answers: { [id]: 4 }, comment: '' }));
+  const r = surveyResults(sv, ans);
+  assert.equal(r.ready, false);
+  assert.equal(r.count, 5);
+  console.log('survey sparse ok');
+}

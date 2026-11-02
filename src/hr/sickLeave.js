@@ -145,23 +145,36 @@ export function normalizeSickFollowUp(row = {}) {
   };
 }
 
+/** Siste sykedag minst så nær i dag regnes som pågående (helg og registrering dagen etter). */
+const ACTIVE_DAYS = 3;
+
 /**
  * Status for én frist i et tilfelle:
  *   done / na   HR har markert den
- *   notNeeded   tilfellet var over før fristen og personen har vært tilbake i mer enn 16 dager
- *   overdue     fristen er passert
- *   soon        innen lead dager
+ *   unknown     tilfellet startet før fraværet som er hentet, så fristen kan ikke regnes ut
+ *   paused      personen er tilbake i arbeid før fristen (kan bli syk igjen innen 16 dager)
+ *   notNeeded   personen har vært tilbake i mer enn 16 dager
+ *   overdue     fristen er passert mens personen var syk
+ *   soon        innen lead dager, og personen er syk nå
  *   later       senere
  */
 export function milestoneStatus(milestone, sickCase, followUp, today) {
   const mark = followUp?.marks?.[milestone.id];
   if (mark?.status) return mark.status;
-  const due = addDays(sickCase.start, milestone.days);
+  if (sickCase.truncated) return 'unknown';
+  const due = dayNumber(addDays(sickCase.start, milestone.days));
   const t = dayNumber(today);
-  const ended = dayNumber(sickCase.end) < t - SAME_CASE_GAP_DAYS;
-  if (dayNumber(sickCase.end) < dayNumber(due) && ended) return 'notNeeded';
-  if (t > dayNumber(due)) return ended ? 'notNeeded' : 'overdue';
-  if (t >= dayNumber(due) - milestone.lead) return 'soon';
+  const end = dayNumber(sickCase.end);
+  const back = t - end;
+  const active = end >= t - ACTIVE_DAYS;
+  if (t > due) {
+    if (end < due) return back > SAME_CASE_GAP_DAYS ? 'notNeeded' : 'paused';
+    return back > SAME_CASE_GAP_DAYS ? 'notNeeded' : 'overdue';
+  }
+  if (t >= due - milestone.lead) {
+    if (active) return 'soon';
+    return back > SAME_CASE_GAP_DAYS ? 'notNeeded' : 'paused';
+  }
   return 'later';
 }
 
@@ -169,17 +182,24 @@ export function milestoneStatus(milestone, sickCase, followUp, today) {
  * Tilfeller HR skal følge opp nå: pågår og har vart minst 14 dager, eller har en frist som er
  * snart eller passert. Hver rad har fristene med dato og status.
  */
-export function sickFollowUpRows(absences, followUps, { today = new Date(), employees = [], all = false } = {}) {
+export function sickFollowUpRows(absences, followUps, {
+  today = new Date(), employees = [], all = false, windowStart = '',
+} = {}) {
   const t = todayIso(today);
-  const byKey = new Map((followUps || []).map((row) => {
-    const n = normalizeSickFollowUp(row);
-    return [n.id, n];
-  }));
+  const saved = (followUps || []).map((row) => normalizeSickFollowUp(row));
+  const byKey = new Map(saved.map((n) => [n.id, n]));
+  // Registreres en tidligere sykedag i ettertid, flytter starten seg. Markeringene følger da med:
+  // et lagret tilfelle for samme person med start innenfor dette tilfellet hører til det.
+  const followUpFor = (c) => byKey.get(c.key)
+    || saved.find((f) => f.employeeId === c.employeeId && f.start >= c.start && f.start <= c.end)
+    || null;
   const names = new Map((employees || []).map((e) => [text(e?.id), e]));
   const rows = [];
   for (const sickCase of sickCases(absences)) {
     if (sickCase.start > t) continue;
-    const followUp = byKey.get(sickCase.key) || null;
+    // Tilfellet kan ha startet før fraværet som er hentet: da er starten (og fristene) ukjent.
+    if (windowStart && dayNumber(sickCase.start) - dayNumber(windowStart) <= SAME_CASE_GAP_DAYS) sickCase.truncated = true;
+    const followUp = followUpFor(sickCase);
     const lastDay = sickCase.end < t ? sickCase.end : t;
     const length = dayNumber(lastDay) - dayNumber(sickCase.start) + 1;
     const milestones = SICK_MILESTONES.map((m) => ({
@@ -198,6 +218,8 @@ export function sickFollowUpRows(absences, followUps, { today = new Date(), empl
       length,
       employee: names.get(sickCase.employeeId) || null,
       followUp,
+      // Oppgavene følger det lagrede tilfellet, så id-en ikke endres når starten flytter seg.
+      taskKey: followUp ? caseKey(followUp.employeeId, followUp.start) : sickCase.key,
       milestones,
       next: milestones.find((m) => ['overdue', 'soon', 'later'].includes(m.status)) || null,
     });
@@ -213,7 +235,7 @@ export function sickFollowUpRows(absences, followUps, { today = new Date(), empl
 /** Marker en frist som gjort, ikke nødvendig, eller fjern markeringen (status ''). */
 export function markSickMilestone(list, sickCase, milestoneId, status, { by = '', today = new Date() } = {}) {
   const rows = (Array.isArray(list) ? list : []).map((row) => normalizeSickFollowUp(row));
-  const key = caseKey(sickCase.employeeId, sickCase.start);
+  const key = sickCase.followUp?.id || caseKey(sickCase.employeeId, sickCase.start);
   const idx = rows.findIndex((row) => row.id === key);
   const base = idx >= 0 ? rows[idx] : normalizeSickFollowUp({ employeeId: sickCase.employeeId, start: sickCase.start });
   const marks = { ...base.marks };
@@ -225,9 +247,8 @@ export function markSickMilestone(list, sickCase, milestoneId, status, { by = ''
   return rows;
 }
 
-/** Kort, stabil id uten ansatt-id i klartekst (FNV-1a). */
-function shortHash(value) {
-  let h = 0x811c9dc5;
+function fnv(value, seed) {
+  let h = seed >>> 0;
   for (const ch of String(value)) {
     h ^= ch.codePointAt(0);
     h = Math.imul(h, 0x01000193) >>> 0;
@@ -235,8 +256,23 @@ function shortHash(value) {
   return h.toString(36);
 }
 
-export function sickTaskId(sickCase, milestoneId) {
-  return `sick_${shortHash(caseKey(sickCase.employeeId, sickCase.start))}_${milestoneId}`;
+/** Hemmelig nøkkel for oppgave-id-ene, lagret i HR (hr.settings.sickSalt), som bare HR leser. */
+export function newSickSalt() {
+  const bytes = new Uint8Array(16);
+  const c = globalThis.crypto;
+  if (c?.getRandomValues) c.getRandomValues(bytes);
+  else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Stabil id for oppgaven, uten ansatt-id i klartekst. Oppgaver kan leses av hele bedriften, og
+ * ansattlisten også, så id-en blandes med en hemmelig nøkkel som bare HR har. Uten nøkkelen kan
+ * ingen regne seg fram til hvem oppgaven gjelder.
+ */
+export function sickTaskId(row, milestoneId, salt = '') {
+  const key = `${text(salt)}|${row.taskKey || caseKey(row.employeeId, row.start)}`;
+  return `sick_${fnv(key, 0x811c9dc5)}${fnv(key, 0x050c5d1f)}_${milestoneId}`;
 }
 
 /** Oppgaven til HR. Ingen navn eller ansatt-id: oppgaver kan ses av flere enn HR. */
@@ -262,26 +298,44 @@ export function sickTask(milestone, { uid = '', today = new Date() } = {}) {
 }
 
 /**
- * Hva som skal gjøres med oppgavene nå:
+ * Hva som skal gjøres med oppgavene nå. rows: alle tilfeller (sickFollowUpRows med all: true).
  *   create  [{ id, milestone }] for frister som er snart eller passert, uten oppgave
- *   close   åpne oppgaver der fristen er markert gjort / ikke nødvendig, eller tilfellet er over
- * Lukking skjer bare for oppgaver som hører til et kjent tilfelle, så en ufullstendig lasting
- * ikke lukker noe.
+ *   close   åpne oppgaver der fristen er markert eller ikke lenger trengs
+ *   stale   åpne oppgaver som ikke hører til noe tilfelle (fraværet er endret eller slettet, eller
+ *           tilfellet startet før fraværet som er hentet). Lukkes med closedReason 'stale'.
+ *   reopen  oppgaver lukket som 'stale' der fristen likevel er snart eller passert
+ * Kall bare med fullstendig lastet fravær (loadAbsences strict).
  */
-export function sickTaskPlan(rows, tasks) {
+export function sickTaskPlan(rows, tasks, { salt = '' } = {}) {
   const byId = new Map((Array.isArray(tasks) ? tasks : []).filter((t) => t?.id).map((t) => [t.id, t]));
+  const open = (task) => task && task.deleted !== true && isParentTaskOpen(task);
   const create = [];
   const close = [];
+  const reopen = [];
+  const keep = new Set();
   for (const row of rows || []) {
     for (const m of row.milestones) {
-      const id = sickTaskId(row, m.id);
+      const id = sickTaskId(row, m.id, salt);
       const task = byId.get(id);
       if (['soon', 'overdue'].includes(m.status)) {
+        keep.add(id);
         if (!task) create.push({ id, milestone: m });
-      } else if (['done', 'na', 'notNeeded'].includes(m.status) && task && task.deleted !== true && isParentTaskOpen(task)) {
+        // Lukket fordi den så utdatert ut (f.eks. etter et ufullstendig fravær), men fristen gjelder:
+        // åpnes igjen. En oppgave noen har krysset av selv, står.
+        else if (!open(task) && task.closedReason === 'stale') reopen.push(task);
+      } else if (['paused', 'later'].includes(m.status)) {
+        // Frist som kan komme tilbake: oppgaven står.
+        keep.add(id);
+      } else if (['done', 'na', 'notNeeded'].includes(m.status) && open(task)) {
         close.push(task);
       }
+      // unknown: ikke beholdt, så en åpen oppgave lukkes som utdatert (stale) under.
     }
   }
-  return { create, close };
+  const closing = new Set(close.map((t) => t.id));
+  const stale = [];
+  for (const task of byId.values()) {
+    if (task.source === SICK_SOURCE && open(task) && !keep.has(task.id) && !closing.has(task.id)) stale.push(task);
+  }
+  return { create, close, stale, reopen };
 }

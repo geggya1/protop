@@ -137,14 +137,21 @@ export default function HrScreen({ subView = 'oversikt' }) {
   useDocReadTasks({ dc, employees, canWrite: ready && access.canEdit('hrPeople') });
   // Frister ved sykefravær og oppgaver fra HR-årshjulet. Fravær er helseopplysninger: bare med Oppfølging.
   // Fraværet hentes på Sykefravær-siden, og ellers én gang per økt for å lage oppgavene.
+  // Nøkkelen til oppgave-id-ene lagres i HR første gang (se ensureSaltRef under persist).
+  const ensureSaltRef = useRef(null);
+  const ensureSalt = useCallback((salt) => ensureSaltRef.current?.(salt) || Promise.resolve(''), []);
   const deadlines = useHrDeadlines({
     familyId,
     employees,
     hr,
     enabled: ready && access.ready && access.canView('hrFollowup')
       && (page === 'sykefravaer' || !hrDeadlinesHandled(familyId)),
-    canWrite: ready && access.canEdit('hrFollowup'),
+    canWriteSick: ready && access.ready && access.canEdit('hrFollowup'),
+    canWriteAnnual: ready && access.ready && access.canEdit('hr'),
+    // Bare fra skyen og med ansattlisten lastet (ikke fra lokal kopi).
+    stateOk: ready && employeesLoaded && hrLoadMeta(familyId) === 'ok',
     actor: forms.actor,
+    ensureSalt,
   });
 
   useEffect(() => {
@@ -227,6 +234,14 @@ export default function HrScreen({ subView = 'oversikt' }) {
       });
     saveChainRef.current = job;
   }, []);
+
+  ensureSaltRef.current = async (salt) => {
+    const base = hrRef.current || emptyHrState();
+    if (base.settings?.sickSalt) return base.settings.sickSalt;
+    persist(patchHrState(base, { settings: { ...base.settings, sickSalt: salt } }));
+    await saveChainRef.current.catch(() => {});
+    return hrRef.current?.settings?.sickSalt || '';
+  };
 
   const onPatch = useCallback((partialOrFn) => {
     if (!canWrite) return;
@@ -444,8 +459,13 @@ export default function HrScreen({ subView = 'oversikt' }) {
           colors={colors}
           rows={deadlines.sickRows}
           loading={deadlines.loading}
+          loadFailed={deadlines.loadFailed}
           canWrite={canWrite}
-          onPatch={onPatch}
+          onPatch={(fn) => {
+            onPatch(fn);
+            // Oppgaven for fristen lukkes med en gang, ikke først neste gang HR åpnes.
+            setTimeout(() => deadlines.refresh(), 800);
+          }}
           actorName={assigneeName}
         />
       );

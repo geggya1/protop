@@ -54,8 +54,36 @@ export function withTimeEntryHistory(previous, next, { actor = null, at = '', re
   return { ...next, history: [...history, row].slice(-MAX_HISTORY) };
 }
 
-/** Rad som beholdes når en føring slettes, så slettingen også kan spores. */
+/**
+ * Feltene som tas vare på i slettingen, så føringen kan gjenopprettes (timeEntryRestore.js).
+ * Fakturakobling, konsernspeil og avskriving tas ikke med: en gjenopprettet føring er en
+ * vanlig, ny føring som går gjennom godkjenning på nytt.
+ */
+const SNAPSHOT_SKIP = new Set([
+  'invoiceId', 'icMirror', 'intercompany', 'writeOffAt', 'writeOffReason', 'writeOffBy',
+  'sourceCompanyId', 'restoredFrom',
+]);
+
+export function timeEntrySnapshot(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  if (!text(entry.projectId) || !text(entry.employeeId) || !text(entry.date)) return null;
+  const out = {};
+  for (const [key, value] of Object.entries(entry)) {
+    if (SNAPSHOT_SKIP.has(key) || value === undefined || typeof value === 'function') continue;
+    out[key] = value;
+  }
+  if (out.source && typeof out.source === 'object') {
+    // Hele Excel-raden fra en import trengs ikke for å gjenopprette timen.
+    const { values: _values, ...source } = out.source;
+    out.source = source;
+  }
+  if (Array.isArray(out.history)) out.history = out.history.slice(-MAX_HISTORY);
+  return out;
+}
+
+/** Rad som beholdes når en føring slettes, så slettingen kan spores og føringen gjenopprettes. */
 export function deletedTimeEntryRecord(entry, { actor = null, at = '', reason = '' } = {}) {
+  const snapshot = timeEntrySnapshot(entry);
   return {
     entryId: text(entry?.id, 120),
     employeeId: text(entry?.employeeId, 120),
@@ -67,6 +95,7 @@ export function deletedTimeEntryRecord(entry, { actor = null, at = '', reason = 
     byUid: text(actor?.byUid || actor?.uid, 128),
     byName: text(actor?.byName || actor?.name, 120),
     ...(text(reason) ? { reason: text(reason) } : {}),
+    ...(snapshot ? { snapshot } : {}),
   };
 }
 

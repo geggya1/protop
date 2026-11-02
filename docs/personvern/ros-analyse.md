@@ -47,7 +47,7 @@
 | R4 | HR-data (lønn) leses av en som bare skal ha én del av HR | HR ligger i ett dokument. | 2 | 2 | **4 middels** | Krever HR-tilgang. Lønn ikke i lokal kopi. | Del HR i egne samlinger per område (DS-10). |
 | R5 | En fil (CV, HR-dokument, kvittering) deles videre | Nedlastingslenker med token som ikke utløper. | 2 | 3 | **6 høy** | Tilgangskontroll ved opplasting og nedlasting via funksjon. | Signerte lenker med kort levetid (L-18). |
 | R6 | Data går tapt eller overskrives | Store fellesdokumenter (`projects/state`, `anbud/state`) og eldre klienter som skriver hele lister. | 2 | 3 | **6 høy** | Transaksjoner, diff mot utgangspunkt, slettemarkeringer, kø og feilmelding. | Dele opp fellesdokumentene (datasynk fase 2). Bekreft sikkerhetskopi (R7). |
-| R7 | Data kan ikke gjenopprettes etter feil eller sletting | Ukjent om Firestore har sikkerhetskopi eller gjenoppretting til tidspunkt. **[bekreft]** | 2 | 3 | **6 høy** | – | Slå på daglig sikkerhetskopi og gjenoppretting til tidspunkt (PITR). Test gjenoppretting. Fastsett hvor lenge kopiene lagres. |
+| R7 | Data kan ikke gjenopprettes etter feil eller sletting | Kode som sletter eller overskriver for mye, en import som går galt, eller en angriper med tilgang. | 1 | 3 | **3 middels** | Fire lag ([sikkerhetskopi](../drift/sikkerhetskopi.md)): slettede timer kan gjenopprettes i appen, PITR i 7 dager, daglig (14 dager) og ukentlig (14 uker) backup, månedlig arkiv (13 måneder). Slettebeskyttelse på databasen. Ukentlig kontroll og månedlig gjenopprettingstest i GitHub. **[bekreft]** at siste kjøring av «Sikkerhetskopi (Firestore)» er grønn. | Backup av filer i Storage. Kopi i et eget prosjekt med egne innlogginger. |
 | R8 | Et dokument blir for stort (1 MiB) og kan ikke lagres | Fellesdokumentene vokser, logoen ligger som base64 i `families/{id}`. | 2 | 2 | **4 middels** | Varsel over 700 kB, tydelig feil, endringen ligger i kø. | Dele opp dokumentene. Logo til Storage (DS-17). |
 | R9 | En feil går rett i produksjon | Push til `main` deployer Hosting og funksjoner uten testmiljø. | 2 | 2 | **4 middels** | `verify:web` før bygg, regeltester ved pull request. | Testprosjekt for regler og funksjoner. Rask tilbakerulling (Hosting-historikk) dokumentert. |
 | R10 | Planlagte slettejobber kjører ikke | Scheduler og triggere feiler på deploy-kontoen (DS-16). | 3 | 2 | **6 høy** | Noe sletting kjører i appen (brukslogg ved innlogging, HR når HR åpnes). | Rull ut jobbene og kontroller at de kjører. Overvåk siste kjøring. |
@@ -66,7 +66,7 @@
 | Prioritet | Tiltak | Hendelser | Hvem |
 |---|---|---|---|
 | 1 | Tofaktor for eier, administrator og HR | R1 | Utvikling |
-| 2 | Sikkerhetskopi og PITR, test av gjenoppretting | R6, R7 | Drift/eier |
+| 2 | Sikkerhetskopi og PITR, test av gjenoppretting (Firestore på plass, se [sikkerhetskopi](../drift/sikkerhetskopi.md); Storage gjenstår) | R6, R7 | Drift/eier |
 | 3 | Rutine for brudd og varsling | R16 | Eier |
 | 4 | Planlagte jobber og triggere i drift | R3, R10 | Eier (beslutning), drift |
 | 5 | Signerte lenker for filer | R5 | Utvikling |
@@ -79,7 +79,7 @@
 ## 5. Åpne spørsmål til eieren
 
 1. Hvem har tilgang til produksjonsprosjektet i Google Cloud og Firebase-konsollen, og med hvilke roller?
-2. Finnes sikkerhetskopi eller PITR for Firestore og Storage? Hvor lenge lagres kopiene?
+2. Firestore: se [sikkerhetskopi](../drift/sikkerhetskopi.md). Storage (filer) har ennå ingen egen backup. Skal arkivlåsen gjøres permanent?
 3. Finnes en rutine for brudd på personopplysningssikkerheten og varsling av kunder?
 4. Er budsjettvarsel og overvåking (feilrate, kostnad) satt opp i Google Cloud?
 5. Skal App Check slås på for web og app?

@@ -1,0 +1,63 @@
+name: Sikkerhetskopi (Firestore)
+
+# Backup av databasen i protop-c189c. Se docs/drift/sikkerhetskopi.md.
+#   Manuelt: velg handling (status, oppsett, arkiv, test).
+#   Planlagt: hver mandag status (blir rød hvis backup mangler eller er for gammel),
+#             den 1. i måneden full eksport til arkivbøtta,
+#             den 15. i måneden gjenopprettingstest mot en egen testdatabase.
+# En rød kjøring gir e-post fra GitHub til den som eier repoet.
+on:
+  workflow_dispatch:
+    inputs:
+      handling:
+        description: 'Hva skal gjøres'
+        required: true
+        default: status
+        type: choice
+        options:
+          - status
+          - oppsett
+          - arkiv
+          - test
+  schedule:
+    - cron: '23 5 * * 1'
+    - cron: '41 2 1 * *'
+    - cron: '41 3 15 * *'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: firestore-backup-protop-c189c
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Velg handling
+        id: mode
+        run: |
+          case "${{ github.event.schedule }}" in
+            '41 2 1 * *') mode=arkiv ;;
+            '41 3 15 * *') mode=test ;;
+            '23 5 * * 1') mode=status ;;
+            *) mode="${{ inputs.handling || 'status' }}" ;;
+          esac
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/330510386923/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-hosting-deploy@protop-c189c.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Kjør
+        run: |
+          set -o pipefail
+          bash scripts/firestore-backup.sh "${{ steps.mode.outputs.mode }}" | tee -a "$GITHUB_STEP_SUMMARY"

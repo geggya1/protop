@@ -16,6 +16,8 @@ export const FILES = [
   'scripts/hosting-stamp.test.mjs',
   'scripts/stage-function-src.test.mjs',
   'scripts/open-callable-invoker.test.mjs',
+  // Sikkerhetskopi av Firestore (skriptet bak workflowen «Sikkerhetskopi»).
+  'scripts/firestore-backup.test.mjs',
   'functions/importPages.test.mjs',
   'functions/uploadStorage.test.mjs',
   'functions/mailApiKey.test.mjs',
@@ -112,6 +114,7 @@ export const FILES = [
   'src/arbeid/workingTimeRules.test.mjs',
   'src/arbeid/workingTimeRender.test.mjs',
   'src/arbeid/timeEntryHistory.test.mjs',
+  'src/arbeid/timeEntryRestore.test.mjs',
   'src/arbeid/absenceImport.test.mjs',
   'src/arbeid/absenceReport.test.mjs',
   'src/arbeid/absenceWidgetNav.test.mjs',

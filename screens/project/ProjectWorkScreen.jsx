@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import IntercompanyTag from '../../components/intercompany/IntercompanyTag';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
@@ -2063,6 +2064,12 @@ export default function ProjectWorkScreen() {
                             style={[styles.cell, colWidth(col, isPhone)]}
                           >
                             <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={2}>{item.name}</Text>
+                            {item.intercompany?.role === 'supplier' ? (
+                              <IntercompanyTag colors={colors} label={`Leveranse til ${item.intercompany.ownerCompanyName || 'tilknyttet selskap'}`} />
+                            ) : null}
+                            {item.intercompany?.role === 'owner' && item.intercompany.suppliers?.length ? (
+                              <IntercompanyTag colors={colors} label={`Med ${item.intercompany.suppliers.map((row) => row.companyName).filter(Boolean).join(', ')}`} />
+                            ) : null}
                             {isPhone ? (
                               <Text style={{ color: missing ? danger : colors.muted, fontSize: 12 }}>
                                 {agreementLabel(item)}

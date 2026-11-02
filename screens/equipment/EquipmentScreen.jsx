@@ -544,6 +544,14 @@ export default function EquipmentScreen() {
           {row.group === 'kjoretoy' && feeClassLabel(feeClassFromSignals(row)) ? ` · ${feeClassLabel(feeClassFromSignals(row))}` : ''}
           {row.scope !== 'private' ? ` · ${EQUIPMENT_STATUSES.find((status) => status.id === row.status)?.label || row.status}` : ''}
         </Text>
+        {row.rental?.enabled && Number(row.rental.price) > 0 ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: colors.brandSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+            <Ionicons name="pricetag-outline" size={11} color={colors.brandInk} />
+            <Text style={{ color: colors.brandInk, fontSize: 11, fontWeight: '500' }}>
+              {`Utleie ${Number(row.rental.price).toLocaleString('nb-NO')} kr per ${RENTAL_UNITS.find((u) => u.id === row.rental.unit)?.label || 'dag'}`}
+            </Text>
+          </View>
+        ) : null}
         {row.warrantyUntil ? (
           <Text style={{ color: colors.ink, fontSize: 12 }}>
             Garanti til {dateText(row.warrantyUntil)}{row.warrantyVendor ? ` · ${row.warrantyVendor}` : ''}

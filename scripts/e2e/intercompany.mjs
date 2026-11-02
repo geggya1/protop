@@ -343,7 +343,21 @@ await step('Datter: Til fakturering viser kopien med Mor som kunde', async () =>
 await step('Datter: utstyr med utleiepris', async () => {
   await open(datter.page, 'utstyr');
   await seeText(datter.page, 'Saksheis 12 m', 60000);
-  return shot(datter.page, 'datter-utstyr');
+  await seeText(datter.page, 'Utleie 950 kr per dag', 30000);
+  await shot(datter.page, 'datter-utstyr');
+  await clickText(datter.page, 'Rediger', { exact: true });
+  await seeText(datter.page, 'Utleie på prosjekt: på', 30000);
+  await datter.page.locator('#equipment-rental').first().scrollIntoViewIfNeeded().catch(() => {});
+  return shot(datter.page, 'datter-utstyr-utleie');
+});
+
+await step('Mor og Datter: prosjektlisten merker felles prosjekter', async () => {
+  await open(datter.page, 'projects');
+  await seeText(datter.page, 'Leveranse til Mor Bygg AS', 60000);
+  await shot(datter.page, 'datter-prosjektliste');
+  await open(mor.page, 'projects');
+  await seeText(mor.page, 'Med Datter Elektro AS', 60000);
+  return shot(mor.page, 'mor-prosjektliste');
 });
 
 await mor.browser.close();

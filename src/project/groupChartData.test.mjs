@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { clearGroupChartCache, loadEntityFigures, loadGroupSources, mapPool } from './groupChartData.js';
+import { entitySnapshot } from './groupChart.js';
 
 clearGroupChartCache();
 
@@ -114,6 +115,28 @@ try {
   const browserChild = await loadEntityFigures('826514302', { fetchImpl: childFetch });
   assert.equal(browserChild.accountPayload[0].regnskapstype, 'SELSKAP');
   assert.equal(childCalls.some((url) => url.includes('regnskapsregisteret')), false);
+
+  // Registeret er nede: proxyen sender accounts: null, og lagret historikk tar over.
+  clearGroupChartCache();
+  const downFetch = async (url, init = {}) => {
+    if (String(url).includes('/api/tender-proxy')) {
+      const body = JSON.parse(init.body);
+      const payload = body.action === 'account-history'
+        ? { ok: true, years: [
+          { aar: 2023, fra: '2023-01-01', til: '2023-12-31', driftsinntekter: 100, aarsresultat: 10 },
+          { aar: 2024, fra: '2024-01-01', til: '2024-12-31', driftsinntekter: 150, aarsresultat: 20 },
+        ] }
+        : { ok: true, accounts: null };
+      return { ok: true, status: 200, json: async () => payload };
+    }
+    return fetchImpl(url, init);
+  };
+  const down = await loadEntityFigures('826514302', { fetchImpl: downFetch });
+  const snap = entitySnapshot(down.accountPayload, null);
+  assert.equal(snap.year, 2024);
+  assert.equal(snap.revenue, 150);
+  assert.equal(snap.result, 20);
+  assert.equal(snap.prevRevenue, 100);
 } finally {
   if (previousWindow === undefined) delete globalThis.window;
   else globalThis.window = previousWindow;

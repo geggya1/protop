@@ -58,15 +58,52 @@ async function fetchAccounts(orgnr, fetchImpl, signal) {
   if (typeof window === 'undefined') {
     return fetchJson(`${ACCOUNTS}/${orgnr}`, fetchImpl, signal);
   }
-  const body = { action: 'register', orgnr };
+  const accounts = await viaProxy({ action: 'register', orgnr }, 'accounts', fetchImpl, signal).catch((err) => {
+    if (err?.name === 'AbortError') throw err;
+    return null;
+  });
+  if (Array.isArray(accounts) ? accounts.length : accounts) return accounts;
+  // Regnskapsregisteret er nede i perioder. Da gjør proxyen feilen om til null,
+  // og den lagrede regnskapshistorikken er det beste vi har.
+  const years = await viaProxy({ action: 'account-history', orgnr }, 'years', fetchImpl, signal).catch((err) => {
+    if (err?.name === 'AbortError') throw err;
+    return null;
+  });
+  const rows = statementsFromHistory(years);
+  return rows.length ? rows : accounts;
+}
+
+async function viaProxy(body, field, fetchImpl, signal) {
   try {
     const data = await postJson('/api/tender-proxy', body, fetchImpl, signal);
-    if (data && Object.prototype.hasOwnProperty.call(data, 'accounts')) return data.accounts;
+    if (data && Object.prototype.hasOwnProperty.call(data, field)) return data[field];
   } catch (err) {
     if (err?.name === 'AbortError') throw err;
   }
   const data = await postJson(accountHistoryEndpoint(), body, fetchImpl, signal);
-  return data?.accounts ?? null;
+  return data?.[field] ?? null;
+}
+
+/** Gjør lagrede årstall om til samme form som Regnskapsregisteret sender. */
+export function statementsFromHistory(years) {
+  if (!Array.isArray(years)) return [];
+  return years
+    .filter((row) => Number.isFinite(Number(row?.aar)))
+    .sort((a, b) => Number(b.aar) - Number(a.aar))
+    .map((row) => ({
+      regnskapstype: 'SELSKAP',
+      regnskapsperiode: {
+        fraDato: row.fra || `${row.aar}-01-01`,
+        tilDato: row.til || `${row.aar}-12-31`,
+      },
+      resultatregnskapResultat: {
+        aarsresultat: row.aarsresultat ?? null,
+        driftsresultat: {
+          driftsresultat: row.driftsresultat ?? null,
+          driftsinntekter: { sumDriftsinntekter: row.driftsinntekter ?? null },
+        },
+      },
+    }));
 }
 
 function sharesOf(payload) {
@@ -127,7 +164,8 @@ export async function loadGroupSources(orgnr, { fetchImpl = fetch, signal } = {}
     sharesByYear: sharesOf(company.value),
     warnings,
   };
-  if (!signal?.aborted) cache.set(key, data);
+  // Uten regnskap kan registeret ha vært nede. Prøv igjen neste gang i stedet for å huske tomt svar.
+  if (!signal?.aborted && data.accountPayload) cache.set(key, data);
   return data;
 }
 
@@ -146,6 +184,6 @@ export async function loadEntityFigures(orgnr, { fetchImpl = fetch, signal } = {
     entity: entity.value || null,
     accountPayload: accountPayload.value || null,
   };
-  if (!signal?.aborted) cache.set(key, data);
+  if (!signal?.aborted && data.accountPayload) cache.set(key, data);
   return data;
 }

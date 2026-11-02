@@ -4,13 +4,13 @@
  *   npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop \
  *     "node --test --test-concurrency=1 tests/rules/hrSurvey.rules.test.mjs"
  *
- * own = eier, hr = HR-ansvarlig (skriv), bob og eve = ansatte, ext = bruker i et annet selskap.
+ * own = eier, hr = HR-ansvarlig (skriv), rek = bare Rekruttering, bob og eve = ansatte, ext = bruker i et annet selskap.
  */
 import { after, before, beforeEach, describe, test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import {
-  Timestamp, collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch,
+  Timestamp, collection, deleteDoc, doc, getDoc, getDocs, increment, query, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 
 const A = 'companyA';
@@ -21,6 +21,7 @@ const hrSurface = (rank) => ({
 const ansatt = { employees: 'see', absence: 'read', hours: 'read', iso: 'see' };
 const ACL = {
   hr: { levelId: 'ansatt', employeeId: 'emp_hr', grants: { ...ansatt, ...hrSurface('write') } },
+  rek: { levelId: 'ansatt', employeeId: 'emp_rek', grants: { ...ansatt, hr: 'read', hrRecruitment: 'write' } },
   bob: { levelId: 'ansatt', employeeId: 'emp_bob', grants: ansatt },
   eve: { levelId: 'ansatt', employeeId: 'emp_eve', grants: ansatt },
 };
@@ -33,7 +34,7 @@ async function seed() {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    const members = ['own', 'hr', 'bob', 'eve'];
+    const members = ['own', 'hr', 'rek', 'bob', 'eve'];
     await setDoc(doc(db, 'families', A), {
       name: 'Bygg AS', type: 'company', ownerUid: 'own', adminUids: ['own'], members, activeUsers: members,
       company: { navn: 'Bygg AS', accessPolicy: { v: 1 } },
@@ -52,14 +53,17 @@ async function seed() {
     }
     await setDoc(doc(db, 'families', 'companyB'), { name: 'Annet AS', type: 'company', ownerUid: 'ext', members: ['ext'] });
     await setDoc(doc(db, 'families', A, 'hrSurveys', 'mu1'), survey('open'));
+    await setDoc(doc(db, 'families', A, 'hrSurveyStats', 'mu1'), { count: 0 });
+    await setDoc(doc(db, 'families', A, 'hrSurveys', 'mu_draft'), { ...survey('draft'), id: 'mu_draft' });
     await setDoc(doc(db, 'families', A, 'hrSurveys', 'mu_closed'), { ...survey('closed'), id: 'mu_closed' });
+    await setDoc(doc(db, 'families', A, 'hrSurveyResults', 'mu_closed'), { count: 6, ready: true, answers: [] });
   });
 }
 
-function answerBatch(db, uid, surveyId = 'mu1', answer = {}) {
+function answer(db, uid, surveyId = 'mu1', extra = {}, { count = true } = {}) {
   const batch = writeBatch(db);
-  batch.set(doc(db, 'families', A, 'hrSurveyReceipts', `${surveyId}_${uid}`), { surveyId, uid });
-  batch.set(doc(collection(db, 'families', A, 'hrSurveyAnswers')), { surveyId, answers: { trivsel: 4 }, comment: '', ...answer });
+  batch.set(doc(db, 'families', A, 'hrSurveyAnswers', `${surveyId}_${uid}`), { surveyId, answers: { trivsel: 4 }, comment: '', ...extra });
+  if (count) batch.update(doc(db, 'families', A, 'hrSurveyStats', surveyId), { count: increment(1) });
   return batch.commit();
 }
 
@@ -73,45 +77,73 @@ after(async () => { await env?.cleanup(); });
 beforeEach(seed);
 
 describe('Medarbeiderundersøkelse', () => {
-  test('alle i bedriften leser undersøkelsen, bare HR lager og endrer den', async () => {
+  test('alle leser undersøkelsen; bare HR → Oppfølging lager den, og bare som utkast', async () => {
     await assertSucceeds(getDoc(doc(as('bob'), 'families', A, 'hrSurveys', 'mu1')));
     await assertSucceeds(getDocs(query(collection(as('bob'), 'families', A, 'hrSurveys'), where('status', '==', 'open'))));
     await assertFails(getDoc(doc(as('ext'), 'families', A, 'hrSurveys', 'mu1')));
     await assertFails(setDoc(doc(as('bob'), 'families', A, 'hrSurveys', 'mu2'), survey('draft')));
+    await assertFails(setDoc(doc(as('rek'), 'families', A, 'hrSurveys', 'mu2'), survey('draft')), 'Rekruttering er ikke Oppfølging');
     await assertSucceeds(setDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu2'), survey('draft')));
-    await assertSucceeds(updateDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu1'), { status: 'closed' }));
+    await assertFails(setDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu3'), survey('open')), 'ny må være utkast');
   });
 
-  test('en avsluttet undersøkelse kan ikke åpnes igjen', async () => {
+  test('utkast kan åpnes; åpen kan ikke tilbake til utkast, få nye spørsmål eller avsluttes av appen', async () => {
+    await assertSucceeds(updateDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu_draft'), { status: 'open' }));
+    await assertFails(updateDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu1'), { status: 'draft' }));
+    await assertFails(updateDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu1'), { status: 'closed' }));
+    await assertFails(updateDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu1'), { questions: [{ id: 'x', text: 'Nytt' }] }));
+    await assertSucceeds(updateDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu1'), { title: 'Ny tittel' }));
+  });
+
+  test('en avsluttet undersøkelse kan ikke endres, slettes eller lages på nytt som åpen', async () => {
     await assertFails(updateDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu_closed'), { status: 'open' }));
-    await assertSucceeds(updateDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu_closed'), { title: 'Ny tittel' }));
+    await assertFails(updateDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu_closed'), { title: 'Ny' }));
+    await assertFails(deleteDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu_closed')));
+    await assertFails(deleteDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu1')), 'åpen kan ikke slettes');
+    await assertSucceeds(deleteDoc(doc(as('hr'), 'families', A, 'hrSurveys', 'mu_draft')));
   });
 
-  test('den ansatte svarer én gang, med kvittering, og ser ikke svarene', async () => {
-    await assertSucceeds(answerBatch(as('bob'), 'bob'));
-    await assertFails(answerBatch(as('bob'), 'bob'));
-    await assertSucceeds(getDoc(doc(as('bob'), 'families', A, 'hrSurveyReceipts', 'mu1_bob')));
-    await assertFails(getDocs(collection(as('bob'), 'families', A, 'hrSurveyAnswers')));
-    await assertFails(getDoc(doc(as('eve'), 'families', A, 'hrSurveyReceipts', 'mu1_bob')));
+  test('den ansatte svarer én gang, og telleren øker', async () => {
+    await assertSucceeds(answer(as('bob'), 'bob'));
+    await assertFails(answer(as('bob'), 'bob'), 'andre svar');
+    await assertFails(answer(as('bob'), 'bob', 'mu1', {}, { count: false }), 'heller ikke uten teller');
+    await assertSucceeds(getDoc(doc(as('bob'), 'families', A, 'hrSurveyAnswers', 'mu1_bob')));
+    await assertSucceeds(answer(as('eve'), 'eve'));
+    const stats = await assertSucceeds(getDoc(doc(as('hr'), 'families', A, 'hrSurveyStats', 'mu1')));
+    if (stats.data().count !== 2) throw new Error(`teller ${stats.data().count}`);
   });
 
-  test('svar uten kvittering, med bruker-id eller til en lukket undersøkelse avvises', async () => {
-    await assertFails(setDoc(doc(collection(as('bob'), 'families', A, 'hrSurveyAnswers')), { surveyId: 'mu1', answers: { trivsel: 4 }, comment: '' }));
-    await assertFails(answerBatch(as('bob'), 'bob', 'mu1', { uid: 'bob' }));
-    await assertFails(answerBatch(as('bob'), 'bob', 'mu_closed'));
-    // Kvittering i en annens navn.
+  test('ingen leser andres svar: ikke HR, ikke kolleger, ikke liste', async () => {
+    await answer(as('bob'), 'bob');
+    await assertFails(getDoc(doc(as('hr'), 'families', A, 'hrSurveyAnswers', 'mu1_bob')));
+    await assertFails(getDoc(doc(as('own'), 'families', A, 'hrSurveyAnswers', 'mu1_bob')));
+    await assertFails(getDoc(doc(as('eve'), 'families', A, 'hrSurveyAnswers', 'mu1_bob')));
+    await assertFails(getDocs(collection(as('hr'), 'families', A, 'hrSurveyAnswers')));
+    await assertFails(getDocs(query(collection(as('hr'), 'families', A, 'hrSurveyAnswers'), where('surveyId', '==', 'mu1'))));
+  });
+
+  test('svar i en annens navn, med ekstra felt, til lukket undersøkelse eller fra utenforstående avvises', async () => {
     const db = as('bob');
-    const batch = writeBatch(db);
-    batch.set(doc(db, 'families', A, 'hrSurveyReceipts', 'mu1_eve'), { surveyId: 'mu1', uid: 'eve' });
-    batch.set(doc(collection(db, 'families', A, 'hrSurveyAnswers')), { surveyId: 'mu1', answers: { trivsel: 1 }, comment: '' });
-    await assertFails(batch.commit());
-    await assertFails(answerBatch(as('ext'), 'ext'));
+    await assertFails(setDoc(doc(db, 'families', A, 'hrSurveyAnswers', 'mu1_eve'), { surveyId: 'mu1', answers: { trivsel: 1 }, comment: '' }));
+    await assertFails(answer(as('bob'), 'bob', 'mu1', { uid: 'bob' }));
+    await assertFails(answer(as('bob'), 'bob', 'mu_closed', {}, { count: false }));
+    await assertFails(answer(as('bob'), 'bob', 'mu_draft', {}, { count: false }));
+    await assertFails(answer(as('ext'), 'ext'));
   });
 
-  test('HR leser svar og kvitteringer, men kan ikke endre et svar', async () => {
-    await answerBatch(as('bob'), 'bob');
-    const snap = await assertSucceeds(getDocs(query(collection(as('hr'), 'families', A, 'hrSurveyAnswers'), where('surveyId', '==', 'mu1'))));
-    await assertSucceeds(getDocs(query(collection(as('hr'), 'families', A, 'hrSurveyReceipts'), where('surveyId', '==', 'mu1'))));
-    await assertFails(updateDoc(doc(as('hr'), 'families', A, 'hrSurveyAnswers', snap.docs[0].id), { answers: { trivsel: 1 } }));
+  test('telleren kan ikke økes uten et nytt eget svar, og ikke settes fritt', async () => {
+    await assertFails(updateDoc(doc(as('bob'), 'families', A, 'hrSurveyStats', 'mu1'), { count: increment(1) }));
+    await assertFails(updateDoc(doc(as('hr'), 'families', A, 'hrSurveyStats', 'mu1'), { count: 40 }));
+    await answer(as('bob'), 'bob');
+    await assertFails(updateDoc(doc(as('bob'), 'families', A, 'hrSurveyStats', 'mu1'), { count: increment(1) }));
+    await assertFails(getDoc(doc(as('bob'), 'families', A, 'hrSurveyStats', 'mu1')), 'bare HR ser telleren');
+  });
+
+  test('resultatet leses bare av HR → Oppfølging, og skrives bare av serveren', async () => {
+    await assertSucceeds(getDoc(doc(as('hr'), 'families', A, 'hrSurveyResults', 'mu_closed')));
+    await assertFails(getDoc(doc(as('rek'), 'families', A, 'hrSurveyResults', 'mu_closed')));
+    await assertFails(getDoc(doc(as('bob'), 'families', A, 'hrSurveyResults', 'mu_closed')));
+    await assertFails(setDoc(doc(as('hr'), 'families', A, 'hrSurveyResults', 'mu1'), { count: 9, ready: true, answers: [] }));
+    await assertFails(getDoc(doc(as('rek'), 'families', A, 'hrSurveyStats', 'mu1')));
   });
 });

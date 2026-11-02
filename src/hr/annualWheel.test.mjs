@@ -72,8 +72,8 @@ assert.equal(activityApplies(amu, null), true);
   const plan = annualTaskPlan(on, { today, staffCount: 12, uid: 'hr' });
   assert.deepEqual(plan.map((t) => t.activityId).sort(), ['ferie_fastsett', 'medarbeidersamtaler']);
   const task = plan.find((t) => t.activityId === 'ferie_fastsett');
-  assert.equal(task.id, annualTaskId('ferie_fastsett', 2026, 2));
-  assert.equal(task.id, 'hrahj_ferie_fastsett_2026_03');
+  assert.equal(task.id, annualTaskId('ferie_fastsett', 2026));
+  assert.equal(task.id, 'hrahj_ferie_fastsett_2026');
   assert.equal(task.deadline, '2026-03-31');
   assert.equal(task.assignedTo, 'hr');
   assert.equal(task.source, HR_ANNUAL_SOURCE);
@@ -81,9 +81,14 @@ assert.equal(activityApplies(amu, null), true);
   assert.equal(annualTaskPlan(on, { today, existingIds: plan.map((t) => t.id) }).length, 0);
   const done = toggleAnnualDone(on, 2026, 'ferie_fastsett');
   assert.deepEqual(annualTaskPlan(done, { today }).map((t) => t.activityId), ['medarbeidersamtaler']);
-  // Én oppgave per periode: frist ved periodens slutt, og ingen ny oppgave i april.
+  // Én oppgave per periode: frist ved periodens slutt, og ingen ny oppgave i april når den finnes.
   assert.equal(plan.find((t) => t.activityId === 'medarbeidersamtaler').deadline, '2026-04-30');
-  assert.equal(annualTaskPlan(on, { today: new Date(2026, 3, 2) }).some((t) => t.activityId === 'medarbeidersamtaler'), false);
+  const april = new Date(2026, 3, 2);
+  assert.equal(annualTaskPlan(on, { today: april, existingIds: plan.map((t) => t.id) }).some((t) => t.activityId === 'medarbeidersamtaler'), false);
+  // Slått på i april (eller ingen åpnet HR i mars): oppgaven lages likevel, med samme id.
+  assert.equal(annualTaskPlan(on, { today: april }).find((t) => t.activityId === 'medarbeidersamtaler').id, 'hrahj_medarbeidersamtaler_2026');
+  // En oppgave med den gamle id-en (per måned) teller som laget.
+  assert.equal(annualTaskPlan(on, { today: april, existingIds: ['hrahj_medarbeidersamtaler_2026_03'] }).some((t) => t.activityId === 'medarbeidersamtaler'), false);
 }
 
 // Fremdrift for medarbeidersamtaler.

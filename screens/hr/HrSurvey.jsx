@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import {
-  SURVEY_MIN_ANSWERS, newSurvey, participation, previousSurvey, surveyAnalysis, surveyResults, surveyTransition,
+  SURVEY_MIN_ANSWERS, newSurvey, participation, previousSurvey, surveyAnalysis, surveyResults,
 } from '../../src/hr/survey';
-import { countSurveyReceipts, loadSurveyAnswers, loadSurveys, saveSurvey } from '../../src/hr/surveyStore';
+import {
+  closeSurvey, countSurveyAnswers, loadSurveyResult, loadSurveys, openSurvey, saveSurvey,
+} from '../../src/hr/surveyStore';
 import { formatNbDate } from '../../src/hr/model';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { chartColorsFor } from '../../src/ui/chartColors';
@@ -26,10 +28,15 @@ function SurveyItem({
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(!!startOpen);
 
+  const [pending, setPending] = useState(false);
+  // Lastes på nytt bare når undersøkelsen (eller den forrige) faktisk er en annen, ikke ved hver tegning.
+  const key = `${survey.id}:${survey.status}`;
+  const prevId = previous?.id || '';
   useEffect(() => {
     let live = true;
     setCount(null);
     setResults(null);
+    setPending(false);
     if (survey.status === 'draft') {
       setCount(0);
       return undefined;
@@ -37,17 +44,23 @@ function SurveyItem({
     (async () => {
       try {
         if (survey.status === 'closed') {
-          const [answers, prevAnswers] = await Promise.all([
-            loadSurveyAnswers(familyId, survey.id),
-            previous ? loadSurveyAnswers(familyId, previous.id).catch(() => []) : Promise.resolve([]),
+          // Serverens resultat: svarene i tilfeldig rekkefølge, uten id og tidspunkt.
+          const [result, prevResult] = await Promise.all([
+            loadSurveyResult(familyId, survey.id),
+            prevId ? loadSurveyResult(familyId, prevId).catch(() => null) : Promise.resolve(null),
           ]);
           if (!live) return;
-          const r = surveyResults(survey, answers);
-          setCount(r.count);
-          setResults(r);
-          setPrevResults(previous ? surveyResults(previous, prevAnswers) : null);
+          if (!result) {
+            setPending(true);
+            setCount(0);
+            return;
+          }
+          const r = surveyResults(survey, result.answers);
+          setCount(result.count);
+          setResults({ ...r, count: result.count });
+          setPrevResults(previous && prevResult ? surveyResults(previous, prevResult.answers) : null);
         } else {
-          const n = await countSurveyReceipts(familyId, survey.id);
+          const n = await countSurveyAnswers(familyId, survey.id);
           if (live) setCount(n);
         }
       } catch {
@@ -55,17 +68,23 @@ function SurveyItem({
       }
     })();
     return () => { live = false; };
-  }, [familyId, survey, previous]);
+    // previous og survey følger key og prevId.
+  }, [familyId, key, prevId]);
 
   const move = async (to) => {
     if (busy) return;
     setBusy(true);
     try {
-      await saveSurvey(familyId, surveyTransition(survey, to));
-      showSaveToast?.(to === 'open' ? 'Undersøkelsen er åpnet. De ansatte svarer på Min side.' : 'Undersøkelsen er avsluttet.');
+      if (to === 'open') {
+        await openSurvey(familyId, survey);
+        showSaveToast?.('Undersøkelsen er åpnet. De ansatte svarer på Min side.');
+      } else {
+        const res = await closeSurvey(familyId, survey.id);
+        showSaveToast?.(res?.ready ? 'Undersøkelsen er avsluttet.' : `Undersøkelsen er avsluttet. ${res?.count ?? 0} svarte, for få til å vise resultat.`);
+      }
       onChanged?.();
     } catch {
-      showSaveToast?.('Kunne ikke lagre undersøkelsen');
+      showSaveToast?.(to === 'open' ? 'Kunne ikke åpne undersøkelsen' : 'Kunne ikke avslutte undersøkelsen');
     } finally {
       setBusy(false);
     }
@@ -111,8 +130,14 @@ function SurveyItem({
       {survey.status === 'draft' ? (
         <Text style={[styles.meta, { color: colors.muted }]}>Spørsmålene kan ikke endres etter at undersøkelsen er åpnet.</Text>
       ) : null}
+      {survey.status === 'closed' && pending ? (
+        <EmptyHint colors={colors} text="Resultatet behandles. Last siden på nytt om litt." />
+      ) : null}
       {survey.status === 'closed' && results && !results.ready ? (
-        <EmptyHint colors={colors} text={`Bare ${results.count} svarte. Med færre enn ${SURVEY_MIN_ANSWERS} vises ingen resultater, så ingen kan kjennes igjen.`} />
+        <EmptyHint colors={colors} text={results.count < SURVEY_MIN_ANSWERS
+          ? `Bare ${results.count} svarte. Med færre enn ${SURVEY_MIN_ANSWERS} vises ingen resultater, så ingen kan kjennes igjen.`
+          : `For få svar per spørsmål (under ${SURVEY_MIN_ANSWERS}) til å vise resultater.`}
+        />
       ) : null}
       {analysis && !open ? (
         <View style={styles.summaryRow}>
@@ -167,6 +192,11 @@ export default function HrSurvey({
   };
 
   const hasActive = (surveys || []).some((s) => s.status !== 'closed');
+  // Samme objekt mellom tegninger, så resultatene ikke lastes på nytt.
+  const previousById = useMemo(
+    () => new Map((surveys || []).map((s) => [s.id, s.status === 'closed' ? previousSurvey(surveys, s) : null])),
+    [surveys],
+  );
   return (
     <HrCard colors={colors}>
       <View nativeID="hr-survey" style={styles.stack}>
@@ -188,7 +218,7 @@ export default function HrSurvey({
             key={s.id}
             colors={colors}
             survey={s}
-            previous={s.status === 'closed' ? previousSurvey(surveys, s) : null}
+            previous={previousById.get(s.id) || null}
             familyId={familyId}
             invited={invited}
             canWrite={canWrite}

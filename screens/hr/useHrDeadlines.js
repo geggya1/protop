@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadAbsences } from '../../src/arbeid/absenceStorage';
-import { addDays, sickFollowUpRows, sickTaskPlan } from '../../src/hr/sickLeave';
+import { addDays, newSickSalt, sickFollowUpRows, sickTaskPlan } from '../../src/hr/sickLeave';
 import { annualTaskPlan } from '../../src/hr/annualWheel';
 import { splitHrPeople } from '../../src/hr/dashboard';
 import { filterHrEmployees, localIsoDate } from '../../src/hr/model';
@@ -11,11 +11,14 @@ import { notifyUsers } from '../../src/utils/notifications';
 
 // Én automatisk gjennomgang per selskap og økt, så oppgaver ikke lages hver gang HR åpnes.
 const HANDLED = new Set();
-const SETTLE_MS = 3500;
-/** Dialogmøte 2 er etter 26 uker, så fraværet hentes et år tilbake. */
-const LOOKBACK_DAYS = 380;
+const SETTLE_MS = 1500;
+/**
+ * Dialogmøte 2 er etter 26 uker, og sykepenger varer høyst et år. Halvannet år tilbake dekker
+ * nesten alle tilfeller; et tilfelle som startet før det, merkes og får ingen oppgaver.
+ */
+const LOOKBACK_DAYS = 550;
 
-/** Er oppgavene sjekket for selskapet i denne økten? Da trengs fraværet bare på Årshjul-siden. */
+/** Er oppgavene sjekket for selskapet i denne økten? Da trengs fraværet bare på Sykefravær-siden. */
 export function hrDeadlinesHandled(familyId) {
   return HANDLED.has(familyId);
 }
@@ -27,93 +30,121 @@ export function activeStaff(employees) {
 
 /**
  * Frister ved sykefravær og oppgaver fra HR-årshjulet.
- * Fraværet hentes når HR er åpnet med lesetilgang. Oppgaver lages og lukkes av den som åpner HR
- * med skrivetilgang, én gang per økt, og tildeles den personen.
+ *  - Fraværet hentes når personen kan se Oppfølging (enabled).
+ *  - Oppgaver lages og lukkes én gang per økt av den som åpner HR, og tildeles den personen:
+ *    sykefravær med skrivetilgang til Oppfølging (canWriteSick), årshjulet med skrivetilgang til
+ *    HR (canWriteAnnual).
+ *  - Bare når HR er lest fra skyen og ansattlisten er lastet (stateOk). Fra en lokal kopi kunne
+ *    det blitt oppgaver for frister som allerede er markert.
+ *  - ensureSalt lagrer nøkkelen til oppgave-id-ene (hr.settings.sickSalt) første gang.
  */
-export function useHrDeadlines({ familyId, employees, hr, enabled, canWrite, actor }) {
+export function useHrDeadlines({
+  familyId, employees, hr, enabled, canWriteSick, canWriteAnnual, stateOk, actor, ensureSalt,
+}) {
   const [absences, setAbsences] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const today = localIsoDate();
+  const windowStart = addDays(today, -LOOKBACK_DAYS);
 
   useEffect(() => {
     let live = true;
     setAbsences(null);
+    setLoadFailed(false);
     if (!familyId || !enabled) return undefined;
-    loadAbsences(familyId, { fromDate: addDays(today, -LOOKBACK_DAYS), toDate: addDays(today, 200) })
+    loadAbsences(familyId, { fromDate: windowStart, toDate: addDays(today, 200) })
       .then((rows) => { if (live) setAbsences(Array.isArray(rows) ? rows : []); })
-      .catch(() => { if (live) setAbsences([]); });
+      .catch(() => { if (live) setLoadFailed(true); });
     return () => { live = false; };
-  }, [familyId, enabled, today]);
+  }, [familyId, enabled, today, windowStart]);
 
   const staff = useMemo(() => activeStaff(employees), [employees]);
   const sickRows = useMemo(
-    () => sickFollowUpRows(absences || [], hr?.sickFollowUps || [], { today, employees }),
-    [absences, hr?.sickFollowUps, today, employees],
+    () => sickFollowUpRows(absences || [], hr?.sickFollowUps || [], { today, employees, windowStart }),
+    [absences, hr?.sickFollowUps, today, employees, windowStart],
   );
   const allSickRows = useMemo(
-    () => sickFollowUpRows(absences || [], hr?.sickFollowUps || [], { today, employees, all: true }),
-    [absences, hr?.sickFollowUps, today, employees],
+    () => sickFollowUpRows(absences || [], hr?.sickFollowUps || [], { today, employees, all: true, windowStart }),
+    [absences, hr?.sickFollowUps, today, employees, windowStart],
   );
 
   const stateRef = useRef({});
-  stateRef.current = { allSickRows, annual: hr?.annual, staffCount: staff.length };
+  stateRef.current = {
+    allSickRows,
+    sickReady: absences !== null && !loadFailed,
+    annual: hr?.annual,
+    salt: hr?.settings?.sickSalt || '',
+    staffCount: staff.length || null,
+  };
 
-  const run = useCallback(async () => {
-    const who = { uid: actor?.uid || '', name: actor?.name || '' };
-    const { allSickRows: rows, annual, staffCount } = stateRef.current;
-    const [sickTasks, annualTasks] = await Promise.all([loadSickTasks(familyId), loadAnnualTasks(familyId)]);
+  const runSick = useCallback(async (who) => {
+    let { salt } = stateRef.current;
+    const { allSickRows: rows, sickReady } = stateRef.current;
+    // Uten fullstendig lastet fravær lages og lukkes ingenting.
+    if (!sickReady) return;
+    if (!salt) salt = (await ensureSalt?.(newSickSalt())) || '';
+    if (!salt) return;
+    const tasks = await loadSickTasks(familyId);
     // Feilet lesingen, lages ingenting (ellers kunne det blitt doble oppgaver).
-    if (sickTasks) {
-      const plan = sickTaskPlan(rows, sickTasks);
-      for (const { id, milestone } of plan.create) {
-        try {
-          const task = await createSickTask(familyId, id, milestone, who);
-          notifyUsers([who.uid], {
-            eventType: 'taskReceived', title: 'Frist ved sykefravær', body: task.title, familyId, createdBy: who.uid,
-          }).catch(() => {});
-        } catch (err) {
-          console.warn('sick task create failed', err?.message || err);
-        }
-      }
-      for (const task of plan.close) {
-        await closeHrDeadlineTask(familyId, task, 'Lukket: fristen er markert i HR, eller fraværet er over ✅', who);
+    if (!tasks) return;
+    const plan = sickTaskPlan(rows, tasks, { salt });
+    for (const { id, milestone } of plan.create) {
+      try {
+        const task = await createSickTask(familyId, id, milestone, who);
+        notifyUsers([who.uid], {
+          eventType: 'taskReceived', title: 'Frist ved sykefravær', body: task.title, familyId, createdBy: who.uid,
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('sick task create failed', err?.message || err);
       }
     }
-    if (annualTasks) {
-      const tasks = annualTaskPlan(annual, {
-        staffCount, uid: who.uid, existingIds: annualTasks.map((row) => row.id),
-      });
-      for (const task of tasks) {
-        try {
-          await createAnnualTask(familyId, task, who);
-        } catch (err) {
-          console.warn('annual task create failed', err?.message || err);
-        }
-      }
+    for (const task of plan.close) {
+      await closeHrDeadlineTask(familyId, task, 'Lukket: fristen er markert i HR, fraværet er over eller endret ✅', who);
     }
-  }, [familyId, actor?.uid, actor?.name]);
+  }, [familyId, ensureSalt]);
 
+  const runAnnual = useCallback(async (who) => {
+    const { annual, staffCount } = stateRef.current;
+    const tasks = await loadAnnualTasks(familyId);
+    if (!tasks) return;
+    const plan = annualTaskPlan(annual, { staffCount, uid: who.uid, existingIds: tasks.map((row) => row.id) });
+    for (const task of plan) {
+      try {
+        await createAnnualTask(familyId, task, who);
+      } catch (err) {
+        console.warn('annual task create failed', err?.message || err);
+      }
+    }
+  }, [familyId]);
+
+  const run = useCallback(async ({ sick = canWriteSick, annual = canWriteAnnual } = {}) => {
+    const who = { uid: actor?.uid || '', name: actor?.name || '' };
+    if (!who.uid || !familyId) return;
+    if (sick) await runSick(who).catch((err) => console.warn('sick deadlines failed', err?.message || err));
+    if (annual) await runAnnual(who).catch((err) => console.warn('annual tasks failed', err?.message || err));
+  }, [actor?.uid, actor?.name, familyId, canWriteSick, canWriteAnnual, runSick, runAnnual]);
+
+  // Venter til HR og ansatte er lastet, og fraværet er hentet (eller ikke trengs).
+  const sickSettled = !canWriteSick || absences !== null || loadFailed;
   useEffect(() => {
-    if (absences === null || !familyId || HANDLED.has(familyId)) return undefined;
-    // Uten skrivetilgang lages ingen oppgaver, og fraværet trengs bare på Årshjul-siden.
-    if (!canWrite) {
+    if (!stateOk || !sickSettled || !actor?.uid || !familyId || HANDLED.has(familyId)) return undefined;
+    if (!canWriteSick && !canWriteAnnual) {
       HANDLED.add(familyId);
       return undefined;
     }
-    if (!actor?.uid) return undefined;
-    // Vent litt, så ansattlisten og HR er ferdig lastet før noe lages.
     const timer = setTimeout(() => {
       if (HANDLED.has(familyId)) return;
       HANDLED.add(familyId);
-      run().catch((err) => console.warn('hr deadlines failed', err?.message || err));
+      run();
     }, SETTLE_MS);
     return () => clearTimeout(timer);
-  }, [canWrite, absences, actor?.uid, familyId, run]);
+  }, [stateOk, sickSettled, actor?.uid, familyId, canWriteSick, canWriteAnnual, run]);
 
-  // refresh: lag oppgaver nå (når oppgaver fra årshjulet nettopp er slått på).
-  const refresh = useCallback(() => {
-    if (canWrite && actor?.uid && familyId) run().catch(() => {});
-  }, [canWrite, actor?.uid, familyId, run]);
+  // Når HR har markert en frist eller slått på oppgaver: oppdater oppgavene med en gang.
+  const refresh = useCallback(() => { run(); }, [run]);
 
-  const loading = absences === null && !!enabled;
-  return useMemo(() => ({ sickRows, loading, staff, refresh }), [sickRows, loading, staff, refresh]);
+  const loading = absences === null && !loadFailed && !!enabled;
+  return useMemo(
+    () => ({ sickRows, loading, loadFailed, staff, refresh }),
+    [sickRows, loading, loadFailed, staff, refresh],
+  );
 }

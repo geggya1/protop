@@ -384,6 +384,15 @@ service cloud.firestore {
         || grantAtLeast(g, 'hrCompliance', n) || grantAtLeast(g, 'hrRecruitment', n);
     }
 
+    // Medarbeiderundersøkelsen hører til HR → Oppfølging (ikke Rekruttering, Lønn osv.).
+    function surveyReader(familyId) {
+      return isFamilyAdmin(familyId) || grantAtLeast(aclGrants(familyId), 'hrFollowup', 1);
+    }
+
+    function surveyWriter(familyId) {
+      return isFamilyAdmin(familyId) || grantAtLeast(aclGrants(familyId), 'hrFollowup', 2);
+    }
+
     function hrReader(familyId) {
       return isFamilyAdmin(familyId) || hrGrantAtLeast(aclGrants(familyId), 1);
     }
@@ -689,7 +698,8 @@ service cloud.firestore {
         || coll == 'docComments' || coll == 'docControlSettings' || coll == 'docControl' || coll == 'docAcks'
         || coll == 'invoices' || coll == 'invoiceSeries' || coll == 'meetings'
         || coll == 'parents' || coll == 'memberInvites'
-        || coll == 'hr' || coll == 'hrSelf' || coll == 'hrSurveys' || coll == 'hrSurveyAnswers' || coll == 'hrSurveyReceipts'
+        || coll == 'hr' || coll == 'hrSelf' || coll == 'hrSurveys' || coll == 'hrSurveyAnswers' || coll == 'hrSurveyStats'
+        || coll == 'hrSurveyResults'
         || coll == 'absences' || coll == 'childAbsences' || coll == 'employeesPrivate'
         || coll == 'notes' || coll == 'timeEntries' || coll == 'projectExpenses' || coll == 'events'
         || coll == 'timeEntryDeletions' || coll == 'accessLog';
@@ -1236,49 +1246,57 @@ service cloud.firestore {
         allow create, update, delete: if isFamilyMember(familyId) && hrWriter(familyId);
       }
 
-      // Medarbeiderundersøkelse (src/hr/survey.js). Alle i bedriften leser undersøkelsen; HR lager
-      // og endrer den. En avsluttet undersøkelse kan ikke åpnes igjen.
+      // Medarbeiderundersøkelse (src/hr/survey.js). Alle i bedriften leser undersøkelsen; HR → Oppfølging
+      // lager og åpner den. Bare serveren avslutter (closeHrSurvey), og en avsluttet undersøkelse kan
+      // verken endres, slettes eller åpnes igjen. Spørsmålene låses når den åpnes.
       match /hrSurveys/{surveyId} {
         allow get: if isFamilyMember(familyId);
         allow list: if isFamilyMemberLite(familyId);
-        allow create: if isFamilyMember(familyId) && hrWriter(familyId);
-        allow update: if isFamilyMember(familyId) && hrWriter(familyId)
-          && (resource.data.get('status', '') != 'closed' || request.resource.data.get('status', '') == 'closed');
-        allow delete: if isFamilyMember(familyId) && hrWriter(familyId);
+        allow create: if isFamilyMember(familyId) && surveyWriter(familyId)
+          && request.resource.data.get('status', '') == 'draft';
+        allow update: if isFamilyMember(familyId) && surveyWriter(familyId)
+          && ((resource.data.get('status', '') == 'draft' && request.resource.data.get('status', '') in ['draft', 'open'])
+              || (resource.data.get('status', '') == 'open' && request.resource.data.get('status', '') == 'open'
+                  && request.resource.data.get('questions', []) == resource.data.get('questions', [])));
+        allow delete: if isFamilyMember(familyId) && surveyWriter(familyId) && resource.data.get('status', '') == 'draft';
       }
 
-      // Svar uten bruker-id. Bare HR leser. Et svar må skrives sammen med en ny kvittering for
-      // samme person, så hver person svarer én gang, og bare mens undersøkelsen er åpen.
+      // Rå svar, med id {surveyId}_{uid}: én per person. Bare personen selv kan lese sitt eget (for å
+      // vite at hen har svart); HR leser aldri rå svar. Serveren samler dem i tilfeldig rekkefølge,
+      // uten id og tidspunkt, når undersøkelsen avsluttes, og sletter dem.
       match /hrSurveyAnswers/{answerId} {
-        allow get: if isFamilyMember(familyId) && hrReader(familyId);
-        allow list: if isFamilyMemberLite(familyId) && hrReader(familyId);
+        allow get: if isFamilyMember(familyId) && answerId.matches('^.+_' + request.auth.uid + '$');
         allow create: if isFamilyMember(familyId)
           && request.resource.data.keys().hasOnly(['surveyId', 'answers', 'comment'])
           && request.resource.data.surveyId is string
+          && answerId == request.resource.data.surveyId + '_' + request.auth.uid
           && request.resource.data.answers is map
           && request.resource.data.answers.size() <= 60
           && (!('comment' in request.resource.data)
               || (request.resource.data.comment is string && request.resource.data.comment.size() <= 1500))
-          && get(/databases/$(database)/documents/families/$(familyId)/hrSurveys/$(request.resource.data.surveyId)).data.get('status', '') == 'open'
-          && !exists(/databases/$(database)/documents/families/$(familyId)/hrSurveyReceipts/$(request.resource.data.surveyId + '_' + request.auth.uid))
-          && existsAfter(/databases/$(database)/documents/families/$(familyId)/hrSurveyReceipts/$(request.resource.data.surveyId + '_' + request.auth.uid));
-        allow update: if false;
-        allow delete: if isFamilyMember(familyId) && hrWriter(familyId);
+          && get(/databases/$(database)/documents/families/$(familyId)/hrSurveys/$(request.resource.data.surveyId)).data.get('status', '') == 'open';
+        allow list, update, delete: if false;
       }
 
-      // Kvittering for at en person har svart (id: {surveyId}_{uid}). Ingen svar i den.
-      match /hrSurveyReceipts/{receiptId} {
-        allow get: if isFamilyMember(familyId)
-          && (receiptId.matches('^.+_' + request.auth.uid + '$') || hrReader(familyId));
-        allow list: if isFamilyMemberLite(familyId) && hrReader(familyId);
-        allow create: if isFamilyMember(familyId)
-          && request.resource.data.keys().hasOnly(['surveyId', 'uid'])
-          && request.resource.data.uid == request.auth.uid
-          && request.resource.data.surveyId is string
-          && receiptId == request.resource.data.surveyId + '_' + request.auth.uid
-          && get(/databases/$(database)/documents/families/$(familyId)/hrSurveys/$(request.resource.data.surveyId)).data.get('status', '') == 'open';
-        allow update: if false;
-        allow delete: if isFamilyMember(familyId) && hrWriter(familyId);
+      // Hvor mange som har svart mens undersøkelsen er åpen. HR lager telleren med 0 når den åpnes;
+      // den som svarer, øker den med 1 i samme skriving som sitt eget svar.
+      match /hrSurveyStats/{surveyId} {
+        allow get: if isFamilyMember(familyId) && surveyReader(familyId);
+        allow create: if isFamilyMember(familyId) && surveyWriter(familyId)
+          && request.resource.data.keys().hasOnly(['count']) && request.resource.data.count == 0;
+        allow update: if isFamilyMember(familyId)
+          && request.resource.data.keys().hasOnly(['count'])
+          && request.resource.data.count == resource.data.count + 1
+          && !exists(/databases/$(database)/documents/families/$(familyId)/hrSurveyAnswers/$(surveyId + '_' + request.auth.uid))
+          && existsAfter(/databases/$(database)/documents/families/$(familyId)/hrSurveyAnswers/$(surveyId + '_' + request.auth.uid));
+        allow list, delete: if false;
+      }
+
+      // Resultatet, skrevet av serveren når undersøkelsen avsluttes: antall og svarene i tilfeldig
+      // rekkefølge (tomt under fem svar). Bare HR → Oppfølging leser det.
+      match /hrSurveyResults/{surveyId} {
+        allow get: if isFamilyMember(familyId) && surveyReader(familyId);
+        allow list, create, update, delete: if false;
       }
 
       // Fravær (helseopplysninger, L-02). I bedrifter ser og fører hver ansatt sitt eget fravær;

@@ -2,7 +2,8 @@
  * Sidespalten på fanene til bedriftssiden (Nyheter, Om oss, Ansatte og kontakt):
  * kort om bedriften, folkene, besøk og kontakt med åpningstider, siste nyheter og jobb.
  * Alt kommer fra det bedriften allerede har lagt inn. Blokker uten innhold vises ikke.
- * Med plass til det legges blokkene i to eller tre kolonner.
+ * På PC står spalten smalt ved siden av innholdet, med blokkene over hverandre.
+ * Under innholdet (mobil og nettbrett) legges blokkene i to eller tre kolonner når det er plass.
  */
 import React, { useState } from 'react';
 import {

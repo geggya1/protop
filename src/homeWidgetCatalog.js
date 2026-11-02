@@ -49,11 +49,14 @@ export const PARENT_WIDGET_CATALOG = [
   { type: 'goals', label: 'Ukens mål', icon: 'flag-outline', sizes: ['third', 'half'], defaultSize: 'third', hint: 'Mål barna jobber mot' },
   { type: 'progress', label: 'Barnas progresjon', icon: 'stats-chart-outline', sizes: ['half', 'full', 'tall'], defaultSize: 'full', hint: 'Hvordan barna ligger an i dag' },
   // ProTop: arbeidsdagen, ikke familien.
-  { type: 'dayBrief', label: 'Dagen din', icon: 'sunny-outline', sizes: ['full'], defaultSize: 'full', hint: 'Avtaler, oppgaver og varsler i dag' },
-  { type: 'weekAgenda', label: 'Uken', icon: 'calendar-number-outline', sizes: ['full'], defaultSize: 'full', hint: 'Hvor travle dagene i uken er' },
+  { type: 'dayBrief', label: 'Dagen din', icon: 'sunny-outline', sizes: ['full'], defaultSize: 'full', hint: 'Arbeidsdagen som et bånd, og hva som er neste' },
+  { type: 'weekAgenda', label: 'Uka', icon: 'calendar-number-outline', sizes: ['full'], defaultSize: 'full', hint: 'Hvor travel hver dag i uka er' },
   { type: 'quickActions', label: 'Hurtigvalg', icon: 'flash-outline', sizes: ['full'], defaultSize: 'full', hint: 'Ny avtale, oppgave, notat og mer' },
   { type: 'mail', label: 'E-post', icon: 'mail-outline', sizes: ['third', 'half'], defaultSize: 'half', hint: 'Uleste e-poster' },
   { type: 'mileage', label: 'Kjørebok', icon: 'car-outline', sizes: ['full'], defaultSize: 'full', hint: 'Kjøreboken din i bedriften' },
+  { type: 'focus', label: 'Fokusøkt', icon: 'hourglass-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: '25, 50 eller 90 minutter uten avbrudd' },
+  { type: 'countdown', label: 'Fri om', icon: 'time-outline', sizes: ['third', 'half'], defaultSize: 'third', hint: 'Arbeidsdagen, helgen og neste røde dag' },
+  { type: 'vat', label: 'Mva-regner', icon: 'calculator-outline', sizes: ['full'], defaultSize: 'full', hint: 'Eks. og inkl. mva på et blunk' },
 ];
 
 /**
@@ -66,11 +69,11 @@ export const COMPANY_WIDGET_CATALOG = [
   { type: 'team', label: 'Teamet i dag', icon: 'people-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: 'Hvem som har ført timer i dag' },
   { type: 'companyNews', label: 'Nyheter', icon: 'megaphone-outline', sizes: ['full'], defaultSize: 'full', hint: 'Siste nytt fra bedriften' },
   { type: 'mileage', label: 'Kjørebok', icon: 'car-outline', sizes: ['full'], defaultSize: 'full', hint: 'Km og godtgjørelse, siste turer' },
-  { type: 'dayBrief', label: 'Dagen din', icon: 'sunny-outline', sizes: ['full'], defaultSize: 'full', hint: 'Avtaler, oppgaver og varsler i dag' },
+  { type: 'dayBrief', label: 'Dagen din', icon: 'sunny-outline', sizes: ['full'], defaultSize: 'full', hint: 'Arbeidsdagen som et bånd, og hva som er neste' },
   { type: 'quickActions', label: 'Hurtigvalg', icon: 'flash-outline', sizes: ['full'], defaultSize: 'full', hint: 'Før timer, meld avvik, ny oppgave' },
   { type: 'timeline', label: 'Kalender i dag', icon: 'calendar-outline', sizes: ['full', 'tall'], defaultSize: 'full', hint: 'Avtaler i dag — fra kveld: i morgen' },
   { type: 'nextEvent', label: 'Neste avtale', icon: 'calendar-outline', sizes: ['half', 'full', 'tall'], defaultSize: 'full', hint: 'Det som skjer først, med nedtelling' },
-  { type: 'weekAgenda', label: 'Uken', icon: 'calendar-number-outline', sizes: ['full'], defaultSize: 'full', hint: 'Hvor travle dagene i uken er' },
+  { type: 'weekAgenda', label: 'Uka', icon: 'calendar-number-outline', sizes: ['full'], defaultSize: 'full', hint: 'Hvor travel hver dag i uka er' },
   { type: 'tasks', label: 'Oppgaver', icon: 'checkbox-outline', sizes: ['third', 'half', 'full', 'tall'], defaultSize: 'full', hint: 'Åpne oppgaver og frister' },
   { type: 'notes', label: 'Notater', icon: 'document-text-outline', sizes: ['third', 'full'], defaultSize: 'full', hint: 'Siste notater' },
   { type: 'reminders', label: 'Husk', icon: 'notifications-outline', sizes: ['full'], defaultSize: 'full', hint: 'Det som gjenstår' },
@@ -81,6 +84,13 @@ export const COMPANY_WIDGET_CATALOG = [
   { type: 'date', label: 'Dato', icon: 'calendar-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: 'Ukedag, dato og ukenummer' },
   { type: 'shortcuts', label: 'Snarveier', icon: 'apps-outline', sizes: ['third', 'full', 'tall'], defaultSize: 'full', hint: 'Moduler som fliser' },
   { type: 'appFolder', label: 'Apper', icon: 'grid-outline', sizes: ['third'], defaultSize: 'third', hint: 'Tre apper + mer' },
+  { type: 'away', label: 'Borte i dag', icon: 'sunny-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: 'Hvem som er borte, og når de er tilbake' },
+  { type: 'celebrations', label: 'Jubileer og nye', icon: 'ribbon-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: 'Runde år i bedriften og nye kolleger' },
+  { type: 'tenders', label: 'Anbud', icon: 'megaphone-outline', sizes: ['full'], defaultSize: 'full', hint: 'Nye treff og frister du følger' },
+  { type: 'approvals', label: 'Til godkjenning', icon: 'checkmark-done-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: 'Timer som venter på deg (ledere)' },
+  { type: 'myReports', label: 'Mine RUH og avvik', icon: 'shield-checkmark-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: 'Status på det du har meldt, og Meld RUH' },
+  { type: 'focus', label: 'Fokusøkt', icon: 'hourglass-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: 'Fokustid uten avbrudd' },
+  { type: 'vat', label: 'Mva-regner', icon: 'calculator-outline', sizes: ['full'], defaultSize: 'full', hint: 'Eks. og inkl. mva på et blunk' },
 ];
 
 export const CHILD_WIDGET_CATALOG = [
@@ -144,11 +154,8 @@ export const LEGACY_PARENT_WIDGETS_V4 = [
   { id: 'w-shortcuts', type: 'shortcuts', col: 0, row: 7, gw: 5, gh: 2, variant: 'row' },
 ];
 
-/**
- * Privat: dagen din (avtaler, oppgaver, varsler), kalenderen, oppgaver og notater,
- * hurtigvalg og uken. Personlig innhold, ingen bedriftstall.
- */
-const STANDARD_PARENT_WIDGETS = [
+/** Privat standard i malversjon 6. Urørt får den nye standarden. */
+export const LEGACY_PARENT_WIDGETS_V6 = [
   { id: 'w-day', type: 'dayBrief', col: 0, row: 0, gw: 5, gh: 2 },
   { id: 'w-family-today', type: 'timeline', col: 0, row: 2, gw: 5, gh: 2 },
   { id: 'w-tasks', type: 'tasks', col: 0, row: 4, gw: 3, gh: 2 },
@@ -158,10 +165,22 @@ const STANDARD_PARENT_WIDGETS = [
 ];
 
 /**
- * Bedrift: mine timer øverst, hurtigvalg, prosjekter og teamet, kalenderen,
- * oppgaver og nyheter fra bedriften.
+ * Privat: litt mer personlig. Dagen din som et bånd, kalenderen, oppgaver og notater,
+ * fokusøkt og «fri om», uka og hurtigvalg. Ingen bedriftstall.
  */
-const STANDARD_COMPANY_WIDGETS = [
+const STANDARD_PARENT_WIDGETS = [
+  { id: 'w-day', type: 'dayBrief', col: 0, row: 0, gw: 5, gh: 2 },
+  { id: 'w-family-today', type: 'timeline', col: 0, row: 2, gw: 5, gh: 2 },
+  { id: 'w-tasks', type: 'tasks', col: 0, row: 4, gw: 3, gh: 2 },
+  { id: 'w-notes', type: 'notes', col: 3, row: 4, gw: 2, gh: 2 },
+  { id: 'w-focus', type: 'focus', col: 0, row: 6, gw: 3, gh: 2 },
+  { id: 'w-countdown', type: 'countdown', col: 3, row: 6, gw: 2, gh: 2 },
+  { id: 'w-week', type: 'weekAgenda', col: 0, row: 8, gw: 5, gh: 2 },
+  { id: 'w-quick', type: 'quickActions', col: 0, row: 10, gw: 5, gh: 2 },
+];
+
+/** Bedriftens standard i malversjon 6. Urørt får den nye standarden. */
+export const LEGACY_COMPANY_WIDGETS_V6 = [
   { id: 'w-hours', type: 'myHours', col: 0, row: 0, gw: 5, gh: 2 },
   { id: 'w-quick', type: 'quickActions', col: 0, row: 2, gw: 5, gh: 2 },
   { id: 'w-projects', type: 'projects', col: 0, row: 4, gw: 3, gh: 3 },
@@ -170,6 +189,23 @@ const STANDARD_COMPANY_WIDGETS = [
   { id: 'w-today', type: 'timeline', col: 0, row: 10, gw: 5, gh: 2 },
   { id: 'w-tasks', type: 'tasks', col: 0, row: 12, gw: 5, gh: 2 },
   { id: 'w-news', type: 'companyNews', col: 0, row: 14, gw: 5, gh: 2 },
+];
+
+/**
+ * Bedrift: mine timer og hurtigvalg øverst, prosjekter og teamet, hvem som er borte
+ * og jubileer, kalenderen, oppgaver, kjørebok og nyheter fra bedriften.
+ */
+const STANDARD_COMPANY_WIDGETS = [
+  { id: 'w-hours', type: 'myHours', col: 0, row: 0, gw: 5, gh: 2 },
+  { id: 'w-quick', type: 'quickActions', col: 0, row: 2, gw: 5, gh: 2 },
+  { id: 'w-projects', type: 'projects', col: 0, row: 4, gw: 3, gh: 3 },
+  { id: 'w-team', type: 'team', col: 3, row: 4, gw: 2, gh: 3 },
+  { id: 'w-away', type: 'away', col: 0, row: 7, gw: 3, gh: 3 },
+  { id: 'w-celebrations', type: 'celebrations', col: 3, row: 7, gw: 2, gh: 3 },
+  { id: 'w-today', type: 'timeline', col: 0, row: 10, gw: 5, gh: 2 },
+  { id: 'w-tasks', type: 'tasks', col: 0, row: 12, gw: 5, gh: 2 },
+  { id: 'w-mileage', type: 'mileage', col: 0, row: 14, gw: 5, gh: 3 },
+  { id: 'w-news', type: 'companyNews', col: 0, row: 17, gw: 5, gh: 2 },
 ];
 
 /** Bedriftens standard før Kjørebok kom inn (malversjon 5). Urørt får den nye. */
@@ -375,6 +411,14 @@ export const MODULE_CHROME = {
   team: { icon: 'people', glyphColor: BRAND },
   companyNews: { icon: 'megaphone', glyphColor: BRAND },
   mileage: { icon: 'car', glyphColor: BRAND },
+  focus: { icon: 'hourglass', glyphColor: '#7C3AED' },
+  countdown: { icon: 'time', glyphColor: '#1F8A4C' },
+  vat: { icon: 'calculator', glyphColor: '#C47A4A' },
+  away: { icon: 'sunny', glyphColor: '#E0A106' },
+  celebrations: { icon: 'ribbon', glyphColor: '#E07A9A' },
+  tenders: { icon: 'megaphone', glyphColor: '#2F80ED' },
+  approvals: { icon: 'checkmark-done', glyphColor: '#1F8A4C' },
+  myReports: { icon: 'shield-checkmark', glyphColor: '#E85D4C' },
 };
 
 export function moduleChrome(type) {
@@ -390,13 +434,15 @@ export function catalogForRole(role) {
 }
 
 export const CATALOG_GROUPS = [
-  { id: 'arbeid', label: 'Arbeid', types: ['myHours', 'mileage', 'projects', 'team', 'companyNews'] },
+  { id: 'arbeid', label: 'Arbeid', types: ['myHours', 'approvals', 'mileage', 'projects', 'tenders', 'myReports'] },
+  { id: 'folk', label: 'Folk', types: ['team', 'away', 'celebrations', 'companyNews'] },
   {
     id: 'plan',
     label: 'Dag og kalender',
     types: ['dayBrief', 'weekAgenda', 'weeklyPlan', 'nextEvent', 'timeline', 'activities', 'rememberDates', 'school', 'homework'],
   },
   { id: 'hjem', label: 'Oppgaver og notater', types: ['tasks', 'notes', 'reminders', 'mail', 'shopping', 'meals', 'rewards', 'goals'] },
+  { id: 'verktoy', label: 'Verktøy', types: ['focus', 'countdown', 'vat'] },
   { id: 'info', label: 'Klokke og vær', types: ['weather', 'clock', 'date'] },
   { id: 'familie', label: 'Familie', types: ['kids', 'progress', 'family', 'location', 'familyTree', 'messages'] },
   { id: 'mer', label: 'Snarveier og AI', types: ['quickActions', 'appFolder', 'shortcuts', 'assistant', 'trips', 'wishes', 'books'] },

@@ -29,6 +29,10 @@ import {
   RemindersWidget, QuickActionsWidget, MailWidget, AssistantWidget, MyHoursWidget, ProjectsWidget,
   TeamWidget, CompanyNewsWidget, MileageWidget,
 } from './ProWidgets';
+import {
+  FocusWidget, CountdownWidget, VatWidget, AwayTodayWidget, CelebrationsWidget, TendersWidget,
+  ApprovalsWidget, MyReportsWidget,
+} from './ProWidgetsMore';
 
 /** ProTop-widgetene (ProWidgets.jsx): arbeidsdagen, i nytt felles kort. */
 const PRO_RENDERERS = {
@@ -47,6 +51,14 @@ const PRO_RENDERERS = {
   team: TeamWidget,
   companyNews: CompanyNewsWidget,
   mileage: MileageWidget,
+  focus: FocusWidget,
+  countdown: CountdownWidget,
+  vat: VatWidget,
+  away: AwayTodayWidget,
+  celebrations: CelebrationsWidget,
+  tenders: TendersWidget,
+  approvals: ApprovalsWidget,
+  myReports: MyReportsWidget,
 };
 
 function openApp(model, handlers, id) {

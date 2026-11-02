@@ -55,6 +55,13 @@ export default function ParentHomeThemeHost({
   const mileageActive = board === 'company'
     && !!modules?.isActive?.('kjorebok')
     && (!access.ready || !!access.canView?.('mileage'));
+  // Anbud og fravær på Hjem: modulen må være på og personen må kunne se den.
+  const anbudActive = board === 'company'
+    && !!modules?.isActive?.('anbud')
+    && (!access.ready || !!access.canView?.('tenders'));
+  const absenceActive = board === 'company'
+    && !!modules?.isActive?.('fravaer')
+    && (!access.ready || !!access.canView?.('absence'));
   // I Privat viser Kjørebok-widgeten kjøreboken fra (første) bedrift personen er med i.
   const workspaces = liveFamilies?.length ? liveFamilies : families;
   const mileageCompany = useMemo(
@@ -79,9 +86,11 @@ export default function ParentHomeThemeHost({
     weekCounts: weekCounts || {},
     isoActive,
     mileageActive,
+    anbudActive,
+    absenceActive,
     mileageCompanyId: mileageCompany?.id || '',
     mileageCompanyName: mileageCompany ? companyDisplayName(mileageCompany, 'Bedrift') : '',
-  }), [model, board, familyId, weekCounts, isoActive, mileageActive, mileageCompany]);
+  }), [model, board, familyId, weekCounts, isoActive, mileageActive, anbudActive, absenceActive, mileageCompany]);
   const hasQuickActions = (home.layout?.widgets || []).some((w) => w.type === 'quickActions');
   const [editing, setEditing] = useState(false);
   const [dragging, setDragging] = useState(false);

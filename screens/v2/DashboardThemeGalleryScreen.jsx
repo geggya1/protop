@@ -13,10 +13,12 @@ import { cycleWidgetSpan, moveWidgetOnGrid } from '../../src/homeGrid';
 import { CUSTOM_BANNER_ID, homeSceneTitle, homeSceneTagline, HOME_SCENE_SUBTITLE } from '../../src/homeBanners';
 import { getParentDashboardTheme } from '../../src/parentDashboardThemes';
 import { buildParentDashboardPreviewModel } from '../../src/utils/parentDashboardPreview';
-import { homeFocusCopy } from '../../src/utils/deskHome';
 import { HomeImmersiveProvider } from '../../src/context/HomeImmersiveContext';
 import HomeModulesBoard from '../../components/home/HomeModulesBoard';
-import { buildChildDashboardApps, buildParentDashboardApps } from '../../src/navigation/shellModules';
+import { buildParentDashboardApps } from '../../src/navigation/shellModules';
+import { previewCompany, previewDay } from '../../src/utils/proHomePreview';
+import { DEFAULT_GLASS_TINT, glassTintForBanner } from '../../src/homeBannerTints';
+import { hasHomePhoto } from '../../src/homeSurface';
 import { useI18n } from '../../src/i18n';
 import { colors } from '../../src/theme';
 
@@ -43,97 +45,54 @@ export default function DashboardThemeGalleryScreen() {
     setLayout(emptyHomeLayout(next));
   };
 
+  // Som i appen: bildeflate og glass bare når Hjem har bakgrunnsbilde.
+  const photo = immersivePreview && (hasHomePhoto(layout.bannerId) || !!layout.customBannerUri);
+  // Samme glass som i appen: mørkt glass i bildets egen farge når Hjem har bilde.
+  const glassTint = layout.customBannerUri ? DEFAULT_GLASS_TINT : glassTintForBanner(layout.bannerId);
   const theme = getParentDashboardTheme('calm-day');
+  // ProTop: Privat og Bedrift, med en vanlig arbeidsdag som eksempel (ingen familie).
   const model = useMemo(() => {
+    const now = new Date();
     const base = buildParentDashboardPreviewModel(theme, {
-      greeting: role === 'child' ? 'Hei, Noah' : 'God kveld, Geir',
-      dayPart: 'evening',
-      focusTomorrow: true,
+      greeting: 'Hei, Geir',
+      dayPart: 'morning',
+      focusTomorrow: false,
     });
-    if (role === 'child') {
-      const openItems = [
-        { id: 'c1', title: 'Leggetid 20:30', meta: 'I kveld', done: false },
-        { id: 'c2', title: 'Inn/ut av oppvaskmaskinen', meta: 'I dag', done: false },
-      ];
-      const doneItems = [
-        { id: 'c4', title: 'Pusse tenner', meta: 'Ferdig', done: true },
-        { id: 'c5', title: 'Lage matpakke', meta: 'Ferdig', done: true },
-      ];
+    const day = previewDay(now);
+    if (role === 'company') {
       return {
         ...base,
-        isPreview: true,
-        greeting: 'Hei, Noah',
-        dateLabel: 'Lørdag 19. september',
-        focusLabel: 'Lørdag 19. september',
-        focusTomorrow: true,
-        focusCopy: homeFocusCopy(true),
-        timeline: [
-          { id: '1', time: '09:00', title: 'Fotballtrening', place: 'Banen', color: '#059669' },
-          { id: '2', time: '14:00', title: 'Kino med bestemor', place: '', color: '#7c3aed' },
-        ],
-        apps: (base.dashboardApps || []).slice(0, 6),
-        showChores: true,
-        showCalendar: true,
-        period: 'school',
-        taskProgress: {
-          done: doneItems.length,
-          total: openItems.length + doneItems.length,
-          open: openItems.length,
-          items: [...openItems, ...doneItems],
-          openItems,
-          doneItems,
-        },
-        homeworkItems: [
-          { id: 'h1', title: 'Matte – brøk', done: false },
-          { id: 'h2', title: 'Lese 2 sider', done: true },
-        ],
-        weekProgram: {
-          programTitle: 'I morgen',
-          weekLabel: 'Uke 38',
-          focusTomorrow: true,
-          reason: 'weekend',
-          weekDays: [
-            { id: 'mon', label: 'Man', first: 'Norsk', count: 4, active: true },
-            { id: 'tue', label: 'Tir', first: 'Matte', count: 5, active: false },
-            { id: 'wed', label: 'Ons', first: 'Engelsk', count: 4, active: false },
-            { id: 'thu', label: 'Tor', first: 'Gym', count: 5, active: false },
-            { id: 'fri', label: 'Fre', first: 'Kunst', count: 3, active: false },
-          ],
-          lessons: [
-            { id: 'l1', time: '08:15–09:00', title: 'Norsk', color: '#16a34a' },
-            { id: 'l2', time: '09:15–10:00', title: 'Matematikk', color: '#2563eb' },
-            { id: 'l3', time: '11:30–12:15', title: 'Kroppsøving', color: '#0d9488' },
-          ],
-        },
-        rewardBalance: 42,
-        unitLabel: 'poeng',
-        rewardHint: '18 poeng igjen denne uken',
-        weekGoals: [
-          { id: 'g1', title: 'Pakke sekken selv', done: false },
-          { id: 'g2', title: 'Lese hver dag', done: true },
-        ],
+        ...day,
+        greeting: 'Hei, Geir',
+        board: 'company',
+        companyId: '',
+        isoActive: true,
+        mileageActive: true,
+        anbudActive: true,
+        absenceActive: true,
+        preview: previewCompany(now),
       };
     }
-    return base;
+    return {
+      ...base,
+      ...day,
+      greeting: 'Hei, Geir',
+      board: 'private',
+      companyId: '',
+      preview: { mileage: previewCompany(now).mileage },
+      mileageCompanyName: 'Byggmester AS',
+    };
   }, [theme, role]);
 
   const catalogApps = useMemo(
-    () => (role === 'child'
-      ? buildChildDashboardApps({
-        t,
-        familyId: 'preview',
-        child: { id: 'k1', name: 'Noah' },
-        eventCount: 3,
-        aiEnabled: true,
-      })
-      : buildParentDashboardApps({
-        t,
-        familyId: 'preview',
-        eventCount: 3,
-        hasKids: true,
-        firstKid: { id: 'k1', name: 'Noah' },
-      })),
-    [t, role],
+    () => buildParentDashboardApps({
+      t,
+      familyId: 'preview',
+      eventCount: 3,
+      hasKids: false,
+      firstKid: null,
+    }),
+    [t],
   );
 
   const handlers = {
@@ -161,11 +120,11 @@ export default function DashboardThemeGalleryScreen() {
         <Text style={styles.kicker}>Forhåndsvisning</Text>
         <Text style={styles.title}>Slik blir hjem</Text>
         <Text style={styles.lead}>
-          Widgets på et 5-ruters rutenett. Tilpass hjem i korte steg — bilde, meny, deretter widgets direkte på hjem. Trykk blyanten, dra for å flytte, og åpne Widgets for alle moduler.
+          Widgets på et 5-ruters rutenett. Privat er din egen arbeidsdag, Bedrift er firmaets skjerm. Trykk blyanten, dra for å flytte, og legg til eller fjern widgets. Bakgrunnsbilde velger du selv under Tilpass hjem.
         </Text>
 
         <View style={styles.roleRow}>
-          {['parent', 'child'].map((id) => {
+          {['parent', 'company'].map((id) => {
             const on = role === id;
             return (
               <TouchableOpacity
@@ -175,7 +134,7 @@ export default function DashboardThemeGalleryScreen() {
                 testID={`preview-role-${id}`}
               >
                 <Text style={[styles.roleTxt, on && styles.roleTxtOn]}>
-                  {id === 'parent' ? 'Voksen' : 'Barn'}
+                  {id === 'parent' ? 'Privat' : 'Bedrift'}
                 </Text>
               </TouchableOpacity>
             );
@@ -184,16 +143,16 @@ export default function DashboardThemeGalleryScreen() {
 
         <View style={[
           styles.phone,
-          immersivePreview && styles.phoneImmersive,
+          photo && styles.phoneImmersive,
           modulesOpen && styles.phoneBoard,
         ]} testID="home-preview-phone">
-          {immersivePreview ? (
+          {photo ? (
             <HomeBackdrop bannerId={layout.bannerId} customUri={layout.customBannerUri} />
           ) : null}
-          <View style={[styles.chrome, immersivePreview && styles.chromeImmersive]}>
-            <Text style={[styles.logo, immersivePreview && styles.logoImmersive]}>ProTop</Text>
+          <View style={[styles.chrome, photo && styles.chromeImmersive]}>
+            <Text style={[styles.logo, photo && styles.logoImmersive]}>ProTop</Text>
           </View>
-          <HomeImmersiveProvider value={immersivePreview}>
+          <HomeImmersiveProvider value={photo} tint={glassTint}>
           <View style={[styles.phoneBody, modulesOpen && styles.phoneBodyBoard]}>
           {modulesOpen ? (
             <HomeModulesBoard
@@ -212,7 +171,7 @@ export default function DashboardThemeGalleryScreen() {
             handlers={handlers}
             greeting={model.greeting}
             title={homeSceneTitle(model.dayPart || 'morning')}
-            subtitle={immersivePreview ? homeSceneTagline(model.dayPart || 'evening') : HOME_SCENE_SUBTITLE}
+            subtitle={photo ? homeSceneTagline(model.dayPart || 'evening') : HOME_SCENE_SUBTITLE}
             onOpenBannerSettings={() => {}}
             canEdit
             editing={editing}
@@ -254,7 +213,7 @@ export default function DashboardThemeGalleryScreen() {
               activeId="home"
               onSelect={() => {}}
               includeSafeArea={false}
-              glass={immersivePreview}
+              glass={photo}
             />
           ) : null}
           </HomeImmersiveProvider>

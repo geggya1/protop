@@ -462,7 +462,7 @@ Ledelsen har ansvar for at retningslinjene er kjent og etterleves. Alle ansatte 
 `),
     c('Medarbeidersamtaler, lojalitet og verneombud', `
 ## Medarbeidersamtaler
-Selskapet gjennomfører medarbeidersamtale minst én gang i året. Samtalen er planlagt, forberedt og fortrolig, og tar opp samarbeid og trivsel, organisering av arbeidet, arbeidsinnhold, faglig og personlig utvikling og oppnådde resultater. Nærmeste leder er ansvarlig for å gjennomføre samtalene. Malen ligger i Skjemabygger, og samtalen registreres i HR.
+Selskapet gjennomfører medarbeidersamtale minst én gang i året. Samtalen er planlagt, forberedt og fortrolig, og tar opp samarbeid og trivsel, organisering av arbeidet, arbeidsinnhold, faglig og personlig utvikling og oppnådde resultater. Nærmeste leder er ansvarlig for å gjennomføre samtalene. Temaene sendes til medarbeideren på forhånd, og medarbeideren kan forberede seg på Min side (frivillig). Samtalen føres i skjemaet i HR, begge signerer digitalt, og begge får en signert kopi på e-post.
 
 Misnøye eller utfordringer i arbeidssituasjonen bør tas opp med overordnede så raskt som mulig, og konflikter løses på lavest mulig nivå.
 

@@ -22,7 +22,7 @@ import {
 import { printReview } from '../../src/hr/reviewPdf';
 import { loadFilledDocs, peekFilledDocs } from '../../src/forms/filledStore';
 import {
-  REVIEW_FORM_KEY, casesFromReviewDoc, previousActionPlan, reviewActionPlan, reviewEntries, syncReviewRows,
+  REVIEW_FORM_KEY, casesFromReviewDoc, previousActionPlan, reviewActionPlan, reviewDocsToSync, reviewEntries, syncReviewRows,
 } from '../../src/hr/reviewForms';
 import HrFilledForm from './HrFilledForm';
 import { DEFAULT_DOCUMENT_ACCEPT, pickDocument, uploadFile } from '../../src/utils/media';
@@ -130,6 +130,12 @@ export default function HrFollowUp({
     }
   }
 
+  // Den ansatte samtalen gjelder, for invitasjon og signering (personUid = brukeren hen logger inn med).
+  const reviewEmployee = useMemo(() => {
+    const row = people.find((e) => e.id === employeeId);
+    return row ? { id: row.id, name: displayName(row), personUid: row.personUid || '' } : null;
+  }, [people, employeeId]);
+
   // Samtalene: utfylte samtaleskjema og eldre samtaler (registrert før skjemaet ble felles).
   const entries = useMemo(() => reviewEntries(hr.reviews, formDocs, employeeId), [hr.reviews, formDocs, employeeId]);
   const personReviews = useMemo(
@@ -172,6 +178,13 @@ export default function HrFollowUp({
       cases: removed ? state.cases : casesFromReviewDoc(state.cases, doc, normalizeCase, { formatDate: formatNbDate }),
     }));
   }
+
+  // Samtaler den ansatte har signert på Min side (serveren har ferdigstilt skjemaet): speil dem og
+  // lag saken fra handlingsplanen, som når lederen merker skjemaet ferdig selv.
+  useEffect(() => {
+    if (!canWrite || !onPatch) return;
+    reviewDocsToSync(hr.reviews, formDocs).forEach((doc) => syncReview(doc));
+  }, [canWrite, formDocs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function uploadMemoFile() {
     if (!canWrite || !employeeId || !familyId || uploading) return;
@@ -378,6 +391,7 @@ export default function HrFollowUp({
           ) : null}
           <HrFilledForm
             key={openDoc.id}
+            employee={reviewEmployee}
             colors={colors}
             familyId={familyId}
             doc={openDoc}

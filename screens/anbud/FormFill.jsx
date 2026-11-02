@@ -80,11 +80,17 @@ export default function FormFill({
   onBack,
   backLabel = 'Tilbake',
   fill = false,
+  // Låst uten å være ferdig (f.eks. medarbeidersamtale som venter på signatur), med forklaring.
+  readOnly = false,
+  readOnlyNote = '',
+  // Innhold over skjemaet i samme rulleflate (f.eks. forberedelse og signering).
+  aside = null,
 }) {
   const [width, setWidth] = useState(() => (Platform.OS === 'web' && typeof window !== 'undefined' ? window.innerWidth : 800));
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pickNote, setPickNote] = useState('');
-  const locked = doc.status === 'ferdig';
+  const done = doc.status === 'ferdig';
+  const locked = done || readOnly;
   const shown = useMemo(() => formWithTokens(doc, company || {}), [doc, company]);
   const progress = filledProgress(doc);
   const wide = width >= 1100;
@@ -130,7 +136,9 @@ export default function FormFill({
       ) : (
         <View style={[styles.banner, { backgroundColor: colors.card, borderColor: colors.line }]}>
           <Text style={{ color: colors.ink }}>
-            Ferdig {stamp(doc.completedAt)}{doc.completedBy?.name ? ` av ${doc.completedBy.name}` : ''}. Gjenåpne for å endre.
+            {done
+              ? `Ferdig ${stamp(doc.completedAt)}${doc.completedBy?.name ? ` av ${doc.completedBy.name}` : ''}. Gjenåpne for å endre.`
+              : (readOnlyNote || 'Skjemaet er låst.')}
           </Text>
         </View>
       )}
@@ -169,15 +177,15 @@ export default function FormFill({
           <Text style={{ color: colors.brand }}>{backLabel}</Text>
         </TouchableOpacity>
         <View style={styles.row}>
-          <View style={[styles.status, { backgroundColor: locked ? '#e7f6ec' : colors.sunken }]}>
-            <Text style={{ color: locked ? '#1d7a3e' : colors.ink, fontSize: 12, fontWeight: '600' }}>
-              {locked ? 'Ferdig' : `${progress.filled} av ${progress.total} felt`}
+          <View style={[styles.status, { backgroundColor: done ? '#e7f6ec' : colors.sunken }]}>
+            <Text style={{ color: done ? '#1d7a3e' : colors.ink, fontSize: 12, fontWeight: '600' }}>
+              {done ? 'Ferdig' : readOnly ? 'Låst' : `${progress.filled} av ${progress.total} felt`}
             </Text>
           </View>
           <TouchableOpacity onPress={() => printForm(doc, logo, { company, highlight: !locked })} accessibilityRole="button" accessibilityLabel="Skriv ut eller lagre PDF">
             <Text style={{ color: colors.brand }}>PDF</Text>
           </TouchableOpacity>
-          {locked ? (
+          {readOnly && !done ? null : done ? (
             <TouchableOpacity onPress={onReopen} disabled={busy} accessibilityRole="button" style={[styles.button, { borderColor: colors.brand }]}>
               <Text style={{ color: colors.brand }}>Gjenåpne</Text>
             </TouchableOpacity>
@@ -202,6 +210,7 @@ export default function FormFill({
       {!!pickNote && <Text style={{ color: colors.danger, marginHorizontal: 16, marginTop: 8 }}>{pickNote}</Text>}
       <View style={[styles.work, wide && { flexDirection: 'row' }]}>
         <ScrollView style={{ flex: 1, minWidth: 0 }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          {aside ? <View style={styles.aside}>{aside}</View> : null}
           {form}
           {onDelete ? (
             <View style={styles.deleteRow}>
@@ -243,6 +252,7 @@ const styles = StyleSheet.create({
   work: { flex: 1, minHeight: 0 },
   scroll: { padding: 16, paddingBottom: 64 },
   paper: { width: '100%', maxWidth: 860, alignSelf: 'center', gap: 14 },
+  aside: { width: '100%', maxWidth: 860, alignSelf: 'center', marginBottom: 16 },
   title: { fontSize: 26, fontWeight: '300', color: '#1f3b5c' },
   banner: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   section: { fontSize: 14, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 4, overflow: 'hidden' },

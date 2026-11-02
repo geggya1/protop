@@ -56,6 +56,14 @@ export const NOTIFICATION_TYPES = [
     id: 'hrSurvey', group: 'work', label: 'Medarbeiderundersøkelse å svare på', push: true, email: true, recommended: true,
     scope: 'company', audience: 'Alle ansatte som ikke har svart',
   },
+  {
+    id: 'hrReviewInvite', group: 'work', label: 'Medarbeidersamtale: temaer å forberede og samtale å signere', push: true, email: true, recommended: true,
+    scope: 'company', audience: 'Den ansatte samtalen gjelder',
+  },
+  {
+    id: 'hrReviewUpdate', group: 'work', label: 'Medarbeidersamtale: forberedelse og signatur fra medarbeideren', push: true, email: true,
+    scope: 'company', audience: 'Lederen som holder samtalen',
+  },
   { id: 'vacationPlan', group: 'work', label: 'Ferieplan', push: true, email: 'own', recommended: true, scope: 'company', audience: 'Alle ansatte' },
   {
     id: 'timeEntryChanged', group: 'work', label: 'Noen har endret timene du førte', push: true, email: false,

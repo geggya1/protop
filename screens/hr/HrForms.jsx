@@ -6,7 +6,7 @@ import { filledLine } from '../../src/forms/filledDocs';
 import { loadFilledDocs, peekFilledDocs } from '../../src/forms/filledStore';
 import { displayName } from '../../src/employees/model';
 import { filterHrEmployees, formatNbDate, normalizeCase, normalizeReview } from '../../src/hr/model';
-import { casesFromReviewDoc, isReviewDoc, syncReviewRows } from '../../src/hr/reviewForms';
+import { casesFromReviewDoc, isReviewDoc, reviewDocsToSync, syncReviewRows } from '../../src/hr/reviewForms';
 import { controlStatus } from '../../src/doccontrol/model';
 import { templateControlKey } from '../../src/doccontrol/templates';
 import { FilledStatusIcon } from '../anbud/FormFill';
@@ -31,7 +31,7 @@ function dateText(value) {
  * open: { docId } eller { key, employeeId } for å åpne et skjema direkte.
  */
 export default function HrForms({
-  colors, employees, canWrite, familyId, actor, company, logo, onPatch,
+  colors, employees, canWrite, familyId, actor, company, logo, onPatch, reviews = [],
 }) {
   const [docs, setDocs] = useState(() => (peekFilledDocs(familyId) || []).filter((row) => row.scope === 'hr'));
   const [employeeId, setEmployeeId] = useState('');
@@ -42,6 +42,7 @@ export default function HrForms({
   const [noteBad, setNoteBad] = useState(false);
   const people = useMemo(() => filterHrEmployees(employees, 'active'), [employees]);
   const { start: startForm, dc } = useHrFormStart(familyId);
+  const [synced, setSynced] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -71,10 +72,29 @@ export default function HrForms({
     }));
   }
 
+  // Samtaler den ansatte har signert på Min side: speil dem i hr.reviews (én gang per lasting).
+  useEffect(() => {
+    if (!canWrite || !onPatch || synced || !docs.length) return;
+    setSynced(true);
+    if (!reviewDocsToSync(reviews, docs).length) return;
+    onPatch((state) => {
+      const pending = reviewDocsToSync(state.reviews, docs);
+      if (!pending.length) return {};
+      let { reviews, cases } = state;
+      for (const doc of pending) {
+        reviews = syncReviewRows(reviews, doc, normalizeReview);
+        cases = casesFromReviewDoc(cases, doc, normalizeCase, { formatDate: formatNbDate });
+      }
+      return { reviews, cases };
+    });
+  }, [canWrite, docs]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (filled) {
+    const subject = (employees || []).find((row) => row.id === filled.subject?.id) || null;
     return (
       <HrFilledForm
         key={filled.id}
+        employee={subject ? { id: subject.id, name: displayName(subject), personUid: subject.personUid || '' } : null}
         colors={colors}
         familyId={familyId}
         doc={filled}

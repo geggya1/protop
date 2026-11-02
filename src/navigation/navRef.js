@@ -61,6 +61,9 @@ function shellForEvent(eventType) {
   if (eventType === 'documentPublished') return { tab: 'ansatte', intent: { type: 'myDocuments' } };
   // Medarbeiderundersøkelse: Min side, der skjemaet står.
   if (eventType === 'hrSurvey') return { tab: 'ansatte', intent: { type: 'mySurvey' } };
+  // Medarbeidersamtalen: den ansatte forbereder og signerer på Min side; lederen følger opp i HR.
+  if (eventType === 'hrReviewInvite') return { tab: 'ansatte', intent: { type: 'myDocuments' } };
+  if (eventType === 'hrReviewUpdate') return { tab: 'hr', subView: 'oppfolging' };
   // Forespørsel om å bli med i bedriften: Ansatte → Inviter brukere.
   if (eventType === 'companyJoinRequest') return { tab: 'ansatte', intent: { type: 'openInvite' } };
   // Tilknytning mellom selskaper: Bedrift → Underenheter, der avtalene godkjennes.

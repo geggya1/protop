@@ -39,9 +39,9 @@ export function StatusLegend({ colors, withIso = false }) {
  */
 export default function HrAnnualTimeline({ colors, layout, nowMonth = -1, selectedId = null, onSelectActivity, compact = false }) {
   const chart = chartColorsFor(colors);
-  const { width } = useLayout();
+  const { isWide } = useLayout();
   // Hele navnet når det er plass, ellers «Sep», og bokstav på telefon.
-  const label = (name, m) => (compact ? MONTH_LETTER[m] : width < 1200 ? name.slice(0, 3) : name);
+  const label = (name, m) => (compact ? MONTH_LETTER[m] : isWide ? name : name.slice(0, 3));
   const head = (
     <View style={styles.months}>
       {MONTHS_NB.map((name, m) => (

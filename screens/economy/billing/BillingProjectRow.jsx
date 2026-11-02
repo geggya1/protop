@@ -99,7 +99,7 @@ export default function BillingProjectRow({
           ) : null}
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={{ color: colors.ink, fontSize: 14, fontWeight: '500' }}>{money(openTotal + fixedPicked)}</Text>
+          <Text style={[type.body, { color: colors.ink, fontWeight: '500' }]}>{money(openTotal + fixedPicked)}</Text>
           {some ? <Text style={{ color: colors.muted, fontSize: 12 }}>Valgt {money(amount)}</Text> : null}
           {project.fixed && !fixedPicked && project.fixed.amount > 0 ? (
             <Text style={{ color: colors.muted, fontSize: 12 }}>

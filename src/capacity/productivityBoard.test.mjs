@@ -18,6 +18,21 @@ import {
 } from './plan.js';
 
 const require = createRequire(import.meta.url);
+
+// Flaten viser uker fra «i dag». Testdataene er fra høsten 2026, så klokken låses til
+// fredag 30. oktober 2026 (da testen sist gikk grønt); ellers feiler testen bare fordi kalenderen har gått videre.
+const RealDate = Date;
+const FIXED_NOW = new RealDate(2026, 9, 30, 12, 0, 0).getTime();
+class FixedDate extends RealDate {
+  constructor(...args) {
+    super(...(args.length ? args : [FIXED_NOW]));
+  }
+
+  static now() {
+    return FIXED_NOW;
+  }
+}
+globalThis.Date = FixedDate;
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const colors = {
   brand: '#1099F4',

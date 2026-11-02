@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { annualTaskEffects, annualWheel, authorityMatrix, communicationGroups, isoRoleFor, orgTree, roleLinks } from './planning.js';
+import { annualArea, annualTaskEffects, annualWheel, annualWheelGraphic, authorityMatrix, communicationGroups, isoRoleFor, orgTree, roleLinks } from './planning.js';
 import { emptyIsoState } from './state.js';
 import { autoTaskEffects } from './integrations.js';
 
@@ -75,6 +75,34 @@ test('annualWheel samler planlagte aktiviteter og datoer fra registrene', () => 
   assert.equal(wheel[1].dated[0].count, 2);
   assert.equal(wheel[1].dated[0].page, 'risiko');
   assert.equal(wheel[2].dated[0].open, 'v1');
+});
+
+test('annualWheelGraphic: buer én gang per aktivitet, punkter per dato, område etter kategori eller side', () => {
+  const state = emptyIsoState();
+  state.records.aarshjul = [
+    { id: 'a1', title: 'Vernerunde', months: ['Mars', 'September'], page: 'hms', state: 'aktiv' },
+    { id: 'a2', title: 'Kundemøte', months: ['Mars'], category: 'Marked', page: 'ledelse', state: 'aktiv' },
+    { id: 'a3', title: 'Miljørapport', months: ['Mars'], category: 'Miljø', state: 'aktiv' },
+  ];
+  state.records.mal = [
+    { id: 'm1', title: 'Mål 1', deadline: '2027-12-31', state: 'aktiv' },
+    { id: 'm2', title: 'Mål 2', deadline: '2027-12-31', state: 'aktiv' },
+  ];
+  state.records.risiko = [{ id: 'x1', nextReview: '2027-02-01', state: 'aktiv' }];
+  const g = annualWheelGraphic(annualWheel(state, { year: 2027 }));
+  assert.equal(g.planned.length, 3);
+  const a1 = g.planned.find((i) => i.activity.id === 'a1');
+  assert.deepEqual(a1.activity.months, [2, 8]);
+  assert.equal(a1.area, 'hms');
+  assert.equal(g.planned.find((i) => i.activity.id === 'a2').area, 'annet');
+  assert.equal(g.planned.find((i) => i.activity.id === 'a3').area, 'miljo');
+  const dec = g.points.find((p) => p.month === 11);
+  assert.deepEqual([dec.day, dec.count, dec.area], [31, 2, 'ledelse']);
+  // Samlede linjer uten dato står midt i måneden.
+  const feb = g.points.find((p) => p.month === 1);
+  assert.deepEqual([feb.day, feb.count, feb.area], [15, 1, 'kvalitet']);
+  assert.equal(annualArea({ page: 'beredskap' }), 'hms');
+  assert.equal(annualArea({}), 'annet');
 });
 
 test('annualTaskEffects: oppgaver for inneværende måned, idempotent nøkkel og rolle', () => {

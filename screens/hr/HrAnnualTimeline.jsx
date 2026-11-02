@@ -36,12 +36,16 @@ export function StatusLegend({ colors, withIso = false }) {
  * og inneværende måned markert. Trykk en rad for å gå rett til aktiviteten (onSelectActivity).
  * Bare raden som er valgt (selectedId) markeres.
  * layout fra wheelLayout(). compact: telefon (bokstav for måned, navnet over streken).
+ * itemColor: fargen per strek (ISO-årshjulet farger etter område), ellers status.
  */
-export default function HrAnnualTimeline({ colors, layout, nowMonth = -1, selectedId = null, onSelectActivity, compact = false }) {
+export default function HrAnnualTimeline({
+  colors, layout, nowMonth = -1, selectedId = null, onSelectActivity, compact = false, itemColor = null, nativeID = 'hr-annual-timeline',
+}) {
   const chart = chartColorsFor(colors);
-  const { width } = useLayout();
+  const colorOf = itemColor || ((i) => statusColor(i.status, chart));
+  const { isWide } = useLayout();
   // Hele navnet når det er plass, ellers «Sep», og bokstav på telefon.
-  const label = (name, m) => (compact ? MONTH_LETTER[m] : width < 1200 ? name.slice(0, 3) : name);
+  const label = (name, m) => (compact ? MONTH_LETTER[m] : isWide ? name : name.slice(0, 3));
   const head = (
     <View style={styles.months}>
       {MONTHS_NB.map((name, m) => (
@@ -57,7 +61,7 @@ export default function HrAnnualTimeline({ colors, layout, nowMonth = -1, select
     </View>
   );
   return (
-    <View nativeID="hr-annual-timeline" style={styles.wrap}>
+    <View nativeID={nativeID} style={styles.wrap}>
       <View style={[styles.row, compact && styles.rowCompact]}>
         {compact ? null : <View style={styles.name} />}
         {head}
@@ -87,7 +91,7 @@ export default function HrAnnualTimeline({ colors, layout, nowMonth = -1, select
               ))}
               {(i.segments || [[i.start, i.end]]).map(([from, to]) => (
                 <View key={from} style={[styles.barSlot, { left: `${(from / 12) * 100}%`, width: `${((to - from + 1) / 12) * 100}%` }]}>
-                  <View style={[styles.bar, { backgroundColor: statusColor(i.status, chart) }]} />
+                  <View style={[styles.bar, { backgroundColor: colorOf(i) }]} />
                 </View>
               ))}
             </View>

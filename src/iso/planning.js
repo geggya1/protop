@@ -157,6 +157,71 @@ export function annualWheel(state, { year = new Date().getFullYear() } = {}) {
   }));
 }
 
+/** Områdene i det grafiske årshjulet (farge per område, med forklaring). */
+export const ANNUAL_AREAS = [
+  { id: 'ledelse', label: 'Ledelse' },
+  { id: 'kvalitet', label: 'Kvalitet' },
+  { id: 'miljo', label: 'Miljø' },
+  { id: 'hms', label: 'HMS' },
+  { id: 'annet', label: 'Annet' },
+];
+
+const CATEGORY_AREA = { ledelse: 'ledelse', kvalitet: 'kvalitet', 'miljø': 'miljo', hms: 'hms' };
+const PAGE_AREA = {
+  ledelse: 'ledelse', mal: 'ledelse', kontekst: 'ledelse', organisasjon: 'ledelse', kommunikasjon: 'ledelse',
+  revisjon: 'kvalitet', risiko: 'kvalitet', lovkrav: 'kvalitet', leverandorer: 'kvalitet', dokumenter: 'kvalitet', avvik: 'kvalitet',
+  miljo: 'miljo', hms: 'hms', beredskap: 'hms',
+};
+
+/** Området til en ISO-side (for datoene fra registrene). */
+export function pageArea(page) {
+  return PAGE_AREA[page] || 'annet';
+}
+
+/** Området til en årshjulsaktivitet: «Område» når det er satt, ellers siden den utføres i. */
+export function annualArea({ category, page } = {}) {
+  if (norm(category)) return CATEGORY_AREA[norm(category)] || 'annet';
+  return pageArea(page);
+}
+
+/**
+ * Det grafiske årshjulet av annualWheel(): faste aktiviteter én gang over månedene sine (buer),
+ * og datoene fra registrene som punkter på datoen (samme dag samles til ett punkt med antall).
+ * Samlede linjer uten dato («Revurdering av risiko (3)») står midt i måneden.
+ */
+export function annualWheelGraphic(months) {
+  const planned = new Map();
+  const points = new Map();
+  for (const m of months || []) {
+    for (const r of m.planned || []) {
+      if (planned.has(r.id)) continue;
+      const list = (r.months || []).map((name) => MONTH_NAMES.indexOf(name)).filter((i) => i >= 0);
+      if (!list.length) continue;
+      planned.set(r.id, { activity: { id: r.id, title: r.title, months: list }, record: r, area: annualArea(r), status: 'planned' });
+    }
+    for (const d of m.dated || []) {
+      const day = d.date ? Number(String(d.date).slice(8, 10)) || 15 : 15;
+      const key = `${m.month}:${day}`;
+      const area = pageArea(d.page);
+      const cur = points.get(key) || { key, month: m.month, day, items: [], areas: new Set() };
+      cur.items.push(d);
+      cur.areas.add(area);
+      points.set(key, cur);
+    }
+  }
+  return {
+    planned: [...planned.values()],
+    points: [...points.values()].map((p) => ({
+      key: p.key,
+      month: p.month,
+      day: p.day,
+      count: p.items.reduce((n, d) => n + (d.count || 1), 0),
+      area: p.areas.size === 1 ? [...p.areas][0] : 'annet',
+      titles: p.items.map((d) => d.title),
+    })),
+  };
+}
+
 /** ISO-rollen som svarer til en rolletekst («Kvalitetsleder», «Daglig leder» …). */
 export function isoRoleFor(roleMap, value) {
   const key = ownerParts(value).map(isoRoleIdFor).find((k) => roleMap?.[k]?.uid);

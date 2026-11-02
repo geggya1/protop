@@ -112,6 +112,7 @@ function TemplateCard({ template, active, onPress }) {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Text style={{ fontSize: 14, fontWeight: '700', color: colors.ink, flexShrink: 1 }} numberOfLines={1}>{template.name}</Text>
           {!template.builtin ? <Pill label="Egen" tone="brand" small /> : null}
+          {template.customized ? <Pill label="Tilpasset" tone="brand" small /> : null}
         </View>
         <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>{stats.items} punkter · {durationLabel(template.durationMin || stats.minutes)}{template.recurrence !== 'none' ? ` · ${RECURRENCE.find((r) => r.id === template.recurrence)?.short || ''}` : ''}</Text>
       </View>

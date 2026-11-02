@@ -360,14 +360,14 @@ export function Banner({ tone = 'info', icon = 'information-circle', title, chil
   );
 }
 
-export function Empty({ icon = 'calendar-outline', title, text, action }) {
+export function Empty({ icon = 'calendar-outline', title, text, action, titleWeight = '700' }) {
   const colors = useColors();
   return (
     <View style={styles.empty}>
       <View style={[styles.emptyIcon, { backgroundColor: `${colors.brand}12` }]}>
         <Ionicons name={icon} size={28} color={colors.brand} />
       </View>
-      <Text style={{ fontSize: 16, fontWeight: '700', color: colors.ink, textAlign: 'center' }}>{title}</Text>
+      <Text style={{ fontSize: 16, fontWeight: titleWeight, color: colors.ink, textAlign: 'center' }}>{title}</Text>
       {text ? <Text style={{ fontSize: 13, color: colors.muted, textAlign: 'center', maxWidth: 420, lineHeight: 19 }}>{text}</Text> : null}
       {action || null}
     </View>

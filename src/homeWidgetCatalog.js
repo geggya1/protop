@@ -44,10 +44,41 @@ export const PARENT_WIDGET_CATALOG = [
   { type: 'shortcuts', label: 'Snarveier', icon: 'apps-outline', sizes: ['third', 'full', 'tall'], defaultSize: 'full', hint: 'Moduler som fliser' },
   { type: 'appFolder', label: 'Apper', icon: 'grid-outline', sizes: ['third'], defaultSize: 'third', hint: 'Tre apper + mer' },
   { type: 'reminders', label: 'Husk', icon: 'notifications-outline', sizes: ['full'], defaultSize: 'full', hint: 'Det som gjenstår' },
-  { type: 'assistant', label: 'ProTop AI', icon: 'sparkles-outline', sizes: ['third', 'full', 'tall'], defaultSize: 'full', hint: 'Spør AI om plan, lister og rutiner' },
+  { type: 'assistant', label: 'ProTop AI', icon: 'sparkles-outline', sizes: ['third', 'full', 'tall'], defaultSize: 'full', hint: 'Spør AI om plan, oppgaver og notater' },
   { type: 'rewards', label: 'Belønninger', icon: 'star-outline', sizes: ['third', 'half'], defaultSize: 'third', hint: 'Opptjent denne uken' },
   { type: 'goals', label: 'Ukens mål', icon: 'flag-outline', sizes: ['third', 'half'], defaultSize: 'third', hint: 'Mål barna jobber mot' },
   { type: 'progress', label: 'Barnas progresjon', icon: 'stats-chart-outline', sizes: ['half', 'full', 'tall'], defaultSize: 'full', hint: 'Hvordan barna ligger an i dag' },
+  // ProTop: arbeidsdagen, ikke familien.
+  { type: 'dayBrief', label: 'Dagen din', icon: 'sunny-outline', sizes: ['full'], defaultSize: 'full', hint: 'Avtaler, oppgaver og varsler i dag' },
+  { type: 'weekAgenda', label: 'Uken', icon: 'calendar-number-outline', sizes: ['full'], defaultSize: 'full', hint: 'Hvor travle dagene i uken er' },
+  { type: 'quickActions', label: 'Hurtigvalg', icon: 'flash-outline', sizes: ['full'], defaultSize: 'full', hint: 'Ny avtale, oppgave, notat og mer' },
+  { type: 'mail', label: 'E-post', icon: 'mail-outline', sizes: ['third', 'half'], defaultSize: 'half', hint: 'Uleste e-poster' },
+];
+
+/**
+ * Bedriftens Hjem: timer, prosjekter og teamet først. Samme widgets som privat der det
+ * gir mening (kalender, oppgaver, vær), men ingen familie- eller hjemmewidgets.
+ */
+export const COMPANY_WIDGET_CATALOG = [
+  { type: 'myHours', label: 'Mine timer', icon: 'time-outline', sizes: ['full'], defaultSize: 'full', hint: 'Timer i dag og denne uken' },
+  { type: 'projects', label: 'Prosjekter', icon: 'business-outline', sizes: ['half', 'full'], defaultSize: 'full', hint: 'Prosjektene du jobber på' },
+  { type: 'team', label: 'Teamet i dag', icon: 'people-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: 'Hvem som har ført timer i dag' },
+  { type: 'companyNews', label: 'Nyheter', icon: 'megaphone-outline', sizes: ['full'], defaultSize: 'full', hint: 'Siste nytt fra bedriften' },
+  { type: 'dayBrief', label: 'Dagen din', icon: 'sunny-outline', sizes: ['full'], defaultSize: 'full', hint: 'Avtaler, oppgaver og varsler i dag' },
+  { type: 'quickActions', label: 'Hurtigvalg', icon: 'flash-outline', sizes: ['full'], defaultSize: 'full', hint: 'Før timer, meld avvik, ny oppgave' },
+  { type: 'timeline', label: 'Kalender i dag', icon: 'calendar-outline', sizes: ['full', 'tall'], defaultSize: 'full', hint: 'Avtaler i dag — fra kveld: i morgen' },
+  { type: 'nextEvent', label: 'Neste avtale', icon: 'calendar-outline', sizes: ['half', 'full', 'tall'], defaultSize: 'full', hint: 'Det som skjer først, med nedtelling' },
+  { type: 'weekAgenda', label: 'Uken', icon: 'calendar-number-outline', sizes: ['full'], defaultSize: 'full', hint: 'Hvor travle dagene i uken er' },
+  { type: 'tasks', label: 'Oppgaver', icon: 'checkbox-outline', sizes: ['third', 'half', 'full', 'tall'], defaultSize: 'full', hint: 'Åpne oppgaver og frister' },
+  { type: 'notes', label: 'Notater', icon: 'document-text-outline', sizes: ['third', 'full'], defaultSize: 'full', hint: 'Siste notater' },
+  { type: 'reminders', label: 'Husk', icon: 'notifications-outline', sizes: ['full'], defaultSize: 'full', hint: 'Det som gjenstår' },
+  { type: 'mail', label: 'E-post', icon: 'mail-outline', sizes: ['third', 'half'], defaultSize: 'half', hint: 'Uleste e-poster' },
+  { type: 'assistant', label: 'ProTop AI', icon: 'sparkles-outline', sizes: ['third', 'full', 'tall'], defaultSize: 'full', hint: 'Spør AI om prosjekt, timer og plan' },
+  { type: 'weather', label: 'Vær', icon: 'partly-sunny-outline', sizes: ['half', 'full', 'tall'], defaultSize: 'half', hint: 'Været på byggeplassen' },
+  { type: 'clock', label: 'Klokke', icon: 'time-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: 'Analog klokke og klokkeslett' },
+  { type: 'date', label: 'Dato', icon: 'calendar-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: 'Ukedag, dato og ukenummer' },
+  { type: 'shortcuts', label: 'Snarveier', icon: 'apps-outline', sizes: ['third', 'full', 'tall'], defaultSize: 'full', hint: 'Moduler som fliser' },
+  { type: 'appFolder', label: 'Apper', icon: 'grid-outline', sizes: ['third'], defaultSize: 'third', hint: 'Tre apper + mer' },
 ];
 
 export const CHILD_WIDGET_CATALOG = [
@@ -99,13 +130,43 @@ export function homeLookMeta(id) {
   return HOME_LOOKS.find((item) => item.id === look);
 }
 
-/** Same 5-column home grid. Tiles are kalender, oppgaver, notat and varsler. */
-const STANDARD_PARENT_WIDGETS = [
+/**
+ * Forrige standard (malversjon 4). Et Hjem som fortsatt er akkurat slik, har ikke
+ * personen rørt, og får den nye standarden (homeLayoutStore).
+ */
+export const LEGACY_PARENT_WIDGETS_V4 = [
   { id: 'w-family-today', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },
   { id: 'w-tasks', type: 'tasks', col: 0, row: 2, gw: 3, gh: 3 },
   { id: 'w-notes', type: 'notes', col: 3, row: 2, gw: 2, gh: 3 },
   { id: 'w-reminders', type: 'reminders', col: 0, row: 5, gw: 5, gh: 2 },
   { id: 'w-shortcuts', type: 'shortcuts', col: 0, row: 7, gw: 5, gh: 2, variant: 'row' },
+];
+
+/**
+ * Privat: dagen din (avtaler, oppgaver, varsler), kalenderen, oppgaver og notater,
+ * hurtigvalg og uken. Personlig innhold, ingen bedriftstall.
+ */
+const STANDARD_PARENT_WIDGETS = [
+  { id: 'w-day', type: 'dayBrief', col: 0, row: 0, gw: 5, gh: 2 },
+  { id: 'w-family-today', type: 'timeline', col: 0, row: 2, gw: 5, gh: 2 },
+  { id: 'w-tasks', type: 'tasks', col: 0, row: 4, gw: 3, gh: 2 },
+  { id: 'w-notes', type: 'notes', col: 3, row: 4, gw: 2, gh: 2 },
+  { id: 'w-quick', type: 'quickActions', col: 0, row: 6, gw: 5, gh: 2 },
+  { id: 'w-week', type: 'weekAgenda', col: 0, row: 8, gw: 5, gh: 2 },
+];
+
+/**
+ * Bedrift: mine timer øverst, hurtigvalg, prosjekter og teamet, kalenderen,
+ * oppgaver og nyheter fra bedriften.
+ */
+const STANDARD_COMPANY_WIDGETS = [
+  { id: 'w-hours', type: 'myHours', col: 0, row: 0, gw: 5, gh: 2 },
+  { id: 'w-quick', type: 'quickActions', col: 0, row: 2, gw: 5, gh: 2 },
+  { id: 'w-projects', type: 'projects', col: 0, row: 4, gw: 3, gh: 3 },
+  { id: 'w-team', type: 'team', col: 3, row: 4, gw: 2, gh: 3 },
+  { id: 'w-today', type: 'timeline', col: 0, row: 7, gw: 5, gh: 2 },
+  { id: 'w-tasks', type: 'tasks', col: 0, row: 9, gw: 5, gh: 2 },
+  { id: 'w-news', type: 'companyNews', col: 0, row: 11, gw: 5, gh: 2 },
 ];
 
 const LOOK_PARENT_WIDGETS = {
@@ -126,15 +187,36 @@ const LOOK_CHILD_WIDGETS = {
   fokus: STANDARD_CHILD_WIDGETS,
 };
 
+const LOOK_COMPANY_WIDGETS = {
+  oversikt: STANDARD_COMPANY_WIDGETS,
+  fokus: STANDARD_COMPANY_WIDGETS,
+};
+
+function lookTable(role) {
+  if (role === 'child') return LOOK_CHILD_WIDGETS;
+  if (role === 'company') return LOOK_COMPANY_WIDGETS;
+  return LOOK_PARENT_WIDGETS;
+}
+
 export function widgetsForLook(lookId, role = 'parent') {
   const look = resolveHomeLook(lookId);
-  const table = role === 'child' ? LOOK_CHILD_WIDGETS : LOOK_PARENT_WIDGETS;
+  const table = lookTable(role);
   const list = table[look] || table[DEFAULT_HOME_LOOK];
   return layoutWidgets(list.map((widget) => ({ ...widget })));
 }
 
 export const DEFAULT_PARENT_WIDGETS = widgetsForLook('oversikt', 'parent');
 export const DEFAULT_CHILD_WIDGETS = widgetsForLook('oversikt', 'child');
+export const DEFAULT_COMPANY_WIDGETS = widgetsForLook('oversikt', 'company');
+
+/** Samme widgets på samme plass (id og variant teller ikke). */
+export function sameWidgetPlacement(a, b) {
+  const key = (list) => (list || [])
+    .map((w) => `${w.type}:${w.col}:${w.row}:${w.gw}:${w.gh}`)
+    .sort()
+    .join('|');
+  return key(a) === key(b);
+}
 
 /**
  * Visual looks for a widget. Preview and home must use the same spec
@@ -270,6 +352,14 @@ export const MODULE_CHROME = {
   rewards: { icon: 'star', glyphColor: '#E0A106' },
   goals: { icon: 'flag', glyphColor: '#1F8A4C' },
   progress: { icon: 'stats-chart', glyphColor: '#2F80ED' },
+  dayBrief: { icon: 'sunny', glyphColor: BRAND },
+  weekAgenda: { icon: 'calendar-number', glyphColor: BRAND },
+  quickActions: { icon: 'flash', glyphColor: BRAND },
+  mail: { icon: 'mail', glyphColor: BRAND },
+  myHours: { icon: 'time', glyphColor: BRAND },
+  projects: { icon: 'business', glyphColor: BRAND },
+  team: { icon: 'people', glyphColor: BRAND },
+  companyNews: { icon: 'megaphone', glyphColor: BRAND },
 };
 
 export function moduleChrome(type) {
@@ -277,20 +367,24 @@ export function moduleChrome(type) {
 }
 
 export function catalogForRole(role) {
+  if (role === 'company') {
+    return COMPANY_WIDGET_CATALOG.filter((item) => isProtopHomeWidget(item.type, 'company'));
+  }
   const list = role === 'child' ? CHILD_WIDGET_CATALOG : PARENT_WIDGET_CATALOG;
   return list.filter((item) => isProtopHomeWidget(item.type));
 }
 
 export const CATALOG_GROUPS = [
-  { id: 'info', label: 'Klokke og vær', types: ['weather', 'clock', 'date'] },
+  { id: 'arbeid', label: 'Arbeid', types: ['myHours', 'projects', 'team', 'companyNews'] },
   {
     id: 'plan',
-    label: 'Plan og kalender',
-    types: ['weeklyPlan', 'nextEvent', 'timeline', 'activities', 'rememberDates', 'school', 'homework'],
+    label: 'Dag og kalender',
+    types: ['dayBrief', 'weekAgenda', 'weeklyPlan', 'nextEvent', 'timeline', 'activities', 'rememberDates', 'school', 'homework'],
   },
-  { id: 'hjem', label: 'Hjem', types: ['tasks', 'shopping', 'meals', 'notes', 'reminders', 'rewards', 'goals'] },
+  { id: 'hjem', label: 'Oppgaver og notater', types: ['tasks', 'notes', 'reminders', 'mail', 'shopping', 'meals', 'rewards', 'goals'] },
+  { id: 'info', label: 'Klokke og vær', types: ['weather', 'clock', 'date'] },
   { id: 'familie', label: 'Familie', types: ['kids', 'progress', 'family', 'location', 'familyTree', 'messages'] },
-  { id: 'mer', label: 'Mer', types: ['appFolder', 'shortcuts', 'assistant', 'trips', 'wishes', 'books'] },
+  { id: 'mer', label: 'Snarveier og AI', types: ['quickActions', 'appFolder', 'shortcuts', 'assistant', 'trips', 'wishes', 'books'] },
 ];
 
 /** Catalog grouped for the picker — every module type stays a visible choice. */

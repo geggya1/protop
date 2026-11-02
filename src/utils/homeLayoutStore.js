@@ -10,6 +10,8 @@ import {
   resolveHomeLook,
   widgetsForLook,
   normalizeWidgets,
+  sameWidgetPlacement,
+  LEGACY_PARENT_WIDGETS_V4,
 } from '../homeWidgetCatalog';
 import {
   childChoresLayoutIsStale,
@@ -27,7 +29,13 @@ import {
 } from './parentDashboardTheme';
 
 export const HOME_LAYOUT_KEY = 'protop.homeLayout.v1';
-export const HOME_TEMPLATE_VERSION = 4;
+/**
+ * 5: ProTop-widgetene (Dagen din, hurtigvalg, uken). Et Hjem som fortsatt har
+ * standarden fra versjon 4 får den nye; et Hjem personen har endret står.
+ */
+export const HOME_TEMPLATE_VERSION = 5;
+/** Versjonen der parent-Hjem sist ble nullstilt for alle. */
+const PARENT_RESET_VERSION = 4;
 /** Child-only bump — does not re-reset parent homes still on version 4. */
 export const CHILD_HOME_TEMPLATE_VERSION = 8;
 export const LEGACY_DEFAULT_BANNER_ID = 'gutt-ungdom-kveld';
@@ -117,10 +125,16 @@ function parseLayout(parsed, role = 'parent') {
     ? normalizeWidgets(parsed.widgets, role)
     : widgetsForLook(look, role);
   let templateVersion = Number(parsed?.templateVersion) || 1;
-  if (role === 'parent' && templateVersion < HOME_TEMPLATE_VERSION) {
+  if (role === 'parent' && templateVersion < PARENT_RESET_VERSION) {
     look = DEFAULT_HOME_LOOK;
     widgets = widgetsForLook(look, role);
     if (bannerId === LEGACY_DEFAULT_BANNER_ID) bannerId = DEFAULT_HOME_BANNER_ID;
+    templateVersion = HOME_TEMPLATE_VERSION;
+  } else if (role === 'parent' && templateVersion < HOME_TEMPLATE_VERSION) {
+    // Urørt standard fra versjon 4 får de nye widgetene. Egne valg (dra, legg til, fjern) står.
+    if (sameWidgetPlacement(widgets, normalizeWidgets(LEGACY_PARENT_WIDGETS_V4, role))) {
+      widgets = widgetsForLook(look, role);
+    }
     templateVersion = HOME_TEMPLATE_VERSION;
   }
   if (role === 'child' && templateVersion < CHILD_HOME_TEMPLATE_VERSION) {
@@ -175,9 +189,9 @@ export async function loadHomeLayout(uid, { role = 'parent', aliases = [] } = {}
       const parsed = JSON.parse(raw);
       const next = parseLayout(parsed, role);
       const savedVersion = Number(parsed?.templateVersion) || 1;
-      const versionStale = role === 'parent'
-        ? savedVersion < HOME_TEMPLATE_VERSION
-        : savedVersion < CHILD_HOME_TEMPLATE_VERSION;
+      const versionStale = role === 'child'
+        ? savedVersion < CHILD_HOME_TEMPLATE_VERSION
+        : savedVersion < HOME_TEMPLATE_VERSION;
       const choresStale = role === 'child'
         && childChoresLayoutIsStale(parsed?.widgets)
         && !childChoresLayoutIsStale(next.widgets);
@@ -191,7 +205,7 @@ export async function loadHomeLayout(uid, { role = 'parent', aliases = [] } = {}
       }
       return next;
     }
-    if (role !== 'child') {
+    if (role === 'parent') {
       const bottom = await loadParentBottomShortcutIds(uid);
       if (Array.isArray(bottom) && bottom.length) fallback.bottomIds = bottom;
     }
@@ -205,7 +219,8 @@ export async function saveHomeLayout(uid, layout, { role = 'parent' } = {}) {
   try {
     const AsyncStorage = await storage();
     await AsyncStorage.setItem(storageKey(uid, role), JSON.stringify(next));
-    if (role !== 'child') {
+    // Bedriftens Hjem lagrer bare widgetene; dock og bilde hører til det private oppsettet.
+    if (role === 'parent') {
       // Layout listeners already cover dock ids; skip a second theme notify that
       // would reload AppShell (and the photo) on every widget save.
       await saveParentBottomShortcutIds(uid, next.bottomIds, { silent: true });

@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   GRID_COLS,
   gridPixelHeight,
+  cellHeightForBoard,
   intendedPlacement,
   pointerToCell,
   spanFor,
@@ -42,7 +43,7 @@ export default function WidgetGrid({
   liftRef.current = lift;
 
   const rows = Math.max(usedRows(widgets), editing ? usedRows(widgets) + 4 : usedRows(widgets));
-  const height = gridPixelHeight(Math.max(rows, editing ? 8 : 1));
+  const height = gridPixelHeight(Math.max(rows, editing ? 8 : 1), cellHeightForBoard(boardW));
   const usedHelpIds = new Set();
 
   const measure = (cb) => {

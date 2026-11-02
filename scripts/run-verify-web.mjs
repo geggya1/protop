@@ -312,6 +312,11 @@ export const FILES = [
   'src/format/nb.test.mjs',
   'src/i18n/deviceLang.test.mjs',
   'src/companyHome/model.test.mjs',
+  // Hjem: ProTop-widgetene, rutenettet og mørkt glass på bilde.
+  'src/utils/proHome.test.mjs',
+  'src/homeWidgetCatalog.test.mjs',
+  'src/homeGrid.test.mjs',
+  'src/utils/glassInk.test.mjs',
   // Bedriftssiden: Om oss-artikkel, Tjenester, Ansatte og Bærekraft fra ISO.
   'src/project/articleFormat.test.mjs',
   'src/project/companyStaff.test.mjs',

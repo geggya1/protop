@@ -36,6 +36,7 @@ export default function WidgetCatalogGrid({
                     <Ionicons name={item.icon} size={20} color={on ? colors.onBrand : colors.brand} />
                   </View>
                   <Text style={styles.label} numberOfLines={2}>{item.label}</Text>
+                  {item.hint ? <Text style={styles.hint} numberOfLines={2}>{item.hint}</Text> : null}
                   <Text style={[styles.state, on && styles.stateOn]}>{on ? 'På' : 'Av'}</Text>
                 </TouchableOpacity>
               );
@@ -93,7 +94,10 @@ const styles = StyleSheet.create({
     color: colors.ink,
     textAlign: 'center',
     lineHeight: 16,
-    minHeight: 32,
+    minHeight: 16,
+  },
+  hint: {
+    fontSize: 11, color: colors.muted, textAlign: 'center', lineHeight: 14, minHeight: 28, marginTop: 2,
   },
   state: { fontSize: 11, color: colors.muted, marginTop: 4 },
   stateOn: { color: colors.brandInk },

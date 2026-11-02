@@ -6,7 +6,8 @@ import { useNow } from '../../src/hooks/useNow';
 import { widgetVariant } from '../../src/homeWidgetCatalog';
 import { colors } from '../../src/theme';
 import { SoftWeatherCard } from './PastelCards';
-import { homeCardSurface } from './homeGlass';
+import { homeCardSurface, useGlassCard, useGlassStyles } from './homeGlass';
+import { useHomeGlassTint } from '../../src/context/HomeImmersiveContext';
 
 function TileWrap({ interactive, onPress, accessibilityLabel, style, children }) {
   if (!interactive) {
@@ -53,6 +54,12 @@ function polar(cx, cy, deg, len) {
 }
 
 function AnalogFace({ size }) {
+  const tint = useHomeGlassTint();
+  const face = tint ? 'rgba(255,255,255,0.12)' : colors.bg;
+  const rim = tint ? 'rgba(255,255,255,0.28)' : colors.line;
+  const ink = tint ? '#FFFFFF' : colors.ink;
+  const mute = tint ? 'rgba(255,255,255,0.6)' : colors.muted;
+  const hand = tint ? '#8CCBFF' : colors.brand;
   const now = useNow(1000);
   const hours = now.getHours();
   const minutes = now.getMinutes();
@@ -66,7 +73,7 @@ function AnalogFace({ size }) {
   const minPt = polar(cx, cy, minDeg, size * 0.38);
   return (
     <Svg width={size} height={size}>
-      <Circle cx={cx} cy={cy} r={size / 2 - 1.5} fill={colors.bg} stroke={colors.line} strokeWidth={2} />
+      <Circle cx={cx} cy={cy} r={size / 2 - 1.5} fill={face} stroke={rim} strokeWidth={2} />
       {ticks.map((i) => {
         const outer = polar(cx, cy, i * 30, size / 2 - 6);
         const inner = polar(cx, cy, i * 30, size / 2 - (i % 3 === 0 ? 13 : 10));
@@ -77,15 +84,15 @@ function AnalogFace({ size }) {
             y1={inner.y}
             x2={outer.x}
             y2={outer.y}
-            stroke={i % 3 === 0 ? colors.ink : colors.muted}
+            stroke={i % 3 === 0 ? ink : mute}
             strokeWidth={i % 3 === 0 ? 2 : 1.2}
             strokeLinecap="round"
           />
         );
       })}
-      <Line x1={cx} y1={cy} x2={hourPt.x} y2={hourPt.y} stroke={colors.ink} strokeWidth={4} strokeLinecap="round" />
-      <Line x1={cx} y1={cy} x2={minPt.x} y2={minPt.y} stroke={colors.brand} strokeWidth={3} strokeLinecap="round" />
-      <Circle cx={cx} cy={cy} r={4} fill={colors.ink} />
+      <Line x1={cx} y1={cy} x2={hourPt.x} y2={hourPt.y} stroke={ink} strokeWidth={4} strokeLinecap="round" />
+      <Line x1={cx} y1={cy} x2={minPt.x} y2={minPt.y} stroke={hand} strokeWidth={3} strokeLinecap="round" />
+      <Circle cx={cx} cy={cy} r={4} fill={ink} />
     </Svg>
   );
 }
@@ -96,6 +103,8 @@ export function ClockTile({
   compact = true,
   interactive = true,
 }) {
+  const styles = useGlassStyles(baseStyles);
+  const cardSurface = useGlassCard();
   const spec = widgetVariant('clock', variant || (compact ? 'small' : 'wide'));
   const look = spec.id;
   const now = useNow(1000);
@@ -107,7 +116,7 @@ export function ClockTile({
       interactive={interactive}
       onPress={onPress}
       accessibilityLabel={`Klokken er ${label}`}
-      style={[styles.clock, homeCardSurface, look === 'wide' && styles.clockWide]}
+      style={[styles.clock, cardSurface, look === 'wide' && styles.clockWide]}
     >
       {look === 'wide' ? (
         <>
@@ -140,6 +149,8 @@ export function DateTile({
   compact = true,
   interactive = true,
 }) {
+  const styles = useGlassStyles(baseStyles);
+  const cardSurface = useGlassCard();
   const spec = widgetVariant('date', variant || (compact ? 'small' : 'wide'));
   const look = spec.id;
   const now = useNow(30000);
@@ -151,7 +162,7 @@ export function DateTile({
       interactive={interactive}
       onPress={onPress}
       accessibilityLabel={`${weekday} ${now.getDate()}. ${month}`}
-      style={[styles.dateTile, homeCardSurface, look === 'wide' && styles.dateWide]}
+      style={[styles.dateTile, cardSurface, look === 'wide' && styles.dateWide]}
     >
       {look === 'wide' ? (
         <>
@@ -175,6 +186,7 @@ export function DateTile({
 export function StatTile({
   label, value, hint, icon, onPress, tint = colors.card,
 }) {
+  const styles = useGlassStyles(baseStyles);
   return (
     <TouchableOpacity
       style={[styles.stat, { backgroundColor: tint }]}
@@ -191,7 +203,7 @@ export function StatTile({
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   clock: {
     flex: 1,
     padding: 10,

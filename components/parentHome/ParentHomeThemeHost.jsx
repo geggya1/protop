@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useUnread } from '../../src/context/NotificationContext';
@@ -16,6 +16,9 @@ import WidgetBoard from '../home/WidgetBoard';
 import CompanyOfferCard from '../home/CompanyOfferCard';
 import CompanyStartChecklist from '../home/CompanyStartChecklist';
 import CompanyQuickReport from '../home/CompanyQuickReport';
+import { isOrganizationType } from '../../src/utils/groupTypes';
+import { useCompanyModules } from '../../src/access/useCompanyModules';
+import { openNotifications } from '../../src/navigation/openNotifications';
 
 /**
  * Fixed parent home — same tidy widget layout for every login.
@@ -29,14 +32,19 @@ export default function ParentHomeThemeHost({
   allMembers,
   dashboardApps,
   widgetData,
+  weekCounts = null,
   onOpenEvent,
   onOpenPlan,
   onAppAction,
 }) {
   const nav = useNavigation();
   const route = useOptionalRoute();
-  const { uid } = useApp();
+  const { uid, family, familyId } = useApp();
   const { unreadByModule } = useUnread();
+  // Privat og bedrift har hvert sitt Hjem: eget oppsett, egne widgets og egen standard.
+  const board = isOrganizationType(family?.type) ? 'company' : 'private';
+  const modules = useCompanyModules();
+  const isoActive = board === 'company' && !!modules?.isActive?.('iso');
   const { goChildProfile } = useProfileNavigation();
   const model = useParentHomeModel({
     familyEventsToday,
@@ -46,7 +54,16 @@ export default function ParentHomeThemeHost({
     widgetData,
     unreadByModule,
   });
-  const home = useHomeLayout(uid, { role: 'parent' });
+  const layoutRole = board === 'company' ? 'company' : 'parent';
+  const home = useHomeLayout(uid, { role: layoutRole });
+  const boardModel = useMemo(() => ({
+    ...model,
+    board,
+    companyId: board === 'company' ? familyId : '',
+    weekCounts: weekCounts || {},
+    isoActive,
+  }), [model, board, familyId, weekCounts, isoActive]);
+  const hasQuickActions = (home.layout?.widgets || []).some((w) => w.type === 'quickActions');
   const [editing, setEditing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [setupEdit, setSetupEdit] = useState(false);
@@ -72,8 +89,9 @@ export default function ParentHomeThemeHost({
     onOpenKid: goChildProfile,
     onOpenTasks: () => {
       const app = model.appById?.stars;
-      if (app) onAppAction?.(app.action);
+      onAppAction?.(app?.action || { type: 'tab', tab: 'stars' });
     },
+    onOpenNotifications: () => openNotifications(nav),
   };
 
   const { isPhone } = useLayout();
@@ -100,9 +118,9 @@ export default function ParentHomeThemeHost({
         scrollEnabled={!dragging}
       >
         <WidgetBoard
-          role="parent"
+          role={layoutRole}
           layout={home.layout}
-          model={model}
+          model={boardModel}
           handlers={handlers}
           greeting={model.greeting}
           title={homeSceneTitle(model.dayPart)}
@@ -127,7 +145,7 @@ export default function ParentHomeThemeHost({
             <>
               <CompanyOfferCard style={styles.startCard} />
               <CompanyStartChecklist style={styles.startCard} />
-              <CompanyQuickReport style={styles.startCard} />
+              {hasQuickActions ? null : <CompanyQuickReport style={styles.startCard} />}
             </>
           )}
         />

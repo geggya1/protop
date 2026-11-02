@@ -92,16 +92,32 @@ export const PROTOP_HOME_WIDGET_TYPES = [
   'reminders',
   'shortcuts',
   'appFolder',
+  'assistant',
+  'dayBrief',
+  'weekAgenda',
+  'quickActions',
+  'mail',
+];
+
+/** Bedriftens Hjem har i tillegg arbeidswidgetene. */
+export const PROTOP_COMPANY_HOME_WIDGET_TYPES = [
+  ...PROTOP_HOME_WIDGET_TYPES.filter((type) => type !== 'weeklyPlan'),
+  'myHours',
+  'projects',
+  'team',
+  'companyNews',
 ];
 
 const PROTOP_HOME_WIDGET_SET = new Set(PROTOP_HOME_WIDGET_TYPES);
+const PROTOP_COMPANY_HOME_WIDGET_SET = new Set(PROTOP_COMPANY_HOME_WIDGET_TYPES);
 
 export function isProtopShellModule(id) {
   return PROTOP_SHELL_MODULE_ID_SET.has(id);
 }
 
-export function isProtopHomeWidget(type) {
-  return PROTOP_HOME_WIDGET_SET.has(type);
+export function isProtopHomeWidget(type, board = 'private') {
+  if (board === 'company') return PROTOP_COMPANY_HOME_WIDGET_SET.has(type);
+  return PROTOP_HOME_WIDGET_SET.has(type) || PROTOP_COMPANY_HOME_WIDGET_SET.has(type);
 }
 
 export function applyProtopShellSections(sections, extraIds = []) {

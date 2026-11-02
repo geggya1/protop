@@ -24,6 +24,29 @@ import {
   FALLBACK_WISHES, FALLBACK_BOOKS, FALLBACK_TRIPS,
 } from '../../src/utils/homeWidgetVisuals';
 import { moduleChrome } from '../../src/homeWidgetCatalog';
+import {
+  DayBriefWidget, CalendarWidget, NextEventWidget, WeekAgendaWidget, TasksWidget, NotesWidget,
+  RemindersWidget, QuickActionsWidget, MailWidget, AssistantWidget, MyHoursWidget, ProjectsWidget,
+  TeamWidget, CompanyNewsWidget,
+} from './ProWidgets';
+
+/** ProTop-widgetene (ProWidgets.jsx): arbeidsdagen, i nytt felles kort. */
+const PRO_RENDERERS = {
+  dayBrief: DayBriefWidget,
+  timeline: CalendarWidget,
+  nextEvent: NextEventWidget,
+  weekAgenda: WeekAgendaWidget,
+  tasks: TasksWidget,
+  notes: NotesWidget,
+  reminders: RemindersWidget,
+  quickActions: QuickActionsWidget,
+  mail: MailWidget,
+  assistant: AssistantWidget,
+  myHours: MyHoursWidget,
+  projects: ProjectsWidget,
+  team: TeamWidget,
+  companyNews: CompanyNewsWidget,
+};
 
 function openApp(model, handlers, id) {
   const app = model?.appById?.[id];
@@ -204,7 +227,12 @@ function folderApps(model, demo) {
 
 export default function ParentWidgetRenderer({ widget, model, handlers }) {
   const type = widget.type;
-  if (!isProtopHomeWidget(type)) return null;
+  const board = model?.board === 'company' ? 'company' : 'private';
+  if (!isProtopHomeWidget(type, board)) return null;
+  const Pro = PRO_RENDERERS[type];
+  if (Pro) {
+    return <Pro widget={widget} model={model} handlers={handlers || {}} board={board} />;
+  }
   const demo = !!model.isPreview;
   const kids = model.activeKids || [];
   const members = model.allMembers || [];

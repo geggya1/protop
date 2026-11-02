@@ -33,6 +33,7 @@ import { toUpload } from '../../src/helpdesk/images';
 import {
   AttachmentPicker, Btn, Chip, DiagnosticsPreview, Empty, Field, HD, Notice, RemoteImage, SectionTitle, StatusPill, s as ui,
 } from '../../components/helpdesk/HelpdeskUi';
+import { radius, type } from '../../src/ui/tokens';
 import AssistantChat from '../../components/assistant/AssistantChat';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { useHelpAccess } from '../../src/help/useHelpAccess';
@@ -222,7 +223,7 @@ function SearchBox({ ctx, autoFocus = false }) {
         value={query}
         onChangeText={setQuery}
         placeholder="Søk i hjelpen, f.eks. «faktura», «passord» eller «hvit skjerm»"
-        placeholderTextColor="#94a3b8"
+        placeholderTextColor={HD.placeholder}
         style={st.searchInput}
         returnKeyType="search"
         autoFocus={autoFocus}
@@ -278,7 +279,7 @@ function HomeView({ ctx }) {
       <View style={[st.actions, isDesktop && st.actionsDesk]}>
         <ActionCard
           icon="sparkles"
-          color="#7c3aed"
+          color={HD.violet}
           title="Spør ProTop-assistenten"
           text="Få svar med en gang, døgnet rundt."
           onPress={() => go({ name: 'assistant' })}
@@ -294,7 +295,7 @@ function HomeView({ ctx }) {
         />
         <ActionCard
           icon="file-tray-full"
-          color="#0f766e"
+          color={HD.teal}
           title="Mine saker"
           text={openCount ? `${openCount} åpne${unread ? ` · ${unread} nye svar` : ''}` : 'Se saker du har sendt.'}
           badge={unread}
@@ -462,7 +463,7 @@ function ArticleView({ ctx, id }) {
               <Text style={st.stepBody}>{step.body}</Text>
               {stepLocks[i] ? (
                 <View style={st.stepLock} testID="help-step-locked">
-                  <Ionicons name="lock-closed" size={13} color="#b45309" />
+                  <Ionicons name="lock-closed" size={13} color={HD.warn} />
                   <Text style={st.stepLockTxt}>{stepLocks[i]}</Text>
                 </View>
               ) : null}
@@ -652,10 +653,10 @@ function NewTicketView({ ctx }) {
             accessibilityState={{ selected: category === id }}
             testID={`cat-${id}`}
           >
-            <Ionicons name={CATEGORIES[id].icon} size={20} color={category === id ? '#fff' : HD.brand} />
+            <Ionicons name={CATEGORIES[id].icon} size={20} color={category === id ? HD.onBrand : HD.brand} />
             <View style={{ flex: 1 }}>
-              <Text style={[st.catTitle, category === id && { color: '#fff' }]}>{categoryLabel(id, lang)}</Text>
-              <Text style={[st.catHint, category === id && { color: '#e0edff' }]} numberOfLines={2}>{pickText(CATEGORIES[id].hint, lang)}</Text>
+              <Text style={[st.catTitle, category === id && { color: HD.onBrand }]}>{categoryLabel(id, lang)}</Text>
+              <Text style={[st.catHint, category === id && { color: HD.onBrandMuted }]} numberOfLines={2}>{pickText(CATEGORIES[id].hint, lang)}</Text>
             </View>
           </TouchableOpacity>
         ))}
@@ -690,7 +691,7 @@ function NewTicketView({ ctx }) {
         {suggest.length ? (
           <View style={st.suggestBox} testID="ticket-suggestions">
             <View style={st.suggestHead}>
-              <Ionicons name="bulb" size={16} color="#d97706" />
+              <Ionicons name="bulb" size={16} color={HD.amber} />
               <Text style={st.suggestTitle}>Kanskje dette løser det med en gang?</Text>
             </View>
             {suggest.map((a) => (
@@ -770,7 +771,7 @@ function SentView({ ctx, result }) {
   const arts = (result?.articles || []).map((a) => getArticle(a.id, lang)).filter(Boolean);
   return (
     <View style={st.sent} testID="ticket-sent">
-      <View style={st.sentIcon}><Ionicons name="checkmark" size={36} color="#fff" /></View>
+      <View style={st.sentIcon}><Ionicons name="checkmark" size={36} color={HD.onBrand} /></View>
       <Text style={st.h1}>Saken er sendt</Text>
       <Text style={st.sentNumber} testID="ticket-number">{result?.number}</Text>
       <Text style={st.lead}>
@@ -829,7 +830,7 @@ function TicketsView({ ctx }) {
                   <Text style={st.ticketNum}>{t.number}</Text>
                   <StatusPill status={t.status} small />
                 </View>
-                <Text style={[st.articleTitle, t.unreadForRequester && { fontWeight: '700' }]} numberOfLines={1}>{t.subject}</Text>
+                <Text style={[st.articleTitle, t.unreadForRequester && { fontWeight: '600' }]} numberOfLines={1}>{t.subject}</Text>
                 <Text style={st.articleSub}>{t.unreadForRequester ? 'Nytt svar · ' : ''}Oppdatert {formatWhen(t.lastPublicAtMs)}</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={HD.muted} />
@@ -1026,113 +1027,113 @@ const st = StyleSheet.create({
   page: { padding: 16, paddingBottom: 60, width: '100%', maxWidth: 920, alignSelf: 'center' },
   pageDesk: { padding: 24 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 8, marginBottom: 4 },
-  backTxt: { color: HD.brand, fontWeight: '600', fontSize: 14 },
-  hero: { backgroundColor: HD.brand, borderRadius: 16, padding: 20, paddingVertical: 26, gap: 12, zIndex: 2 },
-  heroKicker: { color: '#cfe3f8', fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
-  heroTitle: { color: '#fff', fontSize: 22, fontWeight: '700', lineHeight: 28 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14, minHeight: 52, borderWidth: 1, borderColor: HD.line },
-  searchInput: { flex: 1, fontSize: 16, color: '#0f172a', minHeight: 48 },
-  liveBox: { backgroundColor: HD.card, borderRadius: 12, overflow: 'hidden' },
+  backTxt: { color: HD.brand, fontWeight: '600', ...type.bodyStrong },
+  hero: { backgroundColor: HD.brand, borderRadius: radius.sheet, padding: 20, paddingVertical: 26, gap: 12, zIndex: 2 },
+  heroKicker: { color: HD.onBrandMuted, ...type.label, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
+  heroTitle: { color: HD.onBrand, ...type.h2, fontWeight: '600', },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: HD.onBrand, borderRadius: radius.card, paddingHorizontal: 14, minHeight: 52, borderWidth: 1, borderColor: HD.line },
+  searchInput: { flex: 1, ...type.title, color: HD.night, minHeight: 48 },
+  liveBox: { backgroundColor: HD.card, borderRadius: radius.card, overflow: 'hidden' },
   liveMore: { padding: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: HD.line },
-  noHit: { padding: 14, color: HD.muted, fontSize: 14 },
+  noHit: { padding: 14, color: HD.muted, ...type.body },
   actions: { gap: 10, marginTop: 16 },
   actionsDesk: { flexDirection: 'row' },
-  actionCard: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line },
-  actionIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  actionTitle: { fontSize: 15, fontWeight: '700', color: HD.ink },
-  actionTxt: { fontSize: 13, color: HD.muted, marginTop: 2 },
-  badge: { position: 'absolute', top: -5, right: -5, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: HD.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  badgeTxt: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  card: { backgroundColor: HD.card, borderRadius: 14, borderWidth: 1, borderColor: HD.line, overflow: 'hidden' },
+  actionCard: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line },
+  actionIcon: { width: 44, height: 44, borderRadius: radius.card, alignItems: 'center', justifyContent: 'center' },
+  actionTitle: { ...type.bodyStrong, fontWeight: '600', color: HD.ink },
+  actionTxt: { ...type.label, color: HD.muted, marginTop: 2 },
+  badge: { position: 'absolute', top: -5, right: -5, minWidth: 18, height: 18, borderRadius: radius.pill, backgroundColor: HD.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  badgeTxt: { color: HD.onBrand, ...type.caption, fontWeight: '600' },
+  card: { backgroundColor: HD.card, borderRadius: radius.card, borderWidth: 1, borderColor: HD.line, overflow: 'hidden' },
   articleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: HD.line },
-  articleIcon: { width: 34, height: 34, borderRadius: 9, backgroundColor: HD.brandSoft, alignItems: 'center', justifyContent: 'center' },
-  rank: { width: 26, textAlign: 'center', fontSize: 16, fontWeight: '700', color: HD.brand },
-  articleTitle: { fontSize: 15, fontWeight: '600', color: HD.ink },
-  articleSub: { fontSize: 13, color: HD.muted, marginTop: 2, lineHeight: 18 },
+  articleIcon: { width: 34, height: 34, borderRadius: radius.control, backgroundColor: HD.brandSoft, alignItems: 'center', justifyContent: 'center' },
+  rank: { width: 26, textAlign: 'center', ...type.title, fontWeight: '600', color: HD.brand },
+  articleTitle: { ...type.bodyStrong, fontWeight: '600', color: HD.ink },
+  articleSub: { ...type.label, color: HD.muted, marginTop: 2, },
   groupGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  groupCard: { width: '47.5%', flexGrow: 1, padding: 14, borderRadius: 14, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line, gap: 6 },
+  groupCard: { width: '47.5%', flexGrow: 1, padding: 14, borderRadius: radius.card, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line, gap: 6 },
   groupCardDesk: { width: '23%' },
-  groupIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  groupTitle: { fontSize: 14.5, fontWeight: '700', color: HD.ink },
-  groupCount: { fontSize: 12, color: HD.muted },
+  groupIcon: { width: 38, height: 38, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
+  groupTitle: { ...type.bodyStrong, fontWeight: '600', color: HD.ink },
+  groupCount: { ...type.caption, color: HD.muted },
   newsLink: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 18 },
-  newsDay: { fontSize: 13, fontWeight: '700', color: HD.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 },
-  newsBadge: { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
+  newsDay: { ...type.label, fontWeight: '600', color: HD.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 },
+  newsBadge: { ...type.caption, fontWeight: '600', paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, overflow: 'hidden' },
   newsMajor: { backgroundColor: HD.infoSoft, color: HD.info },
   newsFix: { backgroundColor: HD.okSoft, color: HD.ok },
-  footerCta: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 24, padding: 16, borderRadius: 14, backgroundColor: HD.brandSoft, flexWrap: 'wrap' },
-  footerTitle: { fontSize: 15, fontWeight: '700', color: HD.ink },
-  footerTxt: { fontSize: 13, color: HD.muted, marginTop: 2, lineHeight: 18 },
+  footerCta: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 24, padding: 16, borderRadius: radius.card, backgroundColor: HD.brandSoft, flexWrap: 'wrap' },
+  footerTitle: { ...type.bodyStrong, fontWeight: '600', color: HD.ink },
+  footerTxt: { ...type.label, color: HD.muted, marginTop: 2, },
   crumbs: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginBottom: 8 },
   crumbItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  crumbLink: { color: HD.brand, fontSize: 13 },
-  crumbHere: { color: HD.muted, fontSize: 13, maxWidth: 260 },
-  h1: { fontSize: 24, fontWeight: '700', color: HD.ink, marginBottom: 6, lineHeight: 30 },
-  lead: { fontSize: 15.5, color: HD.muted, lineHeight: 22, marginBottom: 10 },
-  meta: { fontSize: 13, color: HD.muted, marginBottom: 6 },
+  crumbLink: { color: HD.brand, ...type.label },
+  crumbHere: { color: HD.muted, ...type.label, maxWidth: 260 },
+  h1: { ...type.h1, fontWeight: '600', color: HD.ink, marginBottom: 6, },
+  lead: { ...type.body, color: HD.muted, marginBottom: 10 },
+  meta: { ...type.label, color: HD.muted, marginBottom: 6 },
   pathRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  pathTxt: { fontSize: 13, color: HD.muted },
+  pathTxt: { ...type.label, color: HD.muted },
   steps: { gap: 10, marginTop: 8 },
-  step: { flexDirection: 'row', gap: 12, padding: 14, borderRadius: 12, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line },
-  stepNum: { width: 28, height: 28, borderRadius: 14, backgroundColor: HD.brand, alignItems: 'center', justifyContent: 'center' },
-  stepNumTxt: { color: '#fff', fontWeight: '700' },
-  stepTitle: { fontSize: 15, fontWeight: '700', color: HD.ink, marginBottom: 3 },
-  stepBody: { fontSize: 14.5, color: HD.ink, lineHeight: 21 },
+  step: { flexDirection: 'row', gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line },
+  stepNum: { width: 28, height: 28, borderRadius: radius.pill, backgroundColor: HD.brand, alignItems: 'center', justifyContent: 'center' },
+  stepNumTxt: { color: HD.onBrand, fontWeight: '600' },
+  stepTitle: { ...type.bodyStrong, fontWeight: '600', color: HD.ink, marginBottom: 3 },
+  stepBody: { ...type.body, color: HD.ink, },
   stepLock: { flexDirection: 'row', gap: 6, alignItems: 'flex-start', marginTop: 6 },
-  stepLockTxt: { flex: 1, fontSize: 12.5, color: '#b45309', lineHeight: 17 },
-  faq: { padding: 12, borderRadius: 10, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line, marginBottom: 8 },
-  faqQ: { fontWeight: '700', color: HD.ink, marginBottom: 4 },
+  stepLockTxt: { flex: 1, ...type.label, color: HD.warn, },
+  faq: { padding: 12, borderRadius: radius.control, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line, marginBottom: 8 },
+  faqQ: { fontWeight: '600', color: HD.ink, marginBottom: 4 },
   faqA: { color: HD.ink, lineHeight: 20 },
-  voteBox: { marginTop: 22, padding: 16, borderRadius: 12, backgroundColor: HD.sunken },
+  voteBox: { marginTop: 22, padding: 16, borderRadius: radius.card, backgroundColor: HD.sunken },
   voteRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 },
-  voteTxt: { fontSize: 15, fontWeight: '600', color: HD.ink },
+  voteTxt: { ...type.bodyStrong, fontWeight: '600', color: HD.ink },
   rowGap: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', alignItems: 'center' },
   rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   resultCount: { color: HD.muted, marginVertical: 10 },
   assistantBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: HD.line, backgroundColor: HD.card },
-  assistantTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: HD.ink },
+  assistantTitle: { flex: 1, ...type.title, fontWeight: '600', color: HD.ink },
   catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  catCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: HD.line, backgroundColor: HD.card, width: '48.5%', flexGrow: 1, minHeight: 62 },
+  catCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.card, borderWidth: 1, borderColor: HD.line, backgroundColor: HD.card, width: '48.5%', flexGrow: 1, minHeight: 62 },
   catCardOn: { backgroundColor: HD.brand, borderColor: HD.brand },
-  catTitle: { fontSize: 14, fontWeight: '700', color: HD.ink },
-  catHint: { fontSize: 12, color: HD.muted, marginTop: 2 },
-  selectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: HD.line, borderRadius: 10, paddingHorizontal: 12, minHeight: 44, backgroundColor: HD.card },
-  selectTxt: { fontSize: 15, color: HD.ink },
-  suggestBox: { marginTop: -6, marginBottom: 14, padding: 12, borderRadius: 10, backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fde68a', gap: 6 },
+  catTitle: { ...type.bodyStrong, fontWeight: '600', color: HD.ink },
+  catHint: { ...type.caption, color: HD.muted, marginTop: 2 },
+  selectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: HD.line, borderRadius: radius.control, paddingHorizontal: 12, minHeight: 44, backgroundColor: HD.card },
+  selectTxt: { ...type.body, color: HD.ink },
+  suggestBox: { marginTop: -6, marginBottom: 14, padding: 12, borderRadius: radius.control, backgroundColor: HD.noteSoft, borderWidth: 1, borderColor: HD.noteLine, gap: 6 },
   suggestHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  suggestTitle: { fontWeight: '700', color: '#92400e', fontSize: 13.5 },
+  suggestTitle: { fontWeight: '600', color: HD.noteInk, ...type.label },
   suggestRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 },
-  suggestLink: { color: HD.brand, fontSize: 14, fontWeight: '600', flex: 1 },
-  contactBox: { padding: 12, borderRadius: 10, backgroundColor: HD.sunken, gap: 6, marginBottom: 12 },
+  suggestLink: { color: HD.brand, ...type.bodyStrong, fontWeight: '600', flex: 1 },
+  contactBox: { padding: 12, borderRadius: radius.control, backgroundColor: HD.sunken, gap: 6, marginBottom: 12 },
   contactRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  contactTxt: { fontSize: 14, color: HD.ink },
+  contactTxt: { ...type.body, color: HD.ink },
   twoCol: { flexDirection: 'row', gap: 12 },
   sent: { alignItems: 'center', paddingTop: 20 },
-  sentIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: HD.ok, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  sentNumber: { fontSize: 28, fontWeight: '800', color: HD.brand, letterSpacing: 1, marginBottom: 8 },
-  timeline: { alignSelf: 'stretch', padding: 14, borderRadius: 12, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line, gap: 10, marginTop: 8 },
+  sentIcon: { width: 72, height: 72, borderRadius: radius.pill, backgroundColor: HD.ok, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  sentNumber: { ...type.h1, fontWeight: '600', color: HD.brand, letterSpacing: 1, marginBottom: 8 },
+  timeline: { alignSelf: 'stretch', padding: 14, borderRadius: radius.card, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line, gap: 10, marginTop: 8 },
   timelineRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  timelineDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: HD.line },
-  timelineTxt: { fontSize: 14, color: HD.ink },
+  timelineDot: { width: 12, height: 12, borderRadius: radius.pill, backgroundColor: HD.line },
+  timelineTxt: { ...type.body, color: HD.ink },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   tabs: { flexDirection: 'row', gap: 6, marginVertical: 12 },
-  tab: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: HD.sunken },
+  tab: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: HD.sunken },
   tabOn: { backgroundColor: HD.brand },
-  tabTxt: { color: HD.ink, fontWeight: '600', fontSize: 13.5 },
-  tabTxtOn: { color: '#fff' },
+  tabTxt: { color: HD.ink, fontWeight: '600', ...type.label },
+  tabTxtOn: { color: HD.onBrand },
   ticketRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: HD.line },
   ticketTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-  ticketNum: { fontSize: 12.5, color: HD.muted, fontWeight: '700' },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: HD.brand },
+  ticketNum: { ...type.label, color: HD.muted, fontWeight: '600' },
+  unreadDot: { width: 8, height: 8, borderRadius: radius.pill, backgroundColor: HD.brand },
   ticketHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
-  ticketNumBig: { fontSize: 14, fontWeight: '800', color: HD.brand, letterSpacing: 0.5 },
+  ticketNumBig: { ...type.bodyStrong, fontWeight: '600', color: HD.brand, letterSpacing: 0.5 },
   thread: { gap: 10, marginTop: 10 },
-  msg: { padding: 12, borderRadius: 12, maxWidth: '92%' },
+  msg: { padding: 12, borderRadius: radius.card, maxWidth: '92%' },
   msgMine: { alignSelf: 'flex-end', backgroundColor: HD.brandSoft },
   msgAgent: { alignSelf: 'flex-start', backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line },
-  msgAuthor: { fontSize: 12, color: HD.muted, marginBottom: 4, fontWeight: '600' },
-  msgBody: { fontSize: 14.5, color: HD.ink, lineHeight: 21 },
-  rateBox: { marginTop: 16, padding: 14, borderRadius: 12, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line },
-  rateTitle: { fontSize: 16, fontWeight: '700', color: HD.ink, marginBottom: 8 },
-  replyBox: { marginTop: 16, padding: 14, borderRadius: 12, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line },
+  msgAuthor: { ...type.caption, color: HD.muted, marginBottom: 4, fontWeight: '600' },
+  msgBody: { ...type.body, color: HD.ink, },
+  rateBox: { marginTop: 16, padding: 14, borderRadius: radius.card, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line },
+  rateTitle: { ...type.title, fontWeight: '600', color: HD.ink, marginBottom: 8 },
+  replyBox: { marginTop: 16, padding: 14, borderRadius: radius.card, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line },
 });

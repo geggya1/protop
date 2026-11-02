@@ -13,6 +13,7 @@ import { setHelpdeskBackend } from '../../src/helpdesk/client';
 import HelpCenterScreen from './HelpCenterScreen';
 import HelpdeskPortalScreen from './HelpdeskPortalScreen';
 import { HD } from '../../components/helpdesk/HelpdeskUi';
+import { radius, type } from '../../src/ui/tokens';
 
 export function helpdeskDemoAllowed() {
   return typeof __DEV__ !== 'undefined' && __DEV__;
@@ -40,7 +41,7 @@ export default function HelpdeskDemoScreen({ navigation, route }) {
   return (
     <View style={st.root} testID="helpdesk-demo">
       <View style={st.bar}>
-        <Ionicons name="flask-outline" size={16} color="#92400e" />
+        <Ionicons name="flask-outline" size={16} color={HD.noteInk} />
         <Text style={st.barTxt}>Demo med eksempeldata. Ingenting lagres, og ingen e-post sendes.</Text>
         <View style={st.switch}>
           {[['user', 'Kunde (Kari)'], ['agent', 'Helpdesk (Geir Ove)']].map(([id, label]) => (
@@ -62,11 +63,11 @@ export default function HelpdeskDemoScreen({ navigation, route }) {
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: HD.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  bar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#fef3c7', flexWrap: 'wrap' },
-  barTxt: { flex: 1, color: '#92400e', fontSize: 12.5, minWidth: 200 },
-  switch: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 8, padding: 2, borderWidth: 1, borderColor: '#fde68a' },
-  seg: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 },
-  segOn: { backgroundColor: '#92400e' },
-  segTxt: { fontSize: 12.5, color: '#92400e', fontWeight: '600' },
-  segTxtOn: { color: '#fff' },
+  bar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: HD.warnSoft, flexWrap: 'wrap' },
+  barTxt: { flex: 1, color: HD.noteInk, ...type.label, minWidth: 200 },
+  switch: { flexDirection: 'row', backgroundColor: HD.onBrand, borderRadius: radius.control, padding: 2, borderWidth: 1, borderColor: HD.noteLine },
+  seg: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.control },
+  segOn: { backgroundColor: HD.noteInk },
+  segTxt: { ...type.label, color: HD.noteInk, fontWeight: '600' },
+  segTxtOn: { color: HD.onBrand },
 });

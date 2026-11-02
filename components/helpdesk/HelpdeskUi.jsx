@@ -14,25 +14,55 @@ import { helpdeskCall } from '../../src/helpdesk/client';
 import { attachmentsFromDataTransfer, pickAttachments } from '../../src/helpdesk/images';
 import { diagnosticsSummary } from '../../src/helpdesk/triage';
 
+/**
+ * Helpdeskens fargepalett. Flater og tekst følger appens utseende (lys/mørk)
+ * via colors fra src/theme. Statusfarger og den mørke portalmenyen er faste,
+ * og samlet her så skjermene ikke har egne hex-verdier.
+ */
 export const HD = {
-  brand: '#0b6bcb',
-  brandSoft: '#e8f1fb',
+  brand: colors.brand,
+  brandSoft: colors.brandSoft,
+  onBrand: '#ffffff',
+  onBrandMuted: '#d6e7fa',
   ink: colors.ink,
   muted: colors.muted,
   line: colors.line,
   card: colors.card,
   bg: colors.bg,
   sunken: colors.sunken,
+  placeholder: colors.placeholder,
   ok: '#15803d',
-  okSoft: '#dcfce7',
+  okSoft: colors.successSoft,
   warn: '#b45309',
   warnSoft: '#fef3c7',
+  amber: '#d97706',
   danger: '#b91c1c',
-  dangerSoft: '#fee2e2',
+  dangerSoft: colors.dangerSoft,
   info: '#1d4ed8',
   infoSoft: '#dbeafe',
   violet: '#6d28d9',
   violetSoft: '#ede9fe',
+  violetBg: '#faf5ff',
+  violetLine: '#ddd6fe',
+  teal: '#0f766e',
+  agentLine: '#cfe0f5',
+  noteSoft: '#fffbeb',
+  noteLine: '#fde68a',
+  noteInk: '#92400e',
+  night: '#0f172a',
+  consoleInk: '#e2e8f0',
+  consoleError: '#fca5a5',
+  side: '#0f1d33',
+  sideActive: '#24406b',
+  sideCount: '#33507d',
+  sideDivider: '#24364f',
+  sideSearch: '#1b2c47',
+  sideBorder: '#2f4466',
+  sideInk: '#c7d4e8',
+  sideMuted: '#9fb3cf',
+  sideIcon: '#cbd5e1',
+  sideAccent: '#7fb3ff',
+  sidePlaceholder: '#7c8fae',
 };
 
 const TONES = {
@@ -74,7 +104,7 @@ export function Btn({
   const danger = kind === 'danger';
   const ghost = kind === 'ghost';
   const bg = primary ? HD.brand : danger ? HD.danger : ghost ? 'transparent' : HD.card;
-  const fg = primary || danger ? '#fff' : HD.brand;
+  const fg = primary || danger ? HD.onBrand : HD.brand;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -108,7 +138,7 @@ export function Field({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={colors.placeholder || '#94a3b8'}
+        placeholderTextColor={HD.placeholder}
         multiline={multiline}
         maxLength={maxLength}
         editable={editable}
@@ -144,8 +174,8 @@ export function Chip({ label, active, onPress, icon, testID }) {
       testID={testID}
       style={[s.chip, active && s.chipOn]}
     >
-      {icon ? <Ionicons name={icon} size={15} color={active ? '#fff' : HD.brand} /> : null}
-      <Text style={[s.chipTxt, active && { color: '#fff' }]} numberOfLines={1}>{label}</Text>
+      {icon ? <Ionicons name={icon} size={15} color={active ? HD.onBrand : HD.brand} /> : null}
+      <Text style={[s.chipTxt, active && { color: HD.onBrand }]} numberOfLines={1}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -360,7 +390,7 @@ export function Avatar({ name = '?', size = 32, color = HD.brand }) {
   const initials = String(name || '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() || '').join('') || '?';
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: `${color}22`, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color, fontWeight: '700', fontSize: size * 0.38 }}>{initials}</Text>
+      <Text style={{ color, fontWeight: '600', fontSize: size * 0.38 }}>{initials}</Text>
     </View>
   );
 }
@@ -398,7 +428,7 @@ export const s = StyleSheet.create({
   chipOn: { backgroundColor: HD.brand, borderColor: HD.brand },
   chipTxt: { fontSize: 13.5, color: HD.ink, fontWeight: '500' },
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 22, marginBottom: 10 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: HD.ink },
+  sectionTitle: { fontSize: 17, fontWeight: '600', color: HD.ink },
   empty: { alignItems: 'center', padding: 28, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '600', color: HD.ink, textAlign: 'center' },
   emptyTxt: { fontSize: 14, color: HD.muted, textAlign: 'center', maxWidth: 420, lineHeight: 20 },
@@ -410,14 +440,14 @@ export const s = StyleSheet.create({
   thumbRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   thumbWrap: { width: 84, height: 84 },
   thumb: { width: 84, height: 84, borderRadius: 8, backgroundColor: HD.sunken },
-  thumbX: { position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' },
+  thumbX: { position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: HD.night, alignItems: 'center', justifyContent: 'center' },
   addThumb: { width: 140, height: 84, borderRadius: 8, borderWidth: 1, borderColor: HD.line, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: HD.brandSoft },
   addThumbCompact: { width: 44, height: 44 },
   addThumbTxt: { fontSize: 13, color: HD.brand, fontWeight: '600' },
   remoteThumb: { borderRadius: 8, backgroundColor: HD.sunken, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 1, borderColor: HD.line },
   lightbox: { flex: 1, backgroundColor: 'rgba(15,23,42,0.88)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   lightboxImg: { width: '100%', height: '85%' },
-  lightboxTxt: { color: '#fff', marginTop: 10 },
+  lightboxTxt: { color: HD.onBrand, marginTop: 10 },
   diagBox: { borderWidth: 1, borderColor: HD.line, borderRadius: 12, padding: 12, backgroundColor: HD.card },
   diagHead: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   diagTitle: { fontSize: 14.5, fontWeight: '600', color: HD.ink },

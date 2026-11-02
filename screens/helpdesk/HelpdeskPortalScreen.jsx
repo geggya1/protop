@@ -33,12 +33,12 @@ import { toUpload } from '../../src/helpdesk/images';
 import {
   AttachmentPicker, Avatar, Btn, Chip, Empty, Field, HD, Notice, Pill, PriorityPill, RemoteImage, StatusPill, s as ui,
 } from '../../components/helpdesk/HelpdeskUi';
+import { radius, type } from '../../src/ui/tokens';
 import { signInWithGoogle, signInWithMicrosoft, mapAuthError } from '../../src/utils/authProviders';
 import BrandLogo from '../../components/BrandLogo';
 import { rememberHelpdeskAgent } from '../../src/helpdesk/useHelpdeskAgent';
 
 const POLL_MS = 20000;
-const SIDE = '#0f1d33';
 
 function copyText(text) {
   try {
@@ -159,7 +159,7 @@ function HelpdeskLogin() {
     <View style={st.loginPage} testID="helpdesk-login">
       <View style={st.loginCard}>
         <BrandLogo variant="full" height={44} maxWidth={240} />
-        <View style={st.loginBadge}><Ionicons name="headset" size={14} color="#fff" /><Text style={st.loginBadgeTxt}>Helpdesk</Text></View>
+        <View style={st.loginBadge}><Ionicons name="headset" size={14} color={HD.onBrand} /><Text style={st.loginBadgeTxt}>Helpdesk</Text></View>
         <Text style={st.loginTitle}>Logg inn i ProTop Helpdesk</Text>
         <Text style={st.loginLead}>For supportteamet. Bruk ProTop-kontoen du er invitert med.</Text>
         <Btn label="Logg inn med Google" icon="logo-google" kind="secondary" onPress={() => login(signInWithGoogle)} disabled={busy} style={{ alignSelf: 'stretch' }} />
@@ -263,8 +263,8 @@ function Portal({
               accessibilityState={{ selected: active }}
               testID={`hd-view-${v.id}`}
             >
-              <Ionicons name={v.icon} size={17} color={active ? '#fff' : '#9fb3cf'} />
-              <Text style={[st.sideTxt, active && { color: '#fff' }]} numberOfLines={1}>{pickText(v.label)}</Text>
+              <Ionicons name={v.icon} size={17} color={active ? HD.onBrand : HD.sideMuted} />
+              <Text style={[st.sideTxt, active && { color: HD.onBrand }]} numberOfLines={1}>{pickText(v.label)}</Text>
               {count ? (
                 <View style={[st.sideCount, v.id === 'urgent' && count ? { backgroundColor: HD.danger } : null]}>
                   <Text style={st.sideCountTxt}>{count}</Text>
@@ -276,7 +276,7 @@ function Portal({
       })}
       {demoOutbox ? (
         <TouchableOpacity style={[st.sideItem, view === 'outbox' && st.sideItemOn]} onPress={() => { setView('outbox'); setSelected(null); }} testID="hd-view-outbox">
-          <Ionicons name="mail-outline" size={17} color="#9fb3cf" />
+          <Ionicons name="mail-outline" size={17} color={HD.sideMuted} />
           <Text style={st.sideTxt}>E-post sendt (demo)</Text>
           <View style={st.sideCount}><Text style={st.sideCountTxt}>{demoOutbox.length}</Text></View>
         </TouchableOpacity>
@@ -289,35 +289,35 @@ function Portal({
       <View style={st.top}>
         {!isDesktop ? (
           <TouchableOpacity onPress={() => setNavOpen((v) => !v)} accessibilityLabel="Meny" style={st.topIcon} testID="hd-menu">
-            <Ionicons name="menu" size={22} color="#fff" />
+            <Ionicons name="menu" size={22} color={HD.onBrand} />
           </TouchableOpacity>
         ) : null}
         <View style={st.brandRow}>
-          <Ionicons name="headset" size={20} color="#fff" />
+          <Ionicons name="headset" size={20} color={HD.onBrand} />
           <Text style={st.brand}>ProTop <Text style={{ fontWeight: '400' }}>Helpdesk</Text></Text>
         </View>
         {!isPhone ? (
           <View style={st.topSearch}>
-            <Ionicons name="search" size={16} color="#9fb3cf" />
+            <Ionicons name="search" size={16} color={HD.sideMuted} />
             <TextInput
               value={query}
               onChangeText={setQuery}
               placeholder="Søk i alle saker: nummer, navn, e-post, bruker-id, tekst"
-              placeholderTextColor="#7c8fae"
+              placeholderTextColor={HD.sidePlaceholder}
               style={st.topSearchInput}
               testID="hd-search"
             />
           </View>
         ) : <View style={{ flex: 1 }} />}
         <TouchableOpacity onPress={onLeave} style={st.topBtn} accessibilityRole="button" testID="hd-leave">
-          <Ionicons name="arrow-back" size={15} color="#fff" />
+          <Ionicons name="arrow-back" size={15} color={HD.onBrand} />
           {!isPhone ? <Text style={st.topBtnTxt}>Til ProTop</Text> : null}
         </TouchableOpacity>
         <View style={st.meRow}>
-          <Avatar name={session.name || session.email} size={30} color="#7fb3ff" />
+          <Avatar name={session.name || session.email} size={30} color={HD.sideAccent} />
           {onSignOut ? (
             <TouchableOpacity onPress={onSignOut} accessibilityLabel="Logg ut" style={st.topIcon}>
-              <Ionicons name="log-out-outline" size={20} color="#cbd5e1" />
+              <Ionicons name="log-out-outline" size={20} color={HD.sideIcon} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -390,7 +390,7 @@ function TicketRow({ t, active, onPress }) {
           {sla.state === 'breached' ? <Pill label="Over frist" tone="danger" icon="alarm" small /> : sla.state === 'soon' ? <Pill label="Frist snart" tone="warn" icon="alarm-outline" small /> : null}
           {t.fixState === 'proposed' ? <Pill label="AI-fiks" tone="violet" icon="construct" small /> : null}
         </View>
-        <Text style={[st.rowSubject, t.unreadForAgent && { fontWeight: '700' }]} numberOfLines={1}>{t.subject}</Text>
+        <Text style={[st.rowSubject, t.unreadForAgent && { fontWeight: '600' }]} numberOfLines={1}>{t.subject}</Text>
         <Text style={st.rowPreview} numberOfLines={1}>{t.aiSummary || t.preview}</Text>
         <View style={st.rowMeta}>
           <Text style={st.rowMetaTxt} numberOfLines={1}>{t.requester?.name || t.requester?.email}{t.requester?.companyName ? ` · ${t.requester.companyName}` : ''}</Text>
@@ -507,7 +507,7 @@ function TicketDetail({
             <Btn label="Kjør på nytt" icon="refresh" kind="ghost" small busy={aiBusy} onPress={rerunAi} testID="hd-ai-rerun" />
           </View>
           {ai.summary ? <Text style={st.aiSummary}>{ai.summary}</Text> : null}
-          {ai.rootCause ? <Text style={st.aiCause}><Text style={{ fontWeight: '700' }}>Sannsynlig årsak: </Text>{ai.rootCause}</Text> : null}
+          {ai.rootCause ? <Text style={st.aiCause}><Text style={{ fontWeight: '600' }}>Sannsynlig årsak: </Text>{ai.rootCause}</Text> : null}
           <View style={st.rowGap}>
             {ai.sentiment === 'negative' ? <Pill label="Misfornøyd kunde" tone="danger" icon="sad-outline" small /> : null}
             {ai.isBug ? <Pill label="Feil i ProTop" tone="warn" icon="bug" small /> : null}
@@ -543,7 +543,7 @@ function TicketDetail({
           return (
             <View key={m.id} style={[st.msg, m.internal ? st.msgNote : agent ? st.msgAgent : st.msgUser]}>
               <View style={st.msgHead}>
-                <Avatar name={m.authorName || (agent ? 'Support' : name)} size={26} color={agent ? HD.brand : '#0f766e'} />
+                <Avatar name={m.authorName || (agent ? 'Support' : name)} size={26} color={agent ? HD.brand : HD.teal} />
                 <Text style={st.msgAuthor}>{m.authorName || (agent ? 'Support' : name)}</Text>
                 {m.internal ? <Pill label="Internt notat" tone="warn" icon="lock-closed" small /> : null}
                 <Text style={st.muted}>{formatWhen(m.createdAtMs)}</Text>
@@ -569,7 +569,7 @@ function TicketDetail({
           {[['public', 'Svar til kunden', 'chatbubble-outline'], ['internal', 'Internt notat', 'lock-closed-outline']].map(([m, label, icon]) => (
             <TouchableOpacity key={m} onPress={() => setMode(m)} style={[st.cTab, mode === m && st.cTabOn]} testID={`hd-mode-${m}`}>
               <Ionicons name={icon} size={14} color={mode === m ? HD.ink : HD.muted} />
-              <Text style={[st.cTabTxt, mode === m && { color: HD.ink, fontWeight: '700' }]}>{label}</Text>
+              <Text style={[st.cTabTxt, mode === m && { color: HD.ink, fontWeight: '600' }]}>{label}</Text>
             </TouchableOpacity>
           ))}
           <View style={{ flex: 1 }} />
@@ -598,7 +598,7 @@ function TicketDetail({
           onChangeText={setText}
           multiline
           placeholder={mode === 'internal' ? 'Notat bare teamet ser …' : `Svar til ${name || 'kunden'} …`}
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor={HD.placeholder}
           style={st.composerInput}
           editable={!closed || mode === 'internal'}
           testID="hd-reply-input"
@@ -761,7 +761,7 @@ function Box({
   title, icon, children, testID, tone, style,
 }) {
   return (
-    <View style={[st.box, style, tone === 'violet' && { borderColor: '#c4b5fd', backgroundColor: '#faf5ff' }]} testID={testID}>
+    <View style={[st.box, style, tone === 'violet' && { borderColor: HD.violetLine, backgroundColor: HD.violetBg }]} testID={testID}>
       <View style={st.boxHead}>
         <Ionicons name={icon} size={16} color={tone === 'violet' ? HD.violet : HD.brand} />
         <Text style={st.boxTitle}>{title}</Text>
@@ -812,7 +812,7 @@ function TechBox({ d }) {
       </View>
       <View style={st.techList}>
         {tab === 'console' ? (errors.length ? errors.map((c, i) => (
-          <Text key={i} style={[st.monoSmall, { color: c.level === 'error' ? '#fca5a5' : '#fde68a' }]} selectable>
+          <Text key={i} style={[st.monoSmall, { color: c.level === 'error' ? HD.consoleError : HD.noteLine }]} selectable>
             [{c.level}]{c.count > 1 ? ` ×${c.count}` : ''} {c.message}
           </Text>
         )) : <Text style={st.monoSmall}>Ingen feil i konsollen.</Text>) : null}
@@ -1046,126 +1046,126 @@ function OutboxPanel({ outbox }) {
 
 const st = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20, gap: 10, backgroundColor: HD.bg },
-  muted: { fontSize: 12.5, color: HD.muted },
+  muted: { ...type.label, color: HD.muted },
   rowGap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  loginPage: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: SIDE },
-  loginCard: { width: '100%', maxWidth: 420, backgroundColor: HD.card, borderRadius: 16, padding: 24, gap: 12, alignItems: 'center' },
-  loginBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: SIDE, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  loginBadgeTxt: { color: '#fff', fontWeight: '700', fontSize: 12, letterSpacing: 0.5 },
-  loginTitle: { fontSize: 20, fontWeight: '700', color: HD.ink, textAlign: 'center' },
-  loginLead: { fontSize: 14, color: HD.muted, textAlign: 'center', lineHeight: 20 },
-  or: { color: HD.muted, fontSize: 12 },
+  loginPage: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: HD.side },
+  loginCard: { width: '100%', maxWidth: 420, backgroundColor: HD.card, borderRadius: radius.sheet, padding: 24, gap: 12, alignItems: 'center' },
+  loginBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: HD.side, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill },
+  loginBadgeTxt: { color: HD.onBrand, fontWeight: '600', ...type.caption, letterSpacing: 0.5 },
+  loginTitle: { ...type.h2, fontWeight: '600', color: HD.ink, textAlign: 'center' },
+  loginLead: { ...type.body, color: HD.muted, textAlign: 'center', },
+  or: { color: HD.muted, ...type.caption },
   portal: { flex: 1, backgroundColor: HD.bg },
-  top: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, height: 56, backgroundColor: SIDE },
+  top: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, height: 56, backgroundColor: HD.side },
   topIcon: { padding: 6 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  brand: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  topSearch: { flex: 1, maxWidth: 560, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#1b2c47', borderRadius: 8, paddingHorizontal: 10, height: 36, marginLeft: 12 },
-  topSearchInput: { flex: 1, color: '#fff', fontSize: 14, height: 34 },
-  topBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, height: 34, borderRadius: 8, borderWidth: 1, borderColor: '#2f4466', marginLeft: 'auto' },
-  topBtnTxt: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  brand: { color: HD.onBrand, ...type.title, fontWeight: '600' },
+  topSearch: { flex: 1, maxWidth: 560, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: HD.sideSearch, borderRadius: radius.control, paddingHorizontal: 10, height: 36, marginLeft: 12 },
+  topSearchInput: { flex: 1, color: HD.onBrand, ...type.body, height: 34 },
+  topBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, height: 34, borderRadius: radius.control, borderWidth: 1, borderColor: HD.sideBorder, marginLeft: 'auto' },
+  topBtnTxt: { color: HD.onBrand, ...type.label, fontWeight: '600' },
   meRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   phoneSearch: { padding: 10, backgroundColor: HD.card },
   body: { flex: 1, flexDirection: 'row', minHeight: 0 },
-  side: { width: 236, backgroundColor: SIDE, paddingVertical: 10, paddingHorizontal: 8, gap: 2 },
+  side: { width: 236, backgroundColor: HD.side, paddingVertical: 10, paddingHorizontal: 8, gap: 2 },
   sideMobile: { position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 20, width: 260 },
-  sideItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, minHeight: 38, borderRadius: 8 },
-  sideItemOn: { backgroundColor: '#24406b' },
-  sideTxt: { flex: 1, color: '#c7d4e8', fontSize: 13.5 },
-  sideCount: { minWidth: 22, paddingHorizontal: 6, height: 20, borderRadius: 10, backgroundColor: '#33507d', alignItems: 'center', justifyContent: 'center' },
-  sideCountTxt: { color: '#fff', fontSize: 11.5, fontWeight: '700' },
-  sideDivider: { height: 1, backgroundColor: '#24364f', marginVertical: 8 },
+  sideItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, minHeight: 38, borderRadius: radius.control },
+  sideItemOn: { backgroundColor: HD.sideActive },
+  sideTxt: { flex: 1, color: HD.sideInk, ...type.label },
+  sideCount: { minWidth: 22, paddingHorizontal: 6, height: 20, borderRadius: radius.pill, backgroundColor: HD.sideCount, alignItems: 'center', justifyContent: 'center' },
+  sideCountTxt: { color: HD.onBrand, ...type.caption, fontWeight: '600' },
+  sideDivider: { height: 1, backgroundColor: HD.sideDivider, marginVertical: 8 },
   main: { flex: 1, minWidth: 0 },
   split: { flex: 1, flexDirection: 'row', minHeight: 0 },
   listCol: { flex: 1, borderRightWidth: 1, borderRightColor: HD.line, backgroundColor: HD.card, minWidth: 0 },
   listColNarrow: { flexGrow: 0, flexShrink: 0, flexBasis: 380, width: 380 },
   listHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 14 },
-  listTitle: { fontSize: 18, fontWeight: '700', color: HD.ink },
+  listTitle: { ...type.title, fontWeight: '600', color: HD.ink },
   filterRow: { gap: 6, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center' },
   sortRow: { flexDirection: 'row', gap: 14, paddingHorizontal: 14, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: HD.line },
-  sortTxt: { fontSize: 12.5, color: HD.muted },
-  sortOn: { color: HD.brand, fontWeight: '700' },
+  sortTxt: { ...type.label, color: HD.muted },
+  sortOn: { color: HD.brand, fontWeight: '600' },
   row: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: HD.line },
   rowOn: { backgroundColor: HD.brandSoft },
   rowLeft: { paddingTop: 6 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: HD.brand },
+  dot: { width: 8, height: 8, borderRadius: radius.pill, backgroundColor: HD.brand },
   rowTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 5, marginBottom: 3 },
-  rowNum: { fontSize: 12, fontWeight: '800', color: HD.muted },
-  rowSubject: { fontSize: 14.5, color: HD.ink, fontWeight: '600' },
-  rowPreview: { fontSize: 12.5, color: HD.muted, marginTop: 2 },
+  rowNum: { ...type.caption, fontWeight: '600', color: HD.muted },
+  rowSubject: { ...type.bodyStrong, color: HD.ink, fontWeight: '600' },
+  rowPreview: { ...type.label, color: HD.muted, marginTop: 2 },
   rowMeta: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 4 },
-  rowMetaTxt: { fontSize: 12, color: HD.muted, flexShrink: 1 },
+  rowMetaTxt: { ...type.caption, color: HD.muted, flexShrink: 1 },
   rowIcons: { flexDirection: 'row', gap: 10, marginTop: 3, alignItems: 'center' },
-  rowIcon: { fontSize: 11, color: HD.muted },
+  rowIcon: { ...type.caption, color: HD.muted },
   detailCol: { flex: 1.6, minWidth: 0, backgroundColor: HD.bg },
   detailHead: { flexDirection: 'row', gap: 10, padding: 14, backgroundColor: HD.card, borderBottomWidth: 1, borderBottomColor: HD.line },
   closeBtn: { padding: 4 },
-  detailNum: { fontSize: 14, fontWeight: '800', color: HD.brand },
-  detailSubject: { fontSize: 19, fontWeight: '700', color: HD.ink, marginVertical: 4 },
+  detailNum: { ...type.bodyStrong, fontWeight: '600', color: HD.brand },
+  detailSubject: { ...type.h2, fontWeight: '600', color: HD.ink, marginVertical: 4 },
   propsBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: HD.card, borderBottomWidth: 1, borderBottomColor: HD.line, zIndex: 10 },
   select: { minWidth: 120, zIndex: 1 },
-  selectLabel: { fontSize: 11, color: HD.muted, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
-  selectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, borderWidth: 1, borderColor: HD.line, borderRadius: 8, paddingHorizontal: 10, height: 34, backgroundColor: HD.card },
-  selectVal: { fontSize: 13.5, color: HD.ink, flexShrink: 1 },
-  selectMenu: { position: 'absolute', top: 54, left: 0, minWidth: 200, maxHeight: 300, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line, borderRadius: 10, paddingVertical: 4, zIndex: 50, shadowColor: '#0f172a', shadowOpacity: 0.15, shadowRadius: 12, elevation: 8, overflow: 'scroll' },
+  selectLabel: { ...type.caption, color: HD.muted, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
+  selectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, borderWidth: 1, borderColor: HD.line, borderRadius: radius.control, paddingHorizontal: 10, height: 34, backgroundColor: HD.card },
+  selectVal: { ...type.label, color: HD.ink, flexShrink: 1 },
+  selectMenu: { position: 'absolute', top: 54, left: 0, minWidth: 200, maxHeight: 300, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line, borderRadius: radius.control, paddingVertical: 4, zIndex: 50, shadowColor: HD.night, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8, overflow: 'scroll' },
   selectOpt: { paddingHorizontal: 12, paddingVertical: 9 },
-  selectOptTxt: { fontSize: 13.5, color: HD.ink },
-  toast: { position: 'absolute', top: 120, alignSelf: 'center', backgroundColor: '#0f172a', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, zIndex: 60 },
-  toastTxt: { color: '#fff', fontSize: 13.5 },
+  selectOptTxt: { ...type.label, color: HD.ink },
+  toast: { position: 'absolute', top: 120, alignSelf: 'center', backgroundColor: HD.night, paddingHorizontal: 16, paddingVertical: 10, borderRadius: radius.control, zIndex: 60 },
+  toastTxt: { color: HD.onBrand, ...type.label },
   detailBody: { padding: 14, gap: 14 },
   detailBodyWide: { flexDirection: 'row', alignItems: 'flex-start' },
-  aiCard: { padding: 12, borderRadius: 12, backgroundColor: '#faf5ff', borderWidth: 1, borderColor: '#ddd6fe', marginBottom: 12, gap: 6 },
+  aiCard: { padding: 12, borderRadius: radius.card, backgroundColor: HD.violetBg, borderWidth: 1, borderColor: HD.violetLine, marginBottom: 12, gap: 6 },
   aiHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  aiTitle: { fontWeight: '700', color: HD.violet, fontSize: 14 },
-  aiSummary: { fontSize: 14.5, color: HD.ink, lineHeight: 20 },
-  aiCause: { fontSize: 13.5, color: HD.ink, lineHeight: 19 },
+  aiTitle: { fontWeight: '600', color: HD.violet, ...type.bodyStrong },
+  aiSummary: { ...type.body, color: HD.ink, },
+  aiCause: { ...type.label, color: HD.ink, },
   thread: { gap: 10 },
   sysMsg: { flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'center', paddingHorizontal: 10 },
-  sysTxt: { fontSize: 12, color: HD.muted, textAlign: 'center' },
-  msg: { padding: 12, borderRadius: 12, borderWidth: 1 },
+  sysTxt: { ...type.caption, color: HD.muted, textAlign: 'center' },
+  msg: { padding: 12, borderRadius: radius.card, borderWidth: 1 },
   msgUser: { backgroundColor: HD.card, borderColor: HD.line },
-  msgAgent: { backgroundColor: HD.brandSoft, borderColor: '#cfe0f5' },
-  msgNote: { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
+  msgAgent: { backgroundColor: HD.brandSoft, borderColor: HD.agentLine },
+  msgNote: { backgroundColor: HD.noteSoft, borderColor: HD.noteLine },
   msgHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' },
-  msgAuthor: { fontWeight: '700', color: HD.ink, fontSize: 13.5 },
-  msgBody: { fontSize: 14.5, color: HD.ink, lineHeight: 21 },
-  transcript: { marginTop: 12, padding: 12, borderRadius: 10, backgroundColor: HD.sunken },
-  composer: { marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line },
-  composerNote: { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
+  msgAuthor: { fontWeight: '600', color: HD.ink, ...type.label },
+  msgBody: { ...type.body, color: HD.ink, },
+  transcript: { marginTop: 12, padding: 12, borderRadius: radius.control, backgroundColor: HD.sunken },
+  composer: { marginTop: 14, padding: 12, borderRadius: radius.card, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line },
+  composerNote: { backgroundColor: HD.noteSoft, borderColor: HD.noteLine },
   composerTabs: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
-  cTab: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  cTab: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.control },
   cTabOn: { backgroundColor: HD.sunken },
-  cTabTxt: { fontSize: 13, color: HD.muted },
-  composerInput: { minHeight: 120, borderWidth: 1, borderColor: HD.line, borderRadius: 10, padding: 10, fontSize: 14.5, color: HD.ink, textAlignVertical: 'top', backgroundColor: HD.card, marginBottom: 8 },
-  macroList: { borderWidth: 1, borderColor: HD.line, borderRadius: 10, marginBottom: 8, backgroundColor: HD.card },
+  cTabTxt: { ...type.label, color: HD.muted },
+  composerInput: { minHeight: 120, borderWidth: 1, borderColor: HD.line, borderRadius: radius.control, padding: 10, ...type.body, color: HD.ink, textAlignVertical: 'top', backgroundColor: HD.card, marginBottom: 8 },
+  macroList: { borderWidth: 1, borderColor: HD.line, borderRadius: radius.control, marginBottom: 8, backgroundColor: HD.card },
   macroRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: HD.line },
-  macroTitle: { fontSize: 13.5, color: HD.ink, fontWeight: '600' },
+  macroTitle: { ...type.label, color: HD.ink, fontWeight: '600' },
   sideCol: { width: 340, gap: 12 },
-  box: { padding: 12, borderRadius: 12, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line },
+  box: { padding: 12, borderRadius: radius.card, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line },
   boxHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  boxTitle: { fontWeight: '700', color: HD.ink, fontSize: 14 },
+  boxTitle: { fontWeight: '600', color: HD.ink, ...type.bodyStrong },
   kv: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
-  kvK: { width: 92, fontSize: 12.5, color: HD.muted },
-  kvV: { flex: 1, fontSize: 13.5, color: HD.ink },
-  mono: { fontFamily: Platform.OS === 'web' ? 'ui-monospace, Consolas, monospace' : undefined, fontSize: 12.5, color: HD.ink },
-  monoSmall: { fontFamily: Platform.OS === 'web' ? 'ui-monospace, Consolas, monospace' : undefined, fontSize: 11.5, color: '#e2e8f0', lineHeight: 16 },
-  techList: { marginTop: 8, padding: 10, borderRadius: 8, backgroundColor: '#0f172a', gap: 4 },
-  fixTitle: { fontWeight: '700', color: HD.ink, fontSize: 14.5, marginTop: 8 },
-  fixStep: { fontSize: 13.5, color: HD.ink, lineHeight: 19 },
+  kvK: { width: 92, ...type.label, color: HD.muted },
+  kvV: { flex: 1, ...type.label, color: HD.ink },
+  mono: { fontFamily: Platform.OS === 'web' ? 'ui-monospace, Consolas, monospace' : undefined, ...type.label, color: HD.ink },
+  monoSmall: { fontFamily: Platform.OS === 'web' ? 'ui-monospace, Consolas, monospace' : undefined, ...type.caption, color: HD.consoleInk, },
+  techList: { marginTop: 8, padding: 10, borderRadius: radius.control, backgroundColor: HD.night, gap: 4 },
+  fixTitle: { fontWeight: '600', color: HD.ink, ...type.bodyStrong, marginTop: 8 },
+  fixStep: { ...type.label, color: HD.ink, },
   artRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
-  artTxt: { flex: 1, color: HD.brand, fontSize: 13.5 },
+  artTxt: { flex: 1, color: HD.brand, ...type.label },
   histRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  histTxt: { flex: 1, fontSize: 13, color: HD.ink },
+  histTxt: { flex: 1, ...type.label, color: HD.ink },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  tile: { width: 170, flexGrow: 1, padding: 14, borderRadius: 12, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line, gap: 4 },
-  tileVal: { fontSize: 24, fontWeight: '800', color: HD.ink },
-  tileLabel: { fontSize: 12.5, color: HD.muted },
+  tile: { width: 170, flexGrow: 1, padding: 14, borderRadius: radius.card, backgroundColor: HD.card, borderWidth: 1, borderColor: HD.line, gap: 4 },
+  tileVal: { ...type.h1, fontWeight: '600', color: HD.ink },
+  tileLabel: { ...type.label, color: HD.muted },
   chartsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   chartBox: { flexGrow: 1, flexBasis: 320 },
   bar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
-  barLabel: { width: 150, fontSize: 12.5, color: HD.ink },
-  barTrack: { flex: 1, height: 10, borderRadius: 5, backgroundColor: HD.sunken, overflow: 'hidden' },
-  barFill: { height: 10, borderRadius: 5, backgroundColor: HD.brand },
-  barVal: { width: 28, textAlign: 'right', fontSize: 12.5, color: HD.ink, fontWeight: '700' },
+  barLabel: { width: 150, ...type.label, color: HD.ink },
+  barTrack: { flex: 1, height: 10, borderRadius: radius.control, backgroundColor: HD.sunken, overflow: 'hidden' },
+  barFill: { height: 10, borderRadius: radius.control, backgroundColor: HD.brand },
+  barVal: { width: 28, textAlign: 'right', ...type.label, color: HD.ink, fontWeight: '600' },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
 });

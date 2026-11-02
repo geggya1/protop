@@ -7,6 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -778,22 +779,27 @@ export default function EquipmentScreen() {
                 <Field label="Garanti til" value={gear.warrantyUntil} onChange={(value) => setGear((row) => ({ ...row, warrantyUntil: value }))} colors={colors} date />
                 <Field label="Garantigiver" value={gear.warrantyVendor} onChange={(value) => setGear((row) => ({ ...row, warrantyVendor: value }))} colors={colors} />
               </View>
-              <View style={{ gap: 6 }} nativeID="equipment-rental">
-                <Chip
-                  nativeID="equipment-rental-toggle"
-                  label={gear.rental?.enabled ? 'Utleie på prosjekt: på' : 'Utleie på prosjekt: av'}
-                  active={!!gear.rental?.enabled}
-                  onPress={() => setGear((row) => ({
-                    ...row,
-                    rental: {
-                      ...(row.rental || {}),
-                      enabled: !row.rental?.enabled,
-                      // Reservasjoner fra i dag faktureres; eldre blir ikke utleie i ettertid.
-                      since: row.rental?.since || new Date().toISOString().slice(0, 10),
-                    },
-                  }))}
-                  colors={colors}
-                />
+              <View style={{ gap: 8, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 12 }} nativeID="equipment-rental">
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.ink, fontWeight: '600' }}>Utleie på prosjekt</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>Reservasjoner på et prosjekt faktureres som utleie.</Text>
+                  </View>
+                  <Switch
+                    nativeID="equipment-rental-toggle"
+                    accessibilityLabel="Utleie på prosjekt"
+                    value={!!gear.rental?.enabled}
+                    onValueChange={(on) => setGear((row) => ({
+                      ...row,
+                      rental: {
+                        ...(row.rental || {}),
+                        enabled: on,
+                        // Reservasjoner fra i dag faktureres; eldre blir ikke utleie i ettertid.
+                        since: row.rental?.since || new Date().toISOString().slice(0, 10),
+                      },
+                    }))}
+                  />
+                </View>
                 {gear.rental?.enabled ? (
                   <>
                     <View style={styles.row}>
@@ -825,7 +831,7 @@ export default function EquipmentScreen() {
                       ))}
                     </View>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {`Bekreftede reservasjoner på et prosjekt${gear.rental?.since ? ` fra ${gear.rental.since}` : ''} blir en utleielinje under Til fakturering. Faste serier og ventende forespørsler faktureres ikke automatisk. Leverer dere til et tilknyttet selskap, gjelder rabatten i avtalen.`}
+                      {`Bekreftede reservasjoner på et prosjekt${gear.rental?.since ? ` fra ${gear.rental.since.split('-').reverse().join('.')}` : ''} blir en utleielinje under Til fakturering. Faste serier og ventende forespørsler faktureres ikke automatisk. Leverer dere til et tilknyttet selskap, gjelder rabatten i avtalen.`}
                     </Text>
                   </>
                 ) : null}

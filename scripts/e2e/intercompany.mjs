@@ -317,7 +317,7 @@ await step('Mor: Timerapport viser at timen belastes på faktura 20001', async (
 await step('Mor: Utlegg på prosjektet viser utlegget fra Datter', async () => {
   await clickText(mor.page, 'Prosjektutlegg', { exact: true });
   await seeText(mor.page, 'Hotell Bergen', 60000);
-  await seeText(mor.page, 'Ført i Datter Elektro AS', 30000);
+  await seeText(mor.page, 'Datter Elektro AS · godkjent', 30000);
   return shot(mor.page, 'mor-utlegg');
 });
 
@@ -330,7 +330,7 @@ await step('Mor: Til fakturering viser timene fra Datter mot sluttkunden', async
   await shot(mor.page, 'mor-til-fakturering');
   await clickText(mor.page, MOR_PROJECT.name).catch(() => {});
   await mor.page.waitForTimeout(1500);
-  await seeText(mor.page, 'Fra Datter Elektro AS', 30000);
+  await seeText(mor.page, 'Datter Elektro AS · faktura 20001', 30000);
   return shot(mor.page, 'mor-til-fakturering-apnet');
 });
 
@@ -346,7 +346,7 @@ await step('Datter: utstyr med utleiepris', async () => {
   await seeText(datter.page, 'Utleie 950 kr per dag', 30000);
   await shot(datter.page, 'datter-utstyr');
   await clickText(datter.page, 'Rediger', { exact: true });
-  await seeText(datter.page, 'Utleie på prosjekt: på', 30000);
+  await seeText(datter.page, 'Utleie på prosjekt', 30000);
   await datter.page.locator('#equipment-rental').first().scrollIntoViewIfNeeded().catch(() => {});
   return shot(datter.page, 'datter-utstyr-utleie');
 });

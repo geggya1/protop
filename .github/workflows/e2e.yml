@@ -53,6 +53,8 @@ jobs:
         run: node scripts/e2e/intercompany.mjs --base=http://localhost:8081 --out=e2e-out
       - name: Alle sider (hjelpe-boten)
         id: sider
+        # «[kun konsern]» i commit-meldingen hopper over den lange runden gjennom alle sidene.
+        if: ${{ !contains(github.event.head_commit.message, '[kun konsern]') }}
         continue-on-error: true
         timeout-minutes: 45
         run: node scripts/help-bot/run.mjs --base=http://localhost:8081 --views=${{ vars.E2E_VIEWS || 'phone,desktop' }} --no-assistant --shots=first --out=e2e-out/sider

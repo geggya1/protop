@@ -30,6 +30,7 @@ import {
   normalizeBottomShortcutIds,
   subscribeParentDashboardTheme,
 } from './parentDashboardTheme';
+import { setItemWithRoom } from './storageRoom';
 
 export const HOME_LAYOUT_KEY = 'protop.homeLayout.v1';
 /**
@@ -68,6 +69,13 @@ async function storage() {
 function storageKey(uid, role) {
   return `${HOME_LAYOUT_KEY}.${role || 'parent'}.${uid || 'anon'}`;
 }
+
+/**
+ * Siste lagrede oppsett per nøkkel i denne økten. Når nettleserens lagring er full,
+ * feiler skrivingen; uten dette leste Hjem tilbake det gamle oppsettet, og et valgt
+ * bakgrunnsbilde hoppet tilbake (Tilpass hjem «hang»).
+ */
+const sessionLayouts = new Map();
 
 function normalizeAliases(uid, aliases) {
   const primary = uid ? String(uid) : '';
@@ -185,8 +193,10 @@ export async function loadHomeLayout(uid, { role = 'parent', aliases = [] } = {}
   const fallback = emptyHomeLayout(role);
   if (!uid) return fallback;
   try {
-    const AsyncStorage = await storage();
     const primaryKey = storageKey(uid, role);
+    const remembered = sessionLayouts.get(primaryKey);
+    if (remembered) return parseLayout(remembered, role);
+    const AsyncStorage = await storage();
     let raw = await AsyncStorage.getItem(primaryKey);
     let aliasKeyUsed = null;
     if (!raw && role === 'child') {
@@ -232,9 +242,11 @@ export async function loadHomeLayout(uid, { role = 'parent', aliases = [] } = {}
 export async function saveHomeLayout(uid, layout, { role = 'parent' } = {}) {
   if (!uid) return emptyHomeLayout(role);
   const next = parseLayout(layout, role);
+  const key = storageKey(uid, role);
+  sessionLayouts.set(key, next);
   try {
     const AsyncStorage = await storage();
-    await AsyncStorage.setItem(storageKey(uid, role), JSON.stringify(next));
+    await setItemWithRoom(AsyncStorage, key, JSON.stringify(next));
     // Bedriftens Hjem lagrer bare widgetene; dock og bilde hører til det private oppsettet.
     if (role === 'parent') {
       // Layout listeners already cover dock ids; skip a second theme notify that

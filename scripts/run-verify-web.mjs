@@ -323,6 +323,8 @@ export const FILES = [
   // UX-05: Hjem er samme ProTop-flate som modulene (kort, farger, skrift, lyst og mørkt).
   'src/appearance/homeSurface.test.mjs',
   'src/homeSurface.test.mjs',
+  // Tilpass hjem: valget står når nettleserens lagring er full.
+  'src/utils/storageRoom.test.mjs',
   'src/ui/focusRing.test.mjs',
   'src/ui/a11yLabels.test.mjs',
   'src/ui/landmarks.test.mjs',

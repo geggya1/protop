@@ -5,7 +5,7 @@
  */
 import { handleCustomerSurvey } from './customerService.js';
 import { createMemoryDb } from '../helpdesk/memoryDb.js';
-import { newCustomerSurvey } from './customerSurvey.js';
+import { BUILTIN_TEMPLATES, newCustomerSurvey, newEvaluation } from './customerSurvey.js';
 
 export const DEMO_FAMILY = 'demo_bygg';
 const STAFF = { uid: 'demoLeder', token: { name: 'Kari Leder', email: 'kari@bygg.no', email_verified: true } };
@@ -77,6 +77,32 @@ export function createCustomerSurveyDemo() {
       if (y.closeAt) {
         clock = new Date(y.closeAt);
         await api('close', { familyId: DEMO_FAMILY, surveyId: survey.id });
+      }
+    }
+    // Prosjektevalueringer: én ferdig (begge svarte, så den ble avsluttet) og én som venter på svar.
+    const projectTemplate = BUILTIN_TEMPLATES.find((t) => t.id === 'std_prosjekt');
+    await api('saveTemplate', {
+      familyId: DEMO_FAMILY,
+      template: { name: 'Ettårsbefaring', kind: 'project', intro: 'Det er gått ett år siden overleveringen. Hvordan har bygget fungert?', questions: projectTemplate.questions.slice(0, 4) },
+    });
+    const evals = [
+      { at: '2026-06-10T09:00:00Z', link: { type: 'project', id: 'demo_p1', name: 'Sola skole, tilbygg', number: '1042' }, unit: { id: 'avd_bygg', name: 'Bygg' }, who: customers.slice(0, 2), answer: true },
+      { at: '2026-10-28T09:00:00Z', link: { type: 'project', id: 'demo_p2', name: 'Vik Eiendom, rehabilitering', number: '1077' }, unit: { id: 'avd_rehab', name: 'Rehabilitering' }, who: customers.slice(3, 4), answer: false },
+    ];
+    for (const e of evals) {
+      clock = new Date(e.at);
+      const { survey } = await api('save', { familyId: DEMO_FAMILY, survey: newEvaluation({ template: projectTemplate, link: e.link, unit: e.unit, now: clock }) });
+      await api('addRecipients', { familyId: DEMO_FAMILY, surveyId: survey.id, recipients: e.who.map(([name, email, customerName]) => ({ name, email, customerName, projectName: e.link.name })) });
+      const start = outbox.length;
+      await api('send', { familyId: DEMO_FAMILY, surveyId: survey.id });
+      if (!e.answer) continue;
+      for (const [i, mail] of outbox.slice(start).entries()) {
+        clock = new Date(new Date(e.at).getTime() + (i + 2) * 86400000);
+        await api('submit', {
+          token: linkOf(mail),
+          values: { nps: 9 - i, resultat: 5, fremdrift: 4 - i, prosjektledelse: 4, kommunikasjon: 5 - i, samarbeid: 5, endringer: 3, orden: 4, overlevering: 4 },
+          texts: i === 0 ? { bra: 'Fast kontaktperson og ukentlige møter.', bedre: 'Raskere svar på endringer.' } : {},
+        }, null);
       }
     }
     clock = null;

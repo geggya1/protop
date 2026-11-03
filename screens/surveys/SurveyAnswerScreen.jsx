@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Platform, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
@@ -38,6 +38,8 @@ export default function SurveyAnswerScreen({ route }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [missing, setMissing] = useState('');
+  // Kopi av svaret på e-post, på som standard.
+  const [copy, setCopy] = useState(true);
 
   useEffect(() => {
     let live = true;
@@ -51,7 +53,7 @@ export default function SurveyAnswerScreen({ route }) {
         const s = r.survey || {};
         if (r.answered) setState({ phase: 'answered', survey: s });
         else if (s.status === 'closed') setState({ phase: 'closed', survey: s });
-        else setState({ phase: 'form', survey: s, name: r.recipientName || '' });
+        else setState({ phase: 'form', survey: s, name: r.recipientName || '', copyTo: r.copyTo || '' });
       })
       .catch((err) => { if (live) setState({ phase: 'invalid', message: err?.message || 'Lenken er ikke gyldig.' }); });
     return () => { live = false; };
@@ -60,7 +62,7 @@ export default function SurveyAnswerScreen({ route }) {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     const s = state.survey;
-    document.title = s ? `${s.title} – ${s.companyName}` : 'Kundeundersøkelse';
+    document.title = s ? `${s.title} – ${s.companyName}` : 'Undersøkelse';
   }, [state.survey]);
 
   const survey = state.survey;
@@ -82,8 +84,9 @@ export default function SurveyAnswerScreen({ route }) {
     setMissing('');
     setBusy(true);
     try {
-      await customerSurveyCall('submit', { token, values, texts });
-      setState({ phase: 'thanks', survey });
+      const sendCopy = copy && !!state.copyTo;
+      const r = await customerSurveyCall('submit', { token, values, texts, copy: sendCopy });
+      setState({ phase: 'thanks', survey, copiedTo: r?.copySent ? state.copyTo : '' });
       if (Platform.OS === 'web' && typeof window !== 'undefined') window.scrollTo?.(0, 0);
     } catch (err) {
       if (err?.code === 'already-exists') setState({ phase: 'answered', survey });
@@ -145,6 +148,9 @@ export default function SurveyAnswerScreen({ route }) {
                 ? 'Det er ikke lenger mulig å svare. Takk for interessen!'
                 : `Svaret ditt er sendt til ${survey?.companyName || 'bedriften'}. Det hjelper oss å bli bedre.`}
             </Text>
+            {state.phase === 'thanks' && state.copiedTo ? (
+              <Text style={[styles.body, styles.centerText, { color: colors.ink }]} nativeID="survey-answer-copied">{`En kopi av svaret er sendt til ${state.copiedTo}.`}</Text>
+            ) : null}
             {state.phase !== 'closed' && survey?.anonymous ? (
               <Text style={[styles.caption, styles.centerText, { color: colors.muted }]}>Svaret er lagret anonymt.</Text>
             ) : null}
@@ -154,6 +160,9 @@ export default function SurveyAnswerScreen({ route }) {
         {state.phase === 'form' && survey ? (
           <View style={styles.stack}>
             <Text style={[styles.h1, { color: colors.ink }]}>{survey.title}</Text>
+            {survey.link?.name && !survey.title.includes(survey.link.name) ? (
+              <Text style={[styles.caption, { color: colors.muted }]}>{`${survey.link.type === 'bid' ? 'Tilbud' : 'Prosjekt'}: ${[survey.link.number, survey.link.name].filter(Boolean).join(' ')}`}</Text>
+            ) : null}
             {state.name ? <Text style={[styles.body, { color: colors.ink }]}>{`Hei ${state.name}!`}</Text> : null}
             {survey.intro ? <Text style={[styles.body, { color: colors.ink }]}>{survey.intro}</Text> : null}
             <Text style={[styles.caption, { color: colors.muted }]}>
@@ -180,6 +189,18 @@ export default function SurveyAnswerScreen({ route }) {
               onText={(id, t) => setTexts((p) => ({ ...p, [id]: t }))}
               disabled={busy}
             />
+            {state.copyTo ? (
+              <Pressable
+                onPress={() => setCopy((v) => !v)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: copy }}
+                style={styles.copyRow}
+                nativeID="survey-answer-copy"
+              >
+                <Ionicons name={copy ? 'checkbox' : 'square-outline'} size={20} color={copy ? (colors.brandInk || colors.brand) : colors.muted} />
+                <Text style={[styles.body, { color: colors.ink, flex: 1 }]}>{`Send meg en kopi av svarene på e-post (${state.copyTo})`}</Text>
+              </Pressable>
+            ) : null}
             {error ? <Text style={[styles.body, { color: colors.dangerInk || colors.danger }]} nativeID="survey-answer-error">{error}</Text> : null}
             <View style={styles.footer}>
               <Text style={[styles.caption, { color: colors.muted }]}>{`${done} av ${total} besvart. Du kan hoppe over spørsmål.`}</Text>
@@ -207,5 +228,6 @@ const styles = StyleSheet.create({
   stickyRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.xs },
   progressTrack: { height: 6, borderRadius: radius.pill, overflow: 'hidden' },
   progressFill: { height: 6, borderRadius: radius.pill },
+  copyRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingVertical: 4 },
   footer: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space.xs, borderTopWidth: 0, paddingTop: space.xs },
 });

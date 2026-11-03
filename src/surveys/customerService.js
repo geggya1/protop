@@ -8,8 +8,11 @@
  *   customerSurveys/{surveyId}/recipients/{id}      mottakere (navn, e-post, kunde, sendt, svart)
  *   customerSurveys/{surveyId}/answers/{id}         svarene. Anonym: bare verdiene, uten kunde og tid.
  *   customerSurveyLinks/{sha256(lenke)}             personlig lenke → undersøkelse og mottaker
+ *   customerSurveyTemplates/{templateId}            bedriftens egne maler (familyId, kind, spørsmål)
  *
- * Lenken i e-posten lagres bare som hash. Den som har lenken, kan svare én gang.
+ * Lenken i e-posten lagres bare som hash. Den som har lenken, kan svare én gang, og får en kopi
+ * av svaret på e-post når den sender inn. Evalueringer (kind project/bid) avsluttes av seg selv
+ * når alle som har fått den, har svart.
  *
  * deps: {
  *   db, now(), sendMail({ to, name, subject, text, html, fromName, replyTo }),
@@ -19,10 +22,12 @@
  * }
  */
 import {
-  FOLLOW_UP_DAYS, NPS_SCALE, cleanCustomerAnswer, customerResults, customerSummary, isUnhappy, normalizeCustomerSurvey,
-  newCustomerSurveyId, questionText,
+  FOLLOW_UP_DAYS, NPS_SCALE, answerCopyRows, cleanCustomerAnswer, customerResults, customerSummary, isUnhappy, maskEmail,
+  newCustomerSurveyId, newTemplateId, normalizeCustomerSurvey, normalizeSurveyTemplate, questionText, templateList,
 } from './customerSurvey.js';
-import { answerUrl, customerReplyMail, customerSurveyMail } from './customerMail.js';
+import {
+  answerCopyMail, answerUrl, customerReplyMail, customerSurveyMail,
+} from './customerMail.js';
 
 export class SurveyError extends Error {
   constructor(code, message) {
@@ -33,6 +38,8 @@ export class SurveyError extends Error {
 
 const SURVEYS = 'customerSurveys';
 const LINKS = 'customerSurveyLinks';
+const TEMPLATES = 'customerSurveyTemplates';
+const MAX_TEMPLATES = 50;
 const MAX_RECIPIENTS = 500;
 const MAX_SEND = 200;
 const MAX_REMINDERS = 3;
@@ -96,7 +103,9 @@ async function loadSurvey(ctx, familyId, surveyId) {
   const snap = await surveyRef(ctx, surveyId).get();
   const data = snap.exists ? snap.data() || {} : null;
   if (!data || data.familyId !== familyId) fail('not-found', 'Fant ikke undersøkelsen.');
-  return normalizeCustomerSurvey({ ...data, id: surveyId });
+  const survey = normalizeCustomerSurvey({ ...data, id: surveyId });
+  if (ctx.scope === 'evaluations' && survey.kind === 'customer') fail('not-found', 'Fant ikke undersøkelsen.');
+  return survey;
 }
 
 async function listRecipients(ctx, surveyId) {
@@ -143,6 +152,9 @@ function publicSurvey(survey) {
   const s = normalizeCustomerSurvey(survey);
   return {
     id: s.id,
+    kind: s.kind,
+    // Bare navnet på prosjektet eller tilbudet, ikke id-er.
+    link: { type: s.link.type, name: s.link.name, number: s.link.number },
     title: s.title,
     intro: s.intro,
     status: s.status,
@@ -188,6 +200,7 @@ async function mailRecipient(ctx, survey, recipient, { reminder = false, replyTo
 async function actList(ctx, familyId) {
   const snap = await ctx.db.collection(SURVEYS).where('familyId', '==', familyId).get();
   const surveys = snap.docs.map((row) => normalizeCustomerSurvey({ ...row.data(), id: row.id }))
+    .filter((s) => ctx.scope !== 'evaluations' || s.kind !== 'customer')
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   return { surveys };
 }
@@ -199,7 +212,11 @@ async function actSave(ctx, familyId, uid, input = {}) {
   const existing = snap.exists ? snap.data() || {} : null;
   if (existing && existing.familyId !== familyId) fail('not-found', 'Fant ikke undersøkelsen.');
   const current = existing ? normalizeCustomerSurvey({ ...existing, id }) : null;
-  const next = normalizeCustomerSurvey({ ...raw, id });
+  // Typen kan ikke endres etter at den er laget.
+  const next = normalizeCustomerSurvey({ ...raw, id, ...(current ? { kind: current.kind } : {}) });
+  if (ctx.scope === 'evaluations' && next.kind === 'customer') {
+    fail(current ? 'not-found' : 'permission-denied', current ? 'Fant ikke undersøkelsen.' : 'Kundeundersøkelsen krever tilgang til Kunder.');
+  }
   if (current && current.status !== 'draft') {
     // Etter utsending kan bare svarfristen endres. Spørsmålene er låst, så svarene kan sammenlignes.
     if (current.status === 'closed') fail('failed-precondition', 'En avsluttet undersøkelse kan ikke endres.');
@@ -359,6 +376,11 @@ async function actRemind(ctx, familyId, surveyId, auth) {
 async function actClose(ctx, familyId, surveyId) {
   const survey = await loadSurvey(ctx, familyId, surveyId);
   if (survey.status !== 'open') fail('failed-precondition', 'Bare en sendt undersøkelse kan avsluttes.');
+  return closeSurvey(ctx, survey);
+}
+
+async function closeSurvey(ctx, survey) {
+  const surveyId = survey.id;
   const closedAt = ctx.now().toISOString();
   // Steng først, så ingen svar kommer inn mens resultatet regnes ut.
   await surveyRef(ctx, surveyId).update({ status: 'closed', closedAt });
@@ -441,6 +463,47 @@ async function actFollowUp(ctx, familyId, surveyId, answerId, input, auth) {
   return { ok: true, followUp };
 }
 
+// ---------------------------------------------------------------- maler
+
+async function actTemplates(ctx, familyId) {
+  const snap = await ctx.db.collection(TEMPLATES).where('familyId', '==', familyId).get();
+  const own = snap.docs.map((row) => ({ ...row.data(), id: row.id, builtin: false }));
+  return { templates: templateList(own) };
+}
+
+async function actSaveTemplate(ctx, familyId, uid, input = {}) {
+  const raw = input && typeof input === 'object' ? input : {};
+  const id = raw.id && !String(raw.id).startsWith('std_') ? idOf(raw.id, 'mal') : newTemplateId(ctx.now());
+  const ref = ctx.db.collection(TEMPLATES).doc(id);
+  const snap = await ref.get();
+  const existing = snap.exists ? snap.data() || {} : null;
+  if (existing && existing.familyId !== familyId) fail('not-found', 'Fant ikke malen.');
+  if (!existing) {
+    const count = await ctx.db.collection(TEMPLATES).where('familyId', '==', familyId).get();
+    if (count.docs.length >= MAX_TEMPLATES) fail('resource-exhausted', `Høyst ${MAX_TEMPLATES} maler.`);
+  }
+  const next = normalizeSurveyTemplate({ ...raw, id, builtin: false });
+  if (!next.questions.length) fail('invalid-argument', 'Malen må ha minst ett spørsmål.');
+  const doc = strip({
+    ...next,
+    familyId,
+    createdBy: existing?.createdBy || uid,
+    createdAt: existing?.createdAt || ctx.now().toISOString(),
+    updatedAt: ctx.now().toISOString(),
+  });
+  await ref.set(doc);
+  return { template: normalizeSurveyTemplate(doc) };
+}
+
+async function actDeleteTemplate(ctx, familyId, templateId) {
+  const ref = ctx.db.collection(TEMPLATES).doc(idOf(templateId, 'mal'));
+  const snap = await ref.get();
+  if (!snap.exists || (snap.data() || {}).familyId !== familyId) fail('not-found', 'Fant ikke malen.');
+  // Undersøkelser som er laget fra malen, har sin egen kopi av spørsmålene og påvirkes ikke.
+  await ref.delete();
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------- kunden (uten innlogging)
 
 async function linkFor(ctx, token) {
@@ -466,10 +529,29 @@ async function actOpen(ctx, token) {
     survey: publicSurvey(survey),
     answered: !!(recipient.answeredAt || recipient.answered === true),
     recipientName: survey.anonymous ? '' : text(recipient.name, 120).split(/\s+/)[0] || '',
+    // Hvor kopien av svaret sendes, delvis skjult.
+    copyTo: maskEmail(recipient.email),
   };
 }
 
-async function actSubmit(ctx, token, values, texts) {
+/** Kopi av svaret til den som svarte. Feiler den, er svaret likevel lagret. */
+async function mailCopy(ctx, survey, recipient, clean) {
+  const email = text(recipient.email, 200);
+  if (!EMAIL.test(email)) return false;
+  const mail = answerCopyMail({ survey, recipient, rows: answerCopyRows(survey, clean), submittedAt: ctx.now() });
+  try {
+    await ctx.sendMail({
+      to: email, name: text(recipient.name, 120), subject: mail.subject, text: mail.text, html: mail.html,
+      fromName: survey.companyName || 'ProTop',
+    });
+    return true;
+  } catch (err) {
+    ctx.log('Kundeundersøkelse: kopi av svar feilet', { surveyId: survey.id, message: err?.message });
+    return false;
+  }
+}
+
+async function actSubmit(ctx, token, values, texts, copy = true) {
   await ctx.rateLimit(`submit:${ctx.clientKey}`, 30, 60 * 60 * 1000);
   const { survey, recipientRef, recipient } = await linkFor(ctx, token);
   if (survey.status === 'closed') fail('failed-precondition', 'Undersøkelsen er avsluttet. Takk for interessen!');
@@ -522,25 +604,57 @@ async function actSubmit(ctx, token, values, texts) {
       ctx.log('Kundeundersøkelse: varsel feilet', { surveyId: survey.id, message: err?.message });
     }
   }
-  return { ok: true };
+  const copySent = copy !== false ? await mailCopy(ctx, survey, recipient, clean) : false;
+  // Evaluering av prosjekt eller tilbud: ferdig når alle som har fått den, har svart.
+  if (survey.kind !== 'customer') {
+    const rows = await listRecipients(ctx, survey.id);
+    const sent = rows.filter((r) => r.sentAt);
+    if (sent.length && sent.length === rows.length && sent.every((r) => r.answeredAt || r.answered === true)) {
+      const fresh = await loadSurvey(ctx, survey.familyId, survey.id);
+      if (fresh.status === 'open') await closeSurvey(ctx, fresh);
+    }
+  }
+  return { ok: true, copySent };
 }
 
 // ---------------------------------------------------------------- inngang
 
-const STAFF_READ = new Set(['list', 'recipients', 'results']);
-const STAFF_WRITE = new Set(['save', 'delete', 'addRecipients', 'removeRecipient', 'send', 'remind', 'close', 'followUp']);
+const STAFF_READ = new Set(['list', 'recipients', 'results', 'templates']);
+const STAFF_WRITE = new Set([
+  'save', 'delete', 'addRecipients', 'removeRecipient', 'send', 'remind', 'close', 'followUp', 'saveTemplate', 'deleteTemplate',
+]);
+
+/**
+ * Tilgang: Kunder gir alt ('all'). Uten Kunder, men med Prosjekter, kan ansatte lage, sende og se
+ * evalueringer av prosjekter og tilbud ('evaluations'), men ikke kundeundersøkelsen eller malene.
+ */
+async function staffScope(ctx, familyId, uid, action) {
+  const mode = STAFF_WRITE.has(action) ? 'write' : 'read';
+  try {
+    await ctx.assertAccess(familyId, uid, mode, 'customers');
+    return 'all';
+  } catch (err) {
+    if (err?.code !== 'permission-denied' || action === 'saveTemplate' || action === 'deleteTemplate') throw err;
+    try {
+      await ctx.assertAccess(familyId, uid, mode, 'projects');
+    } catch {
+      throw err;
+    }
+    return 'evaluations';
+  }
+}
 
 export async function handleCustomerSurvey(data = {}, auth = null, deps = {}) {
   const ctx = ctxOf(deps);
   const action = text(data?.action, 40);
   if (action === 'open') return actOpen(ctx, data.token);
-  if (action === 'submit') return actSubmit(ctx, data.token, data.values, data.texts);
+  if (action === 'submit') return actSubmit(ctx, data.token, data.values, data.texts, data.copy);
   if (!STAFF_READ.has(action) && !STAFF_WRITE.has(action)) fail('invalid-argument', 'Ukjent handling.');
   const uid = text(auth?.uid, 128);
   if (!uid) fail('unauthenticated', 'Du må være innlogget.');
   const familyId = idOf(data.familyId, 'bedrift');
   await ctx.rateLimit(`staff:${uid}`, 300, 60 * 60 * 1000);
-  await ctx.assertAccess(familyId, uid, STAFF_WRITE.has(action) ? 'write' : 'read');
+  ctx.scope = await staffScope(ctx, familyId, uid, action);
   switch (action) {
     case 'list': return actList(ctx, familyId);
     case 'save': return actSave(ctx, familyId, uid, data.survey);
@@ -553,6 +667,9 @@ export async function handleCustomerSurvey(data = {}, auth = null, deps = {}) {
     case 'close': return actClose(ctx, familyId, idOf(data.surveyId, 'undersøkelse'));
     case 'results': return actResults(ctx, familyId, idOf(data.surveyId, 'undersøkelse'));
     case 'followUp': return actFollowUp(ctx, familyId, idOf(data.surveyId, 'undersøkelse'), data.answerId, data, auth);
+    case 'templates': return actTemplates(ctx, familyId);
+    case 'saveTemplate': return actSaveTemplate(ctx, familyId, uid, data.template);
+    case 'deleteTemplate': return actDeleteTemplate(ctx, familyId, data.templateId);
     default: return fail('invalid-argument', 'Ukjent handling.');
   }
 }

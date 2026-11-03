@@ -27,6 +27,7 @@ async function seed() {
     await setDoc(doc(db, 'customerSurveys', 'ku1', 'recipients', 'r1'), { email: 'per@kunde.no', sentAt: '2026-10-01' });
     await setDoc(doc(db, 'customerSurveys', 'ku1', 'answers', 'a1'), { answers: { nps: 9 }, customerName: 'Novaform AS' });
     await setDoc(doc(db, 'customerSurveyLinks', 'hash1'), { surveyId: 'ku1', familyId: A, recipientId: 'r1' });
+    await setDoc(doc(db, 'customerSurveyTemplates', 'mal1'), { familyId: A, name: 'Prosjektevaluering', kind: 'project', questions: [] });
   });
 }
 
@@ -51,6 +52,10 @@ describe('Kundeundersøkelse', () => {
     await assertFails(getDocs(collection(db, 'customerSurveys', 'ku1', 'answers')));
     await assertFails(setDoc(doc(db, 'customerSurveys', 'ku1', 'answers', 'a2'), { answers: { nps: 10 } }));
     await assertFails(getDoc(doc(db, 'customerSurveyLinks', 'hash1')));
+    // Malene går også bare via serveren.
+    await assertFails(getDoc(doc(db, 'customerSurveyTemplates', 'mal1')));
+    await assertFails(getDocs(query(collection(db, 'customerSurveyTemplates'), where('familyId', '==', A))));
+    await assertFails(setDoc(doc(db, 'customerSurveyTemplates', 'mal2'), { familyId: A, name: 'Ny' }));
   });
 
   test('kunden uten innlogging kan ikke lese lenker, svar eller skrive svar direkte', async () => {

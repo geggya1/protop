@@ -34,10 +34,16 @@ export function customerSurveyMail({ survey, recipient = {}, url, reminder = fal
   const deadline = survey?.closesOn
     ? new Date(`${survey.closesOn}T12:00:00`).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long' })
     : '';
+  const what = String(survey?.link?.name || '').trim();
+  const invite = survey?.kind === 'project'
+    ? `Takk for samarbeidet${what ? ` om ${what}` : ''}. Vi vil gjerne høre hvordan du opplevde prosjektet, så vi kan bli bedre.`
+    : survey?.kind === 'bid'
+      ? `Takk for at ${company} fikk gi tilbud${what ? ` på ${what}` : ''}. Vi vil gjerne vite hvordan dere vurderte tilbudet vårt.`
+      : `Takk for at du har valgt ${company}. Vi vil gjerne vite hva du synes om jobben vi gjør, så vi kan bli bedre.`;
   const lines = [
     reminder
       ? `Vi sendte deg nylig en kort undersøkelse, og ser at du ikke har rukket å svare ennå. Vi setter stor pris på svaret ditt.`
-      : `Takk for at du har valgt ${company}. Vi vil gjerne vite hva du synes om jobben vi gjør, så vi kan bli bedre.`,
+      : invite,
     `Undersøkelsen har ${count} spørsmål og tar rundt ${minutes} ${minutes === 1 ? 'minutt' : 'minutter'}.${deadline ? ` Svar gjerne innen ${deadline}.` : ''}`,
     survey?.anonymous
       ? `Svarene er anonyme: ${company} ser bare samlede resultater, ikke hva du har svart.`
@@ -80,6 +86,39 @@ export function customerReplyMail({ survey, recipient = {}, reply }) {
 <p style="margin:0">Hilsen<br>${esc(sign).replace(/\n/g, '<br>')}</p>
 </td></tr>
 <tr><td style="padding:16px 28px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b">Sendt med ProTop på vegne av ${esc(company)}. Svar på denne e-posten for å nå oss direkte.</td></tr>
+</table></td></tr></table></body></html>`;
+  return { subject, text: textBody, html };
+}
+
+/**
+ * Kopi av svaret til den som svarte. rows: [{ question, answer }] (answerCopyRows).
+ * Sendes bare til mottakerens egen e-post, så den avslører ingenting for bedriften.
+ */
+export function answerCopyMail({ survey, recipient = {}, rows = [], submittedAt = new Date() }) {
+  const company = String(survey?.companyName || '').trim() || 'oss';
+  const hello = firstName(recipient.name) ? `Hei ${firstName(recipient.name)},` : 'Hei,';
+  const title = String(survey?.title || 'Undersøkelse').trim();
+  const when = new Date(submittedAt).toLocaleString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo' });
+  const intro = `Takk for svaret! Her er en kopi av det du sendte til ${company} ${when}.`;
+  const subject = `Kopi av svaret ditt: ${title}`.slice(0, 160);
+  const textBody = [
+    hello, '', intro, '',
+    ...rows.flatMap((r, i) => [`${i + 1}. ${r.question}`, `   ${r.answer}`, '']),
+    survey?.anonymous ? `Svaret er lagret anonymt hos ${company}.` : '',
+    'Denne e-posten er bare til deg.',
+  ].filter((l, i, all) => l !== '' || all[i - 1] !== '').join('\n');
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f6f9;font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#1a2744">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:24px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fff;border:1px solid #e2e8f0;border-radius:12px">
+<tr><td style="padding:20px 28px;border-bottom:1px solid #e2e8f0;font-weight:700;font-size:18px;color:#1a2744">${esc(company)}</td></tr>
+<tr><td style="padding:24px 28px;font-size:15px;line-height:1.55">
+<p style="margin:0 0 12px">${esc(hello)}</p>
+<p style="margin:0 0 16px">${esc(intro)}</p>
+<p style="margin:0 0 8px;font-weight:700">${esc(title)}</p>
+${rows.map((r, i) => `<p style="margin:0 0 12px"><span style="color:#64748b">${i + 1}. ${esc(r.question)}</span><br><strong>${esc(r.answer).replace(/\n/g, '<br>')}</strong></p>`).join('\n')}
+${survey?.anonymous ? `<p style="margin:16px 0 0;color:#64748b">${esc(`Svaret er lagret anonymt hos ${company}.`)}</p>` : ''}
+</td></tr>
+<tr><td style="padding:16px 28px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b">Denne e-posten er bare til deg. Sendt med ProTop på vegne av ${esc(company)}.</td></tr>
 </table></td></tr></table></body></html>`;
   return { subject, text: textBody, html };
 }

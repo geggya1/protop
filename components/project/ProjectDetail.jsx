@@ -47,6 +47,7 @@ import ProjectBillingReadyTab from './ProjectBillingReadyTab';
 import ProjectIndexArchive from './ProjectIndexArchive';
 import ProjectEarningsTab from './ProjectEarningsTab';
 import ProjectMeetingsTab from './ProjectMeetingsTab';
+import ProjectEvaluationTab from './ProjectEvaluationTab';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { teamWithHourParticipants } from '../../src/project/myProjects';
 import { projectStatusLabel } from '../../src/project/statusFilter';
@@ -69,6 +70,7 @@ const TABS = [
   { id: 'til_fakturering', label: 'Til fakturering' },
   { id: 'fakturaer', label: 'Fakturaer' },
   { id: 'indeks', label: 'Indeksregulering' },
+  { id: 'evaluering', label: 'Evaluering' },
   { id: 'innstillinger', label: 'Innstillinger' },
 ];
 
@@ -168,6 +170,8 @@ export default function ProjectDetail({
       if (row.id === 'inntjening' && !canSeeEarnings) return false;
       // Møter følger tilgangen til Møter, ikke prosjektnivået.
       if (row.id === 'moter') return canSeeMeetings;
+      // Evaluering: Begrenset redigering på prosjektet sender til kunden (serveren sjekker også).
+      if (row.id === 'evaluering') return full || editor;
       if (full) return true;
       return LIMITED_TABS.has(row.id) || (editor && row.id === 'innstillinger');
     }),
@@ -380,6 +384,10 @@ export default function ProjectDetail({
 
         {tab === 'moter' ? (
           <ProjectMeetingsTab familyId={familyId} project={project} colors={colors} uid={uid} />
+        ) : null}
+
+        {tab === 'evaluering' ? (
+          <ProjectEvaluationTab familyId={familyId} project={project} customers={customers} colors={colors} uid={uid} />
         ) : null}
 
         {tab === 'team' ? (

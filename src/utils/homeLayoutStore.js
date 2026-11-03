@@ -117,8 +117,8 @@ export function parseHomeLayout(parsed, role = 'parent') {
 function parseLayout(parsed, role = 'parent') {
   const fallback = emptyHomeLayout(role);
   let bannerId = isValidHomeBannerId(parsed?.bannerId) ? parsed.bannerId : fallback.bannerId;
-  // Før UX-05 var naturbildet standard og ble lagret uten at personen hadde valgt det.
-  // Uten eget valg viser Hjem nå ProTop-flaten; et bilde valgt under Tilpass hjem står.
+  // «Uten bilde» ble en periode lagret som standard uten at personen valgte det. Uten
+  // eget valg får Hjem bildet og glasset; det som er valgt under Tilpass hjem, står.
   const bannerChosen = parsed?.bannerChosen === true;
   if (role === 'parent') bannerId = resolveParentBannerId(bannerId, { bannerChosen });
   const bottomIds = Array.isArray(parsed?.bottomIds)

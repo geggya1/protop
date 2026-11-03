@@ -11,6 +11,13 @@
  *    og minst CUSTOMER_MIN_ANONYMOUS har svart.
  *
  * Spørsmålstyper: 'nps' (0–10, anbefaling), 'scale' (1–5, fornøydhet) og 'text' (fritekst).
+ *
+ * Samme motor brukes til evalueringer (kind):
+ *  - 'customer': den årlige kundeundersøkelsen (med utvikling over tid).
+ *  - 'project': prosjektevaluering, knyttet til et prosjekt (link) og gjerne en avdeling (unit).
+ *  - 'bid': tilbudsevaluering, knyttet til et tilbud i Anbud.
+ * Spørsmålene hentes fra en mal, som bedriften lager selv eller tar fra BUILTIN_TEMPLATES.
+ *
  * Ren JS, brukes av appen, serveren og testene.
  */
 
@@ -54,6 +61,72 @@ export const CUSTOMER_QUESTION_BANK = [
   { id: 'best', type: 'text', area: 'Forbedring', text: 'Hva var det beste med samarbeidet?' },
 ];
 
+/** Prosjektevaluering: hvordan prosjektet har fungert, sett fra kunden eller en samarbeidspartner. */
+export const DEFAULT_PROJECT_QUESTIONS = [
+  { id: 'nps', type: 'nps', area: 'Anbefaling', text: 'Hvor sannsynlig er det at du vil anbefale {firma} til andre?' },
+  { id: 'resultat', type: 'scale', area: 'Kvalitet', text: 'Hvor fornøyd er du med sluttresultatet i prosjektet?' },
+  { id: 'fremdrift', type: 'scale', area: 'Fremdrift', text: 'Hvor fornøyd er du med fremdriften og at avtalte frister ble holdt?' },
+  { id: 'prosjektledelse', type: 'scale', area: 'Prosjektledelse', text: 'Hvor fornøyd er du med prosjektledelsen og planleggingen?' },
+  { id: 'kommunikasjon', type: 'scale', area: 'Kommunikasjon', text: 'Hvor fornøyd er du med informasjon og kommunikasjon underveis?' },
+  { id: 'samarbeid', type: 'scale', area: 'Samarbeid', text: 'Hvor fornøyd er du med samarbeidet og løsningsviljen?' },
+  { id: 'endringer', type: 'scale', area: 'Økonomi og endringer', text: 'Hvor fornøyd er du med håndteringen av endringer, tillegg og økonomi?' },
+  { id: 'orden', type: 'scale', area: 'HMS og orden', text: 'Hvor fornøyd er du med orden, rydding og sikkerhet i prosjektet?' },
+  { id: 'overlevering', type: 'scale', area: 'Dokumentasjon', text: 'Hvor fornøyd er du med overleveringen og sluttdokumentasjonen?' },
+  { id: 'bra', type: 'text', area: 'Fritekst', text: 'Hva fungerte best i prosjektet?' },
+  { id: 'bedre', type: 'text', area: 'Forbedring', text: 'Hva bør vi gjøre annerledes i neste prosjekt?' },
+];
+
+/** Tilbudsevaluering: hvordan oppdragsgiver vurderte tilbudet, vunnet eller tapt. */
+export const DEFAULT_BID_QUESTIONS = [
+  { id: 'tilbud_tydelig', type: 'scale', area: 'Tilbud og avtale', text: 'Hvor tydelig og komplett var tilbudet fra {firma}?' },
+  { id: 'tilbud_pris', type: 'scale', area: 'Pris', text: 'Hvordan vurderte dere prisen sammenlignet med de andre tilbudene?' },
+  { id: 'tilbud_losning', type: 'scale', area: 'Kvalitet', text: 'Hvordan vurderte dere løsningen og kompetansen vi beskrev?' },
+  { id: 'tilbud_dialog', type: 'scale', area: 'Kommunikasjon', text: 'Hvor fornøyd var dere med dialogen og svarene våre i tilbudsfasen?' },
+  { id: 'tilbud_avgjorde', type: 'text', area: 'Fritekst', text: 'Hva avgjorde valget av leverandør?' },
+  { id: 'tilbud_bedre', type: 'text', area: 'Forbedring', text: 'Hva kunne gjort tilbudet vårt bedre?' },
+];
+
+export const SURVEY_KINDS = [
+  { id: 'customer', label: 'Kundeundersøkelse', plural: 'Kundeundersøkelser' },
+  { id: 'project', label: 'Prosjektevaluering', plural: 'Prosjektevalueringer' },
+  { id: 'bid', label: 'Tilbudsevaluering', plural: 'Tilbudsevalueringer' },
+];
+
+/** Hva evalueringen er knyttet til. 'company' er selskapet som helhet. */
+export const LINK_TYPES = [
+  { id: 'project', label: 'Prosjekt' },
+  { id: 'bid', label: 'Tilbud' },
+  { id: 'company', label: 'Selskapet' },
+];
+
+/** Maler som alltid finnes. Bedriftens egne kommer i tillegg (customerSurveyTemplates). */
+export const BUILTIN_TEMPLATES = [
+  {
+    id: 'std_kunde',
+    builtin: true,
+    kind: 'customer',
+    name: 'Kundeundersøkelse (standard)',
+    intro: 'Vi vil gjerne bli bedre, og setter stor pris på at du tar to minutter til å svare. Svarene brukes bare til å forbedre arbeidet vårt.',
+    questions: DEFAULT_CUSTOMER_QUESTIONS,
+  },
+  {
+    id: 'std_prosjekt',
+    builtin: true,
+    kind: 'project',
+    name: 'Prosjektevaluering (standard)',
+    intro: 'Takk for samarbeidet. Vi evaluerer prosjektene våre for å lære og bli bedre, og setter stor pris på at du tar noen minutter til å svare.',
+    questions: DEFAULT_PROJECT_QUESTIONS,
+  },
+  {
+    id: 'std_tilbud',
+    builtin: true,
+    kind: 'bid',
+    name: 'Tilbudsevaluering (standard)',
+    intro: 'Takk for at vi fikk gi tilbud. Vi vil gjerne vite hvordan dere vurderte tilbudet vårt, så vi kan bli bedre neste gang.',
+    questions: DEFAULT_BID_QUESTIONS,
+  },
+];
+
 export const CUSTOMER_STATUSES = [
   { id: 'draft', label: 'Utkast' },
   { id: 'open', label: 'Sendt, åpen for svar' },
@@ -73,6 +146,9 @@ export const CUSTOMER_AREA_ADVICE = {
   Dokumentasjon: 'Lag sluttdokumentasjon og FDV fortløpende, og lever den sammen med overleveringen.',
   Miljø: 'Sorter avfall på arbeidsstedet, og vis kunden hvordan dere tar miljøhensyn.',
   Lojalitet: 'Hold kontakt etter overleveringen, for eksempel med en ettårsbefaring.',
+  Prosjektledelse: 'Gå gjennom planen i oppstartsmøtet, og hold faste byggemøter med referat og aksjonsliste.',
+  Samarbeid: 'Avklar roller og forventninger i oppstarten, og ta opp uenighet tidlig.',
+  'Økonomi og endringer': 'Varsle endringer skriftlig med pris før de utføres, og hold en oppdatert endringslogg kunden kan se.',
 };
 
 function text(value) {
@@ -106,6 +182,73 @@ export function normalizeCustomerQuestions(list) {
   }).slice(0, CUSTOMER_MAX_QUESTIONS);
 }
 
+export function surveyKind(value) {
+  return SURVEY_KINDS.some((k) => k.id === value) ? value : 'customer';
+}
+
+export function kindLabel(kind, { plural = false } = {}) {
+  const k = SURVEY_KINDS.find((x) => x.id === surveyKind(kind));
+  return plural ? k.plural : k.label;
+}
+
+/** Kobling til prosjekt, tilbud eller selskapet: { type, id, name, number }. */
+export function normalizeSurveyLink(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const type = LINK_TYPES.some((t) => t.id === src.type) ? src.type : '';
+  if (!type) return { type: '', id: '', name: '', number: '' };
+  return {
+    type,
+    id: type === 'company' ? '' : text(src.id).slice(0, 120),
+    name: text(src.name).slice(0, 160),
+    number: text(src.number).slice(0, 40),
+  };
+}
+
+/** Nivået i organisasjonen (avdeling eller underenhet): { id, name }. */
+export function normalizeSurveyUnit(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return { id: text(src.id).slice(0, 80), name: text(src.name).slice(0, 160) };
+}
+
+/** Kort tekst for koblingen, for eksempel «Prosjekt 1042 Skole Sola · Bygg». */
+export function linkLabel(survey) {
+  const link = normalizeSurveyLink(survey?.link);
+  const unit = normalizeSurveyUnit(survey?.unit);
+  const head = link.type === 'company'
+    ? 'Selskapet'
+    : link.type
+      ? [LINK_TYPES.find((t) => t.id === link.type)?.label, link.number, link.name].filter(Boolean).join(' ')
+      : '';
+  return [head, unit.name].filter(Boolean).join(' · ');
+}
+
+export function newTemplateId(now = new Date()) {
+  return `mal_${now.getFullYear()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Mal for undersøkelser og evalueringer. Bedriftens egne lagres i customerSurveyTemplates. */
+export function normalizeSurveyTemplate(raw = {}) {
+  const kind = surveyKind(raw.kind);
+  return {
+    id: text(raw.id).slice(0, 80),
+    builtin: raw.builtin === true,
+    kind,
+    name: text(raw.name).slice(0, 120) || kindLabel(kind),
+    intro: text(raw.intro).slice(0, 1000),
+    anonymous: raw.anonymous === true,
+    questions: normalizeCustomerQuestions(raw.questions),
+    createdBy: text(raw.createdBy),
+    updatedAt: text(raw.updatedAt),
+  };
+}
+
+/** Innebygde maler først, så bedriftens egne sortert på navn. */
+export function templateList(own = []) {
+  const mine = (Array.isArray(own) ? own : []).map(normalizeSurveyTemplate).filter((t) => t.id && !t.builtin)
+    .sort((a, b) => a.name.localeCompare(b.name, 'nb'));
+  return [...BUILTIN_TEMPLATES.map(normalizeSurveyTemplate), ...mine];
+}
+
 export function newCustomerSurveyId(now = new Date()) {
   return `ku_${now.getFullYear()}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -119,10 +262,15 @@ export function normalizeCustomerSurvey(raw = {}) {
   const status = CUSTOMER_STATUSES.some((s) => s.id === raw.status) ? raw.status : 'draft';
   const stats = raw.stats && typeof raw.stats === 'object' ? raw.stats : {};
   const summary = raw.summary && typeof raw.summary === 'object' ? raw.summary : null;
+  const kind = surveyKind(raw.kind);
   return {
     id: text(raw.id),
     familyId: text(raw.familyId),
-    title: text(raw.title).slice(0, 120) || 'Kundeundersøkelse',
+    kind,
+    link: normalizeSurveyLink(raw.link),
+    unit: normalizeSurveyUnit(raw.unit),
+    templateId: text(raw.templateId).slice(0, 80),
+    title: text(raw.title).slice(0, 120) || kindLabel(kind),
     intro: text(raw.intro).slice(0, 1000),
     status,
     anonymous: raw.anonymous === true,
@@ -155,6 +303,33 @@ export function newCustomerSurvey({ year = new Date().getFullYear(), uid = '', n
     year,
     // Samme spørsmål som sist gir sammenlignbare tall over tid.
     questions: base?.questions?.length ? base.questions : DEFAULT_CUSTOMER_QUESTIONS,
+    createdBy: uid,
+    createdAt: now.toISOString(),
+  });
+}
+
+/**
+ * Ny evaluering fra en mal, knyttet til prosjekt, tilbud eller selskapet.
+ * link: { type, id, name, number }, unit: { id, name }.
+ */
+export function newEvaluation({ template, link = null, unit = null, uid = '', now = new Date() } = {}) {
+  const t = normalizeSurveyTemplate(template || BUILTIN_TEMPLATES[1]);
+  const l = normalizeSurveyLink(link);
+  // Koblingen bestemmer typen. Uten prosjekt eller tilbud gjelder malen (kundeundersøkelse blir prosjekt).
+  const kind = l.type === 'bid' ? 'bid' : l.type === 'project' ? 'project' : t.kind === 'customer' ? 'project' : t.kind;
+  const what = l.type === 'company' ? '' : [l.number, l.name].filter(Boolean).join(' ');
+  return normalizeCustomerSurvey({
+    id: newCustomerSurveyId(now),
+    kind,
+    link: l,
+    unit,
+    templateId: t.id,
+    title: `${kindLabel(kind)}${what ? `: ${what}` : ''}`,
+    intro: t.intro,
+    status: 'draft',
+    anonymous: t.anonymous,
+    year: now.getFullYear(),
+    questions: t.questions,
     createdBy: uid,
     createdAt: now.toISOString(),
   });
@@ -365,7 +540,7 @@ export function customerSummary(results) {
 export function customerTrendPoints(surveys) {
   return (surveys || [])
     .map(normalizeCustomerSurvey)
-    .filter((s) => s.status === 'closed' && s.summary?.ready)
+    .filter((s) => s.kind === 'customer' && s.status === 'closed' && s.summary?.ready)
     .map((s) => ({
       id: s.id,
       label: s.title.replace(/^Kundeundersøkelse\s*/i, '') || String(s.year),
@@ -384,7 +559,7 @@ export function previousCustomerSurvey(surveys, survey) {
   const at = s.closedAt || '9999';
   return (surveys || [])
     .map(normalizeCustomerSurvey)
-    .filter((x) => x.id !== s.id && x.status === 'closed' && x.summary?.ready && String(x.closedAt) < at)
+    .filter((x) => x.id !== s.id && x.kind === s.kind && x.status === 'closed' && x.summary?.ready && String(x.closedAt) < at)
     .sort((a, b) => String(b.closedAt).localeCompare(String(a.closedAt)))[0] || null;
 }
 
@@ -424,4 +599,84 @@ export function customerCsvRows(survey, results) {
     for (const a of t.answers) rows.push([a.text, a.customerName || '']);
   }
   return rows;
+}
+
+/**
+ * Kopi til den som svarte: spørsmålene med svaret, i samme rekkefølge som skjemaet.
+ * Gir [{ question, answer }]. Ubesvarte spørsmål står som «Ikke besvart».
+ */
+export function answerCopyRows(survey, clean) {
+  const s = normalizeCustomerSurvey(survey);
+  return s.questions.map((q) => {
+    let answer = 'Ikke besvart';
+    if (q.type === 'text') {
+      const t = text(clean?.texts?.[q.id]);
+      if (t) answer = t;
+    } else {
+      const v = Number(clean?.answers?.[q.id]);
+      if (q.type === 'nps' && NPS_SCALE.includes(v)) answer = `${v} av 10`;
+      if (q.type === 'scale' && CUSTOMER_SCALE.includes(v)) answer = `${v} av 5 (${CUSTOMER_SCALE_LABELS[v - 1].toLowerCase()})`;
+    }
+    return { question: questionText(q, s.companyName), answer };
+  });
+}
+
+/** E-posten delvis skjult, til svarsiden: «p***@novaform.no». */
+export function maskEmail(value) {
+  const e = text(value).toLowerCase();
+  const at = e.indexOf('@');
+  if (at < 1) return '';
+  return `${e[0]}***${e.slice(at)}`;
+}
+
+/**
+ * Evalueringer (ikke den årlige kundeundersøkelsen), nyeste først.
+ * filter: { kind?, linkType?, linkId?, unitId? }. Brukes i prosjektet, i oversikten og i tilbudsarbeid.
+ */
+export function evaluationsFor(surveys, filter = {}) {
+  const at = (s) => String(s.closedAt || s.openedAt || s.createdAt);
+  return (surveys || [])
+    .map(normalizeCustomerSurvey)
+    .filter((s) => s.kind !== 'customer')
+    .filter((s) => !filter.kind || s.kind === filter.kind)
+    .filter((s) => !filter.linkType || s.link.type === filter.linkType)
+    .filter((s) => !filter.linkId || s.link.id === filter.linkId)
+    .filter((s) => !filter.unitId || s.unit.id === filter.unitId)
+    .sort((a, b) => at(b).localeCompare(at(a)));
+}
+
+/** Snitt av avsluttede evalueringer med resultat: { count, index, nps } (til referanser i tilbud). */
+export function evaluationAverage(surveys) {
+  const done = (surveys || []).map(normalizeCustomerSurvey).filter((s) => s.status === 'closed' && s.summary?.ready);
+  const avg = (list) => (list.length ? Math.round(list.reduce((a, v) => a + v, 0) / list.length) : null);
+  return {
+    count: done.length,
+    index: avg(done.map((s) => s.summary.index).filter((v) => v != null)),
+    nps: avg(done.map((s) => s.summary.nps).filter((v) => v != null)),
+  };
+}
+
+/**
+ * Tekst til tilbud og kvalifikasjon: hva kundene sier om prosjektene, med tall og periode.
+ * Tom tekst når ingen evaluering har resultat ennå.
+ */
+export function evaluationReferenceText(surveys, companyName = '') {
+  const done = (surveys || []).map(normalizeCustomerSurvey).filter((s) => s.status === 'closed' && s.summary?.ready);
+  const avg = evaluationAverage(done);
+  if (!avg.count) return '';
+  const years = done.map((s) => Number(String(s.closedAt).slice(0, 4))).filter(Boolean);
+  const from = Math.min(...years);
+  const to = Math.max(...years);
+  const period = years.length ? (from === to ? ` i ${from}` : ` i ${from}–${to}`) : '';
+  const answers = done.reduce((a, s) => a + (Number(s.summary.count) || 0), 0);
+  const who = text(companyName) || 'Vi';
+  const parts = [
+    `${who} evaluerer prosjektene sammen med kunden etter overlevering.`,
+    `${avg.count} ${avg.count === 1 ? 'evaluering' : 'evalueringer'}${period} med ${answers} svar gir`,
+  ];
+  const nums = [
+    avg.index != null ? `en tilfredshet på ${avg.index} av 100` : '',
+    avg.nps != null ? `NPS ${avg.nps}` : '',
+  ].filter(Boolean).join(' og ');
+  return `${parts.join(' ')} ${nums || 'resultat i ProTop'}.`;
 }

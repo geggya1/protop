@@ -82,7 +82,8 @@ export const PAGE_ACCESS = {
 
   kunder: { res: 'customers', steps: [R, R, S, W, S] },
   // Lage, sende, purre og avslutte krever Begrenset redigering på Kunder. Resultatet krever Lese.
-  'kunder.undersokelse': { res: 'customers', steps: [R, R, R, S] },
+  // Evalueringer: Begrenset redigering sender, maler likeså (serveren godtar også Prosjekt for evalueringer).
+  'kunder.undersokelse': { res: 'customers', steps: [R, R, R, S, R, R] },
   kontrakt: { res: 'contracts', steps: [R, R, R, R, S] },
   // Nye prosjekter opprettes av Admin på Prosjekt; tildelte prosjekt kan åpnes.
   projects: { res: 'projects', steps: [W, W, null, R, W] },

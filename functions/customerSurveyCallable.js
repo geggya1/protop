@@ -4,7 +4,8 @@
  *
  * Kunden svarer uten innlogging (handlingene open og submit), så callable er åpen for alle
  * (open_for i scripts/deploy-slim-functions.sh). Alt annet krever innlogging og tilgang til Kunder:
- * Lese for å se resultater, Begrenset redigering for å lage, sende, purre og avslutte.
+ * Lese for å se resultater, Begrenset redigering for å lage, sende, purre og avslutte. Uten Kunder
+ * gir Prosjekt det samme for evalueringer av prosjekter og tilbud (staffScope i customerService.js).
  */
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
@@ -43,14 +44,13 @@ function deps(req) {
     async rateLimit(key, limit, windowMs) {
       await assertRateLimit(db, { key: hashRateKey(['customer-survey', key]), limit, windowMs });
     },
-    async assertAccess(familyId, uid, action) {
+    async assertAccess(familyId, uid, action, resource = 'customers') {
       // Tilgangsmatrisen: see = Lese, read = Begrenset redigering (som appen og firestore.rules).
+      const what = resource === 'projects' ? 'evalueringer' : 'kundeundersøkelser';
       await assertCompanyAccess(db, familyId, uid, {
-        resource: 'customers',
+        resource: resource === 'projects' ? 'projects' : 'customers',
         action: action === 'write' ? 'read' : 'see',
-        message: action === 'write'
-          ? 'Du har ikke tilgang til å sende kundeundersøkelser.'
-          : 'Du har ikke tilgang til kundeundersøkelsene.',
+        message: action === 'write' ? `Du har ikke tilgang til å sende ${what}.` : `Du har ikke tilgang til ${what}.`,
       });
     },
     async companyName(familyId) {

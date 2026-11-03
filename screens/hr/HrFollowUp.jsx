@@ -47,8 +47,11 @@ const EMPTY_FILE = { name: '', url: '', employeeVisible: false };
 export default function HrFollowUp({
   colors, employees, hr, canWrite, onPatch, lockedEmployeeId, familyId,
   focusCaseId, assigneeUid, assigneeName, onOpenTask, onCreateFollowUpTask, formKit = null,
+  // Innleide og eksterne: medarbeidersamtaler er leverandørens ansvar, ikke deres.
+  hideReviews = false,
 }) {
   const [tab, setTab] = useState('cases');
+  const tabs = hideReviews ? TABS.filter((item) => item.id !== 'reviews') : TABS;
   const [selectedCaseId, setSelectedCaseId] = useState(focusCaseId || '');
   const [linkingTask, setLinkingTask] = useState(false);
   const employeeId = String(lockedEmployeeId || '');
@@ -261,7 +264,7 @@ export default function HrFollowUp({
   return (
     <View style={styles.page} nativeID="hr-followup">
       <View style={styles.chips}>
-        {TABS.map((item) => (
+        {tabs.map((item) => (
           <HrChip key={item.id} nativeID={`hr-follow-tab-${item.id}`} colors={colors} label={item.label} active={tab === item.id} onPress={() => setTab(item.id)} />
         ))}
       </View>
@@ -373,7 +376,7 @@ export default function HrFollowUp({
         </HrCard>
       ) : null}
 
-      {employeeId && tab === 'reviews' && openDoc ? (
+      {employeeId && tab === 'reviews' && !hideReviews && openDoc ? (
         <View nativeID="hr-review-form" style={styles.reviewForm}>
           {lastPlan?.plan?.length ? (
             <HrCard colors={colors}>
@@ -418,7 +421,7 @@ export default function HrFollowUp({
         </View>
       ) : null}
 
-      {employeeId && tab === 'reviews' && !openDoc ? (
+      {employeeId && tab === 'reviews' && !hideReviews && !openDoc ? (
         <>
           <HrCard colors={colors}>
             <HrSectionTitle

@@ -8,6 +8,7 @@ import { CompanyAccessDenied } from '../../components/project/CompanyAccessSetti
 import { watchEmployees } from '../../src/employees/storage';
 import { loadTimeEntries } from '../../src/economy/timeEntryStorage';
 import { createFollowUpTask } from '../../src/hr/followUpTask';
+import { hrKindBucket } from '../../src/hr/directory';
 import { emptyHrState, filterHrEmployees, localIsoDate, normalizeHrState, patchHrState } from '../../src/hr/model';
 import { hmsCardRequirement, mergeHmsCards } from '../../src/hr/hmsCard';
 import { loadSelfHmsCards } from '../../src/hr/hmsSelf';
@@ -18,6 +19,7 @@ import { defaultHrSubView } from '../../src/navigation/shellModules';
 import { showSaveToast } from '../../src/ui/saveToast';
 import HrDashboard from './HrDashboard';
 import HrPeople from './HrPeople';
+import HrHired from './HrHired';
 import HrRecruitment from './HrRecruitment';
 import HrControl from './HrControl';
 import HrHandbook from './HrHandbook';
@@ -73,6 +75,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const hrResource = ({
     oversikt: 'hr',
     personell: 'hrPeople',
+    innleid: 'hrPeople',
     avtaler: 'hrAgreements',
     lonn: 'hrPayroll',
     oppfolging: 'hrFollowup',
@@ -282,7 +285,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
   // Innsynslogg (L-19): en annens HR-mappe eller lønn. Eget innsyn logges ikke (serveren sjekker).
   useEffect(() => {
     if (!ready || !familyId || !canSee) return;
-    if (page === 'personell' && selectedEmployeeId) {
+    if ((page === 'personell' || page === 'innleid') && selectedEmployeeId) {
       logSensitiveAccess({ familyId, kind: employeeSheet === 'lonn' ? 'salary' : 'hrFolder', employeeId: selectedEmployeeId });
     } else if (page === 'lonn') {
       logSensitiveAccess({ familyId, kind: 'salary' });
@@ -304,11 +307,11 @@ export default function HrScreen({ subView = 'oversikt' }) {
   }, [requestShellTab]);
 
   // Skallet monterer HR på nytt når undersiden skifter, så valgt ansatt
-  // følger med som intent til Personell.
+  // følger med som intent til Personell (egne ansatte) eller Innleid personell.
   useEffect(() => {
-    if (page !== 'personell' || shellIntent?.type !== 'hrEmployee' || !shellIntent.employeeId) return;
+    if ((page !== 'personell' && page !== 'innleid') || shellIntent?.type !== 'hrEmployee' || !shellIntent.employeeId) return;
     setSelectedEmployeeId(shellIntent.employeeId);
-    setEmployeeSheet(shellIntent.sheet || 'oversikt');
+    setEmployeeSheet(shellIntent.sheet || (page === 'innleid' ? 'krav' : 'oversikt'));
     setFocusCaseId(shellIntent.caseId || '');
     clearShellIntent?.();
   }, [page, shellIntent, clearShellIntent]);
@@ -324,12 +327,21 @@ export default function HrScreen({ subView = 'oversikt' }) {
     }
   }, [page, shellIntent, clearShellIntent]);
 
+  // Innleide og eksterne åpnes under Innleid personell, ikke i egne ansattes personellmappe.
+  const isHired = useCallback(
+    (id) => hrKindBucket(employees.find((row) => row.id === id)) === 'external',
+    [employees],
+  );
+
   const openEmployee = useCallback((id, sheet) => {
+    const hired = !!id && isHired(id);
+    // Egne ansattes faner (avtale, lovpålagt, lønn) finnes ikke for innleide.
+    const target = hired ? (sheet === 'oppfolging' ? 'oppfolging' : 'krav') : (sheet || 'oversikt');
     setSelectedEmployeeId(id || '');
-    setEmployeeSheet(sheet || 'oversikt');
+    setEmployeeSheet(target);
     setFocusCaseId('');
-    go('personell', id ? { type: 'hrEmployee', employeeId: id, sheet: sheet || 'oversikt' } : null);
-  }, [go]);
+    go(hired ? 'innleid' : 'personell', id ? { type: 'hrEmployee', employeeId: id, sheet: target } : null);
+  }, [go, isHired]);
 
   const openCase = useCallback((row) => {
     if (!row?.id || !row.employeeId) {
@@ -339,8 +351,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
     setSelectedEmployeeId(row.employeeId);
     setEmployeeSheet('oppfolging');
     setFocusCaseId(row.id);
-    go('personell', { type: 'hrEmployee', employeeId: row.employeeId, sheet: 'oppfolging', caseId: row.id });
-  }, [go]);
+    go(isHired(row.employeeId) ? 'innleid' : 'personell', { type: 'hrEmployee', employeeId: row.employeeId, sheet: 'oppfolging', caseId: row.id });
+  }, [go, isHired]);
 
   const openLinkedTask = useCallback((taskId) => {
     if (!taskId) return;
@@ -425,6 +437,31 @@ export default function HrScreen({ subView = 'oversikt' }) {
             setSelectedEmployeeId('');
             go('lonn');
           }}
+        />
+      );
+    }
+    if (page === 'innleid') {
+      return (
+        <HrHired
+          colors={colors}
+          employees={employees}
+          hr={hrView}
+          selectedId={selectedEmployeeId}
+          onSelect={(id) => {
+            setSelectedEmployeeId(id || '');
+            setFocusCaseId('');
+          }}
+          sheet={employeeSheet}
+          onSheet={setEmployeeSheet}
+          canWrite={canWrite}
+          onPatch={onPatch}
+          familyId={familyId}
+          focusCaseId={focusCaseId}
+          assigneeUid={uid || ''}
+          assigneeName={assigneeName}
+          onOpenTask={openLinkedTask}
+          onCreateFollowUpTask={createTask}
+          formKit={formKit}
         />
       );
     }
@@ -558,6 +595,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
         onOpenPeople={(filter) => go('personell', filter ? { type: 'hrPeopleFilter', ...filter } : null)}
         onOpenEmployee={openEmployee}
         onOpenFollowUp={() => go('oppfolging')}
+        onOpenHired={() => go('innleid')}
         onOpenCase={openCase}
         familyId={familyId}
         ownCompany={ownCompany}

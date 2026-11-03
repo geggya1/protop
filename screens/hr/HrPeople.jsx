@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   displayName, formatNbDate as empFormatNbDate, periodLabel,
 } from '../../src/employees/model';
-import { hrControlCells } from '../../src/hr/directory';
+import { hrControlCells, hrKindBucket } from '../../src/hr/directory';
 import {
   formatNbDate,
   upcomingPeopleEvents,
@@ -27,10 +27,10 @@ const SHEET_IDS = [...SHEETS.map((item) => item.id), 'lonn'];
 
 // «sheet» er fanen som åpnes når man trykker i kolonnen.
 // Rødt betyr at noe mangler. Hver kolonne sier selv hva, så «Mangler» gjentas ikke på tvers.
+// Listen har bare egne ansatte. Innleide og eksterne ligger under HR → Innleid personell (HrHired).
 
 const COLUMNS = [
   { key: 'name', label: 'Navn', width: 190, value: (row) => displayName(row.employee) },
-  { key: 'kind', label: 'Type', width: 90, value: (row) => row.cells.kindLabel },
   { key: 'check', label: 'Lovpålagt', width: 200, sheet: 'compliance', value: (row) => row.cells.checklist, warn: (row) => row.cells.checklistMissing > 0 },
   { key: 'contract', label: 'Ansettelsesavtale', width: 150, sheet: 'avtale', value: (row) => (row.cells.contract === 'Mangler' ? 'Ingen avtale' : row.cells.contract), warn: (row) => row.cells.contract === 'Mangler' },
   { key: 'review', label: 'Medarbeidersamtale', width: 160, sheet: 'oppfolging', value: (row) => (row.cells.review === 'Mangler' ? 'Ingen samtale' : row.cells.review), warn: (row) => row.cells.review === 'Mangler' },
@@ -44,7 +44,7 @@ export default function HrPeople({
   focusCaseId, assigneeUid, assigneeName, onOpenTask, onCreateFollowUpTask,
   isoCompetence, onOpenIso, listPreset = null, onBackToSalary, onOpenLibraryTemplate, formKit = null,
 }) {
-  const dir = useHrDirectory(employees, { preset: listPreset });
+  const dir = useHrDirectory(employees, { lockedKind: 'internal', preset: listPreset });
   const rows = useMemo(
     () => dir.rows.map((employee) => ({
       employee,
@@ -52,7 +52,7 @@ export default function HrPeople({
     })),
     [dir.rows, hr, entries],
   );
-  const selected = (employees || []).find((row) => row.id === selectedId) || null;
+  const selected = (employees || []).find((row) => row.id === selectedId && hrKindBucket(row) !== 'external') || null;
   const activeSheet = SHEET_IDS.includes(sheet) ? sheet : 'oversikt';
 
   if (!selected) {
@@ -62,7 +62,7 @@ export default function HrPeople({
           <HrSectionTitle
             colors={colors}
             title="Personell"
-            subtitle="Velg en ansatt. Rødt er det som mangler. Trykk i en kolonne for å gå rett til avtale, oppfølging eller lovpålagt."
+            subtitle="Egne ansatte. Velg en ansatt. Rødt er det som mangler. Trykk i en kolonne for å gå rett til avtale, oppfølging eller lovpålagt. Innleide og eksterne følges opp under Innleid personell."
           />
           <HrFilterBar
             colors={colors}
@@ -73,6 +73,7 @@ export default function HrPeople({
             kind={dir.kind}
             onKind={dir.setKind}
             counts={dir.counts}
+            showKind={false}
           />
           <HrTable
             colors={colors}

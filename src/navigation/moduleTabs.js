@@ -77,7 +77,7 @@ function isoSections(pages, active) {
   return sectionsFor(isoGroups(pages), pages, active, [{ id: 'oversikt', label: 'Oversikt', pageIds: ['iso-oversikt'] }]);
 }
 
-/** HR: Oversikt, Ansatte, Oppfølging, Rekruttering og Rutiner (HR_GROUPS i shellModules.js). */
+/** HR: Oversikt, Ansatte, Innleide, Oppfølging, Rekruttering og Rutiner (HR_GROUPS i shellModules.js). */
 function hrGroups(pages) {
   const have = new Set(pages.map((p) => p.id));
   return HR_GROUPS.map((g) => ({

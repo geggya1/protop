@@ -750,7 +750,8 @@ export function employeeVisibleSlice(state, employeeId) {
     hmsCards: forEmployee(src.hmsCards, id),
     // Om bedriften krever HMS-kort, og om det er «Ikke aktuelt» for personen (Min side › Gjøremål).
     settings: { hmsCard: src.settings.hmsCard },
-    compliance: forEmployee(src.compliance, id).filter((row) => row.catalogId === 'hms_card'),
+    // hms_card for egne ansatte, inn_hms_card for innleide og eksterne (src/hr/hired.js).
+    compliance: forEmployee(src.compliance, id).filter((row) => row.catalogId === 'hms_card' || row.catalogId === 'inn_hms_card'),
     // Memo-filer følger memo-synlighet; standalone krever employeeVisible.
     files: forEmployee(src.files, id).filter((file) => {
       if (file.memoId) return visibleMemoIds.has(file.memoId);

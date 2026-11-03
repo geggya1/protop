@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { hmsCardAlerts, siteOverviewCsv, siteOverviewRows } from '../../src/hr/hmsCard';
-import { localIsoDate } from '../../src/hr/model';
+import { filterHrEmployees, localIsoDate } from '../../src/hr/model';
+import { hrKindBucket } from '../../src/hr/directory';
 import { EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle } from './HrShared';
 
 const HMS_CHOICES = [
@@ -48,11 +49,12 @@ export default function HrHmsCards({
   const [project, setProject] = useState('');
   const [note, setNote] = useState('');
   const notApplicable = useMemo(
-    () => (hr?.compliance || []).filter((row) => row.catalogId === 'hms_card' && row.status === 'na').map((row) => row.employeeId),
+    // hms_card for egne ansatte, inn_hms_card for innleide og eksterne.
+    () => (hr?.compliance || []).filter((row) => (row.catalogId === 'hms_card' || row.catalogId === 'inn_hms_card') && row.status === 'na').map((row) => row.employeeId),
     [hr?.compliance],
   );
   const alerts = useMemo(
-    () => hmsCardAlerts(employees, hr?.hmsCards || [], { notApplicable }),
+    () => hmsCardAlerts(filterHrEmployees(employees, 'active'), hr?.hmsCards || [], { notApplicable }),
     [employees, hr?.hmsCards, notApplicable],
   );
   const range = { from: isoFromInput(from), to: isoFromInput(to) };
@@ -64,6 +66,7 @@ export default function HrHmsCards({
     employees,
     cards: hr?.hmsCards || [],
     employer: { name: company?.name || '', orgnr: company?.orgnr || '' },
+    externalIds: (employees || []).filter((row) => hrKindBucket(row) === 'external').map((row) => row.id),
     from: range.from,
     to: range.to,
   }), [entries, employees, hr?.hmsCards, company, range.from, range.to, wanted]);
@@ -85,7 +88,7 @@ export default function HrHmsCards({
         <HrSectionTitle
           colors={colors}
           title="HMS-kort og oversiktsliste"
-          subtitle="Kort som er utløpt eller går ut innen 30 dager, og daglig oversiktsliste for byggeplass fra timeføringen (byggherreforskriften § 15)."
+          subtitle="Kort som er utløpt eller går ut innen 30 dager, og daglig oversiktsliste for byggeplass fra timeføringen (byggherreforskriften § 15). Gjelder alle på arbeidsstedet, også innleide og eksterne."
         />
         <View nativeID="hr-hms-setting" style={styles.stack}>
           <Text style={[styles.label, { color: colors.ink }]}>Krever bedriften HMS-kort?</Text>

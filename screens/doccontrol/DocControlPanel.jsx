@@ -7,11 +7,13 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
+  AUDIENCES,
   READ_RULES,
   REVISION_STATES,
   ackStatus,
   approveRevision,
   canApprove,
+  forAudience,
   contentHash,
   docHeader,
   publishedRevision,
@@ -27,6 +29,7 @@ import {
 } from '../../src/doccontrol/model';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/forms/highlight';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { type } from '../../src/ui/tokens';
 import { HrButton, HrCard, HrSectionTitle } from '../hr/HrShared';
 import { ChoiceChips, HeaderGrid, Label, OK_INK, PersonChips, StatusChip, dateText, dayText } from './parts';
 
@@ -120,7 +123,7 @@ export default function DocControlPanel({
   const log = revisionLog(control);
   const reads = pub && (control.readRule === 'pakrevd' || control.readRule === 'info') ? ackStatus(dc.employees, dc.acks, control) : [];
   const signed = pub && control.readRule === 'signeres'
-    ? dc.employees.map((employee) => ({
+    ? forAudience(control, dc.employees).map((employee) => ({
       employeeId: employee.id,
       name: employeeName(employee),
       current: (filled || []).some((doc) => doc.status === 'ferdig' && doc.templateId === control.refId && doc.subject?.kind === 'employee' && doc.subject.id === employee.id),
@@ -292,6 +295,7 @@ export default function DocControlPanel({
         <Text style={{ color: colors.ink }}>
           <Text style={{ fontWeight: '600' }}>Lesekrav: </Text>
           {READ_RULES.find((row) => row.id === control.readRule)?.label}
+          {control.readRule !== 'ingen' ? ` · ${AUDIENCES.find((row) => row.id === control.audience)?.label || 'Egne ansatte'}` : ''}
         </Text>
         <Text style={{ color: colors.ink }}>
           <Text style={{ fontWeight: '600' }}>Neste gjennomgang: </Text>
@@ -366,6 +370,13 @@ export default function DocControlPanel({
           <Label colors={colors}>Lesekrav for ansatte</Label>
           <ChoiceChips colors={colors} options={READ_RULES.map((row) => ({ id: row.id, label: row.label, hint: row.hint }))} value={control.readRule} onChange={(readRule) => change({ readRule })} title="Lesekrav for ansatte" />
           <Text style={{ color: colors.muted, fontSize: 12 }}>{READ_RULES.find((row) => row.id === control.readRule)?.hint}</Text>
+          {control.readRule !== 'ingen' ? (
+            <>
+              <Label colors={colors}>Gjelder for</Label>
+              <ChoiceChips colors={colors} options={AUDIENCES.map((row) => ({ id: row.id, label: row.label, hint: row.hint }))} value={control.audience || 'ansatte'} onChange={(audience) => change({ audience })} title="Gjelder for" />
+              <Text style={[type.caption, { color: colors.muted }]}>{AUDIENCES.find((row) => row.id === (control.audience || 'ansatte'))?.hint}</Text>
+            </>
+          ) : null}
           <Label colors={colors}>Varsel ved ny versjon</Label>
           <ChoiceChips colors={colors} options={NOTIFY} value={control.notify} onChange={(notify) => change({ notify })} title="Varsel ved ny versjon" />
           <Text style={{ color: colors.muted, fontSize: 12 }}>

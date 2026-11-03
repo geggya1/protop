@@ -48,4 +48,12 @@ const docs = [
 assert.equal(kinIsMissing({ person: { kinName: 'Bo', kinPhone: '' } }), true);
 assert.equal(kinIsMissing({ person: { kinName: 'Bo', kinPhone: '99999999' } }), false);
 
+{
+  // Pårørende er et gjøremål for egne ansatte, ikke for innleide og eksterne.
+  const hired = employeeTodos({ employee: { id: 'i1', person: {}, company: { personnelKind: 'innleid' } } });
+  assert.equal(hired.some((row) => row.kind === 'kin'), false);
+  const own = employeeTodos({ employee: { id: 'e1', person: {}, company: { personnelKind: 'staff' } } });
+  assert.equal(own.some((row) => row.kind === 'kin'), true);
+}
+
 console.log('todo.test.mjs: ok');

@@ -12,7 +12,28 @@
  * Innholdet ligger der det redigeres (malen i Skjemabygger, kapitlene i HR).
  * Ved innsending lagres et øyeblikksbilde med sjekksum. Godkjenning avvises hvis
  * utkastet er endret etter innsending.
+ *
+ * Lesekrav gjelder egne ansatte (audience 'ansatte'). Et dokument kan også gjelde innleide og
+ * eksterne ('alle'), for eksempel en HMS-rutine på byggeplassen. Personalhåndboken og
+ * personverninformasjonen til ansatte gjelder egne ansatte.
  */
+import { hrKindBucket } from '../hr/directory.js';
+
+export const AUDIENCES = [
+  { id: 'ansatte', label: 'Egne ansatte', hint: 'Innleide og eksterne får ikke dokumentet til lesing.' },
+  { id: 'alle', label: 'Egne ansatte og innleide', hint: 'Også innleide og eksterne med brukerkonto, for eksempel en HMS-rutine på arbeidsstedet.' },
+];
+
+/** Gjelder lesekravet personen? */
+export function audienceIncludes(control, employee) {
+  if (control?.audience === 'alle') return true;
+  return hrKindBucket(employee) !== 'external';
+}
+
+/** Personene lesekravet gjelder. */
+export function forAudience(control, employees) {
+  return (Array.isArray(employees) ? employees : []).filter((employee) => audienceIncludes(control, employee));
+}
 
 export const REVISION_STATES = {
   utkast: 'Utkast',
@@ -152,6 +173,7 @@ export function normalizeControl(raw) {
     owner: normalizePerson(raw.owner),
     approver: normalizePerson(raw.approver),
     readRule: READ_RULES.some((row) => row.id === raw.readRule) ? raw.readRule : 'ingen',
+    audience: raw.audience === 'alle' ? 'alle' : 'ansatte',
     notify: ['standard', 'ja', 'nei'].includes(raw.notify) ? raw.notify : 'standard',
     reviewIntervalMonths: Math.max(1, Math.min(60, Math.round(Number(raw.reviewIntervalMonths) || 12))),
     nextReview: text(raw.nextReview, 10),
@@ -285,6 +307,10 @@ export function updateControl(control, part, { actor = null, now = new Date() } 
   if (part.readRule && READ_RULES.some((row) => row.id === part.readRule)) {
     next.readRule = part.readRule;
     changes.push(`lesekrav ${READ_RULES.find((row) => row.id === part.readRule).label.toLowerCase()}`);
+  }
+  if (part.audience && AUDIENCES.some((row) => row.id === part.audience) && part.audience !== control.audience) {
+    next.audience = part.audience;
+    changes.push(`gjelder for ${AUDIENCES.find((row) => row.id === part.audience).label.toLowerCase()}`);
   }
   if (part.notify) { next.notify = part.notify; changes.push(`varsel ${part.notify}`); }
   if (part.reviewIntervalMonths) {
@@ -613,7 +639,7 @@ export function latestAck(acks, docKey, { uid = '', employeeId = '' } = {}) {
 export function ackStatus(employees, acks, control) {
   const pub = publishedRevision(control);
   if (!pub) return [];
-  return (Array.isArray(employees) ? employees : []).map((employee) => {
+  return forAudience(control, employees).map((employee) => {
     const latest = latestAck(acks, control.id, { uid: employeeUid(employee), employeeId: employee.id });
     return {
       employeeId: employee.id,
@@ -641,7 +667,8 @@ export function overviewRows(controls, { acks = [], comments = [], employees = [
       const signed = new Set((filled || [])
         .filter((doc) => doc.status === 'ferdig' && doc.templateId === control.refId && doc.subject?.kind === 'employee')
         .map((doc) => doc.subject.id));
-      read = { done: (employees || []).filter((employee) => signed.has(employee.id)).length, total: (employees || []).length };
+      const people = forAudience(control, employees);
+      read = { done: people.filter((employee) => signed.has(employee.id)).length, total: people.length };
     }
     return {
       id: control.id,
@@ -674,10 +701,13 @@ export function pendingFor(controls, actor, settings, { isAdmin = false, now = n
   };
 }
 
-/** Dokumenter den ansatte skal lese eller signere, med status. */
-export function documentsForEmployee(controls, { acks = [], filled = [], uid = '', employeeId = '' } = {}) {
+/** Dokumenter den ansatte skal lese eller signere, med status. employee: personen, for hvem dokumentet gjelder. */
+export function documentsForEmployee(controls, {
+  acks = [], filled = [], uid = '', employeeId = '', employee = null,
+} = {}) {
   return (Array.isArray(controls) ? controls : [])
     .filter((control) => control && !control.archived && isPublished(control) && control.readRule !== 'ingen')
+    .filter((control) => !employee || audienceIncludes(control, employee))
     .map((control) => {
       const pub = publishedRevision(control);
       if (control.readRule === 'signeres') {

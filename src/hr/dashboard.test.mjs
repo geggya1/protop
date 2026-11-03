@@ -141,4 +141,15 @@ const hr = {
   assert.deepEqual(staffKinMissing(missing).map((row) => row.employee.id), ['s1']);
 }
 
+{
+  // Innleide og eksterne: ingen ansiennitet eller jubileum som neste hendelse.
+  const today = new Date();
+  const y = today.getFullYear() - 5;
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const ext = { id: 'x1', person: { firstName: 'Ina' }, company: { status: 'active', personnelKind: 'innleid', periodFrom: `${y}-${mm}-${dd}` } };
+  const dash = hrDashboard([ext], {}, { status: 'active' });
+  assert.equal(dash.external.rows[0].next?.type === 'anniversary', false);
+}
+
 console.log('hr dashboard ok');

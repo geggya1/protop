@@ -61,8 +61,10 @@ export default function MyDocuments({ colors, employeeId, employeeName = '', sel
 
   const uid = self ? actor.uid : '';
   const rows = useMemo(
-    () => documentsForEmployee(dc.controls, { acks: dc.acks, filled, uid, employeeId }),
-    [dc.controls, dc.acks, filled, uid, employeeId],
+    () => documentsForEmployee(dc.controls, {
+      acks: dc.acks, filled, uid, employeeId, employee: (dc.employees || []).find((row) => row.id === employeeId) || null,
+    }),
+    [dc.controls, dc.acks, filled, uid, employeeId, dc.employees],
   );
   const missing = rows.filter((row) => row.required && !row.done).length;
   const logoUrl = logo?.dataUrl || '';

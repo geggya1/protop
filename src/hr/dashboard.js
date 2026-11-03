@@ -145,7 +145,9 @@ export function hrDashboard(employees, hr = {}, {
     return days != null && days <= 0 && days >= -DASHBOARD_DAYS;
   }).length;
 
-  const externalEvents = upcomingPeopleEvents(externals, { withinDays: DASHBOARD_DAYS, today });
+  // Ansiennitet og jubileum gjelder egne ansatte. For innleide og eksterne er det avtaleslutten som teller.
+  const externalEvents = upcomingPeopleEvents(externals, { withinDays: DASHBOARD_DAYS, today })
+    .filter((row) => row.type !== 'anniversary');
   const externalContracts = contracts.filter((row) => isExternal(row.employeeId));
   const externalRows = externals.map((employee) => {
     const id = employee.id;

@@ -24,6 +24,7 @@ import {
   todayIso,
 } from '../../src/arbeid/sickLeave.js';
 import { formatNbDate } from '../../src/hr/model';
+import { hrKindBucket } from '../../src/hr/directory';
 import { toneColor } from '../../src/hr/uiHelpers';
 import { radius, space, type } from '../../src/ui/tokens';
 import SickNoteModal from '../../components/arbeid/SickNoteModal';
@@ -65,8 +66,10 @@ export default function HrSickCases({ colors, canWrite }) {
   const fullDayHours = Number(state.fullDayHours) > 0 ? Number(state.fullDayHours) : 8;
   const year = Number(today.slice(0, 4));
   const redDays = useMemo(() => resolveRedDays(state, [year - 1, year, year + 1]), [state.redDays, year]);
+  // Egne ansatte. For innleide og eksterne er egenmelding, sykmelding og omsorgsdager
+  // bemanningsforetakets eller leverandørens sak som arbeidsgiver.
   const people = useMemo(
-    () => employees.filter((row) => !['former', 'deleted'].includes(row.company?.status)),
+    () => employees.filter((row) => !['former', 'deleted'].includes(row.company?.status) && hrKindBucket(row) !== 'external'),
     [employees],
   );
   const byId = useMemo(() => new Map(employees.map((row) => [row.id, row])), [employees]);

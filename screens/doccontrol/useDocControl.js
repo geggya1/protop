@@ -6,6 +6,7 @@ import {
   canComment,
   canReadAllComments,
   canSeeComment,
+  forAudience,
   normalizeSettings,
   shouldNotify,
 } from '../../src/doccontrol/model';
@@ -100,7 +101,7 @@ export function useDocControl() {
   /** Varsle ansatte om ny versjon når dokumentet har lesekrav og varsel er på. */
   const notifyPublished = useCallback((control, revision) => {
     if (!shouldNotify(control, settings)) return Promise.resolve();
-    const uids = employees.map((row) => row.personUid).filter(Boolean);
+    const uids = forAudience(control, employees).map((row) => row.personUid).filter(Boolean);
     const must = control.readRule === 'pakrevd' || control.readRule === 'signeres';
     return notify(uids, {
       eventType: 'documentPublished',

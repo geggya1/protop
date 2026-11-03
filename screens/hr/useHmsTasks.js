@@ -17,7 +17,7 @@ export function useHmsTasks({ familyId, employees, hr, canWrite, actor }) {
   const [loaded, setLoaded] = useState(false);
   const active = useMemo(() => filterHrEmployees(employees, 'active'), [employees]);
   const notApplicable = useMemo(
-    () => (hr?.compliance || []).filter((row) => row.catalogId === 'hms_card' && row.status === 'na').map((row) => row.employeeId),
+    () => (hr?.compliance || []).filter((row) => (row.catalogId === 'hms_card' || row.catalogId === 'inn_hms_card') && row.status === 'na').map((row) => row.employeeId),
     [hr?.compliance],
   );
   const plan = useMemo(

@@ -64,6 +64,11 @@ export const SICK_LEAVE_DEFAULTS = {
  */
 export const SICK_NOTE_START = '2027-01-01';
 
+/** Ny id for en sykefraværssak. Ligger her (uten Firebase) så skjermene kan lage den før lagring. */
+export function sickCaseId() {
+  return `syk_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
+}
+
 export const CASE_STATUSES = ['innmeldt', 'godkjent', 'dokumentasjon', 'avvist'];
 
 export const CASE_STATUS_LABEL = {

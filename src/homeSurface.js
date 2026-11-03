@@ -1,5 +1,5 @@
 /**
- * Flaten på Hjem. Som i Weekplan er standard et naturbilde med glasskort oppå
+ * Flaten på Hjem. Standard er et naturbilde med glasskort oppå
  * (mørkt glass i bildets farge, hvit tekst). «Uten bilde» – kort på sidens bakgrunn,
  * som i modulene – er et valg under Tilpass hjem. Ren logikk uten bilder, så
  * node-testene kan lese den.

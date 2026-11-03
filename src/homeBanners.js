@@ -684,7 +684,7 @@ export const HOME_BANNERS = [
   },
 ];
 
-// Som i Weekplan: naturbilde med glasskort er standard. «Uten bilde» (samme flate som
+// Naturbilde med glasskort er standard. «Uten bilde» (samme flate som
 // modulene) er et valg under Tilpass hjem.
 export const DEFAULT_HOME_BANNER_ID = DEFAULT_PHOTO_BANNER_ID;
 export const DEFAULT_CHILD_HOME_BANNER_ID = 'noytralt-smaabarn-barnerom';

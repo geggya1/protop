@@ -341,7 +341,15 @@ delete_test_db() {
       return 0
     fi
     tries=$((tries + 1))
-    if ! printf '%s' "$out" | grep -qiE 'middle of|in progress|FAILED_PRECONDITION' || [ $tries -ge "$WAIT_TRIES" ]; then
+    # En gjenopprettet database arver slettebeskyttelsen fra produksjon. Slå den av, bare på testdatabasen.
+    if printf '%s' "$out" | grep -qi 'delete protection' && [ $tries -le 2 ]; then
+      if ! out="$(gcloud firestore databases update --database="$TEST_DB" --project="$PROJECT" --no-delete-protection --quiet 2>&1)"; then
+        printf '%s' "$out"
+        return 1
+      fi
+      continue
+    fi
+    if ! printf '%s' "$out" | grep -qiE 'middle of|in progress' || [ $tries -ge "$WAIT_TRIES" ]; then
       printf '%s' "$out"
       return 1
     fi

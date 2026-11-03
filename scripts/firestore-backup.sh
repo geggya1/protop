@@ -15,7 +15,9 @@ set -uo pipefail
 PROJECT="${PROJECT:-protop-c189c}"
 DB='(default)'
 ARCHIVE_BUCKET="${ARCHIVE_BUCKET:-gs://${PROJECT}-firestore-arkiv}"
-TEST_DB="${TEST_DB:-gjenoppretting-test}"
+# Testdatabasen får nytt navn hver gang: et slettet database-id kan ikke brukes igjen på en stund.
+TEST_PREFIX='gjenoppretting-test'
+TEST_DB="${TEST_DB:-$TEST_PREFIX-$(date -u +%Y%m%d%H%M)}"
 DAILY_RETENTION="${DAILY_RETENTION:-14d}"
 WEEKLY_RETENTION="${WEEKLY_RETENTION:-14w}"
 WEEKLY_DAY="${WEEKLY_DAY:-SUN}"
@@ -328,22 +330,30 @@ wait_restore_done() {
   return 1
 }
 
-# Sletter testdatabasen. Er den midt i en gjenoppretting, prøves det igjen (opptil 40 minutter).
+# Bare databaser med testprefikset kan slettes av dette skriptet, aldri produksjonsdatabasen.
+is_test_db() {
+  case "$1" in
+    "$TEST_PREFIX"|"$TEST_PREFIX"-*) [ "$1" != "$DB" ] ;;
+    *) return 1 ;;
+  esac
+}
+
+# Sletter en testdatabase. Den arver slettebeskyttelsen fra produksjon, så den slås av (bare her).
+# Er den midt i en gjenoppretting, prøves det igjen (opptil 40 minutter).
 # Skriver siste feilmelding og returnerer 1 hvis den ikke ble slettet.
 delete_test_db() {
-  local tries=0 out
-  if [ -z "$TEST_DB" ] || [ "$TEST_DB" = "$DB" ] || [ "$TEST_DB" = 'default' ]; then
-    printf 'ERROR: nekter å slette %s' "$TEST_DB"
+  local name="$1" tries=0 out
+  if ! is_test_db "$name"; then
+    printf 'ERROR: nekter å slette %s (ikke en testdatabase)' "$name"
     return 1
   fi
   while :; do
-    if out="$(gcloud firestore databases delete --database="$TEST_DB" --project="$PROJECT" --quiet 2>&1)"; then
+    if out="$(gcloud firestore databases delete --database="$name" --project="$PROJECT" --quiet 2>&1)"; then
       return 0
     fi
     tries=$((tries + 1))
-    # En gjenopprettet database arver slettebeskyttelsen fra produksjon. Slå den av, bare på testdatabasen.
     if printf '%s' "$out" | grep -qi 'delete protection' && [ $tries -le 2 ]; then
-      if ! out="$(gcloud firestore databases update --database="$TEST_DB" --project="$PROJECT" --no-delete-protection --quiet 2>&1)"; then
+      if ! out="$(gcloud firestore databases update --database="$name" --project="$PROJECT" --no-delete-protection --quiet 2>&1)"; then
         printf '%s' "$out"
         return 1
       fi
@@ -357,12 +367,20 @@ delete_test_db() {
   done
 }
 
+# Testdatabaser fra tidligere kjøringer (navnene).
+old_test_dbs() {
+  gcloud firestore databases list --project="$PROJECT" --format='value(name)' 2>/dev/null \
+    | sed 's#.*/databases/##' | while read -r name || [ -n "$name" ]; do
+      if is_test_db "$name"; then printf '%s\n' "$name"; fi
+    done
+}
+
 do_restore_test() {
   line '## Gjenopprettingstest'
   local latest backup out prod restored
   # Testdatabasen slettes etterpå. Den skal aldri kunne være produksjonsdatabasen.
-  if [ -z "$TEST_DB" ] || [ "$TEST_DB" = "$DB" ] || [ "$TEST_DB" = 'default' ]; then
-    fail "Ugyldig navn på testdatabasen: '$TEST_DB'."
+  if ! is_test_db "$TEST_DB"; then
+    fail "Ugyldig navn på testdatabasen: '$TEST_DB'. Det må starte med $TEST_PREFIX."
     line ''
     return
   fi
@@ -374,14 +392,14 @@ do_restore_test() {
     return
   fi
   # En test som stoppet halvveis forrige gang, ryddes først.
-  if gcloud firestore databases describe --database="$TEST_DB" --project="$PROJECT" >/dev/null 2>&1; then
-    if ! out="$(delete_test_db)"; then
-      fail "En gammel testdatabase \`$TEST_DB\` kunne ikke slettes: $(first_error "$out")"
-      line ''
-      return
+  local old
+  for old in $(old_test_dbs); do
+    if out="$(delete_test_db "$old")"; then
+      line "- Slettet en gammel testdatabase \`$old\` fra en tidligere kjøring."
+    else
+      warn "En gammel testdatabase \`$old\` kunne ikke slettes: $(first_error "$out")"
     fi
-    line "- Slettet en gammel testdatabase \`$TEST_DB\` fra en tidligere kjøring."
-  fi
+  done
   if ! out="$(gcloud firestore databases restore --source-backup="$backup" --destination-database="$TEST_DB" \
     --project="$PROJECT" --quiet 2>&1)"; then
     fail "Gjenopprettingen startet ikke: $(first_error "$out")"
@@ -412,7 +430,7 @@ do_restore_test() {
   else
     ok "Gjenopprettet database har $restored timeføringer (produksjon nå: $prod). Gjenoppretting virker."
   fi
-  if out="$(delete_test_db)"; then
+  if out="$(delete_test_db "$TEST_DB")"; then
     ok "Testdatabasen \`$TEST_DB\` er slettet igjen."
   else
     fail "Testdatabasen \`$TEST_DB\` ble ikke slettet (koster lagring til den slettes): $(first_error "$out")"

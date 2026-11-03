@@ -28,7 +28,7 @@ Alt ligger i Google Cloud i samme område som databasen (EU). Data krypteres av 
 |---|---|---|
 | Hver mandag | `status` | Leser innstillingene og siste backup. **Rød** hvis PITR, slettebeskyttelse eller en backupplan mangler, eller hvis siste backup er eldre enn 48 timer. |
 | Den 1. i måneden | `arkiv` | Lager arkivbøtta første gang, og starter full eksport. |
-| Den 15. i måneden | `test` | Gjenopprettingstest: siste backup gjenopprettes til databasen `gjenoppretting-test`, antall timeføringer telles og sammenlignes med produksjon, og testdatabasen slettes. **Rød** hvis den gjenopprettede databasen er tom eller ikke blir lesbar. |
+| Den 15. i måneden | `test` | Gjenopprettingstest: siste backup gjenopprettes til en ny testdatabase (`gjenoppretting-test-ÅÅÅÅMMDDTTMM`), antall timeføringer telles og sammenlignes med produksjon, og testdatabasen slettes (også gamle testdatabaser fra kjøringer som stoppet). **Rød** hvis den gjenopprettede databasen er tom eller ikke blir lesbar. |
 | Manuelt | `oppsett` | Slår på PITR og slettebeskyttelse og lager backupplanene. Rører ikke det som allerede er riktig. Kjøres én gang, og igjen hvis `status` er rød. |
 
 En rød kjøring gir e-post fra GitHub til eieren av repoet.

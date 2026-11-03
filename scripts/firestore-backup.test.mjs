@@ -204,7 +204,12 @@ esac
   process.env.PATH = `${dir}:${prevPath}`;
   if (testDb !== undefined) process.env.TEST_DB = testDb;
   try {
-    return run('test', { 'firestore operations list': { out: [] }, ...answers, 'auth print-access-token': { out: 'tok' } });
+    return run('test', {
+      'firestore operations list': { out: [] },
+      'firestore databases list': { out: '' },
+      ...answers,
+      'auth print-access-token': { out: 'tok' },
+    });
   } finally {
     process.env.PATH = prevPath;
     if (prevDb === undefined) delete process.env.TEST_DB; else process.env.TEST_DB = prevDb;
@@ -219,10 +224,10 @@ test('test: gjenoppretter siste backup til testdatabasen, teller og sletter den 
   assert.equal(res.code, 0, res.out);
   const restore = res.calls.find((c) => c.startsWith('firestore databases restore'));
   assert.match(restore, /--source-backup=projects\/p\/locations\/eur3\/backups\/b2/);
-  assert.match(restore, /--destination-database=gjenoppretting-test/);
+  assert.match(restore, /--destination-database=gjenoppretting-test-\d{12}/);
   const deletes = res.calls.filter((c) => c.startsWith('firestore databases delete'));
   assert.ok(deletes.length >= 1);
-  for (const call of deletes) assert.match(call, /--database=gjenoppretting-test /);
+  for (const call of deletes) assert.match(call, /--database=gjenoppretting-test-\d{12} /);
   assert.match(res.out, /118 timeføringer \(produksjon nå: 120\)/);
 });
 
@@ -247,8 +252,6 @@ test('test: nekter å bruke produksjonsdatabasen som testdatabase', () => {
 test('test: venter til gjenopprettingen er ferdig, og prøver slettingen igjen mens den pågår', () => {
   const answers = healthy();
   answers['firestore databases restore'] = { out: '' };
-  // Ingen gammel testdatabase før testen.
-  answers['firestore databases describe --database=gjenoppretting-test'] = { out: 'ERROR: NOT_FOUND', code: 1 };
   answers['firestore operations list'] = [
     { out: [{ name: 'op1', done: false }] },
     { out: [{ name: 'op1', done: true }] },
@@ -262,22 +265,31 @@ test('test: venter til gjenopprettingen er ferdig, og prøver slettingen igjen m
   assert.match(res.out, /er slettet igjen/);
 });
 
-test('test: en gammel testdatabase ryddes før ny gjenoppretting', () => {
+test('test: gamle testdatabaser ryddes før ny gjenoppretting, aldri andre databaser', () => {
   const answers = healthy();
   answers['firestore databases restore'] = { out: '' };
   answers['firestore databases delete'] = { out: '' };
+  answers['firestore databases list'] = { out: [
+    'projects/protop-c189c/databases/(default)',
+    'projects/protop-c189c/databases/gjenoppretting-test',
+    'projects/protop-c189c/databases/gjenoppretting-test-202611031930',
+    'projects/protop-c189c/databases/gjenoppretting-2026-11-02',
+  ].join('\n') };
   const res = runRestore(answers);
   assert.equal(res.code, 0, res.out);
-  const i = res.calls.findIndex((c) => c.startsWith('firestore databases delete'));
-  const j = res.calls.findIndex((c) => c.startsWith('firestore databases restore'));
-  assert.ok(i >= 0 && i < j, res.calls.join('\n'));
-  assert.match(res.out, /Slettet en gammel testdatabase/);
+  const deletes = res.calls.filter((c) => c.startsWith('firestore databases delete'));
+  const restoreAt = res.calls.findIndex((c) => c.startsWith('firestore databases restore'));
+  assert.match(deletes[0], /--database=gjenoppretting-test /);
+  assert.match(deletes[1], /--database=gjenoppretting-test-202611031930 /);
+  assert.ok(res.calls.indexOf(deletes[1]) < restoreAt);
+  assert.equal(deletes.length, 3, 'to gamle og den nye');
+  assert.ok(!deletes.some((c) => c.includes('(default)') || c.includes('gjenoppretting-2026-11-02')), deletes.join('\n'));
+  assert.equal((res.out.match(/Slettet en gammel testdatabase/g) || []).length, 2);
 });
 
 test('test: sletting som feiler av en annen grunn, stopper med en gang', () => {
   const answers = healthy();
   answers['firestore databases restore'] = { out: '' };
-  answers['firestore databases describe --database=gjenoppretting-test'] = { out: 'ERROR: NOT_FOUND', code: 1 };
   answers['firestore databases delete'] = { out: 'ERROR: PERMISSION_DENIED', code: 1 };
   const res = runRestore(answers);
   assert.equal(res.code, 1);
@@ -288,6 +300,7 @@ test('test: testdatabasen arver slettebeskyttelsen, som slås av bare på testda
   const answers = healthy();
   answers['firestore databases restore'] = { out: '' };
   const protectedErr = { out: 'ERROR: (gcloud.firestore.databases.delete) FAILED_PRECONDITION: Cannot delete the database because delete protection state is set to DELETE_PROTECTION_ENABLED.', code: 1 };
+  answers['firestore databases list'] = { out: 'projects/p/databases/gjenoppretting-test' };
   // Gammel testdatabase (beskyttet) ryddes først, så den nye (også beskyttet) etter testen.
   answers['firestore databases delete'] = [protectedErr, { out: '' }, protectedErr, { out: '' }];
   answers['firestore databases update'] = { out: '' };
@@ -296,7 +309,7 @@ test('test: testdatabasen arver slettebeskyttelsen, som slås av bare på testda
   const updates = res.calls.filter((c) => c.startsWith('firestore databases update'));
   assert.equal(updates.length, 2, res.calls.join('\n'));
   for (const call of updates) {
-    assert.match(call, /--database=gjenoppretting-test /);
+    assert.match(call, /--database=gjenoppretting-test(-\d{12})? /);
     assert.match(call, /--no-delete-protection/);
   }
   assert.ok(!res.calls.some((c) => c.startsWith('firestore databases update') && c.includes('(default)')));
@@ -306,7 +319,6 @@ test('test: testdatabasen arver slettebeskyttelsen, som slås av bare på testda
 test('test: slettebeskyttelsen som ikke lar seg slå av, gir feil uten å vente', () => {
   const answers = healthy();
   answers['firestore databases restore'] = { out: '' };
-  answers['firestore databases describe --database=gjenoppretting-test'] = { out: 'ERROR: NOT_FOUND', code: 1 };
   answers['firestore databases delete'] = { out: 'ERROR: delete protection state is set to DELETE_PROTECTION_ENABLED', code: 1 };
   answers['firestore databases update'] = { out: 'ERROR: PERMISSION_DENIED', code: 1 };
   const res = runRestore(answers);

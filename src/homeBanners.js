@@ -14,8 +14,8 @@ export { DEFAULT_PHOTO_BANNER_ID, PLAIN_BANNER_ID, hasHomePhoto } from './homeSu
 export const HOME_BANNER_PACKS = ['natur'];
 
 export const HOME_BANNER_GROUPS = [
+  { id: 'natur', label: 'Natur', hint: 'Fjell, fjord og lys, med glasskort oppå' },
   { id: 'ingen', label: 'Uten bilde', hint: 'Samme rolige flate som resten av ProTop' },
-  { id: 'natur', label: 'Natur', hint: 'Fjell, fjord og lys' },
   { id: 'eget', label: 'Eget', hint: 'Last opp selv' },
 ];
 
@@ -684,9 +684,9 @@ export const HOME_BANNERS = [
   },
 ];
 
-// Uten bakgrunnsbilde er Hjem den samme ProTop-flaten som modulene (UX-05), og det er
-// standard. Bakgrunnsbilde er et valg under Tilpass hjem.
-export const DEFAULT_HOME_BANNER_ID = PLAIN_BANNER_ID;
+// Som i Weekplan: naturbilde med glasskort er standard. «Uten bilde» (samme flate som
+// modulene) er et valg under Tilpass hjem.
+export const DEFAULT_HOME_BANNER_ID = DEFAULT_PHOTO_BANNER_ID;
 export const DEFAULT_CHILD_HOME_BANNER_ID = 'noytralt-smaabarn-barnerom';
 export const CUSTOM_BANNER_ID = 'custom';
 

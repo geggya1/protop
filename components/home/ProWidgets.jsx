@@ -319,7 +319,7 @@ export function CalendarWidget({ model, handlers, widget }) {
               accessibilityLabel={`${ev.time} ${ev.title}`}
             >
               <View style={s.evTimeCol}>
-                <Text style={[s.evTime, { color: pal.ink }]}>{ev.time}</Text>
+                <Text style={[s.evTime, { color: pal.ink }]} numberOfLines={1}>{ev.time}</Text>
                 {ev.end ? <Text style={[s.evEnd, { color: pal.muted }]}>{ev.end}</Text> : null}
               </View>
               <View style={[s.evBar, { backgroundColor: ev.color || pal.accent }]} />
@@ -1007,7 +1007,7 @@ const s = StyleSheet.create({
   chipTitle: { fontSize: 14, fontFamily: FONT },
 
   evRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
-  evTimeCol: { width: 42 },
+  evTimeCol: { width: 50 },
   evTime: { fontSize: 13, fontWeight: '600', fontFamily: FONT },
   evEnd: { fontSize: 11, fontFamily: FONT },
   evBar: { width: 3, alignSelf: 'stretch', borderRadius: 2 },

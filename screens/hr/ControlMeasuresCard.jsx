@@ -5,6 +5,7 @@ import { controlMeasuresSummary } from '../../src/hr/controlMeasures';
 import { loadControlMeasures, saveControlMeasures } from '../../src/hr/controlMeasuresStorage';
 import { formatNbDate, localIsoDate } from '../../src/hr/model';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { type } from '../../src/ui/tokens';
 
 /** Register over kontrolltiltak etter aml kap. 9 (brukslogg, produktivitet, AI-kontroll). HR → Lovpålagt. */
 export default function ControlMeasuresCard({ colors, familyId, canWrite }) {
@@ -101,8 +102,8 @@ export default function ControlMeasuresCard({ colors, familyId, canWrite }) {
 const styles = StyleSheet.create({
   stack: { gap: 8 },
   item: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, gap: 6 },
-  label: { fontSize: 14, fontWeight: '600' },
-  line: { fontSize: 13, lineHeight: 19 },
+  label: { ...type.bodyStrong },
+  line: { ...type.label, fontWeight: '400' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   field: { flexGrow: 1, flexBasis: 180 },
 });

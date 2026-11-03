@@ -501,8 +501,8 @@ const styles = StyleSheet.create({
   name: { ...type.bodyStrong },
   meta: { ...type.label, fontWeight: '400' },
   status: { ...type.label, fontWeight: '600' },
-  label: { fontSize: 14, fontWeight: '600' },
-  line: { fontSize: 13, lineHeight: 19 },
+  label: { ...type.bodyStrong },
+  line: { ...type.label, fontWeight: '400' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   field: { flexGrow: 1, flexBasis: 180 },
 });

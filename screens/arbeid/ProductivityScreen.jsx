@@ -17,6 +17,7 @@ import {
 } from '../../src/project/storage';
 import { myProjectIds } from '../../src/project/myProjects';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { radius, type } from '../../src/ui/tokens';
 import PageTabs from '../../components/PageTabs';
 import ProductivityBoard from './ProductivityBoard';
 import { controlMeasureGaps } from '../../src/hr/controlMeasures';
@@ -231,5 +232,5 @@ export default function ProductivityScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 16, paddingBottom: 48 },
-  notice: { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 13, lineHeight: 18 },
+  notice: { borderWidth: 1, borderRadius: radius.card, padding: 12, marginBottom: 12, ...type.label, fontWeight: '400' },
 });

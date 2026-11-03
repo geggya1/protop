@@ -1849,8 +1849,8 @@ const styles = StyleSheet.create({
   screenEmbeddedPhone: { paddingTop: 8 },
   monthNavFill: { flex: 1 },
   sickRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 },
-  sickBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, flexGrow: 1, minHeight: 44 },
-  sickLink: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, minHeight: 40 },
+  sickBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: radius.card, paddingHorizontal: 12, paddingVertical: 8, flexGrow: 1, minHeight: 44 },
+  sickLink: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 12, minHeight: 40 },
   gridBleed: {
     flex: 1,
     minHeight: 0,

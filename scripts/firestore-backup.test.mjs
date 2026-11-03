@@ -253,7 +253,7 @@ test('test: venter til gjenopprettingen er ferdig, og prøver slettingen igjen m
     { out: [{ name: 'op1', done: false }] },
     { out: [{ name: 'op1', done: true }] },
   ];
-  const midRestore = { out: "ERROR: (gcloud.firestore.databases.delete) FAILED_PRECONDITION: database 'gjenoppretting-test' is in the middle of restore", code: 1 };
+  const midRestore = { out: "ERROR: (gcloud.firestore.databases.delete) FAILED_PRECONDITION: Cannot serve because the database 'gjenoppretting-test' is in the middle of restore", code: 1 };
   answers['firestore databases delete'] = [midRestore, midRestore, { out: '' }];
   const res = runRestore(answers);
   assert.equal(res.code, 0, res.out);
@@ -279,6 +279,36 @@ test('test: sletting som feiler av en annen grunn, stopper med en gang', () => {
   answers['firestore databases restore'] = { out: '' };
   answers['firestore databases describe --database=gjenoppretting-test'] = { out: 'ERROR: NOT_FOUND', code: 1 };
   answers['firestore databases delete'] = { out: 'ERROR: PERMISSION_DENIED', code: 1 };
+  const res = runRestore(answers);
+  assert.equal(res.code, 1);
+  assert.equal(res.calls.filter((c) => c.startsWith('firestore databases delete')).length, 1);
+});
+
+test('test: testdatabasen arver slettebeskyttelsen, som slås av bare på testdatabasen', () => {
+  const answers = healthy();
+  answers['firestore databases restore'] = { out: '' };
+  const protectedErr = { out: 'ERROR: (gcloud.firestore.databases.delete) FAILED_PRECONDITION: Cannot delete the database because delete protection state is set to DELETE_PROTECTION_ENABLED.', code: 1 };
+  // Gammel testdatabase (beskyttet) ryddes først, så den nye (også beskyttet) etter testen.
+  answers['firestore databases delete'] = [protectedErr, { out: '' }, protectedErr, { out: '' }];
+  answers['firestore databases update'] = { out: '' };
+  const res = runRestore(answers);
+  assert.equal(res.code, 0, res.out);
+  const updates = res.calls.filter((c) => c.startsWith('firestore databases update'));
+  assert.equal(updates.length, 2, res.calls.join('\n'));
+  for (const call of updates) {
+    assert.match(call, /--database=gjenoppretting-test /);
+    assert.match(call, /--no-delete-protection/);
+  }
+  assert.ok(!res.calls.some((c) => c.startsWith('firestore databases update') && c.includes('(default)')));
+  assert.match(res.out, /er slettet igjen/);
+});
+
+test('test: slettebeskyttelsen som ikke lar seg slå av, gir feil uten å vente', () => {
+  const answers = healthy();
+  answers['firestore databases restore'] = { out: '' };
+  answers['firestore databases describe --database=gjenoppretting-test'] = { out: 'ERROR: NOT_FOUND', code: 1 };
+  answers['firestore databases delete'] = { out: 'ERROR: delete protection state is set to DELETE_PROTECTION_ENABLED', code: 1 };
+  answers['firestore databases update'] = { out: 'ERROR: PERMISSION_DENIED', code: 1 };
   const res = runRestore(answers);
   assert.equal(res.code, 1);
   assert.equal(res.calls.filter((c) => c.startsWith('firestore databases delete')).length, 1);

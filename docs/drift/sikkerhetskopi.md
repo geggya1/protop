@@ -83,7 +83,12 @@ og ansatt i loggen. Beskrivelse og klokkeslett kommer da ikke tilbake (bruk B fo
    med produksjon, og skriv tilbake bare det som mangler eller er feil. Skriv tilbake med et skript med
    Admin SDK (`databaseId: 'gjenoppretting-2026-11-02'` for lesing, `(default)` for skriving), og
    kjør det først uten å skrive (vis hva som ville blitt endret).
-4. Slett klonen når du er ferdig: `gcloud firestore databases delete --database=gjenoppretting-2026-11-02 --project=protop-c189c`.
+4. Slett klonen når du er ferdig. Den arver slettebeskyttelsen fra produksjon, så slå den av først,
+   **bare på klonen**:
+   ```bash
+   gcloud firestore databases update --database=gjenoppretting-2026-11-02 --no-delete-protection --project=protop-c189c
+   gcloud firestore databases delete --database=gjenoppretting-2026-11-02 --project=protop-c189c
+   ```
 
 ### C. Feilen er eldre enn 7 dager
 

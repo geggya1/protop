@@ -36,7 +36,11 @@ import {
 import { radius, type } from '../../src/ui/tokens';
 import { signInWithGoogle, signInWithMicrosoft, mapAuthError } from '../../src/utils/authProviders';
 import BrandLogo from '../../components/BrandLogo';
+import ModuleTabs from '../../components/ModuleTabs';
 import { rememberHelpdeskAgent } from '../../src/helpdesk/useHelpdeskAgent';
+import { useOptionalApp } from '../../src/context/AppContext';
+import { badgedLabel } from '../../src/navigation/moduleTabBadges';
+import { HELPDESK_TICKET_INTENT, helpdeskShellOpen } from '../../src/helpdesk/shellLink';
 
 const POLL_MS = 20000;
 
@@ -52,8 +56,15 @@ function copyText(text) {
 
 /* ─────────── Innlogging og tilgang ─────────── */
 
-export default function HelpdeskPortalScreen({ navigation, route, demoOutbox = null }) {
+export default function HelpdeskPortalScreen({
+  navigation, route, demoOutbox = null, inShell = false, onBack = null,
+}) {
   const demo = isHelpdeskDemo();
+  const app = useOptionalApp();
+  const shellIntent = inShell ? app?.shellIntent : null;
+  const clearShellIntent = app?.clearShellIntent;
+  const intentTicket = shellIntent?.type === HELPDESK_TICKET_INTENT ? shellIntent.ticketId : null;
+  const [initialTicketId, setInitialTicketId] = useState(() => route?.params?.ticketId || intentTicket || null);
   const [user, setUser] = useState(demo ? { uid: 'demo' } : auth.currentUser);
   const [authReady, setAuthReady] = useState(demo || !!auth.currentUser);
   const [session, setSession] = useState(null);
@@ -69,8 +80,28 @@ export default function HelpdeskPortalScreen({ navigation, route, demoOutbox = n
   }, [demo]);
 
   useEffect(() => {
+    if (inShell) return;
     if (Platform.OS === 'web' && typeof document !== 'undefined') document.title = 'ProTop Helpdesk';
-  }, []);
+  }, [inShell]);
+
+  // Lenke til en sak (/helpdesk/sak/:id) mens Helpdesk allerede er åpen i skallet.
+  useEffect(() => {
+    if (!intentTicket) return;
+    setInitialTicketId(intentTicket);
+    clearShellIntent?.();
+  }, [intentTicket, clearShellIntent]);
+
+  // Innlogget: Helpdesk har samme topplinje, meny og rammeverk som resten av ProTop.
+  // Den frittstående siden er bare innloggingen (og demoen).
+  useEffect(() => {
+    if (inShell || demo || !user || !navigation?.reset) return;
+    const names = navigation.getState?.()?.routeNames || [];
+    if (!names.includes('Home')) return;
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Home', params: { openShell: helpdeskShellOpen(route?.params?.ticketId || null) } }],
+    });
+  }, [inShell, demo, user, navigation, route?.params?.ticketId]);
 
   useEffect(() => {
     if (!user) return;
@@ -88,7 +119,8 @@ export default function HelpdeskPortalScreen({ navigation, route, demoOutbox = n
   }, [user, demo]);
 
   const leave = () => {
-    if (navigation?.canGoBack?.()) navigation.goBack();
+    if (inShell && onBack) onBack();
+    else if (navigation?.canGoBack?.()) navigation.goBack();
     else navigation?.navigate?.('Home');
   };
 
@@ -117,7 +149,7 @@ export default function HelpdeskPortalScreen({ navigation, route, demoOutbox = n
           </Text>
           <View style={st.rowGap}>
             <Btn label="Til ProTop" icon="home-outline" kind="secondary" onPress={leave} />
-            <Btn label="Logg ut" icon="log-out-outline" kind="ghost" onPress={() => signOut(auth)} />
+            {!inShell ? <Btn label="Logg ut" icon="log-out-outline" kind="ghost" onPress={() => signOut(auth)} /> : null}
           </View>
         </View>
       </Center>
@@ -127,9 +159,10 @@ export default function HelpdeskPortalScreen({ navigation, route, demoOutbox = n
     <Portal
       session={session}
       onLeave={leave}
-      onSignOut={demo ? null : () => signOut(auth)}
-      initialTicketId={route?.params?.ticketId || null}
+      onSignOut={demo || inShell ? null : () => signOut(auth)}
+      initialTicketId={initialTicketId}
       demoOutbox={demoOutbox}
+      inShell={inShell}
     />
   );
 }
@@ -137,6 +170,8 @@ export default function HelpdeskPortalScreen({ navigation, route, demoOutbox = n
 function Center({ children }) {
   return <View style={st.center}>{children}</View>;
 }
+
+const VIEW_SHORT = { urgent: 'Haster', pending: 'Venter', fixes: 'AI-fiks' };
 
 function HelpdeskLogin() {
   const [email, setEmail] = useState('');
@@ -194,7 +229,7 @@ const EXTRA_VIEWS = [
 ];
 
 function Portal({
-  session, onLeave, onSignOut, initialTicketId, demoOutbox,
+  session, onLeave, onSignOut, initialTicketId, demoOutbox, inShell = false,
 }) {
   const { isDesktop, isPhone, isWide } = useLayout();
   const [view, setView] = useState('open');
@@ -205,6 +240,9 @@ function Portal({
   const [category, setCategory] = useState('');
   const [sort, setSort] = useState('smart');
   const [selected, setSelected] = useState(initialTicketId);
+  useEffect(() => {
+    if (initialTicketId) setSelected(initialTicketId);
+  }, [initialTicketId]);
   const [error, setError] = useState('');
   const [navOpen, setNavOpen] = useState(false);
   const [team, setTeam] = useState([]);
@@ -247,6 +285,36 @@ function Portal({
   const showDetail = ticketPane && !!selected;
   const allViews = [...AGENT_VIEWS, ...EXTRA_VIEWS];
   const currentView = allViews.find((v) => v.id === view);
+  const fixCount = (list || []).filter((t) => t.fixState === 'proposed').length;
+
+  // I skallet: visningene står i modulmenyen øverst, som i HR og ISO (samme meny i alle moduler).
+  const moduleMenu = useMemo(() => {
+    if (!inShell) return null;
+    const pages = allViews.map((v) => {
+      const count = v.id === 'fixes' ? fixCount : counts[v.id];
+      const label = pickText(v.label);
+      return {
+        id: `helpdesk-${v.id}`,
+        label: badgedLabel(label, count),
+        short: VIEW_SHORT[v.id] ? badgedLabel(VIEW_SHORT[v.id], count) : undefined,
+        icon: v.icon,
+        action: { type: 'tab', tab: 'helpdesk', subView: v.id },
+      };
+    });
+    if (demoOutbox) {
+      pages.push({
+        id: 'helpdesk-outbox',
+        label: badgedLabel('E-post sendt (demo)', demoOutbox.length),
+        icon: 'mail-outline',
+        action: { type: 'tab', tab: 'helpdesk', subView: 'outbox' },
+      });
+    }
+    return {
+      moduleId: 'helpdesk', label: 'Helpdesk', pages, activeId: `helpdesk-${view}`,
+    };
+    // allViews er konstant.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inShell, counts, fixCount, demoOutbox, view]);
 
   const nav = (
     <View style={[st.side, !isDesktop && st.sideMobile]} testID="hd-nav">
@@ -284,8 +352,36 @@ function Portal({
     </View>
   );
 
+  const listLabel = query.trim() ? `Søk: «${query.trim()}»` : pickText(currentView?.label);
+
   return (
     <View style={st.portal} testID="helpdesk-portal">
+      {inShell ? (
+        <>
+          <ModuleTabs
+            menu={moduleMenu}
+            onSelect={(_tab, next) => { setView(next || 'open'); setSelected(null); }}
+          />
+          <View style={st.shellSearch}>
+            <Ionicons name="search" size={16} color={HD.muted} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder={isPhone ? 'Søk i saker' : 'Søk i alle saker: nummer, navn, e-post, bruker-id, tekst'}
+              placeholderTextColor={HD.placeholder}
+              style={st.shellSearchInput}
+              accessibilityLabel="Søk i saker"
+              testID="hd-search"
+            />
+            {query ? (
+              <TouchableOpacity onPress={() => setQuery('')} accessibilityLabel="Tøm søket" style={st.topIcon}>
+                <Ionicons name="close-circle" size={16} color={HD.muted} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </>
+      ) : null}
+      {!inShell ? (
       <View style={st.top}>
         {!isDesktop ? (
           <TouchableOpacity onPress={() => setNavOpen((v) => !v)} accessibilityLabel="Meny" style={st.topIcon} testID="hd-menu">
@@ -322,13 +418,14 @@ function Portal({
           ) : null}
         </View>
       </View>
-      {isPhone ? (
+      ) : null}
+      {isPhone && !inShell ? (
         <View style={st.phoneSearch}>
           <TextInput value={query} onChangeText={setQuery} placeholder="Søk i saker" style={ui.input} testID="hd-search" />
         </View>
       ) : null}
       <View style={st.body}>
-        {isDesktop || navOpen ? nav : null}
+        {!inShell && (isDesktop || navOpen) ? nav : null}
         <View style={st.main}>
           {error ? <Notice tone="danger" icon="alert-circle">{error}</Notice> : null}
           {view === 'stats' ? <StatsPanel /> : null}
@@ -339,7 +436,8 @@ function Portal({
               {showList ? (
                 <View style={[st.listCol, isWide && showDetail && st.listColNarrow]}>
                   <View style={st.listHead}>
-                    <Text style={st.listTitle}>{query.trim() ? `Søk: «${query.trim()}»` : pickText(currentView?.label)}</Text>
+                    {/* I skallet er den valgte fanen tittelen; ikke gjenta den. */}
+                    {!inShell || query.trim() ? <Text style={st.listTitle}>{listLabel}</Text> : <View />}
                     <Text style={st.muted}>{rows ? `${rows.length} saker` : ''}</Text>
                   </View>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={st.filterRow}>
@@ -1067,6 +1165,8 @@ const st = StyleSheet.create({
   topBtnTxt: { color: HD.onBrand, ...type.label, fontWeight: '600' },
   meRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   phoneSearch: { padding: 10, backgroundColor: HD.card },
+  shellSearch: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginTop: 10, marginBottom: 2, paddingHorizontal: 10, minHeight: 40, maxWidth: 640, borderWidth: 1, borderColor: HD.line, borderRadius: radius.control, backgroundColor: HD.card },
+  shellSearchInput: { flex: 1, color: HD.ink, ...type.body, minHeight: 38 },
   body: { flex: 1, flexDirection: 'row', minHeight: 0 },
   side: { width: 236, backgroundColor: HD.side, paddingVertical: 10, paddingHorizontal: 8, gap: 2 },
   sideMobile: { position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 20, width: 260 },

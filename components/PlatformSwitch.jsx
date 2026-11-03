@@ -15,6 +15,7 @@ import {
   workspacePickerItems,
 } from '../src/utils/platformSwitch';
 import { useHelpdeskAgent } from '../src/helpdesk/useHelpdeskAgent';
+import { helpdeskShellOpen } from '../src/helpdesk/shellLink';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -25,7 +26,7 @@ if (Platform.OS === 'web') {
  * Privat and Bedrift stay as two buttons.
  * Bedrift opens a menu under itself when there is more than one company.
  */
-export default function PlatformSwitch({ compact = false }) {
+export default function PlatformSwitch({ compact = false, helpdeskActive = false }) {
   const nav = useNavigation();
   const colors = useColors();
   const {
@@ -57,8 +58,17 @@ export default function PlatformSwitch({ compact = false }) {
   const onPick = async (segment) => {
     if (busy || !segment) return;
     const groupId = segment.groupId ? resolveWorkspaceId(list, segment.groupId) : null;
-    if (groupId && family?.id === groupId) return;
-    if (!groupId && platformSegmentActive(segment, family, list)) return;
+    const sameWorkspace = groupId
+      ? family?.id === groupId
+      : platformSegmentActive(segment, family, list);
+    if (sameWorkspace) {
+      // Fra Helpdesk tilbake til samme arbeidsområde: bare til Hjem, ingen bytte.
+      if (helpdeskActive) {
+        setMenuOpen(false);
+        nav.navigate('Home', { openShell: { tab: 'home', subView: null } });
+      }
+      return;
+    }
     setMenuOpen(false);
     setBusy(true);
     try {
@@ -98,7 +108,7 @@ export default function PlatformSwitch({ compact = false }) {
     >
       <Seg
         label="Privat"
-        active={platformSegmentActive(personal, family, list)}
+        active={!helpdeskActive && platformSegmentActive(personal, family, list)}
         compact={compact}
         colors={colors}
         disabled={busy}
@@ -111,7 +121,7 @@ export default function PlatformSwitch({ compact = false }) {
       <View ref={bedriftRef} collapsable={false}>
         <Seg
           label="Bedrift"
-          active={platformSegmentActive(companySeg, family, list)}
+          active={!helpdeskActive && platformSegmentActive(companySeg, family, list)}
           compact={compact}
           colors={colors}
           disabled={busy}
@@ -131,14 +141,15 @@ export default function PlatformSwitch({ compact = false }) {
       {helpdeskAgent ? (
         <Seg
           label="Helpdesk"
-          active={false}
+          active={helpdeskActive}
           compact={compact}
           colors={colors}
           disabled={busy}
           nativeID="platform-switch-helpdesk"
           onPress={() => {
             setMenuOpen(false);
-            nav.navigate('Helpdesk');
+            // Helpdesk åpnes i ProTop-skallet, med samme topplinje og meny som resten av appen.
+            if (!helpdeskActive) nav.navigate('Home', { openShell: helpdeskShellOpen() });
           }}
         />
       ) : null}

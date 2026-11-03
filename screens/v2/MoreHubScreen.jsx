@@ -49,6 +49,7 @@ import PrivacyTermsScreen from './PrivacyTermsScreen';
 import SubscriptionScreen from './SubscriptionScreen';
 import ModuleAccessSettingsScreen from './ModuleAccessSettingsScreen';
 import HelpCenterScreen from '../helpdesk/HelpCenterScreen';
+import HelpdeskPortalScreen from '../helpdesk/HelpdeskPortalScreen';
 import {
   GroupSettingsScreen,
 } from '../settings/GroupSettingsScreen';
@@ -200,6 +201,8 @@ const SUB_SCREENS = {
   ...(PRICING_VISIBLE ? { subscription: SubscriptionScreen } : {}),
   moduleAccess: ModuleAccessSettingsScreen,
   help: HelpCenterScreen,
+  // Supportteamets portal, i samme skall (topplinje, meny og rammeverk) som resten av ProTop.
+  helpdesk: HelpdeskPortalScreen,
   notifications: NotificationsScreen,
 };
 

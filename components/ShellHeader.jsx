@@ -94,6 +94,7 @@ export default function ShellHeader({
   coverStatusBar = false,
   meta = '',
   titleInPage = false,
+  helpdeskActive = false,
 }) {
   const nav = useNavigation();
   const { t } = useI18n();
@@ -230,7 +231,7 @@ export default function ShellHeader({
             </View>
           </View>
           <View pointerEvents="box-none" nativeID="platform-switch-lock" style={styles.switchLock}>
-            <PlatformSwitch compact />
+            <PlatformSwitch compact helpdeskActive={helpdeskActive} />
           </View>
         </View>
         <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -300,7 +301,7 @@ export default function ShellHeader({
         </View>
 
         <View style={styles.switchRow}>
-          <PlatformSwitch compact />
+          <PlatformSwitch compact helpdeskActive={helpdeskActive} />
         </View>
 
         {!chromeOnly ? (

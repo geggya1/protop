@@ -155,13 +155,26 @@ function day(date, type = 'egenmelding', extra = {}) {
 {
   const rows = [day('2026-03-02'), day('2026-03-03'), day('2026-03-10', 'sykt_barn'), day('2026-03-20')];
   const cases = [{ id: 'c1', employeeId: 'e1', kind: 'self', fromDate: '2026-03-02', toDate: '2026-03-03', status: 'godkjent' }];
-  const missing = missingSickNotes(rows, cases, 'e1', { today: '2026-03-15' });
+  // Lanseringen er 2027-01-01, så eldre dager krever ikke egenmelding. Testen bruker egen start.
+  assert.equal(missingSickNotes(rows, cases, 'e1', { today: '2026-03-15' }).length, 0);
+  const missing = missingSickNotes(rows, cases, 'e1', { today: '2026-03-15', startDate: '2026-01-01' });
   assert.equal(missing.length, 1);
   assert.equal(missing[0].kind, 'child');
   assert.equal(missing[0].fromDate, '2026-03-10');
   assert.equal(missingSickNotes(rows, cases, 'e1', { today: '2026-03-15', rules: { requireForm: false } }).length, 0);
-  const linked = missingSickNotes([day('2026-03-05', 'egenmelding', { caseId: 'c9' })], [], 'e1', { today: '2026-03-15' });
+  const linked = missingSickNotes([day('2026-03-05', 'egenmelding', { caseId: 'c9' })], [], 'e1', { today: '2026-03-15', startDate: '2026-01-01' });
   assert.equal(linked.length, 0);
+}
+
+// Egenmelding kreves bare fra lanseringen 01.01.2027, ikke for fravær før det.
+{
+  const rows = [day('2026-12-30'), day('2026-12-31'), day('2027-01-04'), day('2027-01-05'), day('2026-11-02')];
+  const missing = missingSickNotes(rows, [], 'e1', { today: '2027-01-10' });
+  assert.equal(missing.length, 1);
+  assert.equal(missing[0].fromDate, '2027-01-04');
+  assert.equal(missing[0].toDate, '2027-01-05');
+  assert.equal(missing[0].days, 2);
+  assert.equal(missingSickNotes([day('2026-12-31')], [], 'e1', { today: '2027-02-01' }).length, 0);
 }
 
 // Oppfølgingsfrister (aml § 4-6).

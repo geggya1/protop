@@ -24,6 +24,10 @@ WEEKLY_DAY="${WEEKLY_DAY:-SUN}"
 ARCHIVE_HOLD="${ARCHIVE_HOLD:-365d}"
 ARCHIVE_DELETE_AFTER_DAYS="${ARCHIVE_DELETE_AFTER_DAYS:-400}"
 
+# Venting på gjenoppretting og sletting av testdatabasen: 80 forsøk à 30 sekunder = 40 minutter.
+WAIT_TRIES="${WAIT_TRIES:-80}"
+WAIT_SECONDS="${WAIT_SECONDS:-30}"
+
 MODE="${1:-status}"
 FAILED=0
 
@@ -307,6 +311,44 @@ do_archive() {
   line ''
 }
 
+# Venter til ingen operasjoner på testdatabasen pågår (gjenopprettingen er ferdig).
+wait_restore_done() {
+  local tries=0 raw
+  while [ $tries -lt "$WAIT_TRIES" ]; do
+    if raw="$(gcloud firestore operations list --database="$TEST_DB" --project="$PROJECT" --format=json 2>/dev/null)" \
+      && node -e '
+        let rows; try { rows = JSON.parse(process.argv[1]); } catch { process.exit(1); }
+        process.exit((Array.isArray(rows) ? rows : []).some((op) => op.done !== true) ? 1 : 0);
+      ' "$raw"; then
+      return 0
+    fi
+    tries=$((tries + 1))
+    sleep "$WAIT_SECONDS"
+  done
+  return 1
+}
+
+# Sletter testdatabasen. Er den midt i en gjenoppretting, prøves det igjen (opptil 40 minutter).
+# Skriver siste feilmelding og returnerer 1 hvis den ikke ble slettet.
+delete_test_db() {
+  local tries=0 out
+  if [ -z "$TEST_DB" ] || [ "$TEST_DB" = "$DB" ] || [ "$TEST_DB" = 'default' ]; then
+    printf 'ERROR: nekter å slette %s' "$TEST_DB"
+    return 1
+  fi
+  while :; do
+    if out="$(gcloud firestore databases delete --database="$TEST_DB" --project="$PROJECT" --quiet 2>&1)"; then
+      return 0
+    fi
+    tries=$((tries + 1))
+    if ! printf '%s' "$out" | grep -qiE 'middle of|in progress|FAILED_PRECONDITION' || [ $tries -ge "$WAIT_TRIES" ]; then
+      printf '%s' "$out"
+      return 1
+    fi
+    sleep "$WAIT_SECONDS"
+  done
+}
+
 do_restore_test() {
   line '## Gjenopprettingstest'
   local latest backup out prod restored
@@ -324,7 +366,14 @@ do_restore_test() {
     return
   fi
   # En test som stoppet halvveis forrige gang, ryddes først.
-  gcloud firestore databases delete --database="$TEST_DB" --project="$PROJECT" --quiet >/dev/null 2>&1 || true
+  if gcloud firestore databases describe --database="$TEST_DB" --project="$PROJECT" >/dev/null 2>&1; then
+    if ! out="$(delete_test_db)"; then
+      fail "En gammel testdatabase \`$TEST_DB\` kunne ikke slettes: $(first_error "$out")"
+      line ''
+      return
+    fi
+    line "- Slettet en gammel testdatabase \`$TEST_DB\` fra en tidligere kjøring."
+  fi
   if ! out="$(gcloud firestore databases restore --source-backup="$backup" --destination-database="$TEST_DB" \
     --project="$PROJECT" --quiet 2>&1)"; then
     fail "Gjenopprettingen startet ikke: $(first_error "$out")"
@@ -332,14 +381,18 @@ do_restore_test() {
     return
   fi
   line "- Gjenoppretter backup fra $(json_field "${latest#ERR:}" 'latest.snapshotTime') til databasen \`$TEST_DB\` …"
-  # Databasen kan leses når gjenopprettingen er ferdig. Vent i opptil 40 minutter.
+  # Databasen kan leses før gjenopprettingen er ferdig, og kan ikke slettes før den er det.
+  # Vent til operasjonen er ferdig (opptil 40 minutter), og tell først da.
+  if ! wait_restore_done; then
+    warn 'Fikk ikke bekreftet at gjenopprettingen var ferdig innen 40 minutter. Teller likevel.'
+  fi
   local tries=0
   restored=''
-  while [ $tries -lt 80 ]; do
+  while [ $tries -lt "$WAIT_TRIES" ]; do
     if restored="$(count_time_entries "$TEST_DB")"; then break; fi
     restored=''
     tries=$((tries + 1))
-    sleep 30
+    sleep "$WAIT_SECONDS"
   done
   prod="$(count_time_entries "$DB" || true)"
   if [ -z "$restored" ]; then
@@ -351,7 +404,7 @@ do_restore_test() {
   else
     ok "Gjenopprettet database har $restored timeføringer (produksjon nå: $prod). Gjenoppretting virker."
   fi
-  if out="$(gcloud firestore databases delete --database="$TEST_DB" --project="$PROJECT" --quiet 2>&1)"; then
+  if out="$(delete_test_db)"; then
     ok "Testdatabasen \`$TEST_DB\` er slettet igjen."
   else
     fail "Testdatabasen \`$TEST_DB\` ble ikke slettet (koster lagring til den slettes): $(first_error "$out")"

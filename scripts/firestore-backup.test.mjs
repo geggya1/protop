@@ -48,7 +48,14 @@ const args = process.argv.slice(2).join(' ');
 fs.appendFileSync(${JSON.stringify(log)}, args + '\\n');
 const answers = JSON.parse(fs.readFileSync(${JSON.stringify(answersFile)}, 'utf8'));
 const key = Object.keys(answers).sort((a, b) => b.length - a.length).find((k) => args.startsWith(k));
-const hit = key ? answers[key] : { out: 'ERROR: (gcloud) ukjent kall i testen: ' + args, code: 1 };
+let hit = key ? answers[key] : { out: 'ERROR: (gcloud) ukjent kall i testen: ' + args, code: 1 };
+// En liste gir ett svar per kall (det siste gjentas): «midt i gjenoppretting», så ok.
+if (Array.isArray(hit)) {
+  const countFile = ${JSON.stringify(log)} + '.' + Buffer.from(key).toString('hex');
+  const n = fs.existsSync(countFile) ? Number(fs.readFileSync(countFile, 'utf8')) : 0;
+  fs.writeFileSync(countFile, String(n + 1));
+  hit = hit[Math.min(n, hit.length - 1)];
+}
 const out = typeof hit.out === 'string' ? hit.out : JSON.stringify(hit.out);
 (hit.code ? process.stderr : process.stdout).write(out);
 process.exit(hit.code || 0);
@@ -56,7 +63,7 @@ process.exit(hit.code || 0);
   chmodSync(fake, 0o755);
   const res = spawnSync('bash', [script, mode], {
     encoding: 'utf8',
-    env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+    env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, WAIT_SECONDS: '0', WAIT_TRIES: '5' },
   });
   let calls = [];
   try { calls = readFileSync(log, 'utf8').trim().split('\n').filter(Boolean); } catch { /* ingen kall */ }
@@ -197,7 +204,7 @@ esac
   process.env.PATH = `${dir}:${prevPath}`;
   if (testDb !== undefined) process.env.TEST_DB = testDb;
   try {
-    return run('test', { ...answers, 'auth print-access-token': { out: 'tok' } });
+    return run('test', { 'firestore operations list': { out: [] }, ...answers, 'auth print-access-token': { out: 'tok' } });
   } finally {
     process.env.PATH = prevPath;
     if (prevDb === undefined) delete process.env.TEST_DB; else process.env.TEST_DB = prevDb;
@@ -235,4 +242,44 @@ test('test: nekter å bruke produksjonsdatabasen som testdatabase', () => {
   assert.equal(res.code, 1);
   assert.ok(!res.calls.some((c) => c.startsWith('firestore databases delete')), res.calls.join('\n'));
   assert.ok(!res.calls.some((c) => c.startsWith('firestore databases restore')));
+});
+
+test('test: venter til gjenopprettingen er ferdig, og prøver slettingen igjen mens den pågår', () => {
+  const answers = healthy();
+  answers['firestore databases restore'] = { out: '' };
+  // Ingen gammel testdatabase før testen.
+  answers['firestore databases describe --database=gjenoppretting-test'] = { out: 'ERROR: NOT_FOUND', code: 1 };
+  answers['firestore operations list'] = [
+    { out: [{ name: 'op1', done: false }] },
+    { out: [{ name: 'op1', done: true }] },
+  ];
+  const midRestore = { out: "ERROR: (gcloud.firestore.databases.delete) FAILED_PRECONDITION: database 'gjenoppretting-test' is in the middle of restore", code: 1 };
+  answers['firestore databases delete'] = [midRestore, midRestore, { out: '' }];
+  const res = runRestore(answers);
+  assert.equal(res.code, 0, res.out);
+  assert.equal(res.calls.filter((c) => c.startsWith('firestore operations list')).length, 2);
+  assert.equal(res.calls.filter((c) => c.startsWith('firestore databases delete')).length, 3);
+  assert.match(res.out, /er slettet igjen/);
+});
+
+test('test: en gammel testdatabase ryddes før ny gjenoppretting', () => {
+  const answers = healthy();
+  answers['firestore databases restore'] = { out: '' };
+  answers['firestore databases delete'] = { out: '' };
+  const res = runRestore(answers);
+  assert.equal(res.code, 0, res.out);
+  const i = res.calls.findIndex((c) => c.startsWith('firestore databases delete'));
+  const j = res.calls.findIndex((c) => c.startsWith('firestore databases restore'));
+  assert.ok(i >= 0 && i < j, res.calls.join('\n'));
+  assert.match(res.out, /Slettet en gammel testdatabase/);
+});
+
+test('test: sletting som feiler av en annen grunn, stopper med en gang', () => {
+  const answers = healthy();
+  answers['firestore databases restore'] = { out: '' };
+  answers['firestore databases describe --database=gjenoppretting-test'] = { out: 'ERROR: NOT_FOUND', code: 1 };
+  answers['firestore databases delete'] = { out: 'ERROR: PERMISSION_DENIED', code: 1 };
+  const res = runRestore(answers);
+  assert.equal(res.code, 1);
+  assert.equal(res.calls.filter((c) => c.startsWith('firestore databases delete')).length, 1);
 });

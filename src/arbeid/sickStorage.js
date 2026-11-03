@@ -16,7 +16,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { normalizeSickCase, normalizeSickRules } from './sickLeave.js';
+import { normalizeSickCase, normalizeSickRules, sickCaseId } from './sickLeave.js';
 
 function cid(companyId) {
   return String(companyId || '').trim();
@@ -31,9 +31,7 @@ function casesCol(companyId) {
   return collection(db, 'families', cid(companyId), 'sickCases');
 }
 
-export function sickCaseId() {
-  return `syk_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
-}
+export { sickCaseId };
 
 export async function loadSickRules(companyId) {
   const ref = settingsRef(companyId);

@@ -58,6 +58,17 @@ export const SICK_LEAVE_DEFAULTS = {
   denied: [],
 };
 
+/**
+ * ProTop lanseres 01.01.2027. Sykedager før det krever ikke egenmelding i appen:
+ * de er ført eller importert i ettertid og er dokumentert utenfor ProTop.
+ */
+export const SICK_NOTE_START = '2027-01-01';
+
+/** Ny id for en sykefraværssak. Ligger her (uten Firebase) så skjermene kan lage den før lagring. */
+export function sickCaseId() {
+  return `syk_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
+}
+
 export const CASE_STATUSES = ['innmeldt', 'godkjent', 'dokumentasjon', 'avvist'];
 
 export const CASE_STATUS_LABEL = {
@@ -527,12 +538,14 @@ export function caseAbsenceDays(sickCase, hoursForDate) {
 
 /**
  * Sykedager som mangler skjema, gruppert i tilfeller. Brukes til påminnelsen
- * «Husk egenmelding» med lenke rett til skjemaet.
+ * «Husk egenmelding» med lenke rett til skjemaet. Bare dager fra og med
+ * startDate (lanseringen) teller. Eldre fravær krever ikke egenmelding i ettertid.
  */
-export function missingSickNotes(absences, cases, employeeId, { catalog, rules, today } = {}) {
+export function missingSickNotes(absences, cases, employeeId, { catalog, rules, today, startDate = SICK_NOTE_START } = {}) {
   const r = normalizeSickRules(rules);
   if (!r.requireForm) return [];
   const day = isIsoDate(today) ? today : todayIso();
+  const start = isIsoDate(startDate) ? startDate : '';
   const covered = new Set();
   for (const row of Array.isArray(cases) ? cases : []) {
     const c = normalizeSickCase(row);
@@ -550,7 +563,7 @@ export function missingSickNotes(absences, cases, employeeId, { catalog, rules, 
     for (const row of occ) {
       if (row.start > day) continue;
       if (row.caseIds.length) continue;
-      const open = row.dates.filter((date) => !covered.has(`${kind}:${date}`));
+      const open = row.dates.filter((date) => date >= start && !covered.has(`${kind}:${date}`));
       if (!open.length) continue;
       out.push({ kind, employeeId: row.employeeId, fromDate: open[0], toDate: open[open.length - 1], days: open.length, absenceIds: row.absenceIds });
     }

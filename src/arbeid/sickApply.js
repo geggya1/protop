@@ -14,6 +14,11 @@ function text(value) {
   return String(value ?? '').trim();
 }
 
+/** Egen sykdom (egenmelding, sykmelding, uten lønn) eller sykt barn. */
+function sickGroup(kind) {
+  return kind === 'child' ? 'child' : (kind ? 'own' : '');
+}
+
 export function applySickCaseToState(state, sickCase, { hoursForDate, catalog, createdByUid = '' } = {}) {
   const row = normalizeSickCase(sickCase);
   if (!row.id || !row.employeeId) return { ok: false, state, error: 'Saken mangler ansatt.', absenceIds: [] };
@@ -36,9 +41,13 @@ export function applySickCaseToState(state, sickCase, { hoursForDate, catalog, c
   const ids = [];
   const errors = [];
   for (const day of days) {
-    // Samme dag: gjenbruk raden for saken, eller en sykedag uten skjema av samme sort.
+    // Samme dag: gjenbruk raden for saken, ellers en sykedag som er ført uten skjema. Først av
+    // samme sort, så annen egen sykdom: en levert sykmelding kobles til dagen som står som
+    // egenmelding eller sykdom, og typen endres, så dagen ikke føres to ganger.
+    const free = (a) => text(a.date) === day.date && !text(a.caseId);
     const existing = mine.find((a) => text(a.date) === day.date && text(a.caseId) === row.id)
-      || mine.find((a) => text(a.date) === day.date && !text(a.caseId) && sickKind(a.type, catalog) === row.kind);
+      || mine.find((a) => free(a) && sickKind(a.type, catalog) === row.kind)
+      || mine.find((a) => free(a) && sickGroup(sickKind(a.type, catalog)) === sickGroup(row.kind));
     const result = addAbsence(next, {
       id: existing?.id || '',
       employeeId: row.employeeId,

@@ -187,10 +187,13 @@ function collect(node, out = { text: [], ids: [] }, depth = 0) {
   const all = text.join(' ');
   for (const id of ['hr-sick-queue', 'hr-sick-frequent', 'hr-sick-quotas', 'hr-sick-rules', 'hr-sick-case-c1']) assert.ok(ids.includes(id), id);
   for (const pattern of [
-    /Egenmelding og sykmelding/, /Sykmelding · 05\.01\.2026 – 31\.03\.2026/, /Godkjenn/, /Sykedager uten skjema/,
+    /Egenmelding og sykmelding/, /Sykmelding · 05\.01\.2026 – 31\.03\.2026/, /Godkjenn/,
     /Hyppig korttidsfravær/, /Omsorgsdager \d{4}: 0 av 10/, /antall barn er ikke registrert/,
     /Krev skriftlig skjema/, /Utvidet egenmelding/,
   ]) assert.match(all, pattern, String(pattern));
+  // Sykedagen i dag mangler skjema. Egenmelding kreves bare fra lanseringen 01.01.2027.
+  if (iso >= '2027-01-01') assert.match(all, /Sykedager uten skjema/);
+  else assert.doesNotMatch(all, /Sykedager uten skjema/);
 }
 
 console.log('sickLeaveRender ok');

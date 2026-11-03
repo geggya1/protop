@@ -12,7 +12,7 @@ import { saveEmployee } from '../../src/employees/storage';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { useSickLeave } from '../../src/arbeid/useSickLeave.js';
 import { applySickCaseToState } from '../../src/arbeid/sickApply.js';
-import { removeSelfCertDenial, saveSelfCertDenial, saveSickRules } from '../../src/arbeid/sickStorage.js';
+import { removeSelfCertDenial, saveSelfCertDenial, saveSickRules, sickCaseId } from '../../src/arbeid/sickStorage.js';
 import {
   CASE_STATUS_LABEL,
   SICK_KIND_LABEL,
@@ -102,13 +102,17 @@ export default function HrSickCases({ colors, canWrite }) {
 
   function updateCase(sickCase, patch, action) {
     return run(async () => {
-      const saved = await sick.save({ ...sickCase, ...patch }, { actor, action });
-      if (patch.status && patch.status !== sickCase.status) {
-        const emp = byId.get(saved.employeeId);
-        const result = applySickCaseToState(state, saved, { hoursForDate: (iso) => plannedFor(emp, iso), catalog, createdByUid: uid });
-        if (result.ok) await persist(result.state);
-        else throw new Error(result.error);
+      const draft = { ...sickCase, ...patch };
+      if (!(patch.status && patch.status !== sickCase.status)) {
+        await sick.save(draft, { actor, action });
+        return;
       }
+      const emp = byId.get(draft.employeeId);
+      const result = applySickCaseToState(state, draft, { hoursForDate: (iso) => plannedFor(emp, iso), catalog, createdByUid: uid });
+      // Saken lagres med dagene den er koblet til. Kan ingen dager føres, lagres saken og feilen vises.
+      await sick.save({ ...draft, absenceIds: result.ok ? result.absenceIds : sickCase.absenceIds || [] }, { actor, action });
+      if (!result.ok) throw new Error(result.error);
+      await persist(result.state);
     }, action);
   }
 
@@ -116,16 +120,20 @@ export default function HrSickCases({ colors, canWrite }) {
     const emp = byId.get(form?.employeeId);
     if (!emp) return;
     run(async () => {
-      const saved = await sick.save({
+      const draft = {
         ...input,
+        id: input.id || sickCaseId(),
         employeeId: emp.id,
         employeeUid: emp.personUid || '',
         employeeName: employeeDisplayName(emp),
         status: form?.status || 'innmeldt',
-      }, { actor, action: input.id ? 'Endret av HR' : 'Meldt av HR' });
-      const result = applySickCaseToState(state, saved, { hoursForDate: (iso) => plannedFor(emp, iso), catalog, createdByUid: uid });
-      if (result.ok) await persist(result.state);
+      };
+      // Dagene føres først, så saken lagres med koblingen til fraværet (absenceIds).
+      const result = applySickCaseToState(state, draft, { hoursForDate: (iso) => plannedFor(emp, iso), catalog, createdByUid: uid });
+      await sick.save({ ...draft, absenceIds: result.ok ? result.absenceIds : (form?.absenceIds || []) }, { actor, action: input.id ? 'Endret av HR' : 'Meldt av HR' });
       setForm(null);
+      if (!result.ok) throw new Error(result.error);
+      await persist(result.state);
     }, 'Fraværet er registrert.');
   }
 

@@ -96,6 +96,7 @@ import SickNoteModal from '../../components/arbeid/SickNoteModal';
 import { SICK_KIND_LABEL, addMonths, missingSickNotes, sickKind, todayIso } from '../../src/arbeid/sickLeave.js';
 import { applySickCaseToState } from '../../src/arbeid/sickApply.js';
 import { useSickLeave } from '../../src/arbeid/useSickLeave.js';
+import { sickCaseId } from '../../src/arbeid/sickStorage.js';
 import TimesheetSideForm from '../../components/arbeid/TimesheetSideForm';
 import ScrollSheet from '../../components/ScrollSheet';
 import BillingChainLine from '../economy/billing/BillingChainLine';
@@ -635,19 +636,23 @@ export default function ArbeidScreen({
     setSickBusy(true);
     try {
       const own = !!uid && selectedEmployee.personUid === uid;
-      const saved = await sick.save({
+      const draft = {
         ...input,
+        id: input.id || sickCaseId(),
         employeeId: selectedEmployee.id,
         employeeUid: selectedEmployee.personUid || '',
         employeeName: selectedName,
         hoursPerDay: fullDayHours,
         // Endrer den ansatte selv, går meldingen til ny behandling. Leder beholder status.
         status: input.id && manager ? (sick.cases.find((row) => row.id === input.id)?.status || 'innmeldt') : 'innmeldt',
-      }, {
+      };
+      // Dagene føres først, så saken lagres med koblingen til fraværet (absenceIds).
+      // Kan ingen dager føres (f.eks. låst timeliste), lagres meldingen likevel og feilen vises.
+      const result = applySickCaseToState(state, draft, { hoursForDate: agreedForDate, catalog: absenceTypes, createdByUid: uid });
+      const saved = await sick.save({ ...draft, absenceIds: result.ok ? result.absenceIds : (sick.cases.find((row) => row.id === draft.id)?.absenceIds || []) }, {
         actor: user?.displayName || user?.email || '',
         action: input.id ? 'Endret melding' : (own ? 'Meldt av ansatt' : 'Meldt av leder'),
       });
-      const result = applySickCaseToState(state, saved, { hoursForDate: agreedForDate, catalog: absenceTypes, createdByUid: uid });
       if (applyResult(result, `${SICK_KIND_LABEL[saved.kind]} sendt til behandling.`)) {
         setSickForm(null);
         if (result.error) setError(`Noen dager ble ikke ført: ${result.error}`);

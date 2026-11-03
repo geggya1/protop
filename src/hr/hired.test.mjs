@@ -104,7 +104,12 @@ const ekstern = { id: 'x1', person: { firstName: 'Rolf' }, company: { status: 'a
   const cells = hiredCells(innleid, 'Innleid', { compliance: [], hmsCards: [] });
   assert.equal(cells.type, 'innleid');
   assert.equal(cells.lawWarn, true);
-  assert.match(cells.law, /^Grunnlag, registrert foretak, likebehandling/);
+  assert.equal(cells.law, '7 av 7 mangler');
+  let few = [];
+  for (const id of ['inn_legal_basis', 'inn_agency_registered', 'inn_equal_terms', 'inn_safety_intro', 'inn_working_time']) {
+    few = setHiredStatus(few, 'i1', 'innleid', id, 'ok');
+  }
+  assert.equal(hiredCells(innleid, 'Innleid', { compliance: few, hmsCards: [] }).law, 'HMS-kort, personvern');
   assert.equal(cells.advice, '0 av 3');
   const ext = hiredCells(ekstern, 'Ekstern', { compliance: [], hmsCards: [], hmsRequired: true });
   assert.equal(ext.law, 'Personvern');

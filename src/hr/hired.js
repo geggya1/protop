@@ -285,14 +285,16 @@ export function hiredCells(employee, kindLabel, hr = {}) {
   const type = hiredType(kindLabel);
   const items = hiredItemsFor(hr.compliance, id, type, { hmsCards: hr.hmsCards });
   const summary = hiredSummary(items, type, { hmsRequired: hr.hmsRequired !== false });
+  // Få mangler: navnene, som i personellisten. Mange: antallet, så raden holder seg lav på telefon.
   const gapText = summary.lawGapShort.join(', ');
+  let law = summary.lawTotal ? 'OK' : '—';
+  if (summary.lawMissing > 2) law = `${summary.lawMissing} av ${summary.lawTotal} mangler`;
+  else if (summary.lawMissing) law = gapText.charAt(0).toUpperCase() + gapText.slice(1);
   return {
     type,
     items,
     summary,
-    law: summary.lawMissing
-      ? gapText.charAt(0).toUpperCase() + gapText.slice(1)
-      : (summary.lawTotal ? 'OK' : '—'),
+    law,
     lawWarn: summary.lawMissing > 0,
     advice: summary.adviceTotal ? `${summary.adviceDone} av ${summary.adviceTotal}` : '—',
   };

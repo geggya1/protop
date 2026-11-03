@@ -73,7 +73,7 @@ export default function HrHired({
           <HrSectionTitle
             colors={colors}
             title="Innleid personell"
-            subtitle="Innleide fra bemanningsforetak og eksterne som konsulenter, regnskap og underleverandører. Her er det dere som innleier skal ha kontroll på. Arbeidsavtale, lønn og medarbeidersamtaler er leverandørens ansvar og følges ikke opp her."
+            subtitle="Innleide fra bemanningsforetak og eksterne som konsulenter, regnskap og underleverandører. Her står det dere som innleier har ansvaret for. Arbeidsavtale, lønn og samtaler er leverandørens ansvar."
           />
           <HrFilterBar
             colors={colors}
@@ -228,7 +228,11 @@ function HiredChecklist({
       </View>
 
       {HIRED_LEVELS.map((level) => {
-        const group = items.filter((row) => hiredCatalogItem(row.catalogId)?.level === level.id);
+        // Det som mangler først, som i Lovpålagt. Ellers katalogens rekkefølge.
+        const isGap = (row) => isHiredRequired(row.catalogId, type, { hmsRequired }) && (row.status === 'missing' || row.status === 'overdue');
+        const group = items
+          .filter((row) => hiredCatalogItem(row.catalogId)?.level === level.id)
+          .sort((a, b) => Number(isGap(b)) - Number(isGap(a)));
         if (!group.length) return null;
         return (
           <View key={level.id} style={styles.stack} nativeID={`hr-hired-level-${level.id}`}>

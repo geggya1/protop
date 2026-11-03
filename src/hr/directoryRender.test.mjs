@@ -830,6 +830,8 @@ if (fs.existsSync(previewDir)) {
   fs.writeFileSync(path.join(previewDir, 'hr-avtaler.html'), page('Ansettelsesavtaler', avtalerHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-lovpalagt.html'), page('Lovpålagt', complianceHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-oppfolging.html'), page('Oppfølging', followHtml));
+  fs.writeFileSync(path.join(previewDir, 'hr-innleid.html'), page('Innleid personell', hiredHtml));
+  fs.writeFileSync(path.join(previewDir, 'hr-innleid-krav.html'), page('Krav', hiredSheetHtml));
 }
 
 console.log('hr directory render ok');

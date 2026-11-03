@@ -352,14 +352,23 @@ delete_test_db() {
       return 0
     fi
     tries=$((tries + 1))
-    if printf '%s' "$out" | grep -qi 'delete protection' && [ $tries -le 2 ]; then
-      if ! out="$(gcloud firestore databases update --database="$name" --project="$PROJECT" --no-delete-protection --quiet 2>&1)"; then
-        printf '%s' "$out"
+    if [ $tries -ge "$WAIT_TRIES" ]; then
+      printf '%s' "$out"
+      return 1
+    fi
+    # Endringen av slettebeskyttelsen slår ikke alltid inn med en gang (særlig rett etter
+    # gjenopprettingen). Slå den av på nytt og prøv igjen etter en pause.
+    if printf '%s' "$out" | grep -qi 'delete protection'; then
+      local upd
+      if ! upd="$(gcloud firestore databases update --database="$name" --project="$PROJECT" --no-delete-protection --quiet 2>&1)" \
+        && printf '%s' "$upd" | grep -qiE 'permission|denied'; then
+        printf '%s' "$upd"
         return 1
       fi
+      [ $tries -gt 1 ] && sleep "$WAIT_SECONDS"
       continue
     fi
-    if ! printf '%s' "$out" | grep -qiE 'middle of|in progress' || [ $tries -ge "$WAIT_TRIES" ]; then
+    if ! printf '%s' "$out" | grep -qiE 'middle of|in progress'; then
       printf '%s' "$out"
       return 1
     fi

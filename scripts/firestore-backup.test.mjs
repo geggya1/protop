@@ -325,3 +325,15 @@ test('test: slettebeskyttelsen som ikke lar seg slå av, gir feil uten å vente'
   assert.equal(res.code, 1);
   assert.equal(res.calls.filter((c) => c.startsWith('firestore databases delete')).length, 1);
 });
+
+test('test: slettebeskyttelse som slår inn sent, gir nye forsøk til databasen er slettet', () => {
+  const answers = healthy();
+  answers['firestore databases restore'] = { out: '' };
+  const protectedErr = { out: 'ERROR: FAILED_PRECONDITION: Cannot delete the database because delete protection state is set to DELETE_PROTECTION_ENABLED.', code: 1 };
+  answers['firestore databases delete'] = [protectedErr, protectedErr, protectedErr, { out: '' }];
+  answers['firestore databases update'] = { out: '' };
+  const res = runRestore(answers);
+  assert.equal(res.code, 0, res.out);
+  assert.equal(res.calls.filter((c) => c.startsWith('firestore databases delete')).length, 4);
+  assert.equal(res.calls.filter((c) => c.startsWith('firestore databases update')).length, 3);
+});

@@ -95,6 +95,7 @@ async function seed() {
     await setDoc(doc(db, 'families', A, 'hrSelf', 'emp_bob'), { employeeId: 'emp_bob', tasks: [{ id: 't1', title: 'Signer' }] });
     await setDoc(doc(db, 'families', A, 'hrSelf', 'emp_eve'), { employeeId: 'emp_eve', salaries: [{ id: 's1', amount: 650000 }] });
     await setDoc(doc(db, 'families', A, 'hrSelf', 'emp_noacl'), { employeeId: 'emp_noacl', tasks: [] });
+    await setDoc(doc(db, 'families', A, 'hr', 'controlMeasures'), { measures: { usage: { justification: 'Sikkerhet' } } });
 
     // Fravær
     await setDoc(doc(db, 'families', A, 'absences', 'a_bob'), absence('emp_bob'));
@@ -198,6 +199,13 @@ describe('HR (L-01, SEC-06, DS-10)', () => {
     await assertFails(setDoc(doc(as('bob'), 'families', A, 'hrSelf', 'emp_bob'), { salaries: [{ amount: 9e6 }] }, { merge: true }));
     await assertSucceeds(getDoc(doc(as('noacl'), 'families', A, 'hrSelf', 'emp_noacl')));
     await assertFails(getDoc(doc(as('ext'), 'families', A, 'hrSelf', 'emp_bob')));
+  });
+
+  test('kontrolltiltak: alle i bedriften leser registeret, bare HR skriver', async () => {
+    await assertSucceeds(getDoc(doc(as('bob'), 'families', A, 'hr', 'controlMeasures')));
+    await assertFails(setDoc(doc(as('bob'), 'families', A, 'hr', 'controlMeasures'), { measures: {} }));
+    await assertSucceeds(setDoc(doc(as('hr'), 'families', A, 'hr', 'controlMeasures'), { measures: {} }));
+    await assertFails(getDoc(doc(as('ext'), 'families', A, 'hr', 'controlMeasures')));
   });
 
   test('HR skriver og lister utsnittene', async () => {

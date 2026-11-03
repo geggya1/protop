@@ -24,6 +24,7 @@ import HrHandbook from './HrHandbook';
 import HrForms from './HrForms';
 import HrAnnual from './HrAnnual';
 import HrSickLeave from './HrSickLeave';
+import HrSickCases from './HrSickCases';
 import HrSurvey from './HrSurvey';
 import { hrDeadlinesHandled, useHrDeadlines } from './useHrDeadlines';
 import { useHrFormStart } from './useHrFormStart';
@@ -481,19 +482,23 @@ export default function HrScreen({ subView = 'oversikt' }) {
     }
     if (page === 'sykefravaer') {
       return (
-        <HrSickLeave
-          colors={colors}
-          rows={deadlines.sickRows}
-          loading={deadlines.loading}
-          loadFailed={deadlines.loadFailed}
-          canWrite={canWrite}
-          onPatch={(fn) => {
-            onPatch(fn);
-            // Oppgaven for fristen lukkes med en gang, ikke først neste gang HR åpnes.
-            setTimeout(() => deadlines.refresh(), 800);
-          }}
-          actorName={assigneeName}
-        />
+        <View style={styles.sickStack}>
+          <HrSickLeave
+            colors={colors}
+            rows={deadlines.sickRows}
+            loading={deadlines.loading}
+            loadFailed={deadlines.loadFailed}
+            canWrite={canWrite}
+            onPatch={(fn) => {
+              onPatch(fn);
+              // Oppgaven for fristen lukkes med en gang, ikke først neste gang HR åpnes.
+              setTimeout(() => deadlines.refresh(), 800);
+            }}
+            actorName={assigneeName}
+          />
+          {/* Egenmelding, sykt barn og sykmelding: behandling, korttidsfravær, kvoter og regler. */}
+          <HrSickCases colors={colors} canWrite={canWrite} />
+        </View>
       );
     }
     if (page === 'undersokelse') {
@@ -605,4 +610,5 @@ export default function HrScreen({ subView = 'oversikt' }) {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 16, paddingBottom: 40, gap: 12 },
+  sickStack: { gap: 12 },
 });

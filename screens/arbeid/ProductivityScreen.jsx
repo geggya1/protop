@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { activeEmployees, activeProjects, addDays, emptyPlan, planActivityFrom, toDateKey } from '../../src/capacity/plan';
@@ -17,8 +17,11 @@ import {
 } from '../../src/project/storage';
 import { myProjectIds } from '../../src/project/myProjects';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { radius, type } from '../../src/ui/tokens';
 import PageTabs from '../../components/PageTabs';
 import ProductivityBoard from './ProductivityBoard';
+import { controlMeasureGaps } from '../../src/hr/controlMeasures';
+import { loadControlMeasures } from '../../src/hr/controlMeasuresStorage';
 
 const VIEWS = [
   { id: 'people', label: 'Personer' },
@@ -41,6 +44,17 @@ export default function ProductivityScreen() {
   const { familyId, user } = useApp();
   const access = useCompanyAccess();
   const { employees } = useEmployees(familyId);
+  const [measureGaps, setMeasureGaps] = useState([]);
+
+  // Produktivitet per ansatt er et kontrolltiltak (aml kap. 9).
+  useEffect(() => {
+    let live = true;
+    if (!familyId) return undefined;
+    loadControlMeasures(familyId).then((settings) => {
+      if (live) setMeasureGaps(controlMeasureGaps(settings.measures.productivity));
+    });
+    return () => { live = false; };
+  }, [familyId]);
   const [projects, setProjects] = useState([]);
   const [members, setMembers] = useState([]);
   const [plan, setPlan] = useState(() => emptyPlan());
@@ -189,6 +203,11 @@ export default function ProductivityScreen() {
       contentContainerStyle={styles.content}
       nativeID="produktivitet-screen"
     >
+      {canWrite && measureGaps.length ? (
+        <Text nativeID="produktivitet-kontrolltiltak" style={[styles.notice, { color: colors.warnInk, backgroundColor: colors.card, borderColor: colors.warn }]}>
+          {`Produktivitet per ansatt er et kontrolltiltak etter arbeidsmiljøloven kap. 9. ${measureGaps.join(' ')} Dokumenter det under HR → Lovpålagt.`}
+        </Text>
+      ) : null}
       {ready ? (
         <ProductivityBoard
           colors={colors}
@@ -213,4 +232,5 @@ export default function ProductivityScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 16, paddingBottom: 48 },
+  notice: { borderWidth: 1, borderRadius: radius.card, padding: 12, marginBottom: 12, ...type.label, fontWeight: '400' },
 });

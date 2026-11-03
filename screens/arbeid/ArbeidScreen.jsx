@@ -92,6 +92,10 @@ import MonthJump from '../../components/arbeid/MonthJump';
 import TimesheetGrid from '../../components/arbeid/TimesheetGrid';
 import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
 import AbsenceTypeModal from '../../components/arbeid/AbsenceTypeModal';
+import SickNoteModal from '../../components/arbeid/SickNoteModal';
+import { SICK_KIND_LABEL, addMonths, missingSickNotes, sickKind, todayIso } from '../../src/arbeid/sickLeave.js';
+import { applySickCaseToState } from '../../src/arbeid/sickApply.js';
+import { useSickLeave } from '../../src/arbeid/useSickLeave.js';
 import TimesheetSideForm from '../../components/arbeid/TimesheetSideForm';
 import ScrollSheet from '../../components/ScrollSheet';
 import BillingChainLine from '../economy/billing/BillingChainLine';
@@ -593,6 +597,69 @@ export default function ArbeidScreen({
 
   // Samme grunnlag som Timesaldo: til og med i dag, og bare mens personen er ansatt.
   const employed = employmentRange(selectedEmployee);
+
+  // Sykefravær: egenmeldingsskjema, kvoter og påminnelse om manglende skjema.
+  const sick = useSickLeave(workspaceId, { uid, manager, family: policySource, employees });
+  const [sickForm, setSickForm] = useState(null);
+  const [sickBusy, setSickBusy] = useState(false);
+  const [sickHistory, setSickHistory] = useState({ key: '', rows: [] });
+  const sickFrom = addMonths(todayIso(), -13);
+  useEffect(() => {
+    if (!workspaceId || !employeeId) return undefined;
+    let live = true;
+    const key = `${employeeId}:${sickFrom}`;
+    loadAbsences(workspaceId, { employeeId, fromDate: sickFrom }).then((rows) => {
+      if (live) setSickHistory({ key, rows: Array.isArray(rows) ? rows : [] });
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [workspaceId, employeeId, sickFrom]);
+  const sickAbsences = useMemo(() => {
+    const byId = new Map();
+    for (const row of sickHistory.rows) if (row?.employeeId === employeeId) byId.set(row.id, row);
+    for (const row of state.absences || []) if (row?.employeeId === employeeId) byId.set(row.id, row);
+    return [...byId.values()];
+  }, [sickHistory.rows, state.absences, employeeId]);
+  const missingNotes = useMemo(
+    () => (employeeId ? missingSickNotes(sickAbsences, sick.cases, employeeId, { catalog: absenceTypes, rules: sick.rules }) : []),
+    [sickAbsences, sick.cases, employeeId, absenceTypes, sick.rules],
+  );
+
+  function openSickForm(initial = {}) {
+    if (readOnly) return;
+    setAbsenceOpen(false);
+    setSickForm({ ...initial });
+  }
+
+  async function submitSickNote(input) {
+    if (!selectedEmployee || sickBusy) return;
+    setSickBusy(true);
+    try {
+      const own = !!uid && selectedEmployee.personUid === uid;
+      const saved = await sick.save({
+        ...input,
+        employeeId: selectedEmployee.id,
+        employeeUid: selectedEmployee.personUid || '',
+        employeeName: selectedName,
+        hoursPerDay: fullDayHours,
+        // Endrer den ansatte selv, går meldingen til ny behandling. Leder beholder status.
+        status: input.id && manager ? (sick.cases.find((row) => row.id === input.id)?.status || 'innmeldt') : 'innmeldt',
+      }, {
+        actor: user?.displayName || user?.email || '',
+        action: input.id ? 'Endret melding' : (own ? 'Meldt av ansatt' : 'Meldt av leder'),
+      });
+      const result = applySickCaseToState(state, saved, { hoursForDate: agreedForDate, catalog: absenceTypes, createdByUid: uid });
+      if (applyResult(result, `${SICK_KIND_LABEL[saved.kind]} sendt til behandling.`)) {
+        setSickForm(null);
+        if (result.error) setError(`Noen dager ble ikke ført: ${result.error}`);
+        if (saved.workRelated) setNote('Fraværet kan ha sammenheng med jobben. Meld det også som avvik, så det følges opp i HMS.');
+      }
+    } catch (cause) {
+      setError(String(cause?.message || '') || 'Kunne ikke sende meldingen.');
+    } finally {
+      setSickBusy(false);
+    }
+  }
+
   const timebank = useMemo(() => monthTimebank({
     year,
     monthIndex,
@@ -1052,6 +1119,13 @@ export default function ArbeidScreen({
     const existing = (state.absences || []).find((item) => (
       item.employeeId === employeeId && item.date === day.key && (item.type || 'ferie') === row.id
     ));
+    // Egenmelding og sykt barn krever skjema (ftrl §§ 8-26 og 9-7), sykmelding registreres med periode.
+    const kind = sickKind(row.id, absenceTypes);
+    if (sick.rules.requireForm && (kind === 'self' || kind === 'child' || kind === 'doctor')) {
+      const linkedCase = existing?.caseId ? sick.cases.find((c) => c.id === existing.caseId) : null;
+      openSickForm(linkedCase || { kind, fromDate: day.key, toDate: day.key });
+      return;
+    }
     const agreed = agreedByDay.get(day.key) || fullDayHours;
     setAbsenceForm({
       id: existing?.id || '',
@@ -1440,6 +1514,54 @@ export default function ArbeidScreen({
       {error && !(loadFailed && error === PROJECTS_NOT_LOADED) ? (
         <Text style={{ color: colors.dangerInk || colors.danger, marginBottom: 6 }}>{error}</Text>
       ) : null}
+      {!readOnly && employeeId ? (
+        <View style={styles.sickRow}>
+          {missingNotes.slice(0, 2).map((row) => (
+            <TouchableOpacity
+              key={`${row.kind}:${row.fromDate}`}
+              onPress={() => openSickForm({ kind: row.kind, fromDate: row.fromDate, toDate: row.toDate })}
+              style={[styles.sickBanner, { borderColor: colors.warn, backgroundColor: colors.card }]}
+              accessibilityRole="button"
+              nativeID="husk-egenmelding"
+            >
+              <Ionicons name="alert-circle-outline" size={18} color={colors.warnInk} />
+              <Text style={{ color: colors.warnInk, flex: 1 }}>
+                {`Husk ${row.kind === 'child' ? 'egenmelding for sykt barn' : 'egenmelding'} for ${row.fromDate === row.toDate ? row.fromDate : `${row.fromDate} – ${row.toDate}`}.`}
+              </Text>
+              <Text style={{ color: colors.warnInk, fontWeight: '700' }}>Fyll ut</Text>
+            </TouchableOpacity>
+          ))}
+          {/* Svar fra HR: legeerklæring trengs, eller meldingen er avvist (siste 30 dager). */}
+          {sick.cases
+            .filter((c) => c.employeeId === employeeId && (c.status === 'dokumentasjon'
+              || (c.status === 'avvist' && String(c.handledAt || '').slice(0, 10) >= addMonths(todayIso(), -1))))
+            .slice(0, 2)
+            .map((c) => (
+              <TouchableOpacity
+                key={c.id}
+                onPress={() => openSickForm(c)}
+                style={[styles.sickBanner, { borderColor: colors.warn, backgroundColor: colors.card }]}
+                accessibilityRole="button"
+                nativeID={`sykefravaer-svar-${c.id}`}
+              >
+                <Ionicons name="alert-circle-outline" size={18} color={colors.warnInk} />
+                <Text style={{ color: colors.warnInk, flex: 1 }}>
+                  {`${SICK_KIND_LABEL[c.kind]} ${c.fromDate === c.toDate ? c.fromDate : `${c.fromDate} – ${c.toDate}`}: ${c.status === 'avvist' ? 'avvist' : 'legeerklæring trengs'}${c.handlerNote ? `. ${c.handlerNote}` : '.'}`}
+                </Text>
+                {c.status === 'dokumentasjon' ? <Text style={{ color: colors.warnInk, fontWeight: '700' }}>Åpne</Text> : null}
+              </TouchableOpacity>
+            ))}
+          <TouchableOpacity
+            onPress={() => openSickForm({ kind: 'self', fromDate: selectedDay || todayKey, toDate: selectedDay || todayKey })}
+            style={[styles.sickLink, { borderColor: colors.line }]}
+            accessibilityRole="button"
+            nativeID="meld-sykefravaer"
+          >
+            <Ionicons name="medkit-outline" size={16} color={colors.brand} />
+            <Text style={{ color: colors.brand, fontWeight: '600' }}>Meld sykefravær</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <View dataSet={{ focusWithin: '1' }} style={[styles.searchWrap, (isPhone || personal) && styles.searchWrapPhone, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Ionicons name="search" size={16} color={colors.muted} />
@@ -1657,6 +1779,21 @@ export default function ArbeidScreen({
         </Pressable>
       </Modal>
 
+      <SickNoteModal
+        visible={!!sickForm}
+        colors={colors}
+        employee={selectedEmployee}
+        employeeName={selectedName}
+        absences={sickAbsences}
+        catalog={absenceTypes}
+        rules={sick.rules}
+        initial={sickForm}
+        onBehalf={!!selectedEmployee && selectedEmployee.personUid !== uid}
+        busy={sickBusy}
+        onClose={() => setSickForm(null)}
+        onSubmit={submitSickNote}
+      />
+
       {/* Fravær */}
       <Modal transparent visible={absenceOpen} animationType="fade" onRequestClose={() => setAbsenceOpen(false)}>
         <Pressable style={styles.modalBg} onPress={() => setAbsenceOpen(false)}>
@@ -1711,6 +1848,9 @@ const styles = StyleSheet.create({
   // Inne i ansattprofilen på mobil: ingen tom navnekolonne, månedsvelgeren fyller linjen.
   screenEmbeddedPhone: { paddingTop: 8 },
   monthNavFill: { flex: 1 },
+  sickRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 },
+  sickBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: radius.card, paddingHorizontal: 12, paddingVertical: 8, flexGrow: 1, minHeight: 44 },
+  sickLink: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 12, minHeight: 40 },
   gridBleed: {
     flex: 1,
     minHeight: 0,

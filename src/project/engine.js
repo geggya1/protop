@@ -690,6 +690,8 @@ export function normalizeAbsenceRow(row) {
     createdByUid: text(row.createdByUid),
     ...(row.extraordinary === true ? { extraordinary: true } : {}),
     ...(text(row.sourceCompanyId) ? { sourceCompanyId: text(row.sourceCompanyId) } : {}),
+    // Egenmelding / sykmelding som dagen hører til (sickCases).
+    ...(text(row.caseId) ? { caseId: text(row.caseId) } : {}),
     ...absenceApproval(row),
   };
 }
@@ -1862,6 +1864,7 @@ export function addAbsence(state, input) {
     importFingerprint: text(input.importFingerprint) || existing?.importFingerprint,
     source: input.source || existing?.source || null,
     extraordinary: input.extraordinary != null ? input.extraordinary === true : existing?.extraordinary === true,
+    caseId: input.caseId != null ? text(input.caseId) : existing?.caseId,
     createdAt: existing?.createdAt || now,
     updatedAt: now,
     createdByUid: text(input.createdByUid) || existing?.createdByUid,

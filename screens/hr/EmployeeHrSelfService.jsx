@@ -16,6 +16,7 @@ import { loadEmployeeHrSlice } from '../../src/hr/storage';
 import { EmptyHint, HrCard, HrSectionTitle, RowLink, SalarySparkline } from './HrShared';
 import MyDocuments from '../doccontrol/MyDocuments';
 import HrAccessLog from './HrAccessLog';
+import { EmployeeControlMeasures } from './ControlMeasuresCard';
 import EmployeeSurveyCard from './EmployeeSurveyCard';
 import EmployeeReviewCard from './EmployeeReviewCard';
 import { useOptionalApp } from '../../src/context/AppContext';
@@ -193,6 +194,7 @@ export default function EmployeeHrSelfService({ colors, companyId, employeeId, s
           </View>
         ) : null}
       </HrCard>
+      <EmployeeControlMeasures colors={colors} companyId={companyId} />
       <HrAccessLog
         colors={colors}
         familyId={companyId}

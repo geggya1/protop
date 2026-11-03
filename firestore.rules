@@ -702,7 +702,7 @@ service cloud.firestore {
         || coll == 'hrSurveyResults' || coll == 'hrSurveyReceipts' || coll == 'hrReviewPrep'
         || coll == 'absences' || coll == 'childAbsences' || coll == 'employeesPrivate'
         || coll == 'notes' || coll == 'timeEntries' || coll == 'projectExpenses' || coll == 'events'
-        || coll == 'timeEntryDeletions' || coll == 'accessLog';
+        || coll == 'timeEntryDeletions' || coll == 'accessLog' || coll == 'sickCases';
     }
 
     // Kalenderhendelse i en bedrift: «bare utvalgte» (audience 'selected') leses av den som laget
@@ -1293,6 +1293,18 @@ service cloud.firestore {
         allow create, update, delete: if isFamilyMember(familyId) && hrWriter(familyId);
       }
 
+      // Kontrolltiltak (aml § 9-2 (2)): alle i bedriften skal kunne lese hva som registreres om dem.
+      // Skrives fortsatt bare av HR (regelen over).
+      match /hr/controlMeasures {
+        allow get: if isFamilyMember(familyId);
+      }
+
+      // Reglene for egenmelding (ikke vedtak om enkeltpersoner, de ligger i sickCases): den ansatte
+      // må vite om skjema kreves og hvor mange dager egenmeldingen gjelder.
+      match /hr/sickLeave {
+        allow get: if isFamilyMember(familyId);
+      }
+
       // «Min side»: det HR har delt med én ansatt (egne avtaler, oppgaver, notater, filer og
       // egen lønn), skrevet av HR når HR lagres. Den ansatte leser sitt eget dokument.
       match /hrSelf/{empId} {
@@ -1393,6 +1405,35 @@ service cloud.firestore {
       match /hrSurveyResults/{surveyId} {
         allow get: if isFamilyMember(familyId) && surveyReader(familyId);
         allow list, create, update, delete: if false;
+      }
+
+      // Sykefraværssaker (egenmelding, sykt barn, sykmelding) og vedtak om fratatt egenmelding.
+      // Ingen diagnose lagres. Den ansatte leser og melder egne saker; behandling gjøres av de
+      // som ser alles fravær (absenceForAll). Den ansatte kan bare endre en sak som venter.
+      match /sickCases/{caseId} {
+        allow get: if isFamilyMember(familyId)
+          && (resource.data.get('employeeUid', '') == request.auth.uid || absenceForAll(familyId, 1));
+        allow list: if isFamilyMemberLite(familyId)
+          && (resource.data.get('employeeUid', '') == request.auth.uid || absenceForAll(familyId, 1));
+        allow create: if isFamilyMember(familyId)
+          && (absenceForAll(familyId, 2)
+            || (request.resource.data.get('employeeUid', '') == request.auth.uid
+              && request.resource.data.get('record', '') == 'case'
+              && request.resource.data.get('status', '') == 'innmeldt'
+              && request.resource.data.get('createdByUid', '') == request.auth.uid));
+        allow update: if isFamilyMember(familyId)
+          && (absenceForAll(familyId, 2)
+            || (resource.data.get('employeeUid', '') == request.auth.uid
+              && resource.data.get('record', '') == 'case'
+              && resource.data.get('status', '') in ['innmeldt', 'dokumentasjon']
+              && request.resource.data.get('status', '') == 'innmeldt'
+              && unchanged('employeeUid')
+              && unchanged('employeeId')
+              && unchanged('handledByUid')
+              && unchanged('followUp')));
+        allow delete: if isFamilyMember(familyId)
+          && (absenceForAll(familyId, 2)
+            || (resource.data.get('employeeUid', '') == request.auth.uid && resource.data.get('status', '') == 'innmeldt'));
       }
 
       // Fravær (helseopplysninger, L-02). I bedrifter ser og fører hver ansatt sitt eget fravær;

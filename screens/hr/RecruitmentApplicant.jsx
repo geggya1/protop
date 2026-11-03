@@ -13,6 +13,7 @@ import {
   myScorecard, otherApplications, removeApplicationComment, removeReference, responseTemplate,
   saveScorecard, stageLabel, updateReference,
 } from '../../src/hr/recruitment';
+import { sensitiveTopics } from '../../src/hr/recruitmentPrivacy';
 import {
   RETENTION_DEFAULTS, addMonths, applicationClosed, applicationDeleteOn, deleteCountdownLabel,
 } from '../../src/hr/retention';
@@ -203,6 +204,13 @@ export default function RecruitmentApplicant({
   const hidden = anonymous && ANON_STAGES.includes(app.stage) && !reveal;
   const shownName = hidden ? `Søker ${String(app.id).slice(-4).toUpperCase()}` : app.name;
   const set = (key) => (value) => setEdits((prev) => ({ ...prev, [key]: value }));
+  // Likestillings- og diskrimineringsloven § 30 og aml § 9-3: slike opplysninger skal ikke innhentes eller brukes.
+  const sensitive = sensitiveTopics([
+    draft.evaluation, draft.rejectReason, app.notes, note, card.comment, refDraft.notes,
+    ...app.comments.map((row) => row.text),
+    ...app.scorecards.map((row) => row.comment),
+    ...app.references.map((row) => row.notes),
+  ].join(' '));
 
   /** Lagrer utkastet sammen med handlingen, så ingenting skrevet går tapt. */
   function commit(mapper) {
@@ -353,6 +361,11 @@ export default function RecruitmentApplicant({
             </>
           )}
         </View>
+      ) : null}
+      {sensitive.length ? (
+        <Text nativeID="hr-app-sensitive" style={[styles.meta, { color: colors.dangerInk }]}>
+          {`Notatene nevner ${sensitive.join(', ')}. Slike opplysninger skal ikke innhentes eller brukes i ansettelsen (likestillings- og diskrimineringsloven § 30, aml § 9-3). Fjern dem.`}
+        </Text>
       ) : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
         {TABS.map((row) => {

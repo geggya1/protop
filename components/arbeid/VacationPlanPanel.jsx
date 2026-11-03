@@ -22,6 +22,7 @@ import {
   planningWindow,
   vacationPlanForYear,
   vacationPlanId,
+  vacationNoticeWarning,
   vacationQuota,
   vacationRequestBalance,
 } from '../../src/arbeid/vacationPlan.js';
@@ -485,6 +486,7 @@ export default function VacationPlanPanel({
           <Text style={styles.hint}>
             Påminnelse går ut tre dager før. Etter fristen får de som har dager igjen én uke ekstra, og deretter låses ordinær registrering.
           </Text>
+          {vacationNoticeWarning(current) ? <Text style={styles.warn}>{vacationNoticeWarning(current)}</Text> : null}
           {current.extendedDeadline ? (
             <Text style={styles.warn}>{`Utvidet frist er satt til ${formatPlanDate(current.extendedDeadline)}.`}</Text>
           ) : null}

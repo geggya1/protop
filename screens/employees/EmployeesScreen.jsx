@@ -113,6 +113,7 @@ import EmployeeFilesView from './EmployeeFilesView';
 import EmployeeHrSelfService from '../hr/EmployeeHrSelfService';
 import EmployeeTodo from './EmployeeTodo';
 import { kinMissing } from '../../src/hr/kinReminder';
+import { hrKindBucket } from '../../src/hr/directory';
 import { closeKinTask } from '../../src/hr/kinTasks';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/forms/highlight';
 import { emptyProjectState } from '../../src/project/engine';
@@ -405,6 +406,8 @@ export default function EmployeesScreen() {
     () => rows.find((row) => row.id === mineHrEmployeeId) || linked || null,
     [rows, mineHrEmployeeId, linked],
   );
+  // Innleide og eksterne: pårørende og medarbeiderundersøkelsen gjelder egne ansatte.
+  const mineIsHired = !!mineTodoEmployee && hrKindBucket(mineTodoEmployee) === 'external';
   const inviteCounts = useMemo(() => inviteOverview(rows), [rows]);
   // Avsluttede ansettelser der personen fortsatt står som medlem: deaktivert før tilgangen ble
   // stengt på serveren, eller sluttdatoen har passert. Administrator rydder med ett trykk.
@@ -2383,7 +2386,7 @@ export default function EmployeesScreen() {
           ) : (
             <Text style={{ color: colors.muted }}>Åpne ett avsnitt om gangen. Bildet vises på profilen og øverst i CV-en.</Text>
           )}
-          {view === 'mine' && mineHrEmployeeId && kinMissing(profile || draft) && kinMissing(linked) ? (
+          {view === 'mine' && mineHrEmployeeId && !mineIsHired && kinMissing(profile || draft) && kinMissing(linked) ? (
             <View nativeID="employee-kin-todo" style={[styles.kinTodo, { backgroundColor: FOCUS_FIELD_BG, borderColor: FOCUS_FIELD_BORDER }]}>
               <Text style={{ color: FOCUS_FIELD_INK, fontWeight: '700' }}>Gjøremål: legg inn pårørende</Text>
               <Text style={{ color: FOCUS_FIELD_INK, lineHeight: 20 }}>
@@ -2415,6 +2418,7 @@ export default function EmployeesScreen() {
               companyId={familyId}
               employeeId={mineHrEmployeeId}
               showDocuments={!mineTodoEmployee}
+              showSurvey={!mineIsHired}
             />
           ) : null}
           {(view === 'mine' || isAdmin || isSelfRow(draft)) ? (

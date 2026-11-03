@@ -7,10 +7,12 @@ import { createMemoryDb } from '../src/helpdesk/memoryDb.js';
 import { notifySurvey } from './hrSurvey.js';
 
 const db = createMemoryDb({
-  'families/fam1': { type: 'company', name: 'Bygg AS', ownerUid: 'boss', memberIds: ['boss', 'u1', 'u2', 'u3'] },
+  'families/fam1': { type: 'company', name: 'Bygg AS', ownerUid: 'boss', memberIds: ['boss', 'u1', 'u2', 'u3', 'u4'] },
   'families/fam1/employees/e1': { personUid: 'u1' },
   'families/fam1/employees/e2': { personUid: 'u2' },
   'families/fam1/employees/e3': { personUid: 'u3' },
+  // Innleid med innlogging: ikke med i medarbeiderundersøkelsen.
+  'families/fam1/employees/e4': { personUid: 'u4', company: { personnelKind: 'innleid', status: 'active' } },
   'families/fam1/hrSurveys/mu1': { status: 'open', title: 'Medarbeiderundersøkelse 2026', closesOn: '2026-11-20' },
   'families/fam1/hrSurveys/mu0': { status: 'draft', title: 'Utkast' },
   'families/fam1/hrSurveyAnswers/mu1_u2': { surveyId: 'mu1', answers: { trivsel: 4 } },
@@ -23,6 +25,7 @@ assert.equal(first.ok, true);
 const got = ['boss', 'u1', 'u2', 'u3'].filter((u) => notes(u).length);
 assert.ok(got.includes('u1') && got.includes('u3'));
 assert.ok(!got.includes('u2'), 'den som har svart, får ikke varsel');
+assert.equal(notes('u4').length, 0, 'innleide får ikke medarbeiderundersøkelsen');
 assert.equal(first.notified, got.length);
 const n = notes('u1')[0];
 assert.equal(n.eventType, 'hrSurvey');

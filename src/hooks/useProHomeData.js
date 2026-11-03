@@ -10,6 +10,12 @@ import { useEmployees, useProjects, useCompanySettings } from '../context/Compan
 import { loadTimeEntries } from '../economy/timeEntryStorage';
 import { findLinkedEmployee, canManageTimesheets, employeeDisplayName } from '../arbeid/roles';
 import { isActiveEmployee } from '../employees/employmentState';
+import { hrKindBucket } from '../hr/directory';
+
+/** Egne, aktive ansatte: uten innleide og eksterne. */
+function ownStaff(employees) {
+  return (employees || []).filter((row) => isActiveEmployee(row) && hrKindBucket(row) !== 'external');
+}
 import { projectPhaseOf } from '../project/statusFilter';
 import { listenCompanyWall } from '../project/companyWall';
 import { newsPlainText } from '../project/newsFormat';
@@ -227,7 +233,8 @@ export function useCelebrations(companyId, { limit = 4 } = {}) {
   const { employees, ready } = useMyEmployee(companyId);
   const tick = useFocusTick();
   const data = useMemo(
-    () => celebrations(employees || [], { today: new Date(), limit }),
+    // Jubileer og nye gjelder egne ansatte, ikke innleide og eksterne.
+    () => celebrations(ownStaff(employees), { today: new Date(), limit }),
     [employees, limit, tick], // eslint-disable-line react-hooks/exhaustive-deps
   );
   return { ...data, ready };

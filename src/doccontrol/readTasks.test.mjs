@@ -3,7 +3,9 @@
  * Nyansatte og nye versjoner gir oppgave. Gamle mangler gir ikke en bølge av oppgaver.
  */
 import assert from 'node:assert/strict';
-import { ackFor, approveRevision, contentHash, newControl, normalizeSettings, submitRevision } from './model.js';
+import {
+  ackFor, ackStatus, approveRevision, contentHash, documentsForEmployee, newControl, normalizeSettings, overviewRows, submitRevision, updateControl,
+} from './model.js';
 import { templateSnapshot } from './content.js';
 import { libraryForm } from '../forms/ksLibrary.js';
 import { defaultReadRule } from './templates.js';
@@ -93,6 +95,30 @@ const noAccount = { id: 'e3', person: { firstName: 'Per' }, company: { periodFro
   assert.deepEqual(state.acked, ['e1']);
   assert.deepEqual(state.manual, ['e3'], 'uten brukerkonto krysses av for hånd');
   assert.equal(state.revision, 1);
+}
+
+{
+  // Lesekrav gjelder egne ansatte. Innleide og eksterne får ikke personverninformasjonen til
+  // ansatte eller andre dokumenter, med mindre dokumentet er satt til å gjelde alle.
+  const hired = { id: 'e9', personUid: 'u9', person: { firstName: 'Ina' }, company: { periodFrom: '2026-10-01', personnelKind: 'innleid' } };
+  assert.equal(oldDoc.audience, 'ansatte', 'standard: egne ansatte');
+  const plan = docTaskPlan([newbie, hired], [oldDoc, newDoc], [], { today });
+  assert.equal(plan.create.some(({ employee }) => employee.id === 'e9'), false, 'innleid får ingen oppgave');
+  assert.equal(ackStatus([newbie, hired], [], oldDoc).length, 1, 'lest x av y teller egne ansatte');
+  assert.equal(overviewRows([newDoc], { employees: [newbie, hired] })[0].read.total, 1);
+  assert.equal(documentsForEmployee([oldDoc], { employeeId: 'e9', employee: hired }).length, 0, 'ikke på Min side for innleide');
+
+  // En åpen oppgave fra før lukkes for den innleide.
+  const stale = [{ ...docReadTask(oldDoc, hired, { today }), id: docTaskId(oldDoc.id, 'e9') }];
+  assert.deepEqual(docTaskPlan([hired], [oldDoc], stale, { today }).close.map((t) => t.id), [stale[0].id]);
+
+  // Gjelder alle: da får den innleide oppgaven.
+  const forAll = updateControl(newDoc, { audience: 'alle' }, { actor: kari });
+  assert.equal(forAll.audience, 'alle');
+  assert.match(forAll.history.at(-1).text || JSON.stringify(forAll.history.at(-1)), /gjelder for egne ansatte og innleide/);
+  const planAll = docTaskPlan([hired], [forAll], [], { today });
+  assert.deepEqual(planAll.create.map(({ employee }) => employee.id), ['e9']);
+  assert.equal(documentsForEmployee([forAll], { employeeId: 'e9', employee: hired }).length, 1);
 }
 
 console.log('readTasks.test.mjs: ok');

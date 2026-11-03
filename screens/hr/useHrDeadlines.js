@@ -3,6 +3,7 @@ import { loadAbsences } from '../../src/arbeid/absenceStorage';
 import { addDays, newSickSalt, sickFollowUpRows, sickTaskPlan } from '../../src/hr/sickLeave';
 import { annualTaskPlan } from '../../src/hr/annualWheel';
 import { splitHrPeople } from '../../src/hr/dashboard';
+import { hrKindBucket } from '../../src/hr/directory';
 import { filterHrEmployees, localIsoDate } from '../../src/hr/model';
 import {
   closeHrDeadlineTask, createAnnualTask, createSickTask, loadAnnualTasks, loadSickTasks, reopenHrDeadlineTask,
@@ -59,13 +60,22 @@ export function useHrDeadlines({
   }, [familyId, enabled, today, windowStart]);
 
   const staff = useMemo(() => activeStaff(employees), [employees]);
+  // Oppfølging av sykmeldte (AML § 4-6, ftrl. kap. 8) er arbeidsgivers plikt. For innleide og
+  // eksterne er det bemanningsforetaket eller leverandøren, så de gir ingen frister eller oppgaver
+  // her. Åpne oppgaver for dem lukkes som «gjelder ikke lenger».
+  const hiredIds = useMemo(
+    () => new Set((employees || []).filter((row) => hrKindBucket(row) === 'external').map((row) => row.id)),
+    [employees],
+  );
   const sickRows = useMemo(
-    () => sickFollowUpRows(absences || [], hr?.sickFollowUps || [], { today, employees, windowStart }),
-    [absences, hr?.sickFollowUps, today, employees, windowStart],
+    () => sickFollowUpRows(absences || [], hr?.sickFollowUps || [], { today, employees, windowStart })
+      .filter((row) => !hiredIds.has(row.employeeId)),
+    [absences, hr?.sickFollowUps, today, employees, windowStart, hiredIds],
   );
   const allSickRows = useMemo(
-    () => sickFollowUpRows(absences || [], hr?.sickFollowUps || [], { today, employees, all: true, windowStart }),
-    [absences, hr?.sickFollowUps, today, employees, windowStart],
+    () => sickFollowUpRows(absences || [], hr?.sickFollowUps || [], { today, employees, all: true, windowStart })
+      .filter((row) => !hiredIds.has(row.employeeId)),
+    [absences, hr?.sickFollowUps, today, employees, windowStart, hiredIds],
   );
 
   const stateRef = useRef({});

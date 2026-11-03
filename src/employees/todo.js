@@ -7,6 +7,7 @@
  * Ren modul – testes uten Firebase.
  */
 import { hmsCardStatus } from '../hr/hmsCard.js';
+import { hrKindBucket } from '../hr/directory.js';
 
 function text(value) {
   return String(value ?? '').trim();
@@ -41,7 +42,8 @@ export function employeeTodos({ employee = null, docs = [], hms = null, hrTasks 
       target: 'documents',
     });
   }
-  if (employee) {
+  // Pårørende følges opp for egne ansatte. Innleide og eksterne har det hos sin arbeidsgiver.
+  if (employee && hrKindBucket(employee) !== 'external') {
     const missing = kinIsMissing(employee);
     out.push({
       id: 'kin',

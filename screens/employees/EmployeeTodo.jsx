@@ -51,8 +51,10 @@ export default function EmployeeTodo({
   }, [companyId, employeeId]);
 
   const docs = useMemo(
-    () => documentsForEmployee(dc.controls, { acks: dc.acks, filled, uid: employee?.personUid || '', employeeId }),
-    [dc.controls, dc.acks, filled, employee?.personUid, employeeId],
+    () => documentsForEmployee(dc.controls, {
+      acks: dc.acks, filled, uid: employee?.personUid || '', employeeId, employee,
+    }),
+    [dc.controls, dc.acks, filled, employee, employeeId],
   );
   const card = useMemo(
     () => mergeHmsCards(slice?.hmsCards || [], ownCard ? [ownCard] : []).find((row) => row.employeeId === employeeId) || null,

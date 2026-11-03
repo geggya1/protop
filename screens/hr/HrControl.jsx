@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import { displayName } from '../../src/employees/model';
 import { hrControlCells } from '../../src/hr/directory';
+import { filterHrEmployees } from '../../src/hr/model';
 import { HrCard, HrSectionTitle } from './HrShared';
 import { HrFilterBar, HrTable, useHrDirectory } from './HrDirectory';
 import HrHmsCards from './HrHmsCards';
@@ -115,7 +116,9 @@ export default function HrControl({
         />
       </HrCard>
       {page === 'compliance' ? (
-        <HrHmsCards colors={colors} employees={rows.map((row) => row.employee)} hr={hr} entries={entries} company={company} canWrite={canWrite} onPatch={onPatch} />
+        // HMS-kort gjelder alle som arbeider på byggeplassen, også innleide og eksterne.
+        // Derfor hele personalet her, ikke bare radene i sjekklisten over (egne ansatte og søket).
+        <HrHmsCards colors={colors} employees={filterHrEmployees(employees, 'all')} hr={hr} entries={entries} company={company} canWrite={canWrite} onPatch={onPatch} />
       ) : null}
       {page === 'compliance' && familyId ? <ControlMeasuresCard colors={colors} familyId={familyId} canWrite={canWrite} /> : null}
       {page === 'compliance' && canSeeAccessLog && familyId ? <HrAccessLog colors={colors} familyId={familyId} /> : null}

@@ -6,6 +6,7 @@ import { filledLine } from '../../src/forms/filledDocs';
 import { loadFilledDocs, peekFilledDocs } from '../../src/forms/filledStore';
 import { displayName } from '../../src/employees/model';
 import { filterHrEmployees, formatNbDate, normalizeCase, normalizeReview } from '../../src/hr/model';
+import { hrKindBucket, hrKindLabel } from '../../src/hr/directory';
 import { casesFromReviewDoc, isReviewDoc, reviewDocsToSync, syncReviewRows } from '../../src/hr/reviewForms';
 import { controlStatus } from '../../src/doccontrol/model';
 import { templateControlKey } from '../../src/doccontrol/templates';
@@ -17,6 +18,9 @@ import { StatusChip } from '../doccontrol/parts';
 import { HrButton, HrCard, HrSectionTitle } from './HrShared';
 
 const HR_ENTRIES = KS_LIBRARY.filter((row) => row.kind === 'mal' && row.hr);
+// Skjema som også kan gjelde innleide og eksterne. Resten (medarbeidersamtale, nyansatt,
+// oppfølgingsplan ved sykefravær, personverninformasjon til ansatte) er arbeidsgivers skjema for egne ansatte.
+const HIRED_FORMS = new Set(['taushetserklaering']);
 const NO_EMPLOYEE = '__uten__';
 
 function dateText(value) {
@@ -146,7 +150,15 @@ export default function HrForms({
                   <View style={{ gap: 6 }}>
                     <Text style={{ color: colors.ink, fontSize: 13 }}>Hvem gjelder skjemaet?</Text>
                     <OptionPicker
-                      options={[...people.map((employee) => ({ id: employee.id, label: displayName(employee) })), { id: NO_EMPLOYEE, label: 'Uten ansatt' }]}
+                      options={[
+                        ...people
+                          .filter((employee) => HIRED_FORMS.has(entry.key) || hrKindBucket(employee) !== 'external')
+                          .map((employee) => ({
+                            id: employee.id,
+                            label: hrKindBucket(employee) === 'external' ? `${displayName(employee)} · ${hrKindLabel(employee)}` : displayName(employee),
+                          })),
+                        { id: NO_EMPLOYEE, label: 'Uten ansatt' },
+                      ]}
                       value=""
                       onChange={(id) => { if (id) start(entry.key, id === NO_EMPLOYEE ? null : people.find((row) => row.id === id) || null); }}
                       clearable={false}

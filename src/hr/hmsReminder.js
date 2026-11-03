@@ -8,6 +8,7 @@
  */
 import { isParentTaskOpen } from '../utils/parentTasks.js';
 import { hmsCardFor, hmsCardStatus } from './hmsCard.js';
+import { hrKindBucket } from './directory.js';
 
 export const HMS_SOURCE = 'hr-hms-card';
 
@@ -33,9 +34,14 @@ export function hmsTaskId(employeeId) {
 export function hmsRenewalTask(employee, card, { uid = '', today = '' } = {}) {
   const expired = hmsCardStatus(card, today).id === 'expired';
   const name = personName(employee);
+  const when = `HMS-kort ${text(card?.number)} ${expired ? 'gikk ut' : 'går ut'} ${nbDate(card?.validTo)}.`;
+  // Innleide og eksterne får kortet fra sin egen arbeidsgiver, og registreres under Innleid personell.
+  const hired = hrKindBucket(employee) === 'external';
   return {
     title: `Forny HMS-kortet til ${name}`,
-    description: `HMS-kort ${text(card?.number)} ${expired ? 'gikk ut' : 'går ut'} ${nbDate(card?.validTo)}. Bestill nytt kort på hmskort.no. Skann eller registrer det nye kortet i HR → Personell → ${name} → Lovpålagt. Oppgaven lukkes når det nye kortet er registrert.`,
+    description: hired
+      ? `${when} Be arbeidsgiveren til ${name} (bemanningsforetaket eller leverandøren) om nytt kort. Skann eller registrer det nye kortet i HR → Innleid personell → ${name} → Krav. Uten gyldig kort kan personen ikke arbeide på byggeplassen. Oppgaven lukkes når det nye kortet er registrert.`
+      : `${when} Bestill nytt kort på hmskort.no. Skann eller registrer det nye kortet i HR → Personell → ${name} → Lovpålagt. Oppgaven lukkes når det nye kortet er registrert.`,
     deadline: text(card?.validTo),
     deadlineTime: null,
     participants: [],

@@ -21,7 +21,9 @@ import EmployeeSurveyCard from './EmployeeSurveyCard';
 import EmployeeReviewCard from './EmployeeReviewCard';
 import { useOptionalApp } from '../../src/context/AppContext';
 
-export default function EmployeeHrSelfService({ colors, companyId, employeeId, showDocuments = true }) {
+export default function EmployeeHrSelfService({
+  colors, companyId, employeeId, showDocuments = true, showSurvey = true,
+}) {
   const [slice, setSlice] = useState(null);
   const uid = useOptionalApp()?.uid || '';
 
@@ -64,8 +66,8 @@ export default function EmployeeHrSelfService({ colors, companyId, employeeId, s
       <EmployeeReviewCard colors={colors} companyId={companyId} uid={uid} />
       {/* Dokumentene står under Gjøremål når personen har en ansattpost i bedriften. */}
       {showDocuments ? <MyDocuments colors={colors} employeeId={employeeId} /> : null}
-      {/* Åpen medarbeiderundersøkelse: svaret lagres anonymt. */}
-      <EmployeeSurveyCard colors={colors} companyId={companyId} uid={uid} />
+      {/* Åpen medarbeiderundersøkelse: svaret lagres anonymt. Bare for egne ansatte. */}
+      {showSurvey ? <EmployeeSurveyCard colors={colors} companyId={companyId} uid={uid} /> : null}
       <HrCard colors={colors}>
         <HrSectionTitle
           colors={colors}

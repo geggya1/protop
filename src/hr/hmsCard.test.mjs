@@ -188,4 +188,27 @@ assert.equal(hmsCardFor('', cards), null);
   assert.deepEqual(slice.compliance.map((row) => row.status), ['na'], 'bare HMS-punktet');
 }
 
+{
+  // Oversiktslisten: innleide står med arbeidsgiveren fra kortet, ikke med dere.
+  const rows = siteOverviewRows({
+    entries: [{ employeeId: 'i1', projectId: 'p1', projectNumber: '1', date: '2026-10-26', hours: 7.5, employeeName: 'Ina' }],
+    employees: [{ id: 'i1', person: { firstName: 'Ina' } }],
+    cards: [{ employeeId: 'i1', number: 'HMS 9', validTo: '2027-01-01', employerName: 'Bemanning AS', employerOrgnr: '999888777' }],
+    employer: { name: 'Consult1 AS', orgnr: '916538804' },
+    externalIds: ['i1'],
+  });
+  assert.equal(rows[0].employer, 'Bemanning AS');
+  assert.equal(rows[0].employerOrgnr, '999888777');
+  const noCard = siteOverviewRows({
+    entries: [{ employeeId: 'i1', projectId: 'p1', date: '2026-10-26', hours: 2 }],
+    employees: [{ id: 'i1', person: { firstName: 'Ina' } }],
+    employer: { name: 'Consult1 AS', orgnr: '916538804' },
+    externalIds: ['i1'],
+  });
+  assert.equal(noCard[0].employer, '', 'ikke deres navn på en innleid uten kort');
+  // «Ikke aktuelt» for en innleid følger med til Min side.
+  const slice = employeeVisibleSlice({ compliance: [{ id: 'x', catalogId: 'inn_hms_card', employeeId: 'i1', status: 'na' }] }, 'i1');
+  assert.deepEqual(slice.compliance.map((row) => row.status), ['na']);
+}
+
 console.log('hmsCard.test.mjs: ok');

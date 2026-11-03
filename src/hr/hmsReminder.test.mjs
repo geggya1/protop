@@ -42,4 +42,13 @@ const today = '2026-10-30';
   assert.match(hmsRenewalTask(ada, { number: 'HMS 1', validTo: '2026-10-01' }, { today }).description, /gikk ut 01\.10\.2026/);
 }
 
+{
+  // Innleide: arbeidsgiveren deres bestiller kortet, og det registreres under Innleid personell.
+  const ina = { id: 'i1', person: { firstName: 'Ina', lastName: 'Innleid' }, company: { personnelKind: 'innleid' } };
+  const text = hmsRenewalTask(ina, { number: 'HMS 9', validTo: '2026-10-01' }, { today: '2026-10-20' }).description;
+  assert.match(text, /Innleid personell → Ina Innleid → Krav/);
+  assert.match(text, /bemanningsforetaket eller leverandøren/);
+  assert.equal(text.includes('hmskort.no'), false);
+}
+
 console.log('hmsReminder.test.mjs: ok');

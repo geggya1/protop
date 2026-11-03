@@ -13,6 +13,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { randomInt } from 'node:crypto';
 import { SURVEY_MIN_ANSWERS } from '../src/hr/survey.js';
 import { companyRecipients } from '../src/notifications/audience.js';
+import { hrKindBucket } from '../src/hr/directory.js';
 import { assertCompanyAccess, assertRateLimit, hashRateKey, requireAuth } from './security.js';
 
 if (!getApps().length) initializeApp();
@@ -139,7 +140,15 @@ export async function notifySurvey(store, {
   const family = famSnap.exists ? famSnap.data() || {} : {};
   const employees = (await store.collection(`families/${familyId}/employees`).get())
     .docs.map((row) => ({ id: row.id, ...row.data() }));
-  const uids = companyRecipients({ family, employees, type: 'hrSurvey' });
+  // Undersøkelsen gjelder egne ansatte. Innleide og eksterne med innlogging får ikke varsel.
+  const hiredUids = new Set(employees
+    .filter((row) => row.personUid && hrKindBucket(row) === 'external')
+    .map((row) => row.personUid));
+  const ownUids = new Set(employees
+    .filter((row) => row.personUid && hrKindBucket(row) !== 'external')
+    .map((row) => row.personUid));
+  const uids = companyRecipients({ family, employees, type: 'hrSurvey' })
+    .filter((uid) => !hiredUids.has(uid) || ownUids.has(uid));
   const answers = store.collection(`families/${familyId}/hrSurveyAnswers`);
   const answered = await Promise.all(uids.map(async (uid) => (await answers.doc(`${surveyId}_${uid}`).get()).exists));
   const targets = uids.filter((_, i) => !answered[i]);

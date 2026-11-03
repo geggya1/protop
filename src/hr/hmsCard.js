@@ -255,8 +255,11 @@ export function siteOverviewRows({
   from = '',
   to = '',
   projectId = '',
+  // Innleide og eksterne: arbeidsgiveren er bemanningsforetaket eller leverandøren, ikke dere.
+  externalIds = [],
 } = {}) {
   const byId = new Map((employees || []).map((row) => [text(row?.id, 120), row]));
+  const hired = new Set((externalIds || []).map((id) => text(id, 120)));
   const groups = new Map();
   for (const entry of entries || []) {
     const date = isoDate(entry?.date);
@@ -282,14 +285,15 @@ export function siteOverviewRows({
     const employee = byId.get(row.employeeId);
     const card = hmsCardFor(row.employeeId, cards);
     const state = hmsCardStatus(card, row.date);
+    const external = hired.has(row.employeeId);
     return {
       date: row.date,
       projectNumber: row.projectNumber,
       projectName: row.projectName,
       name: personName(employee) || row.employeeName,
       birthDate: isoDate(employee?.person?.birthDate),
-      employer: text(employer.name),
-      employerOrgnr: card?.employerOrgnr || orgnr,
+      employer: card?.employerName || (external ? '' : text(employer.name)),
+      employerOrgnr: card?.employerOrgnr || (external ? '' : orgnr),
       hmsCardNumber: card?.number || '',
       hmsValidTo: card?.validTo || '',
       hmsStatus: state.id,

@@ -12,7 +12,9 @@
  * dokumentet er bekreftet eller signert.
  */
 import { isParentTaskOpen } from '../utils/parentTasks.js';
-import { employeeName, isPublished, latestAck, publishedRevision } from './model.js';
+import {
+  audienceIncludes, employeeName, forAudience, isPublished, latestAck, publishedRevision,
+} from './model.js';
 
 export const DOC_TASK_SOURCE = 'doc-read';
 /** Så mange dager etter tiltredelse regnes personen som nyansatt. */
@@ -122,7 +124,8 @@ export function docTaskPlan(employees, controls, tasks, { acks = [], filled = []
   for (const control of required) {
     const revision = publishedRevision(control).revision;
     const fresh = isNewRevision(control, now);
-    for (const employee of people) {
+    // Bare dem dokumentet gjelder: egne ansatte, og innleide når dokumentet gjelder alle.
+    for (const employee of forAudience(control, people)) {
       if (!employee?.id || !employeeUid(employee)) continue;
       if (docDone(control, employee, { acks, filled })) continue;
       const task = byId.get(docTaskId(control.id, employee.id));
@@ -136,7 +139,7 @@ export function docTaskPlan(employees, controls, tasks, { acks = [], filled = []
     // Bare når personen er funnet. En liste som ikke er ferdig lastet skal ikke lukke oppgaver.
     const employee = people.find((row) => row.id === task.employeeId);
     if (!employee) continue;
-    if (!control || docDone(control, employee, { acks, filled })) close.push(task);
+    if (!control || !audienceIncludes(control, employee) || docDone(control, employee, { acks, filled })) close.push(task);
   }
   return { create, close };
 }

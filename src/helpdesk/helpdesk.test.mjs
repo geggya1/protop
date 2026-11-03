@@ -180,15 +180,19 @@ test('makroer', () => {
 test('lenker fra e-post åpner riktig sted', async () => {
   const src = readFileSync(new URL('../navigation/linking.js', import.meta.url), 'utf8');
   assert.match(src, /helpCenterLinkIntent/);
-  assert.match(src, /helpdesk\\\/sak/);
+  // /helpdesk/sak/:id tolkes i shellLink.js (se shellLink.test.mjs) og åpner saken i skallet.
+  assert.match(src, /helpdeskLinkTarget\(path\)/);
+  assert.match(src, /helpdeskShellOpen\(/);
   const app = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8');
   assert.match(app, /name="Helpdesk"/);
   assert.match(app, /installDiagnostics\(\)/);
   const more = readFileSync(new URL('../../screens/v2/MoreHubScreen.jsx', import.meta.url), 'utf8');
   assert.match(more, /help: HelpCenterScreen/);
+  assert.match(more, /helpdesk: HelpdeskPortalScreen/);
   const sw = readFileSync(new URL('../../components/PlatformSwitch.jsx', import.meta.url), 'utf8');
   assert.match(sw, /label="Helpdesk"/);
-  assert.match(sw, /navigate\('Helpdesk'\)/);
+  // Bryteren åpner Helpdesk i ProTop-skallet (samme topplinje og meny), ikke en egen side.
+  assert.match(sw, /openShell: helpdeskShellOpen\(\)/);
 });
 
 test('ingen forslag for innholdsløse titler, og admin-temaer er merket', () => {

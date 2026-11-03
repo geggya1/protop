@@ -1253,6 +1253,7 @@ function AppShellInner() {
               onLogoHome={goHome}
               meta={heroCompact && isPhone ? navTrailParentText(tab, moreSubView) : ''}
               titleInPage={titleInContent}
+              helpdeskActive={tab === 'more' && moreSubView === 'helpdesk'}
               hero={shellPageHero || (headerHeroId ? (
                 <ModuleHero moduleId={headerHeroId} flush chrome />
               ) : null)}

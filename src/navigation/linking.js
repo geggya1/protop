@@ -15,6 +15,7 @@ import { homePathForLinking, shellLinkState } from './shellPaths';
 import { legacyNewNoteState, legacyRegisterInvitedState } from './legacyPaths.js';
 import { parseFriendInviteFromPath, registerFriendInviteParams } from './friendInviteLinks.js';
 import { guardFamilyProductState } from './familyProduct.js';
+import { helpdeskLinkTarget, helpdeskShellOpen } from '../helpdesk/shellLink.js';
 
 export { isAuthEntryPath, AUTH_ENTRY_PATHS } from './authEntryPaths';
 
@@ -247,10 +248,14 @@ export const linking = {
     if (surveyAnswer?.[1]) {
       return { routes: [{ name: 'SurveyAnswer', params: { token: surveyAnswer[1] } }] };
     }
-    // Helpdesk-portalen: /helpdesk/sak/:id åpner saken.
-    const helpdeskTicket = String(path || '').match(/^\/?helpdesk\/sak\/([^/?#]+)/i);
-    if (helpdeskTicket?.[1]) {
-      return { routes: [{ name: 'Helpdesk', params: { ticketId: decodeURIComponent(helpdeskTicket[1]) } }] };
+    // Helpdesk-portalen: /helpdesk og /helpdesk/sak/:id. Innlogget åpnes den i skallet
+    // (samme topplinje, meny og rammeverk som resten av ProTop); ellers innloggingen.
+    const helpdeskLink = helpdeskLinkTarget(path);
+    if (helpdeskLink && linkingSignedIn) {
+      return { routes: [{ name: 'Home', params: { openShell: helpdeskShellOpen(helpdeskLink.ticketId) } }] };
+    }
+    if (helpdeskLink?.ticketId) {
+      return { routes: [{ name: 'Helpdesk', params: { ticketId: helpdeskLink.ticketId } }] };
     }
     // Hjelpesenteret: /hjelp, /hjelp/ny, /hjelp/saker, /hjelp/sak/:id, /hjelp/artikkel/:id (lenker i e-post).
     const help = helpCenterLinkIntent(path);

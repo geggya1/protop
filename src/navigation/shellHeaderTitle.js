@@ -51,6 +51,7 @@ export function moreSubviewTitleMap(t) {
     legal: t('more.legal'),
     subscription: t('group.subscription'),
     help: t('help.title'),
+    helpdesk: 'Helpdesk',
   };
 }
 

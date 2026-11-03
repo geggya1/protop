@@ -45,6 +45,7 @@ export const PAGE_ACCESS = {
   ansatte: { res: 'employees', steps: [R, R, W, S] },
   'hr.oversikt': { res: 'hr', steps: [S, S, S, S, R, S, S] },
   'hr.personell': { res: 'hrPeople', steps: [S, S] },
+  'hr.innleid': { res: 'hrPeople', steps: [S, R, R] },
   'hr.avtaler': { res: 'hrAgreements', steps: [S, R, R] },
   'hr.lonn': { res: 'hrPayroll', steps: [S, R] },
   'hr.oppfolging': { res: 'hrFollowup', steps: [S, R, R, R, R, R] },

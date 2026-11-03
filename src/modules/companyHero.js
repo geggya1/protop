@@ -61,6 +61,16 @@ export const COMPANY_HERO = {
       'Hire date, anniversary, birthday and contracts.',
     ),
   },
+  'hr-innleid': {
+    wideArt: true,
+    name: 'Innleid personell',
+    kicker: t('HR · Innleide', 'HR · Hired-in'),
+    title: t('Innleid og eksternt personell', 'Hired-in and external staff'),
+    pitch: t(
+      'Det dere som innleier skal ha kontroll på, atskilt fra egne ansatte.',
+      'What you as the hiring company must keep track of, kept apart from your own staff.',
+    ),
+  },
   'hr-avtaler': {
     wideArt: true,
     name: 'Avtaler',

@@ -778,6 +778,7 @@ export function hrResourceForSubView(subView) {
   const map = {
     oversikt: 'hr',
     personell: 'hrPeople',
+    innleid: 'hrPeople',
     avtaler: 'hrAgreements',
     lonn: 'hrPayroll',
     oppfolging: 'hrFollowup',
@@ -1179,6 +1180,7 @@ const NAV_RESOURCE = {
   hr: 'hr',
   'hr-oversikt': 'hr',
   'hr-personell': 'hrPeople',
+  'hr-innleid': 'hrPeople',
   'hr-avtaler': 'hrAgreements',
   'hr-lonn': 'hrPayroll',
   'hr-oppfolging': 'hrFollowup',

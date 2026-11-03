@@ -193,6 +193,8 @@ export const INNTJENING_NAV = { id: 'inntjening', icon: 'analytics', label: 'Inn
 export const HR_GROUPS = [
   { id: 'oversikt', label: 'Oversikt' },
   { id: 'ansatte', label: 'Ansatte' },
+  // Innleide og eksterne er ikke egne ansatte, og følges opp for seg (src/hr/hired.js).
+  { id: 'innleide', label: 'Innleide' },
   { id: 'oppfolging', label: 'Oppfølging' },
   { id: 'rekruttering', label: 'Rekruttering' },
   { id: 'rutiner', label: 'Rutiner' },
@@ -204,6 +206,7 @@ export const HR_MENU = [
   { id: 'avtaler', icon: 'document-text', label: 'Avtaler', group: 'ansatte' },
   { id: 'lonn', icon: 'cash', label: 'Lønn', group: 'ansatte' },
   { id: 'compliance', icon: 'shield-checkmark', label: 'Lovpålagt', group: 'ansatte' },
+  { id: 'innleid', icon: 'swap-horizontal', label: 'Innleid personell', group: 'innleide' },
   { id: 'oppfolging', icon: 'flag', label: 'Samtaler og saker', group: 'oppfolging' },
   { id: 'sykefravaer', icon: 'medkit', label: 'Sykefravær', group: 'oppfolging' },
   { id: 'undersokelse', icon: 'stats-chart', label: 'Medarbeiderundersøkelse', group: 'oppfolging' },

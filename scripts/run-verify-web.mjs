@@ -155,6 +155,7 @@ export const FILES = [
   'src/project/timeline.test.mjs',
   'src/project/timelineBoard.test.mjs',
   'src/hr/compliance.test.mjs',
+  'src/hr/hired.test.mjs',
   'src/hr/hmsCard.test.mjs',
   'src/hr/payGap.test.mjs',
   'src/hr/contractOcr.test.mjs',

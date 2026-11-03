@@ -63,7 +63,7 @@ function milestoneCase(row, employeeName) {
 
 export default function HrDashboard({
   colors, employees, hr, canWrite, onPatch,
-  onOpenPeople, onOpenEmployee, onOpenFollowUp, onOpenCase, onOpenRecruitment, onOpenProductivity,
+  onOpenPeople, onOpenEmployee, onOpenFollowUp, onOpenHired, onOpenCase, onOpenRecruitment, onOpenProductivity,
   onOpenCompliance, onOpenContracts, onNewJob, onOpenJob,
   familyId, ownCompany, assigneeUid, assigneeName, onCreateFollowUpTask, kin = null,
 }) {
@@ -393,7 +393,7 @@ export default function HrDashboard({
             external={dash.external}
             inactive={inactive}
             onOpenPerson={openPerson}
-            onOpenFollowUp={onOpenFollowUp}
+            onOpenFollowUp={onOpenHired || onOpenFollowUp}
           />
         </>
       ) : null}
@@ -860,7 +860,7 @@ function ExternalCard({
         <View style={styles.flexText}>
           <Text style={[styles.extTitle, { color: colors.ink }]}>{inactive ? 'Deaktiverte eksterne' : 'Aktive eksterne'}</Text>
           <Text style={[styles.rowSub, { color: colors.muted }]}>
-            Saker, oppgaver og avtaleslutt. Lønn, Lovpålagt og pårørende gjelder egne ansatte.
+            Følges opp under Innleid personell: lovkrav for innleie, saker og oppgaver. Lønn, avtaler og samtaler gjelder egne ansatte.
           </Text>
         </View>
         {onOpenFollowUp ? (

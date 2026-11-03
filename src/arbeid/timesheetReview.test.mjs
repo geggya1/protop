@@ -79,3 +79,44 @@ import {
 }
 
 console.log('timesheetReview.test.mjs: ok');
+
+// Arbeidstidsgrenser (aml §§ 10-4, 10-6, 10-8).
+{
+  const { workingTimeFindings, statutoryOvertime } = await import('./timesheetReview.js');
+  const e = (id, date, hours, extra = {}) => ({ id, date, hours, description: 'Montering av vegg', ...extra });
+  assert.equal(statutoryOvertime({ a: 10, b: 10, c: 8 }), 2);
+  assert.equal(statutoryOvertime({ a: 9, b: 9, c: 9, d: 9, e: 9 }), 5);
+
+  const long = workingTimeFindings([e('a', '2026-03-02', 14)]);
+  assert.ok(long.some((f) => /13 timer per døgn/.test(f.message)));
+  assert.ok(long.every((f) => f.severity === 'warn' && f.kind === 'arbeidstid'));
+
+  // 5 x 11 t = 55 t: over 48 t og 15 t overtid.
+  const week = ['02', '03', '04', '05', '06'].map((d, i) => e(`w${i}`, `2026-03-${d}`, 11));
+  const wf = workingTimeFindings(week);
+  assert.ok(wf.some((f) => /48 timer/.test(f.message)));
+  assert.ok(wf.some((f) => /15 timer overtid/.test(f.message)));
+  assert.equal(workingTimeFindings(week, { tariff: true }).some((f) => /overtid etter loven/.test(f.message)), false);
+
+  // Hvile: ut 23:00, inn 07:00 = 8 t.
+  const rest = workingTimeFindings([
+    e('r1', '2026-03-02', 8, { clockIn: '15:00', clockOut: '23:00' }),
+    e('r2', '2026-03-03', 8, { clockIn: '07:00', clockOut: '15:00' }),
+  ]);
+  assert.ok(rest.some((f) => /Bare 8 timer hvile/.test(f.message)));
+
+  // Fire uker med 7 t overtid hver (5 x 9,4 t) = 28 t > 25 t, men bare med historikk.
+  const weekOf = (monday, tag) => [0, 1, 2, 3, 4].map((i) => {
+    const date = new Date(Date.UTC(...monday.split('-').map((v, k) => (k === 1 ? Number(v) - 1 : Number(v)))) + i * 86400000).toISOString().slice(0, 10);
+    return e(`${tag}${i}`, date, 9.4);
+  });
+  const history = [...weekOf('2026-02-09', 'a'), ...weekOf('2026-02-16', 'b'), ...weekOf('2026-02-23', 'c')];
+  const now = weekOf('2026-03-02', 'n');
+  assert.equal(workingTimeFindings(now).some((f) => /overtid/.test(f.message)), false);
+  const four = workingTimeFindings(now, { history });
+  assert.ok(four.some((f) => /28 timer overtid de siste fire ukene/.test(f.message)));
+
+  // Vanlig uke gir ingen varsler.
+  assert.deepEqual(workingTimeFindings(['02', '03', '04', '05', '06'].map((d, i) => e(`ok${i}`, `2026-03-${d}`, 7.5))), []);
+  console.log('workingTime ok');
+}

@@ -371,19 +371,43 @@ export function vacationUsage(absences, employeeId, year, today, dayHours = 8) {
   let taken = 0;
   let planned = 0;
   let main = 0;
+  let sickDuring = 0;
   const mainFrom = `${y}-06-01`;
   const mainTo = `${y}-09-30`;
+  // Ferieloven § 9 (1): sykmeldt i ferien gir rett til å få dagene igjen senere i ferieåret.
+  const sickDates = new Set((absences || [])
+    .filter((row) => row && text(row.employeeId) === id && SICK_NOTE_TYPES.has(text(row.type)))
+    .map((row) => text(row.date).slice(0, 10)));
   for (const row of absences || []) {
     if (!row || text(row.employeeId) !== id) continue;
     if ((row.type || 'ferie') !== 'ferie') continue;
     const date = text(row.date).slice(0, 10);
     if (!date.startsWith(y)) continue;
+    if (sickDates.has(date)) {
+      sickDuring = round2(sickDuring + round2((Number(row.hours) || 0) / day));
+      continue;
+    }
     const days = round2((Number(row.hours) || 0) / day);
     if (today && date > today) planned = round2(planned + days);
     else taken = round2(taken + days);
     if (date >= mainFrom && date <= mainTo) main = round2(main + days);
   }
-  return { taken, planned, registered: round2(taken + planned), main };
+  return { taken, planned, registered: round2(taken + planned), main, sickDuring };
+}
+
+/** Fraværstyper med legeerklæring (sykmelding). Egenmelding gir ikke rett etter § 9. */
+const SICK_NOTE_TYPES = new Set(['syk_melding', 'sykdom']);
+
+/**
+ * Ferieloven § 6 (2): arbeidstaker kan kreve beskjed om ferien senest to måneder før den starter.
+ * Med planfrist etter 1. april rekker arbeidsgiver ikke det for ferie fra 1. juni.
+ */
+export function vacationNoticeWarning(planInput) {
+  const plan = normalizeVacationPlan(planInput);
+  if (!plan.planDeadline || !plan.year) return '';
+  const latest = `${plan.year}-04-01`;
+  if (plan.planDeadline <= latest) return '';
+  return 'Ansatte kan kreve å få vite når ferien er senest to måneder før den starter (ferieloven § 6 (2)). Med denne fristen rekker dere ikke det for ferie i juni.';
 }
 
 export function planningWindow(planInput, today) {

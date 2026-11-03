@@ -7,6 +7,7 @@ import { HrFilterBar, HrTable, useHrDirectory } from './HrDirectory';
 import HrHmsCards from './HrHmsCards';
 import HrPayGap from './HrPayGap';
 import HrAccessLog from './HrAccessLog';
+import ControlMeasuresCard from './ControlMeasuresCard';
 
 const PAGES = {
   avtaler: {
@@ -174,6 +175,7 @@ export default function HrControl({
       {page === 'compliance' ? (
         <HrHmsCards colors={colors} employees={rows.map((row) => row.employee)} hr={hr} entries={entries} company={company} canWrite={canWrite} onPatch={onPatch} />
       ) : null}
+      {page === 'compliance' && familyId ? <ControlMeasuresCard colors={colors} familyId={familyId} canWrite={canWrite} /> : null}
       {page === 'compliance' && canSeeAccessLog && familyId ? <HrAccessLog colors={colors} familyId={familyId} /> : null}
       {page === 'lonn' ? <HrPayGap colors={colors} employees={rows.map((row) => row.employee)} hr={hr} /> : null}
     </View>

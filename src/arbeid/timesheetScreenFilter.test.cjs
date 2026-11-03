@@ -173,6 +173,9 @@ function loadJsx(rel) {
       };
     }
     if (id.includes('absenceStorage')) return { loadAbsences: async () => [] };
+    if (id.includes('useSickLeave')) {
+      return { useSickLeave: () => ({ rules: { requireForm: false }, cases: [], denials: [], save: async (row) => row }) };
+    }
     if (id.includes('timesheetPrefsStorage')) {
       return {
         peekTimesheetPrefs: () => prefsForTest,
@@ -196,6 +199,7 @@ function loadJsx(rel) {
       || id.includes('MonthJump')
       || id.includes('TimesheetEmployeePicker')
       || id.includes('AbsenceTypeModal')
+      || id.includes('SickNoteModal')
       || id.includes('TimesheetSideForm')
       || id.includes('ScrollSheet')
       || id.includes('BillingChainLine')

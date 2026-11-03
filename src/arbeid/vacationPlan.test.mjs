@@ -319,3 +319,21 @@ const young = {
 }
 
 console.log('vacationPlan.test.mjs: ok');
+
+// Ferieloven § 9 og § 6 (2).
+{
+  const { vacationUsage, vacationNoticeWarning } = await import('./vacationPlan.js');
+  const rows = [
+    { employeeId: 'e1', date: '2026-07-06', hours: 8, type: 'ferie' },
+    { employeeId: 'e1', date: '2026-07-07', hours: 8, type: 'ferie' },
+    { employeeId: 'e1', date: '2026-07-07', hours: 8, type: 'syk_melding' },
+    { employeeId: 'e1', date: '2026-07-08', hours: 8, type: 'ferie' },
+    { employeeId: 'e1', date: '2026-07-08', hours: 8, type: 'egenmelding' },
+  ];
+  const usage = vacationUsage(rows, 'e1', 2026, '2026-12-31', 8);
+  assert.equal(usage.taken, 2);
+  assert.equal(usage.sickDuring, 1);
+  assert.equal(vacationNoticeWarning({ year: 2026, planDeadline: '2026-03-15' }), '');
+  assert.match(vacationNoticeWarning({ year: 2026, planDeadline: '2026-05-01' }), /§ 6/);
+  console.log('ferieloven ok');
+}

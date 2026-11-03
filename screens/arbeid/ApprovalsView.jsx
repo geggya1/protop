@@ -100,9 +100,15 @@ export function ApprovalsBody({
     () => (control ? controlEntries(workspace.state, control.lock) : { hours: [], absences: [] }),
     [workspace.state, control],
   );
+  // Tidligere føringer for samme person, så overtid over fire og 52 uker kan sjekkes (aml § 10-6).
+  const history = useMemo(() => {
+    const id = control?.employee?.id;
+    if (!id) return [];
+    return (workspace.state?.timeEntries || []).filter((row) => row.employeeId === id);
+  }, [workspace.state?.timeEntries, control?.employee?.id]);
   const localFindings = useMemo(
-    () => reviewTimesheetEntries(bundle.hours),
-    [bundle.hours],
+    () => reviewTimesheetEntries(bundle.hours, { history }),
+    [bundle.hours, history],
   );
   const scanKey = bundle.hours.map((row) => `${row.id}:${row.hours}:${row.description || ''}`).join('|');
   const findings = useMemo(() => {

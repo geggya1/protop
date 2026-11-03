@@ -1,9 +1,15 @@
 /**
  * Timearter / overtid for timeføring (PowerOffice/Visma-inspirert).
+ *
+ * Merarbeid: deltidsansatte som jobber ut over avtalt tid, men innenfor lovens grense
+ * (9 t / 40 t, aml § 10-4). Etter EU-domstolens Dialyse-dom (C-184/22) utreder regjeringen
+ * om slik tid skal gi tillegg (ekspertfrist 15.12.2026). Egen timeart gjør at timene kan
+ * skilles ut og etterbetales uten å lete i fritekst.
  */
 
 export const TIME_TYPES = [
   { id: 'ordinary', label: 'Ordinær tid', multiplier: 1, account: '5010', billableDefault: true },
+  { id: 'extra_parttime', label: 'Merarbeid (deltid)', multiplier: 1, account: '5010', billableDefault: true },
   { id: 'overtime_50', label: 'Overtid 50 %', multiplier: 1.5, account: '5400', billableDefault: true },
   { id: 'overtime_100', label: 'Overtid 100 %', multiplier: 2, account: '5400', billableDefault: true },
   { id: 'travel', label: 'Reisetid', multiplier: 1, account: '5010', billableDefault: true },

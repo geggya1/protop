@@ -207,12 +207,14 @@ function EmployeePick({ ctx, onPick }) {
 function Queue({ ctx }) {
   const { colors, sick, state, people, byId, catalog, today, busy, canWrite, updateCase } = ctx;
   const [notes, setNotes] = useState({});
+  // Bare egne ansatte. Innleide sender fraværsbeskjed, som vises i Innleie.
+  const own = (c) => { const emp = byId.get(c.employeeId); return !emp || hrKindBucket(emp) !== 'external'; };
   const open = sick.cases
-    .filter((c) => c.status === 'innmeldt' || c.status === 'dokumentasjon')
+    .filter((c) => (c.status === 'innmeldt' || c.status === 'dokumentasjon') && own(c))
     .sort((a, b) => b.fromDate.localeCompare(a.fromDate));
   const missing = useMemo(() => people.flatMap((emp) => missingSickNotes(state.absences || [], sick.cases, emp.id, { catalog, rules: sick.rules, today })
     .map((row) => ({ ...row, name: employeeDisplayName(emp) }))), [people, state.absences, sick.cases, catalog, sick.rules, today]);
-  const handled = sick.cases.filter((c) => c.status === 'godkjent' || c.status === 'avvist')
+  const handled = sick.cases.filter((c) => (c.status === 'godkjent' || c.status === 'avvist') && own(c))
     .sort((a, b) => String(b.handledAt).localeCompare(String(a.handledAt))).slice(0, 10);
   const stamp = () => ({ handledBy: ctx.actor, handledByUid: ctx.uid, handledAt: new Date().toISOString() });
 

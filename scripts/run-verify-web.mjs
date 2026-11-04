@@ -156,6 +156,7 @@ export const FILES = [
   'src/project/timelineBoard.test.mjs',
   'src/hr/compliance.test.mjs',
   'src/hr/hired.test.mjs',
+  'src/innleie/dashboard.test.mjs',
   'src/hr/hmsCard.test.mjs',
   'src/hr/hmsReminder.test.mjs',
   'src/doccontrol/readTasks.test.mjs',

@@ -148,7 +148,7 @@ function idsIn(sections) {
   // Innleie er egen modul ved siden av HR.
   const innleie = companyItems.find((i) => i.id === 'innleie');
   assert.equal(innleie.action.tab, 'innleie');
-  assert.deepEqual(innleie.children.map((i) => i.action.subView), ['oversikt', 'personell']);
+  assert.deepEqual(innleie.children.map((i) => i.action.subView), ['oversikt', 'personell', 'leverandorer', 'timer', 'oppfolging']);
   assert.deepEqual(
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
     ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Vurdering av aktuelle', '3. Tilbud', 'Innstillinger'],
@@ -694,6 +694,7 @@ function collectPresented(items, acc = []) {
     [
       'Bedrift og organisasjon',
       'Ansatte og arbeidstid',
+      'Innleie og eksterne',
       'Kvalitet og styringssystem',
       'Produktivitet og inntjening',
       'Økonomi og fakturering',
@@ -707,7 +708,8 @@ function collectPresented(items, acc = []) {
     presented.filter((item) => item.group).map((item) => item.children.map((child) => child.id)),
     [
       ['selskap', 'underenheter', 'selskapsinnstillinger'],
-      ['ansatte', 'hr', 'innleie', 'fravaer', 'arbeid'],
+      ['ansatte', 'hr', 'fravaer', 'arbeid'],
+      ['innleie'],
       ['iso', 'skjema'],
       ['produktivitet', 'fremdrift', 'okonomi-inntjening'],
       ['okonomi'],
@@ -719,7 +721,7 @@ function collectPresented(items, acc = []) {
   );
   assert.deepEqual(
     presented.filter((item) => item.group).map((item) => item.icon),
-    ['business', 'people', 'shield-checkmark', 'stats-chart', 'wallet', 'cube', 'megaphone', 'briefcase', 'people-circle'],
+    ['business', 'people', 'swap-horizontal', 'shield-checkmark', 'stats-chart', 'wallet', 'cube', 'megaphone', 'briefcase', 'people-circle'],
   );
   const org = presented.find((item) => item.id === 'company-org');
   const people = presented.find((item) => item.id === 'company-people');
@@ -770,7 +772,7 @@ function collectPresented(items, acc = []) {
   ]);
   assert.equal(withExtra.at(-1).id, 'ekstra');
   assert.equal(withExtra.at(-1).label, 'Ekstra');
-  assert.equal(withExtra.filter((item) => item.group).length, 9);
+  assert.equal(withExtra.filter((item) => item.group).length, 10);
 
   const innleie = groupCompanyDrawerItems(filterCompanyNav(source, standardGrants('innleie_ekstern')));
   const innleieIds = innleie.filter((item) => item.group).flatMap((item) => item.children.map((child) => child.id));

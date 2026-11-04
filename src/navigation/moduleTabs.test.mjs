@@ -215,7 +215,7 @@ test('modulmeny: HR har delene som første rad og sidene i delen som andre rad, 
   const inn = moduleTabsFor('innleie', 'personell');
   assert.equal(inn.moduleId, 'innleie');
   assert.equal(inn.activeId, 'innleie-personell');
-  assert.deepEqual(inn.pages.map((p) => p.label), ['Oversikt', 'Personell']);
+  assert.deepEqual(inn.pages.map((p) => p.label), ['Oversikt', 'Personell', 'Leverandørkontroll', 'Timer', 'Oppfølging']);
   assert.equal(moduleTabsFor('innleie', null).activeId, 'innleie-oversikt');
   assert.deepEqual(pagesIn('oppfolging'), ['Samtaler og saker', 'Sykefravær', 'Undersøkelse']);
   assert.deepEqual(pagesIn('rutiner'), ['Årshjul', 'Personalhåndbok', 'Skjemaer']);

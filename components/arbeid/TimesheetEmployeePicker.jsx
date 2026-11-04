@@ -99,13 +99,18 @@ export default function TimesheetEmployeePicker({
   compact = false,
   title = 'Velg medarbeider',
   subtitle = 'Velg hvem du vil føre timer for.',
+  // 'external' eller 'company' viser én gruppe med en bryter mellom dem (Innleie → Timer).
+  // Tom: begge gruppene, som under Ansatte og arbeidstid.
+  scope = '',
+  onScopeChange,
 }) {
   const [companyOpen, setCompanyOpen] = useState(true);
   const [externalOpen, setExternalOpen] = useState(true);
   const [companyTab, setCompanyTab] = useState('active');
   const [externalTab, setExternalTab] = useState('active');
   const { isDesktop, isPhone } = useLayout();
-  const split = !compact && isDesktop;
+  const scoped = scope === 'external' || scope === 'company';
+  const split = !compact && isDesktop && !scoped;
 
   const groups = useMemo(
     () => groupEmployeesForTimesheetPicker(employees, query),
@@ -171,6 +176,30 @@ export default function TimesheetEmployeePicker({
           {subtitle && !isPhone ? <Text style={{ color: colors.muted, fontSize: 13 }}>{subtitle}</Text> : null}
         </View>
       )}
+      {scoped ? (
+        <View nativeID="timesheet-scope" accessibilityRole="tablist" style={[styles.scope, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          {[
+            ['external', 'Eksterne', groups.external.active.length],
+            ['company', 'Interne', groups.company.active.length],
+          ].map(([id, label, count]) => {
+            const on = scope === id;
+            return (
+              <Pressable
+                key={id}
+                nativeID={`timesheet-scope-${id}`}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={`${label}, ${count} aktive`}
+                onPress={() => onScopeChange?.(id)}
+                style={[styles.scopeItem, on && { backgroundColor: colors.brandSoft }]}
+              >
+                <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '600', fontSize: 13 }}>{label}</Text>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>{count}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
       <View dataSet={{ focusWithin: '1' }} style={[styles.search, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Ionicons name="search" size={16} color={colors.muted} />
         <TextInput
@@ -206,6 +235,7 @@ export default function TimesheetEmployeePicker({
           </Text>
         ) : (
           <View style={split ? styles.split : styles.stack}>
+            {scoped && scope !== 'company' ? null : (
             <SectionDrawer
               nativeID="timesheet-pick-section-company"
               title={accessSectionTitle('company', companyName)}
@@ -228,6 +258,8 @@ export default function TimesheetEmployeePicker({
                 companyTab === 'inactive' ? 'Ingen deaktiverte ansatte.' : 'Ingen aktive ansatte.',
               )}
             </SectionDrawer>
+            )}
+            {scoped && scope !== 'external' ? null : (
             <SectionDrawer
               nativeID="timesheet-pick-section-external"
               title={accessSectionTitle('external', companyName)}
@@ -250,6 +282,7 @@ export default function TimesheetEmployeePicker({
                 externalTab === 'inactive' ? 'Ingen deaktiverte eksterne.' : 'Ingen aktive eksterne.',
               )}
             </SectionDrawer>
+            )}
           </View>
         )}
       </ScrollView>
@@ -261,6 +294,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, minHeight: 0, gap: 10 },
   rootCompact: { maxHeight: 420 },
   intro: { gap: 4 },
+  scope: { flexDirection: 'row', alignSelf: 'flex-start', borderWidth: 1, borderRadius: 10, padding: 3, gap: 3 },
+  scopeItem: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 36, paddingHorizontal: 14, borderRadius: 8 },
   title: { fontSize: 20, fontWeight: '700', letterSpacing: -0.2 },
   // Mobil: kort overskrift uten forklaringslinje, så listen kommer høyere opp.
   titlePhone: { fontSize: 17 },

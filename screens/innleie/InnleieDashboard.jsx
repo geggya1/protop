@@ -1,12 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { innleieDashboard } from '../../src/innleie/dashboard';
+import { assignmentTimeline, innleieDashboard } from '../../src/innleie/dashboard';
+import { durationLabel } from '../../src/innleie/followUp';
 import { formatNbDate } from '../../src/hr/model';
+import { displayName } from '../../src/employees/model';
 import { radius, type } from '../../src/ui/tokens';
 import {
-  ACCENT, Avatar, Bar, DashCard, KpiTile, MoreToggle, Pill, SectionLabel, gridItem, gridStyle, tint,
+  ACCENT, Avatar, Bar, DashCard, KpiTile, MoreToggle, Pill, Ring, SectionLabel, gridItem, gridStyle, tint,
 } from '../hr/HrDashParts';
+import { TRIVSEL_LOOK } from './InnleieFollowUp';
 
 function plural(n, one, many) {
   return `${n} ${n === 1 ? one : many}`;
@@ -17,14 +20,23 @@ function period(row) {
   return `${formatNbDate(row.fromDate)}–${formatNbDate(row.toDate)}`;
 }
 
+function year(iso) {
+  return String(iso || '').slice(0, 4);
+}
+
 /**
- * Oversikt over innleide og eksterne: hvor mange, hva som mangler av lovkrav,
- * hvem som er borte, HMS-kort som går ut og innleie som slutter.
+ * Oversikt over innleide og eksterne: hvor mange, hva som mangler av lovkrav, trivsel,
+ * varighet på oppdragene, leverandørene, hvem som er borte, HMS-kort og innleie som slutter.
  */
 export default function InnleieDashboard({
-  colors, employees, hr, notices, onOpenPerson, onOpenPeople,
+  colors, employees, hr, notices, onOpenPerson, onOpenPeople, onOpenFollowUp, onOpenSuppliers,
 }) {
   const dash = useMemo(() => innleieDashboard(employees, hr, { notices }), [employees, hr, notices]);
+  const timeline = useMemo(() => assignmentTimeline(dash.durations), [dash.durations]);
+  const fu = dash.followUp;
+  const sup = dash.suppliers;
+  const maxSupplier = Math.max(1, ...dash.bySupplier.map((row) => row.count));
+  const innleidPct = dash.total ? (dash.innleid / dash.total) * 100 : 0;
   const maxGap = Math.max(1, ...dash.gaps.map((row) => row.count));
   const [showAllGaps, setShowAllGaps] = useState(false);
 
@@ -82,13 +94,104 @@ export default function InnleieDashboard({
         <View style={gridItem(150)}>
           <KpiTile
             colors={colors}
-            icon="card-outline"
-            accent={dash.hms.length ? ACCENT.amber : ACCENT.teal}
-            label="HMS-kort"
-            value={dash.hms.length ? String(dash.hms.length) : 'OK'}
-            hint={dash.hms.length ? 'Utløpt eller går ut innen 30 dager' : 'Ingen kort går ut snart'}
-            nativeID="innleie-kpi-hms"
+            accent={fu.avg && fu.avg < 3 ? ACCENT.amber : ACCENT.green}
+            ringPct={fu.avg ? (fu.avg / 5) * 100 : 0}
+            label="Trivsel"
+            value={fu.avg ? `${String(fu.avg).replace('.', ',')} av 5` : '–'}
+            hint={fu.dueTrivsel.length ? `${plural(fu.dueTrivsel.length, 'person', 'personer')} venter på måling` : (fu.scored ? 'Alle er målt siste 30 dager' : 'Ingen målinger ennå')}
+            onPress={() => onOpenFollowUp?.()}
+            nativeID="innleie-kpi-trivsel"
           />
+        </View>
+      </View>
+
+      <View style={gridStyle(2, 300, 12)}>
+        <View style={gridItem(300)}>
+          <DashCard
+            colors={colors}
+            icon="git-commit-outline"
+            title="Varighet på oppdrag"
+            subtitle="Fra start til i dag. Lys del er avtalt tid som gjenstår. Rød strek er tre år for innleide."
+            badge={dash.tenureWarnings.length || null}
+            badgeAccent={ACCENT.amber}
+            nativeID="innleie-duration"
+          >
+            {timeline.rows.length ? (
+              <View style={styles.timeline}>
+                {timeline.rows.map((row) => (
+                  <Pressable key={row.id} onPress={() => onOpenPerson?.(row.id)} accessibilityRole="button" accessibilityLabel={`${row.name}, ${durationLabel(row.months)}`} style={styles.tlRow}>
+                    <Text numberOfLines={1} style={[styles.tlName, { color: colors.ink }]}>{row.name}</Text>
+                    <View style={[styles.tlTrack, { backgroundColor: tint(ACCENT.slate, 0.08) }]}>
+                      <View style={[styles.tlBar, { left: `${row.left}%`, width: `${row.width}%`, backgroundColor: barColor(row) }]} />
+                      {row.future ? (
+                        <View style={[styles.tlBar, { left: `${row.left + row.width}%`, width: `${row.future}%`, backgroundColor: tint(kindColor(row), 0.3) }]} />
+                      ) : null}
+                      {row.threeYearPct != null ? <View style={[styles.tlMark, { left: `${row.threeYearPct}%`, backgroundColor: ACCENT.red }]} /> : null}
+                      <View style={[styles.tlToday, { left: `${timeline.todayPct}%`, backgroundColor: colors.ink }]} />
+                    </View>
+                    <Text style={[styles.tlMeta, { color: levelColor(row, colors) }]} numberOfLines={1}>
+                      {durationLabel(row.months)}
+                    </Text>
+                  </Pressable>
+                ))}
+                <View style={styles.tlAxis}>
+                  <Text style={[styles.caption, { color: colors.muted }]}>{year(timeline.start)}</Text>
+                  <Text style={[styles.caption, { color: colors.muted }]}>{year(timeline.end)}</Text>
+                </View>
+                {dash.tenureWarnings.length ? (
+                  <View style={[styles.note, { backgroundColor: tint(ACCENT.amber, 0.1) }]}>
+                    <Ionicons name="information-circle-outline" size={18} color={ACCENT.amber} />
+                    <Text style={[styles.caption, { color: colors.ink, flex: 1 }]}>
+                      {`${plural(dash.tenureWarnings.length, 'innleid nærmer', 'innleide nærmer')} seg eller har passert tre år. Etter tre års sammenhengende innleie fra bemanningsforetak har den innleide rett til fast ansettelse hos dere.`}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : (
+              <Empty colors={colors} icon="calendar-outline" text="Ingen har startdato. Legg inn «Fra» i perioden på personen, så vises varigheten her." />
+            )}
+          </DashCard>
+        </View>
+
+        <View style={gridItem(300)}>
+          <DashCard
+            colors={colors}
+            icon="pie-chart-outline"
+            title="Hvem som er her"
+            subtitle="Innleid fra bemanningsforetak og eksterne, og hvilket firma de kommer fra."
+            actionLabel="Leverandører"
+            onAction={onOpenSuppliers}
+            nativeID="innleie-mix"
+          >
+            <View style={styles.mixBar}>
+              {dash.innleid ? <View style={[styles.mixPart, { flex: dash.innleid, backgroundColor: ACCENT.blue }]} /> : null}
+              {dash.ekstern ? <View style={[styles.mixPart, { flex: dash.ekstern, backgroundColor: ACCENT.teal }]} /> : null}
+            </View>
+            <View style={styles.legend}>
+              <Legend colors={colors} color={ACCENT.blue} label={`Innleid ${dash.innleid}`} />
+              <Legend colors={colors} color={ACCENT.teal} label={`Ekstern ${dash.ekstern}`} />
+              <Text style={[styles.caption, { color: colors.muted }]}>{`${Math.round(innleidPct)} % innleid`}</Text>
+            </View>
+            {dash.bySupplier.slice(0, 5).map((row) => (
+              <View key={row.name} style={styles.gap}>
+                <View style={styles.gapHead}>
+                  <Text numberOfLines={1} style={[styles.name, { color: row.linked ? colors.ink : colors.muted, flex: 1 }]}>{row.name}</Text>
+                  <Text style={[styles.count, { color: colors.ink }]}>{row.count}</Text>
+                </View>
+                <Bar ratio={row.count / maxSupplier} accent={row.linked ? ACCENT.violet : ACCENT.slate} height={5} />
+              </View>
+            ))}
+            <Pressable onPress={onOpenSuppliers} accessibilityRole="button" style={[styles.supRow, { borderColor: colors.line }]} nativeID="innleie-supplier-status">
+              <Ring pct={sup.pct} size={40} stroke={5} color={supColor(sup)} label={sup.count ? `${sup.pct}%` : '–'} labelColor={colors.ink} labelSize={10} />
+              <View style={styles.lineText}>
+                <Text style={[styles.name, { color: colors.ink }]}>Leverandørkontroll</Text>
+                <Text style={[styles.caption, { color: colors.muted }]}>
+                  {supText(sup)}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+            </Pressable>
+          </DashCard>
         </View>
       </View>
 
@@ -145,10 +248,29 @@ export default function InnleieDashboard({
         </View>
       </View>
 
-      {dash.hms.length || dash.endingSoon.length ? (
-        <View style={gridStyle(2, 300, 12)}>
+      {dash.hms.length || dash.endingSoon.length || fu.dueTrivsel.length || fu.dueExit.length ? (
+        <View style={gridStyle(3, 280, 12)}>
+          {fu.dueTrivsel.length || fu.dueExit.length ? (
+            <View style={gridItem(280)}>
+              <DashCard colors={colors} icon="happy-outline" title="Oppfølging" subtitle="Trivsel som venter, og avslutninger som ikke er ferdige." actionLabel="Alle" onAction={() => onOpenFollowUp?.()} nativeID="innleie-followup-card">
+                {[...fu.dueExit, ...fu.dueTrivsel].slice(0, 5).map((row) => {
+                  const last = row.trivsel?.score;
+                  return (
+                    <Pressable key={row.employeeId} onPress={() => onOpenFollowUp?.(row.employeeId)} style={styles.line} accessibilityRole="button">
+                      <Ionicons name={last ? TRIVSEL_LOOK[last].icon : 'help-circle-outline'} size={22} color={last ? TRIVSEL_LOOK[last].color : colors.muted} />
+                      <View style={styles.lineText}>
+                        <Text numberOfLines={1} style={[styles.name, { color: colors.ink }]}>{displayName(row.employee)}</Text>
+                        <Text style={[styles.caption, { color: colors.muted }]}>{row.due === 'avslutning' ? `Avslutning ${row.exitProgress.done} av ${row.exitProgress.total}` : (last ? `Sist ${last} av 5` : 'Ikke målt')}</Text>
+                      </View>
+                      <Pill label={row.due === 'avslutning' ? 'Avslutning' : 'Trivsel'} accent={row.due === 'avslutning' ? ACCENT.red : ACCENT.amber} />
+                    </Pressable>
+                  );
+                })}
+              </DashCard>
+            </View>
+          ) : null}
           {dash.hms.length ? (
-            <View style={gridItem(300)}>
+            <View style={gridItem(280)}>
               <DashCard colors={colors} icon="card-outline" title="HMS-kort som går ut" nativeID="innleie-hms">
                 {dash.hms.map((row) => (
                   <Pressable key={row.employeeId} onPress={() => onOpenPerson?.(row.employeeId)} style={styles.line} accessibilityRole="button">
@@ -163,7 +285,7 @@ export default function InnleieDashboard({
             </View>
           ) : null}
           {dash.endingSoon.length ? (
-            <View style={gridItem(300)}>
+            <View style={gridItem(280)}>
               <DashCard colors={colors} icon="hourglass-outline" title="Innleie som slutter" subtitle="Sluttdato de neste 30 dagene." nativeID="innleie-ending">
                 {dash.endingSoon.map((row) => (
                   <Pressable key={row.id} onPress={() => onOpenPerson?.(row.id)} style={styles.line} accessibilityRole="button">
@@ -233,6 +355,42 @@ export function PersonCard({ colors, row, away = false, onPress }) {
   );
 }
 
+function kindColor(row) {
+  return row.kindLabel === 'Innleid' ? ACCENT.blue : ACCENT.teal;
+}
+
+function barColor(row) {
+  if (row.level === 'over') return ACCENT.red;
+  if (row.level === 'watch') return ACCENT.amber;
+  return kindColor(row);
+}
+
+function levelColor(row, colors) {
+  if (row.level === 'over') return ACCENT.red;
+  if (row.level === 'watch') return ACCENT.amber;
+  return colors.muted;
+}
+
+function supColor(sup) {
+  if (sup.withLawGaps) return ACCENT.red;
+  return sup.pct < 100 ? ACCENT.amber : ACCENT.green;
+}
+
+function supText(sup) {
+  if (!sup.count) return 'Ingen leverandører registrert ennå';
+  if (sup.withLawGaps) return `${plural(sup.withLawGaps, 'firma', 'firma')} mangler lovkrav`;
+  return `${plural(sup.count, 'firma', 'firma')}, lovkravene er på plass`;
+}
+
+function Legend({ colors, color, label }) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.dot, { backgroundColor: color }]} />
+      <Text style={[styles.caption, { color: colors.ink }]}>{label}</Text>
+    </View>
+  );
+}
+
 function Empty({ colors, icon, text, accent }) {
   return (
     <View style={[styles.empty, { backgroundColor: tint(accent || ACCENT.slate, 0.07) }]}>
@@ -260,4 +418,20 @@ const styles = StyleSheet.create({
   empty: {
     flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radius.card, padding: 12,
   },
+  timeline: { gap: 6 },
+  tlRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 30 },
+  tlName: { ...type.caption, width: 110 },
+  tlTrack: { flex: 1, height: 12, borderRadius: radius.pill, position: 'relative', overflow: 'hidden' },
+  tlBar: { position: 'absolute', top: 0, bottom: 0, borderRadius: radius.pill },
+  tlMark: { position: 'absolute', top: 0, bottom: 0, width: 2 },
+  tlToday: { position: 'absolute', top: 0, bottom: 0, width: 1, opacity: 0.45 },
+  tlMeta: { ...type.caption, width: 74, textAlign: 'right' },
+  tlAxis: { flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 120, paddingRight: 84 },
+  note: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: radius.card, padding: 10, marginTop: 4 },
+  mixBar: { flexDirection: 'row', height: 14, borderRadius: radius.pill, overflow: 'hidden', gap: 2 },
+  mixPart: { height: 14 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 14 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 10, height: 10, borderRadius: radius.pill },
+  supRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, paddingTop: 10, marginTop: 4 },
 });

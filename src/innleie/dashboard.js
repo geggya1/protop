@@ -9,6 +9,8 @@ import { hrKindBucket, hrKindLabel } from '../hr/directory.js';
 import { HIRED_CATALOG, hiredCells } from '../hr/hired.js';
 import { hmsCardAlerts } from '../hr/hmsCard.js';
 import { employeeHrBucket } from '../hr/model.js';
+import { assignmentDuration, followUpStatus, followUpSummary } from './followUp.js';
+import { suppliersSummary, supplierForEmployee } from './suppliers.js';
 
 function text(value) {
   return String(value ?? '').trim();
@@ -116,6 +118,7 @@ export function innleieDashboard(employees, hr = {}, { notices = [], today = '',
     const cells = hiredCells(employee, kindLabel, hr);
     const end = dayKey(employee?.company?.periodTo);
     const endsIn = end ? daysBetween(now, end) : null;
+    const supplier = supplierForEmployee(hr.suppliers, employee.id);
     return {
       employee,
       id: employee.id,
@@ -126,6 +129,8 @@ export function innleieDashboard(employees, hr = {}, { notices = [], today = '',
       openCases: (hr.cases || []).filter((row) => row.employeeId === employee.id && row.status !== 'closed').length,
       endDate: end,
       endsIn,
+      duration: assignmentDuration(employee, { kindLabel, today: now }),
+      supplierName: supplier?.name || '',
     };
   });
 
@@ -147,6 +152,17 @@ export function innleieDashboard(employees, hr = {}, { notices = [], today = '',
     .filter((row) => row.catalogId === 'inn_hms_card' && row.status === 'na')
     .map((row) => row.employeeId);
   const away = awayRows(notices, people, { today: now, days: 7 });
+  const followUp = followUpStatus(
+    hiredPeople(employees, 'all').map((employee) => ({ employee, active: employeeHrBucket(employee) === 'active' })),
+    hr.hiredFollowUps,
+    { today: now },
+  );
+  // Fordeling per leverandør i registeret. De som ikke er koblet, står til slutt.
+  const perSupplier = new Map();
+  for (const row of rows) {
+    const key = row.supplierName || '';
+    perSupplier.set(key, (perSupplier.get(key) || 0) + 1);
+  }
 
   return {
     total: rows.length,
@@ -165,8 +181,54 @@ export function innleieDashboard(employees, hr = {}, { notices = [], today = '',
     away,
     awayToday: away.filter((row) => row.today),
     hms: hmsCardAlerts(people, hr.hmsCards || [], { today: now, notApplicable }),
+    durations: rows
+      .filter((row) => row.duration.from)
+      .sort((a, b) => (b.duration.days ?? 0) - (a.duration.days ?? 0)),
+    tenureWarnings: rows.filter((row) => row.duration.level),
+    followUp: followUpSummary(followUp),
+    followUpRows: followUp,
+    suppliers: suppliersSummary(hr.suppliers, { today: now }),
+    bySupplier: [...perSupplier.entries()]
+      .map(([name, count]) => ({ name: name || 'Ikke koblet til leverandør', count, linked: !!name }))
+      .sort((a, b) => Number(b.linked) - Number(a.linked) || b.count - a.count),
     endingSoon: rows
       .filter((row) => row.endsIn != null && row.endsIn >= 0 && row.endsIn <= 30)
       .sort((a, b) => a.endsIn - b.endsIn),
+  };
+}
+
+/**
+ * Tidslinje for varighet på oppdrag: én stolpe per person på felles skala, fra den tidligste
+ * startdatoen til i dag (eller siste sluttdato). Prosentene brukes direkte som left og width.
+ * future: del av stolpen etter i dag (avtalt sluttdato). threeYear: der tre år nås, for innleide.
+ */
+export function assignmentTimeline(rows, { today = '', limit = 8 } = {}) {
+  const now = dayKey(today) || new Date().toISOString().slice(0, 10);
+  const list = (rows || []).filter((row) => row?.duration?.from).slice(0, limit);
+  if (!list.length) return { start: '', end: '', todayPct: 0, rows: [] };
+  const start = list.reduce((min, row) => (row.duration.from < min ? row.duration.from : min), now);
+  const end = list.reduce((max, row) => (row.duration.to && row.duration.to > max ? row.duration.to : max), now);
+  const span = Math.max(1, daysBetween(start, end) ?? 1);
+  const pct = (iso) => Math.max(0, Math.min(100, ((daysBetween(start, iso) ?? 0) / span) * 100));
+  return {
+    start,
+    end,
+    todayPct: pct(now),
+    rows: list.map((row) => {
+      const stop = row.duration.to || now;
+      const past = stop < now ? stop : now;
+      const threeYear = addDays(row.duration.from, 365 * 3);
+      return {
+        id: row.id,
+        name: row.name,
+        kindLabel: row.kindLabel,
+        level: row.duration.level,
+        months: row.duration.months,
+        left: pct(row.duration.from),
+        width: Math.max(1, pct(past) - pct(row.duration.from)),
+        future: stop > now ? pct(stop) - pct(now) : 0,
+        threeYearPct: row.kindLabel === 'Innleid' && threeYear <= end ? pct(threeYear) : null,
+      };
+    }),
   };
 }

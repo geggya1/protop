@@ -48,6 +48,7 @@ import HrScreen from '../screens/hr/HrScreen';
 import InnleieScreen from '../screens/innleie/InnleieScreen';
 import UsageRecorder from './UsageRecorder';
 import ArbeidHub from '../screens/arbeid/ArbeidHub';
+import ArbeidScreen from '../screens/arbeid/ArbeidScreen';
 import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
 import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
 import { isOrganizationType } from '../src/utils/groupTypes';
@@ -829,6 +830,8 @@ function AppShellInner() {
     if (tab === 'ansatte') return <EmployeesScreen />;
     if (tab === 'hr' && moreSubView === 'innleid') return <InnleieScreen subView="personell" />;
     if (tab === 'hr') return <HrScreen subView={moreSubView || defaultHrSubView(null)} />;
+    // Timer for innleide er samme timeliste som under Ansatte, med eksterne først.
+    if (tab === 'innleie' && defaultInnleieSubView(moreSubView) === 'timer') return <ArbeidScreen personScope="external" />;
     if (tab === 'innleie') return <InnleieScreen subView={defaultInnleieSubView(moreSubView)} />;
     if (tab === 'kontrakt') return <ContractScreen />;
     if (tab === 'skjema') {

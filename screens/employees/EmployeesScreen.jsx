@@ -67,6 +67,7 @@ import {
   displayName,
   employeeFromProfile,
   emptyEmployee,
+  employeeActivityTab,
   employmentState,
   filterEmployees,
   gapReport,
@@ -434,6 +435,13 @@ export default function EmployeesScreen() {
       keepIds: mine?.id ? [mine.id] : [],
     }),
     [rows, query, departments, mine?.id],
+  );
+  // Innleide og eksterne vises under Innleie og eksterne. Her står bare hvor mange og en lenke.
+  const hiredCount = useMemo(
+    () => (access.canView('hrPeople')
+      ? visible.filter((row) => hrKindBucket(row) === 'external' && employeeActivityTab(row) === 'active').length
+      : 0),
+    [visible, access],
   );
   function resetMessage() {
     setNote('');
@@ -1954,6 +1962,20 @@ export default function EmployeesScreen() {
               companyName={companyName}
               colors={colors}
               focusSection={focusSection}
+              ownOnly
+              externalNote={hiredCount ? (
+                <Pressable
+                  nativeID="employees-hired-link"
+                  accessibilityRole="link"
+                  onPress={() => requestShellTab?.('innleie', 'personell')}
+                  style={styles.hiredLink}
+                >
+                  <Text style={[styles.personMeta, { color: colors.muted }]}>
+                    {`${hiredCount === 1 ? '1 innleid eller ekstern' : `${hiredCount} innleide og eksterne`} står under Innleie og eksterne. `}
+                    <Text style={{ color: colors.brand }}>Åpne Personell</Text>
+                  </Text>
+                </Pressable>
+              ) : null}
               renderIdentity={(row) => (
                 <TouchableOpacity
                   onPress={() => openDetail(row)}
@@ -2652,6 +2674,7 @@ const styles = StyleSheet.create({
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },
   personName: { fontSize: 14, fontWeight: '700' },
   personMeta: { fontSize: 14, fontWeight: '400' },
+  hiredLink: { alignSelf: 'flex-start', minHeight: 36, justifyContent: 'center', paddingHorizontal: 4 },
   grow: { flex: 1, gap: 1 },
   dept: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, fontSize: 12, fontWeight: '400' },
   attention: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 6 },

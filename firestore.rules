@@ -1261,6 +1261,8 @@ service cloud.firestore {
       return ((!keys.hasAny(['orgnr']) && !company.hasAny(companyProfileKeys())) || aclRank(familyId, 'companyProfile') >= 3)
         && (!company.hasAny(['modules']) || aclRank(familyId, 'moduleSettings') >= 3)
         && (!company.hasAny(['accessPolicy']) || canAdminAccessMatrix(familyId))
+        // Tariffavtale for arbeidstid (overtidsgrensene): Admin på Selskapsinnstillinger.
+        && (!company.hasAny(['workingTime']) || aclRank(familyId, 'companyProfile') >= 3)
         && !company.hasAny(['privacy', 'dpaAcceptance']);
     }
 

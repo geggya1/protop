@@ -6,8 +6,13 @@
  * - § 10-6 (1): arbeid utover dette er overtid. Overtiden regnes per kalenderuke (mandag–søndag):
  *   timer over 9 på en dag, og timer over 40 i uken som ikke allerede er telt.
  * - § 10-6 (4): overtid høyst 10 timer på sju dager, 25 timer på fire uker og 200 timer på 52 uker.
- *   (5): etter skriftlig avtale med tillitsvalgte 20, 50 og 300 timer (AGREED_OVERTIME_LIMITS).
+ *   (5): i virksomhet bundet av tariffavtale, etter skriftlig avtale med tillitsvalgte, 20, 50 og 300 timer
+ *   (AGREED_OVERTIME_LIMITS). (7): overtid over grensene i (4) krever at den ansatte har sagt seg villig.
  * - § 10-6 (8): samlet arbeidstid høyst 13 timer på 24 timer og 48 timer på sju dager.
+ *   (9): med tariffavtale og skriftlig avtale med tillitsvalgte høyst 16 timer på 24 timer.
+ *
+ * tariff: true i checkWorkingTime gir tariffgrensene (TARIFF_LIMITS) og varsler i tillegg (info)
+ * når overtiden går over lovens grunngrenser i (4), for da må den ansatte ha sagt seg villig.
  * - § 10-8 (1) og (2): 11 timer sammenhengende fri i løpet av 24 timer og 35 timer i løpet av sju dager.
  *   Hviletiden kan bare kontrolleres for føringer med fra- og til-klokkeslett.
  *
@@ -28,6 +33,9 @@ export const WORKING_TIME_LIMITS = {
 
 /** Utvidede overtidsgrenser etter skriftlig avtale med tillitsvalgte (§ 10-6 (5)). */
 export const AGREED_OVERTIME_LIMITS = { overtime7d: 20, overtime4w: 50, overtime52w: 300 };
+
+/** Grensene for en virksomhet bundet av tariffavtale (§ 10-6 (5) og (9)). */
+export const TARIFF_LIMITS = { ...AGREED_OVERTIME_LIMITS, dayTotal: 16 };
 
 const DAY_MS = 86400000;
 const DAY_MIN = 1440;
@@ -256,6 +264,17 @@ const REF = {
   weekTotal: 'AML § 10-6 (8)',
   dailyRest: 'AML § 10-8 (1)',
   weeklyRest: 'AML § 10-8 (2)',
+  consent7d: 'AML § 10-6 (7)',
+  consent4w: 'AML § 10-6 (7)',
+  consent52w: 'AML § 10-6 (7)',
+};
+
+const TARIFF_REF = {
+  ...REF,
+  overtime7d: 'AML § 10-6 (5)',
+  overtime4w: 'AML § 10-6 (5)',
+  overtime52w: 'AML § 10-6 (5)',
+  dayTotal: 'AML § 10-6 (9)',
 };
 
 /**
@@ -265,15 +284,18 @@ const REF = {
  * { days, warnings, totals, restChecked, unknownDays }
  * Varsel: { id, rule, level: 'info' | 'warn', ref, from, to, value, limit, text }.
  */
-export function checkWorkingTime(entries, { employeeId = '', limits: overrides = {}, from = '', to = '' } = {}) {
-  const limits = workingTimeLimits(overrides);
+export function checkWorkingTime(entries, {
+  employeeId = '', limits: overrides = {}, from = '', to = '', tariff = false,
+} = {}) {
+  const limits = workingTimeLimits({ ...(tariff ? TARIFF_LIMITS : {}), ...(overrides || {}) });
+  const refs = tariff ? TARIFF_REF : REF;
   const days = overtimeByDay(entries, { employeeId, limits });
   const warnings = [];
   const push = (rule, level, row, limit, text) => warnings.push({
     id: `${rule}_${row.to || row.date}`,
     rule,
     level,
-    ref: REF[rule],
+    ref: refs[rule],
     from: row.from || row.date,
     to: row.to || row.date,
     value: row.value ?? row.rest ?? 0,
@@ -307,7 +329,16 @@ export function checkWorkingTime(entries, { employeeId = '', limits: overrides =
   for (const [rule, size, label] of overtimeRules) {
     for (const run of rollingRuns(days, size, (day) => day.overtime, limits[rule])) {
       push(rule, 'warn', run, limits[rule],
-        `${formatH(run.value)} t overtid på ${label} (${formatDateNb(run.from)}–${formatDateNb(run.to)}). Grensen er ${limits[rule]} t.`);
+        `${formatH(run.value)} t overtid på ${label} (${formatDateNb(run.from)}–${formatDateNb(run.to)}). Grensen er ${limits[rule]} t${tariff ? ' med tariffavtale' : ''}.`);
+    }
+    // Med tariffavtale: over lovens grunngrense, men innenfor den avtalte. Krever samtykke.
+    const base = WORKING_TIME_LIMITS[rule];
+    if (!tariff || limits[rule] <= base) continue;
+    const consent = rule.replace('overtime', 'consent');
+    for (const run of rollingRuns(days, size, (day) => day.overtime, base)) {
+      if (run.value > limits[rule] + 1e-9) continue;
+      push(consent, 'info', run, base,
+        `${formatH(run.value)} t overtid på ${label} (${formatDateNb(run.from)}–${formatDateNb(run.to)}) er over lovens grunngrense på ${base} t. Det krever skriftlig avtale med tillitsvalgte og at den ansatte har sagt seg villig.`);
     }
   }
   for (const day of days) {
@@ -349,6 +380,7 @@ export function checkWorkingTime(entries, { employeeId = '', limits: overrides =
       overtime52w: sumSince(364),
     },
     limits,
+    tariff: !!tariff,
     restChecked: intervals.length > 0,
     unknownDays,
   };

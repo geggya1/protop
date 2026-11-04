@@ -73,6 +73,10 @@ export const NOTIFICATION_TYPES = [
     id: 'timeEntryChanged', group: 'work', label: 'Noen har endret timene du førte', push: true, email: false,
     scope: 'company', audience: 'Den som førte timen, når en annen endrer den',
   },
+  {
+    id: 'workingTimeBreach', group: 'work', label: 'Arbeidstid over grensene i arbeidsmiljøloven', push: true, email: false, recommended: true,
+    scope: 'company', audience: 'Øverste leder og administratorer',
+  },
   { id: 'companyWallPost', group: 'work', label: 'Nytt innlegg på bedriftsveggen', push: false, email: false, scope: 'company', audience: 'Alle i bedriften' },
   { id: 'messageReceived', group: 'messages', label: 'Ny melding i chat', push: true, email: false, recommended: true },
   { id: 'wallPost', group: 'messages', label: 'Nytt innlegg på veggen', push: false, email: false },

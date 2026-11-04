@@ -22,6 +22,7 @@ import { showSaveError, showSaveToast } from '../../src/ui/saveToast';
 import { watchEmployees } from '../../src/employees/storage';
 import { isActiveEmployee, isHiredPersonnel, ownEmployee } from '../../src/employees/model';
 import { recordUsage } from '../../src/employees/usageClient';
+import { notifyWorkingTimeBreaches } from '../../src/arbeid/workingTimeAlerts';
 import {
   addAbsence,
   addProjectMember,
@@ -171,6 +172,8 @@ export default function ArbeidScreen({
   const [hoursLoading, setHoursLoading] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  // Advarsel til den som fører timene når en arbeidstidsgrense er brutt. Timene er lagret.
+  const [workWarning, setWorkWarning] = useState([]);
   // Prosjektdokumentet kunne ikke leses fra skyen (tidsavbrudd, ingen nett). Da vises en
   // reserve, og felles data (lås, deltakelse, utlegg) endres ikke herfra.
   const [loadFailed, setLoadFailed] = useState(false);
@@ -903,6 +906,19 @@ export default function ArbeidScreen({
     showSaveToast('Timer lagret.');
     setError('');
     if (!(await purgeCloudEntries(removed))) return;
+    // Overskridelser av arbeidstidsgrensene: advarsel her, og varsel til øverste leder og administrator.
+    // Sperrer ikke: timene er lagret.
+    setWorkWarning([]);
+    notifyWorkingTimeBreaches({
+      companyId: workspaceId,
+      family,
+      employees,
+      employeeId,
+      employeeName: selectedName,
+      dates: [editor.day?.key],
+      entries: (next.timeEntries || []).filter((row) => row.employeeId === employeeId),
+      actorUid: uid,
+    }).then((res) => setWorkWarning(res?.alerts || []));
     const hours = list.reduce((sum, row) => sum + parseHours(row.hours), 0);
     recordUsage({
       type: 'hour',
@@ -1552,6 +1568,24 @@ export default function ArbeidScreen({
         </View>
       ) : null}
       {note ? <Text style={{ color: colors.brand, marginBottom: 6 }}>{note}</Text> : null}
+      {workWarning.length ? (
+        <View
+          nativeID="timesheet-working-time-warning"
+          accessibilityRole="alert"
+          style={{ borderWidth: 1, borderColor: colors.danger || '#b42318', borderRadius: 10, padding: 10, marginBottom: 8, gap: 4 }}
+        >
+          <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>
+            Timene er lagret, men går over arbeidstidsgrensene
+          </Text>
+          {workWarning.map((row) => (
+            <Text key={row.id} style={{ color: colors.ink, fontSize: 13, lineHeight: 19 }}>{row.text}</Text>
+          ))}
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Øverste leder og administrator har fått varsel.</Text>
+          <TouchableOpacity onPress={() => setWorkWarning([])} accessibilityRole="button">
+            <Text style={{ color: colors.brand }}>Lukk</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       {error && !(loadFailed && error === PROJECTS_NOT_LOADED) ? (
         <Text style={{ color: colors.dangerInk || colors.danger, marginBottom: 6 }}>{error}</Text>
       ) : null}

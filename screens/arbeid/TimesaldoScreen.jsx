@@ -340,6 +340,7 @@ export default function TimesaldoScreen({
           employeeId={activeId}
           from={`${year}-01-01`}
           to={through}
+          company={family?.company || null}
           nativeID="timesaldo-working-time"
         />
       </ScrollView>

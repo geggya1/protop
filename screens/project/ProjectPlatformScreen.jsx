@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -25,6 +25,7 @@ import { useCompanyModules } from '../../src/access/useCompanyModules';
 import { UnlessShellTitle } from '../../src/ui/ShellTitles';
 import { useLayout } from '../../src/theme';
 import { touchHit } from '../../src/ui/touchTarget';
+import { companyWorkingTime, withWorkingTime, workingTimeFocusText } from '../../src/arbeid/workingTimePolicy';
 
 /** Bredde på innstillingssiden for to og tre kolonner. */
 const SETTINGS_TWO_COLS = 1080;
@@ -321,6 +322,47 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
       />
     </SettingsSection>
   );
+  const tariffBound = companyWorkingTime(company).tariffBound;
+  const workingTimeSection = (
+    <SettingsSection
+      icon="time-outline"
+      title="Arbeidstid og overtid"
+      hint="Grensene for overtid etter arbeidsmiljøloven § 10-6"
+      colors={colors}
+    >
+      <View style={styles.switchRow} nativeID="company-tariff-row">
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.label, { color: colors.ink, fontSize: 15 }]}>Bundet av tariffavtale</Text>
+          <Text style={[styles.sectionHint, { color: colors.muted }]}>
+            Slå på når bedriften er bundet av tariffavtale og har skriftlig avtale med tillitsvalgte om utvidet overtid. Standard er av.
+          </Text>
+        </View>
+        <Switch
+          value={tariffBound}
+          disabled={!canEdit || busy}
+          accessibilityLabel="Bundet av tariffavtale"
+          nativeID="company-tariff-switch"
+          onValueChange={async (value) => {
+            setBusy(true);
+            setError('');
+            try {
+              await savePatch(familyId, { company: withWorkingTime(company, { tariffBound: value }) });
+            } catch (e) {
+              setError(e?.message || 'Kunne ikke lagre arbeidstiden.');
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      </View>
+      <Text style={[styles.lead, { color: colors.muted, fontSize: 13, lineHeight: 18 }]} nativeID="company-tariff-focus">
+        {workingTimeFocusText(company)}
+      </Text>
+      <Text style={[styles.lead, { color: colors.muted, fontSize: 13, lineHeight: 18 }]}>
+        Timer over grensene sperres ikke. Øverste leder og administrator får varsel, og ved høy overtid foreslås søknad til Arbeidstilsynet om utvidet ramme (§ 10-6 (6)). Lagres med en gang.
+      </Text>
+    </SettingsSection>
+  );
   const closureSection = (
     <SettingsSection
       icon="archive-outline"
@@ -338,10 +380,10 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   ) : null;
   // Mobil: samme rekkefølge som før. PC: lagreknappen står under feltene den lagrer.
   const settingsLayout = settingsCols === 3
-    ? [[['profile', profileSection], ['drive', driveSection], ['save', saveButton]], [['group', groupSection]], [['privacy', privacySection], ['closure', closureSection]]]
+    ? [[['profile', profileSection], ['drive', driveSection], ['save', saveButton]], [['group', groupSection], ['workingTime', workingTimeSection]], [['privacy', privacySection], ['closure', closureSection]]]
     : settingsCols === 2
-      ? [[['profile', profileSection], ['drive', driveSection], ['save', saveButton], ['closure', closureSection]], [['group', groupSection], ['privacy', privacySection]]]
-      : [[['profile', profileSection], ['group', groupSection], ['drive', driveSection], ['privacy', privacySection], ['closure', closureSection], ['save', saveButton]]];
+      ? [[['profile', profileSection], ['drive', driveSection], ['save', saveButton], ['closure', closureSection]], [['group', groupSection], ['workingTime', workingTimeSection], ['privacy', privacySection]]]
+      : [[['profile', profileSection], ['group', groupSection], ['drive', driveSection], ['workingTime', workingTimeSection], ['privacy', privacySection], ['closure', closureSection], ['save', saveButton]]];
 
   return (
     <View nativeID="company-page" id="company-page" dataSet={{ companyPage: '1' }} style={styles.fill}>
@@ -507,6 +549,7 @@ const styles = StyleSheet.create({
   settingsCols: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
   settingsCol: { flex: 1, minWidth: 0, gap: 14 },
   fieldRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   fieldCell: { flexGrow: 1, flexBasis: 220, minWidth: 0 },
   fieldPostal: { flexGrow: 0, flexBasis: 120 },
   settingsHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },

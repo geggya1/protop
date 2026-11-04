@@ -78,6 +78,24 @@ function day(date, hours, clockIn = '', clockOut = '') {
   assert.match(html, /AML § 10-8 \(1\)/);
   assert.match(html, /5 dager mangler klokkeslett/);
   assert.match(html, /id="working-time-warnings-overtime7d"/);
+  // Uten tariffavtale: lovens grunngrenser, og forslag om å søke Arbeidstilsynet.
+  assert.match(html, /Lovens grunngrenser/);
+  assert.match(html, /id="working-time-warnings-arbeidstilsynet"/);
+  assert.match(html, /AML § 10-6 \(6\)/);
+  assert.match(html, /Øverste leder og administrator får varsel/);
+}
+
+{
+  // Med tariffavtale: 15 t overtid er innenfor 20 t, men krever samtykke (§ 10-6 (7)).
+  const entries = [
+    day('2026-10-19', 11), day('2026-10-20', 11), day('2026-10-21', 11), day('2026-10-22', 11), day('2026-10-23', 11),
+  ];
+  const html = renderToStaticMarkup(React.createElement(WorkingTimeWarnings, {
+    colors, entries, employeeId: 'e1', company: { workingTime: { tariffBound: true } },
+  }));
+  assert.match(html, /Tariffavtale: overtid høyst 20 t/);
+  assert.doesNotMatch(html, /id="working-time-warnings-overtime7d"/);
+  assert.match(html, /krever skriftlig avtale med tillitsvalgte og at den ansatte har sagt seg villig/);
 }
 
 {

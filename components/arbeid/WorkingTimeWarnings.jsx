@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { checkWorkingTime, formatDateNb } from '../../src/arbeid/workingTimeRules.js';
+import { arbeidstilsynetSuggestion, workingTimeFocusText, workingTimeOptions } from '../../src/arbeid/workingTimePolicy.js';
 
 const INFO_LIMIT = 4;
 
@@ -14,15 +15,18 @@ function hoursText(value) {
  * Arbeidstid og hviletid etter arbeidsmiljøloven kapittel 10 for én ansatt.
  * Varsler, men sperrer ikke: timene står som de er ført.
  * entries er føringene som er lastet (helst 52 uker tilbake), from/to perioden som vises.
+ * company: bedriften. Innstillingen for tariffavtale bestemmer grensene (Selskapsinnstillinger).
  */
 export default function WorkingTimeWarnings({
-  colors, entries, employeeId, from = '', to = '', limits = null, nativeID = 'working-time-warnings',
+  colors, entries, employeeId, from = '', to = '', limits = null, company = null, nativeID = 'working-time-warnings',
 }) {
   const [showAll, setShowAll] = useState(false);
+  const { tariff } = workingTimeOptions(company);
   const result = useMemo(
-    () => checkWorkingTime(entries || [], { employeeId, from, to, limits: limits || {} }),
-    [entries, employeeId, from, to, limits],
+    () => checkWorkingTime(entries || [], { employeeId, from, to, limits: limits || {}, tariff }),
+    [entries, employeeId, from, to, limits, tariff],
   );
+  const suggestion = arbeidstilsynetSuggestion(result);
   if (!employeeId) return null;
   const warn = result.warnings.filter((row) => row.level === 'warn');
   const info = result.warnings.filter((row) => row.level === 'info');
@@ -34,7 +38,10 @@ export default function WorkingTimeWarnings({
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID={nativeID}>
       <Text style={[styles.title, { color: colors.ink }]} accessibilityRole="header">Arbeidstid og hviletid</Text>
       <Text style={[styles.hint, { color: colors.muted }]}>
-        {`Varsler etter arbeidsmiljøloven §§ 10-4, 10-6 og 10-8${from ? ` fra ${formatDateNb(from)}` : ''}. Timene lagres som før.`}
+        {`Varsler etter arbeidsmiljøloven §§ 10-4, 10-6 og 10-8${from ? ` fra ${formatDateNb(from)}` : ''}. Timene lagres som før. Øverste leder og administrator får varsel om overskridelser.`}
+      </Text>
+      <Text style={[styles.hint, { color: colors.muted }]} nativeID={`${nativeID}-mode`}>
+        {workingTimeFocusText(company)}
       </Text>
       <Text style={[styles.line, { color: colors.ink }]} nativeID={`${nativeID}-totals`}>
         {`Overtid siste sju dager ${hoursText(totals.overtime7d)} t (grense ${used.overtime7d}) · fire uker ${hoursText(totals.overtime4w)} t (grense ${used.overtime4w}) · 52 uker ${hoursText(totals.overtime52w)} t (grense ${used.overtime52w})`}
@@ -57,6 +64,18 @@ export default function WorkingTimeWarnings({
           <Text style={[styles.line, { color: colors.ink, flex: 1 }]}>{row.text}</Text>
         </View>
       ))}
+      {suggestion ? (
+        <View style={[styles.suggest, { borderColor: colors.line, backgroundColor: colors.sunken || colors.card }]} nativeID={`${nativeID}-arbeidstilsynet`}>
+          <Text style={[styles.line, { color: colors.ink, fontWeight: '600' }]}>Forslag: søk Arbeidstilsynet om utvidet overtid</Text>
+          <Text style={[styles.line, { color: colors.ink }]}>
+            {suggestion.text}
+            <Text style={{ color: colors.muted }}>{` ${suggestion.ref}.`}</Text>
+          </Text>
+          <TouchableOpacity onPress={() => Linking.openURL(suggestion.url).catch(() => {})} accessibilityRole="link">
+            <Text style={[styles.line, { color: colors.brand }]}>Slik søker dere (arbeidstilsynet.no)</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       {info.length > INFO_LIMIT ? (
         <TouchableOpacity onPress={() => setShowAll((value) => !value)} accessibilityRole="button">
           <Text style={[styles.line, { color: colors.brand }]}>
@@ -80,4 +99,5 @@ const styles = StyleSheet.create({
   line: { fontSize: 13, lineHeight: 19 },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   icon: { marginTop: 2 },
+  suggest: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 4, marginTop: 4 },
 });

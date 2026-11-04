@@ -98,7 +98,7 @@ import SickNoteModal from '../../components/arbeid/SickNoteModal';
 import AbsenceNoticeModal from '../../components/arbeid/AbsenceNoticeModal';
 import AbsenceFormModal, { AbsenceFormPrompt } from '../../components/arbeid/AbsenceFormModal';
 import { formatNbDate } from '../../src/arbeid/absenceDashboard.js';
-import { absenceFormFromRows, applyAbsenceForm, missingAbsenceForms, needsAbsenceForm } from '../../src/arbeid/absenceForm.js';
+import { absenceFormFromRows, applyAbsenceForm, formSummary, missingAbsenceForms, needsAbsenceForm } from '../../src/arbeid/absenceForm.js';
 import { SICK_KIND_LABEL, addDays, addMonths, missingSickNotes, sickCaseId, sickKind, todayIso, validateSickNote } from '../../src/arbeid/sickLeave.js';
 import { applySickCaseToState } from '../../src/arbeid/sickApply.js';
 import { useSickLeave } from '../../src/arbeid/useSickLeave.js';
@@ -1985,7 +1985,10 @@ export default function ArbeidScreen({
         visible={!!absenceFormInitial && !hiredSubject}
         colors={colors}
         catalog={absenceTypes}
+        employeeId={employeeId}
         employeeName={selectedName}
+        absences={sickAbsences}
+        hoursForDate={agreedForDate}
         initial={absenceFormInitial}
         onBehalf={!!selectedEmployee && selectedEmployee.personUid !== uid}
         error={absenceFormError}
@@ -2050,7 +2053,7 @@ export default function ArbeidScreen({
                 >
                   <Ionicons name={done ? 'document-text-outline' : 'alert-circle-outline'} size={18} color={done ? colors.brand : colors.warnInk} />
                   <Text style={{ flex: 1, color: done ? colors.ink : colors.warnInk, fontSize: 13, lineHeight: 18 }}>
-                    {done ? `Fraværsskjema levert${row.formReason ? `: ${row.formReason}` : '.'}` : 'Fraværsskjema mangler.'}
+                    {done ? `Fraværsskjema levert: ${formSummary(row) || 'uten begrunnelse'}` : 'Fraværsskjema mangler.'}
                   </Text>
                   <Text style={{ color: done ? colors.brand : colors.warnInk, fontWeight: '700' }}>{done ? 'Endre' : 'Fyll ut'}</Text>
                 </TouchableOpacity>

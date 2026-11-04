@@ -15,11 +15,13 @@ import { applySickCaseToState } from '../../src/arbeid/sickApply.js';
 import { removeSelfCertDenial, saveSelfCertDenial, saveSickRules, sickCaseId } from '../../src/arbeid/sickStorage.js';
 import {
   CASE_STATUS_LABEL,
+  IA_SELF_CERT,
   SICK_KIND_LABEL,
   addMonths,
   calendarDays,
   childCareQuota,
   missingSickNotes,
+  selfCertScheme,
   selfCertStatus,
   todayIso,
 } from '../../src/arbeid/sickLeave.js';
@@ -480,6 +482,7 @@ function Rules({ ctx }) {
         />
         <View style={styles.row}>
           <HrChip colors={colors} label="Krev skriftlig skjema (§ 8-26)" active={!!current.requireForm} onPress={canWrite ? () => set({ requireForm: !current.requireForm }) : undefined} />
+          <HrChip colors={colors} label="IA-ordning (8 / 24 dager)" active={selfCertScheme(current) === 'ia'} onPress={canWrite ? () => set(selfCertScheme(current) === 'ia' ? { extendedSelfCert: false, annualCapDays: 0 } : { ...IA_SELF_CERT }) : undefined} />
           <HrChip colors={colors} label="Utvidet egenmelding" active={!!current.extendedSelfCert} onPress={canWrite ? () => set({ extendedSelfCert: !current.extendedSelfCert }) : undefined} />
           {current.extendedSelfCert ? (
             <HrChip colors={colors} label="Drøftet med tillitsvalgte" active={!!current.extendedDiscussed} onPress={canWrite ? () => set({ extendedDiscussed: !current.extendedDiscussed }) : undefined} />
@@ -492,7 +495,7 @@ function Rules({ ctx }) {
           {current.extendedSelfCert ? (
             <View style={styles.field}><HrField colors={colors} label="Dager om gangen (høyst 16)" value={String(current.extendedDays ?? '')} keyboardType="number-pad" onChangeText={(v) => set({ extendedDays: digits(v) })} /></View>
           ) : null}
-          <View style={styles.field}><HrField colors={colors} label="Tak på egenmeldingsdager per 12 måneder (0 = bare varsel)" value={String(current.annualCapDays ?? '')} keyboardType="number-pad" onChangeText={(v) => set({ annualCapDays: digits(v) })} /></View>
+          <View style={styles.field}><HrField colors={colors} label="Tak på egenmeldingsdager per 12 måneder (0 = ingen tak)" value={String(current.annualCapDays ?? '')} keyboardType="number-pad" onChangeText={(v) => set({ annualCapDays: digits(v) })} /></View>
           <View style={styles.field}><HrField colors={colors} label="Varsle om hyppig fravær ved antall på 12 måneder" value={String(current.frequentOccasions ?? '')} keyboardType="number-pad" onChangeText={(v) => set({ frequentOccasions: digits(v) })} /></View>
         </View>
         {canWrite && draft ? (

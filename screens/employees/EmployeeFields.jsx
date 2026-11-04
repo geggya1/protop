@@ -537,11 +537,11 @@ export function EmployeeField({
       {label}
       <TypedInput
         value={String(value || '')}
-        onChangeText={(next) => onChange(field.key, next)}
+        onChangeText={(next) => onChange(field.key, field.type === 'count' ? next.replace(/[^0-9]/g, '').slice(0, 2) : next)}
         editable={editable}
         placeholder={field.placeholder || ''}
         placeholderTextColor={colors.placeholder}
-        keyboardType={field.type === 'percent' ? 'number-pad' : field.type === 'email' ? 'email-address' : 'default'}
+        keyboardType={field.type === 'percent' || field.type === 'count' ? 'number-pad' : field.type === 'email' ? 'email-address' : 'default'}
         autoCapitalize={field.type === 'email' ? 'none' : 'sentences'}
         style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
       />

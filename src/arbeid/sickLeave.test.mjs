@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import {
+  IA_SELF_CERT,
+  selfCertScheme,
   addMonths,
   calendarDays,
   caseAbsenceDays,
@@ -103,12 +105,36 @@ function day(date, type = 'egenmelding', extra = {}) {
   assert.ok(res.warnings.some((w) => /nummer 5/.test(w)));
 }
 
-// Firmaets eget tak gir varsel.
+// Firmaets eget tak (f.eks. IA: 24 dager) krever sykmelding for dagene ut over.
 {
   const rows = ['2026-01-05', '2026-01-06', '2026-01-07'].map((d) => day(d));
   const res = validateSickNote({ kind: 'self', fromDate: '2026-03-02', employee: emp, absences: rows, confirmed: true, rules: { annualCapDays: 3 } });
-  assert.equal(res.ok, true);
-  assert.ok(res.warnings.some((w) => /tak på 3/.test(w)));
+  assert.equal(res.ok, false);
+  assert.equal(res.limitExceeded, true);
+  assert.ok(res.errors.some((w) => /tak på 3/.test(w)));
+  const room = validateSickNote({ kind: 'self', fromDate: '2026-03-02', employee: emp, absences: rows, confirmed: true, rules: { annualCapDays: 4 } });
+  assert.equal(room.ok, true);
+}
+
+// IA-ordningen: 8 kalenderdager om gangen, 24 per 12 måneder.
+{
+  assert.equal(selfCertScheme({}), 'law');
+  assert.equal(selfCertScheme(IA_SELF_CERT), 'ia');
+  assert.equal(selfCertScheme({ ...IA_SELF_CERT, extendedDays: 5 }), 'custom');
+  const ia = { ...IA_SELF_CERT, extendedDiscussed: true };
+  const five = validateSickNote({ kind: 'self', fromDate: '2026-03-02', toDate: '2026-03-06', employee: emp, absences: [], confirmed: true, rules: ia });
+  assert.equal(five.ok, true);
+  const nine = validateSickNote({ kind: 'self', fromDate: '2026-03-02', toDate: '2026-03-10', employee: emp, absences: [], confirmed: true, rules: ia });
+  assert.equal(nine.ok, false);
+  // Uten drøfting gjelder lovens tre dager.
+  const notDiscussed = validateSickNote({ kind: 'self', fromDate: '2026-03-02', toDate: '2026-03-06', employee: emp, absences: [], confirmed: true, rules: IA_SELF_CERT });
+  assert.equal(notDiscussed.ok, false);
+  // Fredag og mandag er samme tilfelle, helgen teller med (4 kalenderdager > 3).
+  const fri = [day('2026-03-06')];
+  const mon = validateSickNote({ kind: 'self', fromDate: '2026-03-09', employee: emp, absences: fri, confirmed: true });
+  assert.equal(mon.ok, false);
+  assert.ok(mon.errors.some((w) => /helg medregnet/.test(w)));
+  assert.equal(validateSickNote({ kind: 'self', fromDate: '2026-03-09', employee: emp, absences: fri, confirmed: true, rules: ia }).ok, true);
 }
 
 // Arbeidsgiverperioden (ftrl § 8-19).

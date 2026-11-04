@@ -18,7 +18,7 @@ import {
 import { formatNbDate } from '../../src/arbeid/absenceDashboard.js';
 import { hoursToDays } from '../../src/arbeid/balance.js';
 import { formatHours } from '../../src/arbeid/hours.js';
-import { ABSENCE_FORM_START, needsAbsenceForm } from '../../src/arbeid/absenceForm.js';
+import { ABSENCE_FORM_START, formSummary, needsAbsenceForm } from '../../src/arbeid/absenceForm.js';
 
 const STATUS_LABEL = {
   registrert: 'Til behandling',
@@ -192,8 +192,8 @@ export default function AbsencePeriodModal({
                         {formatHours(row.hours)} · {STATUS_LABEL[row.status] || 'Registrert'}
                         {row.description ? ` · ${row.description}` : ''}
                       </Text>
-                      {row.formReason ? (
-                        <Text style={{ color: colors.ink, marginTop: 2 }}>{`Fraværsskjema: ${row.formReason}`}</Text>
+                      {row.formId ? (
+                        <Text style={{ color: colors.ink, marginTop: 2 }}>{`Fraværsskjema: ${formSummary(row)}`}</Text>
                       ) : row.date >= ABSENCE_FORM_START && needsAbsenceForm(row.type, catalog) ? (
                         <Text style={{ color: colors.warnInk || colors.muted, marginTop: 2 }}>Fraværsskjema mangler</Text>
                       ) : null}

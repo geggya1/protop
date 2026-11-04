@@ -693,9 +693,28 @@ export function normalizeAbsenceRow(row) {
     // Egenmelding / sykmelding som dagen hører til (sickCases).
     ...(text(row.caseId) ? { caseId: text(row.caseId) } : {}),
     // Fraværsskjema som dagen hører til (absenceForm.js): samme formId på alle dagene i perioden.
-    ...(text(row.formId) ? { formId: text(row.formId), formReason: text(row.formReason), formAt: text(row.formAt) } : {}),
+    ...(text(row.formId) ? {
+      formId: text(row.formId),
+      formReason: text(row.formReason),
+      formCategory: text(row.formCategory),
+      formDetails: absenceFormDetails(row.formDetails),
+      formAt: text(row.formAt),
+    } : {}),
     ...absenceApproval(row),
   };
+}
+
+/** Opplysningene i fraværsskjemaet (absenceForm.js): korte tekstfelt og permisjonsgrad. */
+function absenceFormDetails(value) {
+  const src = value && typeof value === 'object' ? value : {};
+  const out = {};
+  for (const key of ['childName', 'childDate', 'relation', 'person', 'occasion', 'education', 'organ', 'holiday']) {
+    const v = text(src[key]).slice(0, 120);
+    if (v) out[key] = v;
+  }
+  const pct = Number(src.percent);
+  if (Number.isFinite(pct) && pct > 0 && pct <= 100) out.percent = pct;
+  return out;
 }
 
 /** Når og av hvem fraværet ble godkjent. Følger bare med så lenge raden er godkjent. */
@@ -1869,6 +1888,8 @@ export function addAbsence(state, input) {
     caseId: input.caseId != null ? text(input.caseId) : existing?.caseId,
     formId: input.formId != null ? text(input.formId) : existing?.formId,
     formReason: input.formReason != null ? text(input.formReason) : existing?.formReason,
+    formCategory: input.formCategory != null ? text(input.formCategory) : existing?.formCategory,
+    formDetails: input.formDetails != null ? input.formDetails : existing?.formDetails,
     formAt: input.formAt != null ? text(input.formAt) : existing?.formAt,
     createdAt: existing?.createdAt || now,
     updatedAt: now,

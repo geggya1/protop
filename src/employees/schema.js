@@ -183,6 +183,19 @@ export const FORM_SECTIONS = [
     ],
   },
   {
+    id: 'childCare',
+    title: 'Barn og omsorgsdager',
+    owner: 'company',
+    purpose: 'operations',
+    scope: 'employee',
+    blurb: 'Gir omsorgsdagene for sykt barn (folketrygdloven § 9-6): 10 dager med ett eller to barn, 15 med tre eller flere. Dobbelt for den som er alene om omsorgen. Hvert barn med utvidet rett fra NAV (kronisk sykt eller funksjonshemmet) gir 10 dager ekstra, 20 for den som er alene. Barn regnes til og med året de fyller 12, og til 18 år med utvidet rett.',
+    fields: [
+      { key: 'extras.childCare.children', label: 'Antall barn under 12 år', type: 'count', placeholder: '0' },
+      { key: 'extras.childCare.chronic', label: 'Barn med utvidet rett fra NAV', type: 'count', placeholder: '0' },
+      { key: 'extras.childCare.alone', label: 'Alene om omsorgen', type: 'bool' },
+    ],
+  },
+  {
     id: 'comment',
     title: 'Kommentar',
     owner: 'company',

@@ -2,6 +2,11 @@ import assert from 'node:assert/strict';
 import { emptyProjectState, normalizeAbsenceRow } from '../project/engine.js';
 import {
   absenceFormFromRows,
+  categoryDaysUsed,
+  cleanFormDetails,
+  defaultFormCategory,
+  formSummary,
+  formWarnings,
   applyAbsenceForm,
   missingAbsenceForms,
   needsAbsenceForm,
@@ -38,9 +43,32 @@ assert.equal(needsAbsenceForm('velferd', catalog), true);
 }
 
 // Validering.
-assert.deepEqual(validateAbsenceForm({ type: 'annet_med', fromDate: '2026-11-04', toDate: '2026-11-04', reason: 'x' }), []);
-assert.ok(validateAbsenceForm({ type: 'annet_med', fromDate: '2026-11-04', toDate: '2026-11-03', reason: 'x' }).length);
-assert.ok(validateAbsenceForm({ type: 'annet_med', fromDate: '2026-11-04', reason: '' }).length);
+assert.deepEqual(validateAbsenceForm({ type: 'annet_med', category: 'annet', fromDate: '2026-11-04', toDate: '2026-11-04', reason: 'x' }), []);
+assert.ok(validateAbsenceForm({ type: 'annet_med', category: 'annet', fromDate: '2026-11-04', toDate: '2026-11-03', reason: 'x' }).length);
+assert.ok(validateAbsenceForm({ type: 'annet_med', category: 'annet', fromDate: '2026-11-04', reason: '' }).length);
+// Grunnlag må velges.
+assert.ok(validateAbsenceForm({ type: 'annet_med', fromDate: '2026-11-04', reason: 'x' }).some((e) => /gjelder/.test(e)));
+// Kategoriene krever sine felt.
+assert.ok(validateAbsenceForm({ type: 'foreldre', category: 'foreldre', fromDate: '2026-11-04' }).some((e) => /barnets/.test(e)));
+assert.deepEqual(validateAbsenceForm({ type: 'foreldre', category: 'foreldre', fromDate: '2026-11-04', details: { childName: 'Ida', childDate: '2026-10-20' } }), []);
+assert.ok(validateAbsenceForm({ type: 'annet_uten', category: 'naerstaende', fromDate: '2026-11-04' }).some((e) => /hvem/.test(e)));
+assert.deepEqual(validateAbsenceForm({ type: 'annet_med', category: 'velferd', fromDate: '2026-11-04', details: { occasion: 'flytting' } }), []);
+assert.ok(validateAbsenceForm({ type: 'annet_med', category: 'velferd', fromDate: '2026-11-04', details: { occasion: 'annet' } }).some((e) => /begrunnelse/.test(e)));
+assert.ok(validateAbsenceForm({ type: 'annet_med', category: 'annet', fromDate: '2026-11-04', reason: 'x', confirmed: false }).some((e) => /Bekreft/.test(e)));
+// Standardgrunnlag fra typen.
+assert.equal(defaultFormCategory('foreldre'), 'foreldre');
+assert.equal(defaultFormCategory('lege_med'), 'lege');
+assert.equal(defaultFormCategory('seminar_uten'), 'kurs');
+assert.equal(defaultFormCategory('annet_med'), '');
+// Bare feltene kategorien spør om, lagres.
+assert.deepEqual(cleanFormDetails('religios', { holiday: ' Eid ', childName: 'X' }), { holiday: 'Eid' });
+// Varsler etter loven.
+assert.ok(formWarnings({ category: 'religios', fromDate: '2026-11-10', toDate: '2026-11-10' }, { today: '2026-11-04', workDays: 1 }).some((w) => /14 dager/.test(w)));
+assert.equal(formWarnings({ category: 'religios', fromDate: '2026-11-30', toDate: '2026-11-30' }, { today: '2026-11-04', workDays: 1 }).length, 0);
+assert.ok(formWarnings({ category: 'religios', fromDate: '2026-12-01', toDate: '2026-12-01' }, { today: '2026-11-04', usedDays: 2, workDays: 1 }).some((w) => /inntil 2 dager/.test(w)));
+assert.ok(formWarnings({ category: 'foreldre', fromDate: '2026-11-06', toDate: '2026-12-31' }, { today: '2026-11-04' }).some((w) => /12-7/.test(w)));
+assert.equal(formWarnings({ category: 'foreldre', fromDate: '2026-11-20', toDate: '2026-12-31' }, { today: '2026-11-04' }).length, 0);
+assert.ok(formWarnings({ category: 'livets_sluttfase', fromDate: '2026-11-04', toDate: '2027-02-01' }, { today: '2026-11-04' }).some((w) => /60 dager/.test(w)));
 
 // Påminnelse og kobling.
 {
@@ -66,7 +94,7 @@ assert.ok(validateAbsenceForm({ type: 'annet_med', fromDate: '2026-11-04', reaso
 
   // Skjemaet for fredag–mandag: timene som er ført, beholdes; helgen føres ikke.
   const res = applyAbsenceForm(state, {
-    employeeId: 'e1', type: 'annet_med', fromDate: '2026-11-06', toDate: '2026-11-09', reason: 'Flytting',
+    employeeId: 'e1', type: 'annet_med', category: 'velferd', details: { occasion: 'flytting', childName: 'ignoreres' }, fromDate: '2026-11-06', toDate: '2026-11-09', reason: 'Flytting',
   }, { hoursForDate: hours, now: new Date('2026-11-09T08:00:00Z') });
   assert.equal(res.ok, true);
   assert.deepEqual(res.absenceIds.sort(), ['f1', 'f2']);
@@ -74,12 +102,18 @@ assert.ok(validateAbsenceForm({ type: 'annet_med', fromDate: '2026-11-04', reaso
   assert.equal(f1.hours, 4);
   assert.equal(f1.formReason, 'Flytting');
   assert.equal(f1.formId, res.formId);
+  assert.equal(f1.formCategory, 'velferd');
+  assert.deepEqual(f1.formDetails, { occasion: 'flytting' });
+  assert.equal(formSummary(f1), 'Velferdspermisjon · Flytting · Flytting');
+  assert.equal(categoryDaysUsed(res.state.absences, { employeeId: 'e1', category: 'velferd', year: 2026 }), 2);
+  assert.equal(categoryDaysUsed(res.state.absences, { employeeId: 'e1', category: 'velferd', year: 2026, excludeFormId: res.formId }), 0);
   assert.equal(missingAbsenceForms(res.state.absences, 'e1', { today: '2026-11-20' }).length, 1);
 
   // Utvid perioden til tirsdag: ny dag føres med timer fra arbeidsplanen.
   const form = absenceFormFromRows(res.state.absences, res.formId);
   assert.equal(form.fromDate, '2026-11-06');
   assert.equal(form.reason, 'Flytting');
+  assert.equal(form.category, 'velferd');
   const wider = applyAbsenceForm(res.state, { ...form, toDate: '2026-11-10' }, { hoursForDate: hours });
   assert.equal(wider.ok, true);
   assert.equal(wider.absenceIds.length, 3);
@@ -92,7 +126,7 @@ assert.ok(validateAbsenceForm({ type: 'annet_med', fromDate: '2026-11-04', reaso
   assert.equal(narrow.state.absences.some((a) => a.id === 'f1'), false);
 
   // Bare helg: ingen dager.
-  const weekend = applyAbsenceForm(state, { employeeId: 'e1', type: 'annet_med', fromDate: '2026-11-07', toDate: '2026-11-08', reason: 'x' }, { hoursForDate: hours });
+  const weekend = applyAbsenceForm(state, { employeeId: 'e1', type: 'annet_med', category: 'annet', fromDate: '2026-11-07', toDate: '2026-11-08', reason: 'x' }, { hoursForDate: hours });
   assert.equal(weekend.ok, false);
 }
 

@@ -1,17 +1,24 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import IsoDateField from './IsoDateField';
+import OptionPicker from '../OptionPicker';
+import CheckBox from '../CheckBox';
 import { HEALTH_FREE_TEXT_NOTICE, absenceTypeById, isHealthAbsence } from '../../src/arbeid/absenceCatalog.js';
-import { validateAbsenceForm } from '../../src/arbeid/absenceForm.js';
-import { calendarDays, todayIso } from '../../src/arbeid/sickLeave.js';
+import {
+  FORM_CATEGORIES, OCCASIONS, RELATIONS, categoryDaysUsed, defaultFormCategory, formCategory, formWarnings, validateAbsenceForm,
+} from '../../src/arbeid/absenceForm.js';
+import { addDays, calendarDays, todayIso } from '../../src/arbeid/sickLeave.js';
 import { radius, type } from '../../src/ui/tokens';
 
+export const FORM_DECLARATION = 'Jeg bekrefter at opplysningene er riktige, og at dokumentasjon kan kreves.';
+
 /**
- * Fraværsskjema for permisjon, annet fravær, legebesøk, seminar o.l. Åpnes etter at fravær er
- * ført i timelisten, fra påminnelsen «Husk fraværsskjema» og fra fraværsdialogen.
+ * Fraværsskjema for permisjon, annet fravær, legetime, kurs o.l. Grunnlaget velges etter
+ * arbeidsmiljøloven kapittel 12, og skjemaet spør bare om det grunnlaget trenger.
+ * Åpnes etter at fravær er ført i timelisten, fra «Mangler fraværsskjema» og fra fraværsdialogen.
  */
 export default function AbsenceFormModal(props) {
   if (!props.visible) return null;
@@ -20,20 +27,43 @@ export default function AbsenceFormModal(props) {
   return <AbsenceForm key={key} {...props} />;
 }
 
+function workDayCount(fromDate, toDate, hoursForDate) {
+  let n = 0;
+  for (let d = fromDate; d && d <= toDate; d = addDays(d, 1)) {
+    if (typeof hoursForDate !== 'function' || hoursForDate(d) > 0) n += 1;
+  }
+  return n;
+}
+
 function AbsenceForm({
-  colors, catalog, employeeName = '', initial = null, onBehalf = false, busy = false, error = '', onClose, onSubmit,
+  colors, catalog, employeeId = '', employeeName = '', absences = [], hoursForDate, initial = null,
+  onBehalf = false, busy = false, error = '', onClose, onSubmit,
 }) {
   const start = initial?.fromDate || todayIso();
+  const typeId = initial?.type || '';
+  const [category, setCategory] = useState(initial?.category || defaultFormCategory(typeId, catalog));
   const [fromDate, setFromDate] = useState(start);
   const [toDate, setToDate] = useState(initial?.toDate || start);
+  const [details, setDetails] = useState(initial?.details || {});
   const [reason, setReason] = useState(initial?.reason || '');
   const [note, setNote] = useState(initial?.note || '');
+  const [confirmed, setConfirmed] = useState(!!initial?.confirmed);
   const [tried, setTried] = useState(false);
-  const typeId = initial?.type || '';
   const typeLabel = absenceTypeById(typeId, catalog).label;
-  const health = isHealthAbsence(typeId, catalog);
-  const days = calendarDays(fromDate, toDate || fromDate);
-  const errors = validateAbsenceForm({ type: typeId, fromDate, toDate, reason });
+  const cat = formCategory(category);
+  const fields = cat?.fields || [];
+  const health = cat?.health || isHealthAbsence(typeId, catalog);
+  const end = toDate || fromDate;
+  const days = calendarDays(fromDate, end);
+  const set = (key) => (value) => setDetails((cur) => ({ ...cur, [key]: value }));
+
+  const used = useMemo(() => (cat?.quota ? categoryDaysUsed(absences, {
+    employeeId, category, year: Number(String(fromDate).slice(0, 4)), excludeFormId: initial?.id || '',
+  }) : 0), [cat, absences, employeeId, category, fromDate, initial?.id]);
+  const workDays = workDayCount(fromDate, end, hoursForDate);
+  const form = { type: typeId, category, fromDate, toDate: end, details, reason, confirmed };
+  const errors = validateAbsenceForm(form);
+  const warnings = formWarnings(form, { usedDays: used, workDays });
   const shown = tried ? errors : [];
 
   function submit() {
@@ -42,14 +72,32 @@ function AbsenceForm({
     onSubmit?.({
       id: initial?.id || '',
       type: typeId,
+      category,
       fromDate,
-      toDate: toDate || fromDate,
+      toDate: end,
+      details,
       reason: reason.trim(),
       note: note.trim(),
+      confirmed: true,
     });
   }
 
   const fieldStyle = [styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }];
+  const textField = (key, label, placeholder, id) => (
+    <View style={styles.field}>
+      <Text style={[styles.label, { color: colors.muted }]}>{label}</Text>
+      <TextInput
+        value={details[key] || ''}
+        onChangeText={set(key)}
+        placeholder={placeholder}
+        placeholderTextColor={colors.muted}
+        maxLength={120}
+        style={[fieldStyle, styles.short]}
+        accessibilityLabel={label}
+        nativeID={`fravaersskjema-${id}`}
+      />
+    </View>
+  );
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -64,7 +112,7 @@ function AbsenceForm({
               <View style={styles.flex}>
                 <Text style={[styles.title, { color: colors.ink }]}>Fraværsskjema</Text>
                 <Text style={[styles.body, { color: colors.muted }]}>
-                  {onBehalf ? `${typeLabel} for ${employeeName || 'medarbeideren'}.` : typeLabel}
+                  {onBehalf ? `${typeLabel} for ${employeeName || 'medarbeideren'}.` : `${typeLabel}. Går til leder for godkjenning.`}
                 </Text>
               </View>
               <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Lukk">
@@ -72,16 +120,37 @@ function AbsenceForm({
               </TouchableOpacity>
             </View>
 
-            <View style={[styles.info, { backgroundColor: colors.bg, borderColor: colors.line }]}>
-              <Ionicons name="information-circle-outline" size={18} color={colors.brand} />
-              <Text style={[styles.body, styles.flex, { color: colors.ink }]}>
-                Arbeidsdagene i perioden føres i timelisten og går til leder for godkjenning.
-              </Text>
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: colors.muted }]}>Hva gjelder fraværet?</Text>
+              <OptionPicker
+                options={FORM_CATEGORIES.map((row) => ({ id: row.id, label: row.label }))}
+                value={category}
+                onChange={(id) => setCategory(id || '')}
+                title="Hva gjelder fraværet?"
+                placeholder="Velg grunnlag"
+                clearable={false}
+              />
             </View>
+
+            {cat ? (
+              <View style={[styles.info, { backgroundColor: colors.bg, borderColor: colors.line }]} nativeID="fravaersskjema-lov">
+                <Ionicons name="information-circle-outline" size={18} color={colors.brand} />
+                <View style={styles.flex}>
+                  {cat.law ? <Text style={[styles.label, { color: colors.ink }]}>{cat.law}</Text> : null}
+                  {cat.info ? <Text style={[styles.body, { color: colors.ink }]}>{cat.info}</Text> : null}
+                  {cat.quota ? (
+                    <Text style={[styles.caption, { color: colors.muted }]}>
+                      {`${used} av ${cat.quota} dager brukt i ${String(fromDate).slice(0, 4)}, ${workDays} arbeidsdag${workDays === 1 ? '' : 'er'} i dette skjemaet.`}
+                    </Text>
+                  ) : null}
+                  {cat.docs ? <Text style={[styles.caption, { color: colors.muted }]}>Arbeidsgiver kan be om dokumentasjon (for eksempel vedtak fra NAV).</Text> : null}
+                </View>
+              </View>
+            ) : null}
 
             <View style={styles.row}>
               <View style={[styles.flex, styles.field]}>
-                <Text style={[styles.label, { color: colors.muted }]}>Fra</Text>
+                <Text style={[styles.label, { color: colors.muted }]}>Fra og med</Text>
                 <IsoDateField
                   value={fromDate}
                   onChange={(iso) => { setFromDate(iso); if (!toDate || toDate < iso) setToDate(iso); }}
@@ -93,14 +162,70 @@ function AbsenceForm({
                 <IsoDateField value={toDate} min={fromDate} onChange={setToDate} nativeID="fravaersskjema-til" />
               </View>
             </View>
-            <Text style={[styles.caption, { color: colors.muted }]}>{`${days} kalenderdag${days === 1 ? '' : 'er'}`}</Text>
+            <Text style={[styles.caption, { color: colors.muted }]}>
+              {`${days} kalenderdag${days === 1 ? '' : 'er'} · ${workDays} arbeidsdag${workDays === 1 ? '' : 'er'} føres i timelisten`}
+            </Text>
+
+            {fields.includes('percent') ? (
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: colors.muted }]}>Permisjonsgrad (%)</Text>
+                <TextInput
+                  value={String(details.percent ?? 100)}
+                  onChangeText={(v) => set('percent')(v.replace(/[^0-9]/g, ''))}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  style={[fieldStyle, styles.short]}
+                  accessibilityLabel="Permisjonsgrad"
+                  nativeID="fravaersskjema-grad"
+                />
+                <Text style={[styles.caption, { color: colors.muted }]}>Under 100 % er delvis permisjon (aml. § 12-6).</Text>
+              </View>
+            ) : null}
+
+            {fields.includes('child') ? textField('childName', 'Barnets fornavn', 'Bare fornavn', 'barn') : null}
+            {fields.includes('childDate') ? (
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: colors.muted }]}>Fødselsdato, termin eller omsorgsovertakelse</Text>
+                <IsoDateField value={details.childDate || ''} onChange={set('childDate')} nativeID="fravaersskjema-barn-dato" />
+              </View>
+            ) : null}
+
+            {fields.includes('occasion') ? (
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: colors.muted }]}>Anledning</Text>
+                <OptionPicker options={OCCASIONS} value={details.occasion || ''} onChange={(id) => set('occasion')(id || '')} title="Anledning" placeholder="Velg anledning" clearable={false} />
+              </View>
+            ) : null}
+
+            {fields.includes('relation') && (cat?.id !== 'velferd' || details.occasion === 'begravelse') ? (
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: colors.muted }]}>{cat?.id === 'velferd' ? 'Relasjon til avdøde' : 'Hvem gjelder det?'}</Text>
+                <OptionPicker
+                  options={cat?.id === 'naerstaende' ? RELATIONS.filter((r) => ['forelder', 'partner', 'barn'].includes(r.id)) : RELATIONS}
+                  value={details.relation || ''}
+                  onChange={(id) => set('relation')(id || '')}
+                  title="Relasjon"
+                  placeholder="Velg relasjon"
+                  clearable={false}
+                />
+                {cat?.id === 'naerstaende' && details.relation === 'barn' ? (
+                  <Text style={[styles.caption, { color: colors.muted }]}>Gjelder funksjonshemmet eller kronisk sykt barn over 18 år.</Text>
+                ) : null}
+              </View>
+            ) : null}
+            {fields.includes('person') ? textField('person', 'Navn (valgfritt)', 'Den du gir omsorg til', 'person') : null}
+            {fields.includes('education') ? textField('education', cat?.id === 'kurs' ? 'Kurs / seminar og arrangør' : 'Utdanning og studiested', cat?.id === 'kurs' ? 'For eksempel: ADK1, Byggenæringens kurs' : 'For eksempel: Fagskole, byggteknikk', 'utdanning') : null}
+            {fields.includes('organ') ? textField('organ', cat?.id === 'verv' ? 'Verv og organ' : 'Tjeneste', cat?.id === 'verv' ? 'For eksempel: kommunestyret, Stavanger' : 'For eksempel: repetisjonsøvelse, Heimevernet', 'organ') : null}
+            {fields.includes('holiday') ? textField('holiday', 'Høytid', 'For eksempel: Eid al-Fitr', 'hoytid') : null}
 
             <View style={styles.field}>
-              <Text style={[styles.label, { color: colors.muted }]}>Begrunnelse</Text>
+              <Text style={[styles.label, { color: colors.muted }]}>
+                {cat?.reasonRequired || details.occasion === 'annet' || !cat ? 'Begrunnelse' : 'Utdypning (valgfritt)'}
+              </Text>
               <TextInput
                 value={reason}
                 onChangeText={setReason}
-                placeholder={health ? 'For eksempel: time hos fastlege' : 'For eksempel: begravelse, flytting, kurs'}
+                placeholder={health ? 'For eksempel: time hos fastlege' : 'Kort om fraværet'}
                 placeholderTextColor={colors.muted}
                 maxLength={300}
                 multiline
@@ -112,7 +237,7 @@ function AbsenceForm({
             </View>
 
             <View style={styles.field}>
-              <Text style={[styles.label, { color: colors.muted }]}>Merknad (valgfritt)</Text>
+              <Text style={[styles.label, { color: colors.muted }]}>Merknad i timelisten (valgfritt)</Text>
               <TextInput
                 value={note}
                 onChangeText={setNote}
@@ -122,6 +247,15 @@ function AbsenceForm({
                 nativeID="fravaersskjema-merknad"
               />
             </View>
+
+            {warnings.length ? (
+              <View style={[styles.info, { borderColor: colors.warn || colors.line }]} nativeID="fravaersskjema-varsel">
+                <Ionicons name="alert-circle-outline" size={18} color={colors.warnInk || colors.ink} />
+                <Text style={[styles.body, styles.flex, { color: colors.warnInk || colors.ink }]}>{warnings.join(' ')}</Text>
+              </View>
+            ) : null}
+
+            <CheckBox checked={confirmed} onPress={() => setConfirmed((v) => !v)} label={FORM_DECLARATION} />
 
             {shown.length || error ? (
               <View accessibilityRole="alert" style={[styles.info, { borderColor: colors.dangerInk || colors.danger }]}>

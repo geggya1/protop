@@ -259,7 +259,7 @@ function QuotaBox({ colors, kind, status, childQuota }) {
         <Text style={[styles.quotaTitle, { color: colors.ink }]}>Omsorgsdager {childQuota.year}</Text>
         <Text style={{ color: colors.muted }}>
           {childQuota.unknown
-            ? 'Antall barn er ikke registrert. Leder kan legge det inn på ansattkortet.'
+            ? 'Antall barn er ikke registrert. Leder legger det inn under Ansatte → Barn og omsorgsdager.'
             : `${childQuota.used} av ${childQuota.total} dager brukt · ${childQuota.remaining} igjen`}
         </Text>
         <Text style={{ color: colors.muted, fontSize: 12 }}>Egenmelding for sykt barn gjelder tre kalenderdager om gangen.</Text>

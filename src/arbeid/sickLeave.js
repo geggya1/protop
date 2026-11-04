@@ -172,6 +172,20 @@ export function normalizeSickRules(raw = {}) {
   };
 }
 
+/**
+ * Ordningen fra IA-avtalen (før 2019): egenmelding i inntil 8 kalenderdager om gangen og
+ * 24 kalenderdager per 12 måneder. Mange virksomheter har videreført den. Etter ftrl § 8-24
+ * er det arbeidsgivers valg innenfor arbeidsgiverperioden, etter drøfting med tillitsvalgte.
+ */
+export const IA_SELF_CERT = { extendedSelfCert: true, extendedDays: 8, annualCapDays: 24 };
+
+/** 'law' (tre dager), 'ia' (8 / 24) eller 'custom' (egen utvidelse eller tak). */
+export function selfCertScheme(rules) {
+  const r = normalizeSickRules(rules);
+  if (!r.extendedSelfCert) return r.annualCapDays ? 'custom' : 'law';
+  return r.extendedDays === IA_SELF_CERT.extendedDays && r.annualCapDays === IA_SELF_CERT.annualCapDays ? 'ia' : 'custom';
+}
+
 /** Lengste egenmelding om gangen. Utvidelse krever drøfting med tillitsvalgte. */
 export function selfCertMaxDays(rules) {
   const r = normalizeSickRules(rules);
@@ -423,7 +437,12 @@ export function validateSickNote({
           : 'Fraværet må dokumenteres med sykmelding fra lege.'));
     }
     if (status.daysLeft != null && days > status.daysLeft) {
-      warnings.push(`Firmaet har satt et tak på ${status.annualCapDays} egenmeldingsdager per 12 måneder. ${status.daysLeft} dager er igjen.`);
+      // Taket er bedriftens egenmeldingsordning (for eksempel IA: 24 dager): dager ut over krever sykmelding.
+      limitExceeded = true;
+      errors.push(`Bedriften har et tak på ${status.annualCapDays} egenmeldingsdager per 12 måneder, og ${status.daysLeft} ${status.daysLeft === 1 ? 'dag' : 'dager'} er igjen. `
+        + (status.daysLeft > 0
+          ? `Fra og med ${nbDate(addDays(from, status.daysLeft))} må fraværet dokumenteres med sykmelding fra lege.`
+          : 'Fraværet må dokumenteres med sykmelding fra lege.'));
     }
     if (status.occasionsUsed + 1 >= r.revokeTriggerOccasions) {
       warnings.push(`Dette blir egenmelding nummer ${status.occasionsUsed + 1} de siste 12 månedene. Leder kan ta kontakt for en samtale.`);

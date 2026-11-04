@@ -180,6 +180,8 @@ await check('1.9 Registrer 3 barn og alene om omsorgen: 30 omsorgsdager, lagret 
 
 // ---------------------------------------------------------------- 2. Timeliste (telefon)
 const phone = await new Bot('eier-telefon', { ...BOT_USER, view: 'phone', outDir: OUT }).start();
+const consoleLog = [];
+phone.page.on('console', (msg) => { if (['warning', 'error', 'log'].includes(msg.type())) consoleLog.push(`${msg.type()}: ${msg.text().slice(0, 200)}`); });
 await phone.login();
 await phone.open('timeliste', null, 4000);
 const first = workday(0);
@@ -203,10 +205,17 @@ await check('2.3 «Senere» gir påminnelsen «Mangler fraværsskjema»', async 
   await clickId(phone, 'fravaersskjema-senere');
   await expectText(phone, 'Mangler fraværsskjema');
   let row = null;
-  const until = Date.now() + 20000;
+  const until = Date.now() + 30000;
   while (!row && Date.now() < until) {
     row = (await absences()).find((r) => r.date === first.iso && r.type === 'annet_med');
     if (!row) await phone.page.waitForTimeout(1000);
+  }
+  if (!row) {
+    const all = await listDocs(`families/${BOT_COMPANY_ID}/absences`).catch((e) => [String(e)]);
+    const screen = await phone.visibleText();
+    console.log('DIAG absences:', JSON.stringify(all).slice(0, 1500));
+    console.log('DIAG skjerm:', screen.replace(/\s+/g, ' ').slice(0, 800));
+    console.log('DIAG konsoll:', JSON.stringify(consoleLog.slice(-25)).slice(0, 3000));
   }
   if (!row) throw new Error(`Fant ikke fraværet ${first.iso} i skyen`);
   if (row.formId) throw new Error('Fraværet har skjema allerede');

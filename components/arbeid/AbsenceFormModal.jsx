@@ -8,7 +8,8 @@ import OptionPicker from '../OptionPicker';
 import CheckBox from '../CheckBox';
 import { HEALTH_FREE_TEXT_NOTICE, absenceTypeById, isHealthAbsence } from '../../src/arbeid/absenceCatalog.js';
 import {
-  FORM_CATEGORIES, OCCASIONS, RELATIONS, categoryDaysUsed, defaultFormCategory, formCategory, formWarnings, validateAbsenceForm,
+  FORM_CATEGORIES, OCCASIONS, PROVIDERS, RELATIONS, WHO_FOR, categoryDaysUsed, defaultFormCategory, formCategory, formTypeFor,
+  formWarnings, validateAbsenceForm,
 } from '../../src/arbeid/absenceForm.js';
 import { addDays, calendarDays, todayIso } from '../../src/arbeid/sickLeave.js';
 import { radius, type } from '../../src/ui/tokens';
@@ -36,11 +37,12 @@ function workDayCount(fromDate, toDate, hoursForDate) {
 }
 
 function AbsenceForm({
-  colors, catalog, employeeId = '', employeeName = '', absences = [], hoursForDate, initial = null,
-  onBehalf = false, busy = false, error = '', onClose, onSubmit,
+  colors, catalog, rules = null, employeeId = '', employeeName = '', absences = [], hoursForDate, initial = null,
+  onBehalf = false, busy = false, error = '', onClose, onSubmit, onSickChild,
 }) {
   const start = initial?.fromDate || todayIso();
-  const typeId = initial?.type || '';
+  // Typen dagene sto med da skjemaet ble åpnet. Skjemaet kan bytte til riktig type med/uten lønn.
+  const typeId = initial?.originType || initial?.type || '';
   const [category, setCategory] = useState(initial?.category || defaultFormCategory(typeId, catalog));
   const [fromDate, setFromDate] = useState(start);
   const [toDate, setToDate] = useState(initial?.toDate || start);
@@ -62,6 +64,8 @@ function AbsenceForm({
   }) : 0), [cat, absences, employeeId, category, fromDate, initial?.id]);
   const workDays = workDayCount(fromDate, end, hoursForDate);
   const form = { type: typeId, category, fromDate, toDate: end, details, reason, confirmed };
+  const pay = cat ? formTypeFor(form, { rules, catalog }) : null;
+  const resolvedLabel = pay?.resolvedType ? absenceTypeById(pay.resolvedType, catalog).label : typeLabel;
   const errors = validateAbsenceForm(form);
   const warnings = formWarnings(form, { usedDays: used, workDays });
   const shown = tried ? errors : [];
@@ -71,7 +75,8 @@ function AbsenceForm({
     if (errors.length || busy) return;
     onSubmit?.({
       id: initial?.id || '',
-      type: typeId,
+      type: pay?.resolvedType || typeId,
+      originType: typeId,
       category,
       fromDate,
       toDate: end,
@@ -148,6 +153,21 @@ function AbsenceForm({
               </View>
             ) : null}
 
+            {pay && pay.paid != null ? (
+              <View style={[styles.info, { backgroundColor: colors.bg, borderColor: pay.paid ? colors.brand : colors.line }]} nativeID="fravaersskjema-lonn">
+                <Ionicons name={pay.paid ? 'cash-outline' : 'remove-circle-outline'} size={18} color={pay.paid ? colors.brand : colors.muted} />
+                <View style={styles.flex}>
+                  <Text style={[styles.label, { color: colors.ink }]}>{`Føres som: ${resolvedLabel}`}</Text>
+                  <Text style={[styles.caption, { color: colors.ink }]}>{pay.basis}</Text>
+                  {pay.missingType ? (
+                    <Text style={[styles.caption, { color: colors.warnInk || colors.ink }]}>
+                      {`Bedriften har ikke fraværstypen «${absenceTypeById(pay.missingType).label}». Dagene beholder typen ${typeLabel}.`}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+
             <View style={styles.row}>
               <View style={[styles.flex, styles.field]}>
                 <Text style={[styles.label, { color: colors.muted }]}>Fra og med</Text>
@@ -180,6 +200,50 @@ function AbsenceForm({
                 />
                 <Text style={[styles.caption, { color: colors.muted }]}>Under 100 % er delvis permisjon (aml. § 12-6).</Text>
               </View>
+            ) : null}
+
+            {fields.includes('whoFor') ? (
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: colors.muted }]}>Hvem gjelder timen?</Text>
+                <OptionPicker options={WHO_FOR} value={details.whoFor || ''} onChange={(id) => set('whoFor')(id || '')} title="Hvem gjelder timen?" placeholder="Velg" clearable={false} />
+              </View>
+            ) : null}
+            {fields.includes('whoFor') && details.whoFor === 'barn' ? (
+              <View style={[styles.info, { backgroundColor: colors.bg, borderColor: colors.line }]} nativeID="fravaersskjema-sykt-barn">
+                <Ionicons name="help-circle-outline" size={18} color={colors.brand} />
+                <View style={styles.flex}>
+                  <Text style={[styles.body, { color: colors.ink }]}>Er barnet sykt?</Text>
+                  <Text style={[styles.caption, { color: colors.muted }]}>
+                    Følger du et sykt barn til lege eller sykehus, er det sykt barn-dag (omsorgsdager, aml. § 12-9 og ftrl. § 9-5) med lønn fra arbeidsgiver. Rutinekontroll og vaksine er ikke sykdom.
+                  </Text>
+                  <View style={styles.row}>
+                    <TouchableOpacity
+                      onPress={() => onSickChild?.({ fromDate, toDate: end })}
+                      style={[styles.chip, { borderColor: colors.brand }]}
+                      accessibilityRole="button"
+                      nativeID="fravaersskjema-meld-sykt-barn"
+                    >
+                      <Text style={{ color: colors.brand, fontWeight: '600' }}>Ja, meld sykt barn</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => set('childSick')(false)}
+                      style={[styles.chip, { borderColor: details.childSick === false ? colors.brand : colors.line }]}
+                      accessibilityRole="button"
+                    >
+                      <Text style={{ color: colors.ink }}>Nei, kontroll / annet</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+            {fields.includes('provider') ? (
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: colors.muted }]}>Type time</Text>
+                <OptionPicker options={PROVIDERS} value={details.provider || ''} onChange={(id) => set('provider')(id || '')} title="Type time" placeholder="Velg" clearable={false} />
+              </View>
+            ) : null}
+            {fields.includes('ordered') ? (
+              <CheckBox checked={details.ordered === true} onPress={() => set('ordered')(details.ordered !== true)} label="Kurset er pålagt av arbeidsgiver" />
             ) : null}
 
             {fields.includes('child') ? textField('childName', 'Barnets fornavn', 'Bare fornavn', 'barn') : null}
@@ -354,6 +418,7 @@ const styles = StyleSheet.create({
     ...type.body, borderWidth: 1, borderRadius: radius.control, paddingHorizontal: 12, paddingVertical: 10, minHeight: 64, textAlignVertical: 'top',
   },
   short: { minHeight: 44 },
+  chip: { borderWidth: 1, borderRadius: radius.control, paddingHorizontal: 12, paddingVertical: 8, marginTop: 6 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 4 },
   button: {
     flex: 1, borderRadius: radius.control, minHeight: 46, alignItems: 'center', justifyContent: 'center',

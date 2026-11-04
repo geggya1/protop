@@ -56,7 +56,31 @@ export const SICK_LEAVE_DEFAULTS = {
   requireForm: true,
   frequentOccasions: 3,
   denied: [],
+  agreement: 'none',
+  paidLeave: {},
 };
+
+/**
+ * Fravær der arbeidsmiljøloven ikke gir rett til lønn, men tariffavtale, personalhåndbok eller
+ * arbeidsavtale ofte gjør det. Bedriften krysser av det avtalen gir lønn for (absenceForm.js).
+ */
+export const PAID_LEAVE_OPTIONS = [
+  { id: 'lege', label: 'Egen lege-, tannlege- eller spesialisttime' },
+  { id: 'legeBarn', label: 'Følge barn til lege eller kontroll (når barnet ikke er sykt)' },
+  { id: 'begravelse', label: 'Begravelse i nær familie' },
+  { id: 'velferd', label: 'Annen velferdspermisjon (flytting, bryllup, barnehagestart o.l.)' },
+  { id: 'omsorgFodsel', label: 'Omsorgspermisjon ved fødsel eller adopsjon (aml. § 12-3)' },
+  { id: 'militaer', label: 'Militærtjeneste / repetisjonsøvelse' },
+  { id: 'kurs', label: 'Kurs og seminar etter eget ønske' },
+];
+
+export const AGREEMENT_OPTIONS = [
+  { id: 'none', label: 'Ingen tariffavtale' },
+  { id: 'fob', label: 'Fellesoverenskomsten for byggfag' },
+  { id: 'industri', label: 'Industrioverenskomsten / annen LO–NHO-overenskomst' },
+  { id: 'other', label: 'Annen tariffavtale' },
+  { id: 'handbook', label: 'Personalhåndbok / arbeidsavtale' },
+];
 
 /**
  * ProTop lanseres 01.01.2027. Sykedager før det krever ikke egenmelding i appen:
@@ -160,6 +184,8 @@ export function normalizeSickRules(raw = {}) {
     childCertDays: d.childCertDays,
     childMinEmploymentDays: d.childMinEmploymentDays,
     requireForm: src.requireForm !== false,
+    agreement: AGREEMENT_OPTIONS.some((row) => row.id === src.agreement) ? src.agreement : 'none',
+    paidLeave: Object.fromEntries(PAID_LEAVE_OPTIONS.map((row) => [row.id, src.paidLeave?.[row.id] === true])),
     frequentOccasions: Math.max(2, count(src.frequentOccasions, d.frequentOccasions, 12)),
     denied: denied
       .map((row) => ({

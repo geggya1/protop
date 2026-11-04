@@ -32,6 +32,7 @@ import {
   projectsForEmployee,
   upsertTimeEntry,
   deleteAbsence,
+  deleteAbsences,
   deleteTimeEntry,
 } from '../../src/project/engine';
 import {
@@ -732,7 +733,18 @@ export default function ArbeidScreen({
       };
       // Dagene føres først, så saken lagres med koblingen til fraværet (absenceIds).
       // Kan ingen dager føres (f.eks. låst timeliste), lagres meldingen likevel og feilen vises.
-      const result = applySickCaseToState(state, draft, { hoursForDate: agreedForDate, catalog: absenceTypes, createdByUid: uid });
+      // Åpnet fra fraværsskjemaet (følge sykt barn til lege): fjern legetimen uten skjema i perioden.
+      let base = state;
+      const replaceType = sickForm?.replaceType || '';
+      if (replaceType) {
+        const ids = (state.absences || [])
+          .filter((row) => row.employeeId === selectedEmployee.id && row.type === replaceType && !row.formId
+            && row.date >= draft.fromDate && row.date <= (draft.toDate || draft.fromDate))
+          .map((row) => row.id);
+        const removed = ids.length ? deleteAbsences(state, ids) : null;
+        if (removed?.ok) base = removed.state;
+      }
+      const result = applySickCaseToState(base, draft, { hoursForDate: agreedForDate, catalog: absenceTypes, createdByUid: uid });
       const saved = await sick.save({ ...draft, absenceIds: result.ok ? result.absenceIds : (sick.cases.find((row) => row.id === draft.id)?.absenceIds || []) }, {
         actor: user?.displayName || user?.email || '',
         action: input.id ? 'Endret melding' : (own ? 'Meldt av ansatt' : 'Meldt av leder'),
@@ -1989,6 +2001,12 @@ export default function ArbeidScreen({
         employeeName={selectedName}
         absences={sickAbsences}
         hoursForDate={agreedForDate}
+        rules={sick.rules}
+        onSickChild={({ fromDate, toDate }) => {
+          setAbsenceFormInitial(null);
+          // Legetimen var et sykt barn: dagene som sto som legetime uten skjema, erstattes av sykt barn.
+          openSickForm({ kind: 'child', fromDate, toDate, replaceType: absenceFormInitial?.originType || absenceFormInitial?.type || '' });
+        }}
         initial={absenceFormInitial}
         onBehalf={!!selectedEmployee && selectedEmployee.personUid !== uid}
         error={absenceFormError}

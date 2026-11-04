@@ -50,7 +50,19 @@ export function needsAbsenceForm(typeId, catalog) {
   return !NO_FORM_LABEL.test(row.label);
 }
 
-const DETAIL_KEYS = ['childName', 'childDate', 'percent', 'relation', 'person', 'occasion', 'education', 'organ', 'holiday'];
+const DETAIL_KEYS = ['childName', 'childDate', 'percent', 'relation', 'person', 'occasion', 'education', 'organ', 'holiday', 'whoFor', 'provider', 'ordered', 'childSick'];
+
+export const WHO_FOR = [
+  { id: 'selv', label: 'Meg selv' },
+  { id: 'barn', label: 'Barnet mitt' },
+];
+
+export const PROVIDERS = [
+  { id: 'fastlege', label: 'Fastlege / legevakt' },
+  { id: 'spesialist', label: 'Spesialisthelsetjenesten / sykehus' },
+  { id: 'tannlege', label: 'Tannlege' },
+  { id: 'behandling', label: 'Fysioterapeut, psykolog eller annen behandling' },
+];
 
 /** Bare feltene kategorien spør om, trimmet. Ingen andre opplysninger lagres. */
 export function cleanFormDetails(category, details = {}) {
@@ -66,10 +78,18 @@ export function cleanFormDetails(category, details = {}) {
     education: fields.has('education'),
     organ: fields.has('organ'),
     holiday: fields.has('holiday'),
+    whoFor: fields.has('whoFor'),
+    provider: fields.has('provider'),
+    ordered: fields.has('ordered'),
+    childSick: fields.has('whoFor') && details?.whoFor === 'barn',
   };
   const out = {};
   for (const key of DETAIL_KEYS) {
     if (!allowed[key]) continue;
+    if (key === 'ordered' || key === 'childSick') {
+      if (details?.[key] === true) out[key] = true;
+      continue;
+    }
     const value = key === 'percent' ? Number(details?.[key] || 100) : text(details?.[key]).slice(0, 120);
     if (value !== '' && value != null) out[key] = value;
   }
@@ -83,6 +103,9 @@ export function formSummary(row = {}) {
   const parts = [];
   if (cat) parts.push(cat.label);
   if (d.occasion) parts.push(OCCASIONS.find((o) => o.id === d.occasion)?.label || d.occasion);
+  if (d.provider) parts.push(PROVIDERS.find((r) => r.id === d.provider)?.label || d.provider);
+  if (d.whoFor === 'barn') parts.push('med barn');
+  if (d.ordered) parts.push('pålagt av arbeidsgiver');
   if (d.relation) parts.push(RELATIONS.find((r) => r.id === d.relation)?.label || d.relation);
   if (d.person) parts.push(d.person);
   if (d.childName) parts.push(`barn: ${d.childName}`);
@@ -202,16 +225,16 @@ export const FORM_CATEGORIES = [
     id: 'kurs',
     label: 'Kurs / seminar',
     law: 'Avtale med arbeidsgiver',
-    fields: ['education'],
-    info: '',
+    fields: ['education', 'ordered'],
+    info: 'Kurs arbeidsgiver pålegger, er arbeidstid med lønn.',
   },
   {
     id: 'lege',
-    label: 'Lege, tannlege eller behandling',
-    law: 'Avtale med arbeidsgiver',
-    fields: [],
+    label: 'Lege, tannlege, spesialist eller behandling',
+    law: 'Ingen lovfestet rett etter aml. Lønn etter tariffavtale eller avtale',
+    fields: ['whoFor', 'provider'],
     health: true,
-    info: 'Ikke skriv diagnose eller andre helseopplysninger.',
+    info: 'Arbeidsmiljøloven gir ikke rett til fri for legetime. Legg timen utenom arbeidstiden når det går. Ikke skriv diagnose eller andre helseopplysninger.',
   },
   {
     id: 'annet',
@@ -246,6 +269,68 @@ export const OCCASIONS = [
   { id: 'barnehage', label: 'Tilvenning barnehage / første skoledag' },
   { id: 'annet', label: 'Annet' },
 ];
+
+const PAID_TYPE = { lege: ['lege_med', 'lege_uten'], kurs: ['seminar_med', 'seminar_uten'] };
+
+/**
+ * Lønn for fraværet etter arbeidsmiljøloven og bedriftens avtale (sickRules.paidLeave).
+ * Returnerer { paid, payer, basis, typeId }: typeId er fraværstypen dagene skal føres med,
+ * eller '' når skjemaet ikke skal endre typen (Annet: brukeren har valgt selv).
+ */
+export function formPayDecision(category, details = {}, { rules, fromDate } = {}) {
+  const paidLeave = rules?.paidLeave || {};
+  const d = details && typeof details === 'object' ? details : {};
+  const pair = PAID_TYPE[category] || ['annet_med', 'annet_uten'];
+  const out = (paid, payer, basis, typeId) => ({ paid, payer, basis, typeId: typeId ?? (paid ? pair[0] : pair[1]) });
+  const byAgreement = (flag, what) => (paidLeave[flag]
+    ? out(true, 'arbeidsgiver', `Med lønn etter bedriftens avtale (${what}).`)
+    : out(false, 'ingen', `Uten lønn: arbeidsmiljøloven gir ikke rett til lønn, og bedriftens avtale gir ikke lønn for ${what}.`));
+  switch (category) {
+    case 'svangerskapskontroll':
+      return out(true, 'arbeidsgiver', 'Med lønn etter aml. § 12-1.');
+    case 'ammefri': {
+      const oneYear = isIsoDate(d.childDate) ? `${Number(d.childDate.slice(0, 4)) + 1}${d.childDate.slice(4)}` : '';
+      if (oneYear && isIsoDate(fromDate) && fromDate < oneYear) {
+        return out(true, 'arbeidsgiver', 'Med lønn inntil én time per dag (minst 7 timers arbeidsdag) til barnet er ett år, aml. § 12-8. Tid ut over er uten lønn.');
+      }
+      return out(false, 'ingen', 'Uten lønn etter at barnet har fylt ett år (aml. § 12-8), med mindre avtalen sier noe annet.');
+    }
+    case 'foreldre':
+      return out(true, 'NAV', 'Foreldrepenger fra NAV. Arbeidsgiver kan forskuttere og kreve refusjon.', 'foreldre');
+    case 'omsorg_fodsel':
+      return byAgreement('omsorgFodsel', 'omsorgspermisjon');
+    case 'pleie_barn':
+    case 'livets_sluttfase':
+      return out(false, 'NAV', 'Pleiepenger fra NAV. Ikke lønn fra arbeidsgiver.');
+    case 'naerstaende':
+      return out(false, 'ingen', 'Uten lønn etter aml. § 12-10.');
+    case 'utdanning':
+      return out(false, 'ingen', 'Uten lønn etter aml. § 12-11.');
+    case 'verv':
+      return out(false, 'ingen', 'Uten lønn fra arbeidsgiver. Tapt arbeidsinntekt dekkes av organet vervet gjelder.');
+    case 'militaer':
+      return byAgreement('militaer', 'militærtjeneste');
+    case 'religios':
+      return out(false, 'ingen', 'Uten lønn, men arbeidsgiver kan avtale at tiden arbeides inn i stedet for trekk (trossamfunnsloven § 18).');
+    case 'velferd':
+      return d.occasion === 'begravelse' ? byAgreement('begravelse', 'begravelse') : byAgreement('velferd', 'velferdspermisjon');
+    case 'kurs':
+      return d.ordered ? out(true, 'arbeidsgiver', 'Pålagt kurs er arbeidstid med lønn.') : byAgreement('kurs', 'kurs etter eget ønske');
+    case 'lege':
+      return d.whoFor === 'barn' ? byAgreement('legeBarn', 'å følge barn til lege') : byAgreement('lege', 'legetime');
+    default:
+      return { paid: null, payer: '', basis: '', typeId: '' };
+  }
+}
+
+/** Typen skjemaet skal føre dagene med: lønnsvalget, om typen finnes hos bedriften. */
+export function formTypeFor(form = {}, { rules, catalog } = {}) {
+  const decision = formPayDecision(form.category, form.details, { rules, fromDate: form.fromDate });
+  const list = Array.isArray(catalog) ? catalog : null;
+  const known = (id) => !!id && (!list || list.some((row) => text(row.id) === id));
+  if (decision.typeId && known(decision.typeId)) return { ...decision, resolvedType: decision.typeId, missingType: '' };
+  return { ...decision, resolvedType: text(form.type), missingType: decision.typeId && !known(decision.typeId) ? decision.typeId : '' };
+}
 
 /** Hvilken kategori skjemaet starter med, ut fra fraværstypen. */
 export function defaultFormCategory(typeId, catalog) {
@@ -325,6 +410,11 @@ export function validateAbsenceForm(form = {}) {
   if (fields.includes('education') && !text(details.education)) errors.push(cat?.id === 'kurs' ? 'Skriv navn på kurset eller seminaret.' : 'Skriv utdanning og studiested.');
   if (fields.includes('organ') && !text(details.organ)) errors.push(cat?.id === 'verv' ? 'Skriv vervet og organet.' : 'Skriv hvilken tjeneste det gjelder.');
   if (fields.includes('holiday') && !text(details.holiday)) errors.push('Skriv hvilken høytid det gjelder.');
+  if (fields.includes('whoFor') && !text(details.whoFor)) errors.push('Velg om timen gjelder deg selv eller barnet ditt.');
+  if (fields.includes('provider') && !text(details.provider)) errors.push('Velg type time.');
+  if (fields.includes('whoFor') && details.whoFor === 'barn' && details.childSick === true) {
+    errors.push('Når barnet er sykt, meldes fraværet som sykt barn (omsorgsdager). Bruk «Meld sykt barn».');
+  }
   if (fields.includes('percent')) {
     const pct = Number(details.percent || 100);
     if (!(pct > 0 && pct <= 100)) errors.push('Permisjonsgraden må være mellom 1 og 100 %.');
@@ -377,8 +467,9 @@ export function applyAbsenceForm(state, form, { hoursForDate, createdByUid = '',
   const ids = [];
   const failed = [];
   for (let day = fromDate; day && day <= toDate; day = addDays(day, 1)) {
+    const origin = text(form.originType);
     const existing = mine.find((a) => text(a.date) === day && text(a.formId) === id && text(a.type) === type)
-      || mine.find((a) => text(a.date) === day && text(a.type) === type && !text(a.formId));
+      || mine.find((a) => text(a.date) === day && !text(a.formId) && (text(a.type) === type || (origin && text(a.type) === origin)));
     const hours = existing ? Number(existing.hours) : hoursOf(day);
     if (!(hours > 0)) continue;
     const result = addAbsence(next, {

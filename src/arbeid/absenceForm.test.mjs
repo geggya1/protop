@@ -5,7 +5,9 @@ import {
   categoryDaysUsed,
   cleanFormDetails,
   defaultFormCategory,
+  formPayDecision,
   formSummary,
+  formTypeFor,
   formWarnings,
   applyAbsenceForm,
   missingAbsenceForms,
@@ -128,6 +130,43 @@ assert.ok(formWarnings({ category: 'livets_sluttfase', fromDate: '2026-11-04', t
   // Bare helg: ingen dager.
   const weekend = applyAbsenceForm(state, { employeeId: 'e1', type: 'annet_med', category: 'annet', fromDate: '2026-11-07', toDate: '2026-11-08', reason: 'x' }, { hoursForDate: hours });
   assert.equal(weekend.ok, false);
+}
+
+// Lønn etter aml. og bedriftens avtale.
+{
+  const none = { paidLeave: {} };
+  const fob = { paidLeave: { lege: true, begravelse: true } };
+  assert.equal(formPayDecision('svangerskapskontroll', {}, { rules: none }).paid, true);
+  assert.equal(formPayDecision('lege', { whoFor: 'selv', provider: 'spesialist' }, { rules: none }).typeId, 'lege_uten');
+  assert.equal(formPayDecision('lege', { whoFor: 'selv', provider: 'spesialist' }, { rules: fob }).typeId, 'lege_med');
+  assert.equal(formPayDecision('lege', { whoFor: 'barn', provider: 'spesialist' }, { rules: fob }).typeId, 'lege_uten');
+  assert.equal(formPayDecision('velferd', { occasion: 'begravelse' }, { rules: fob }).typeId, 'annet_med');
+  assert.equal(formPayDecision('velferd', { occasion: 'flytting' }, { rules: fob }).typeId, 'annet_uten');
+  assert.equal(formPayDecision('naerstaende', {}, { rules: fob }).typeId, 'annet_uten');
+  assert.equal(formPayDecision('livets_sluttfase', {}, { rules: none }).payer, 'NAV');
+  assert.equal(formPayDecision('foreldre', {}, { rules: none }).typeId, 'foreldre');
+  assert.equal(formPayDecision('kurs', { ordered: true }, { rules: none }).typeId, 'seminar_med');
+  assert.equal(formPayDecision('kurs', {}, { rules: none }).typeId, 'seminar_uten');
+  assert.equal(formPayDecision('ammefri', { childDate: '2026-03-01' }, { rules: none, fromDate: '2026-11-04' }).paid, true);
+  assert.equal(formPayDecision('ammefri', { childDate: '2025-03-01' }, { rules: none, fromDate: '2026-11-04' }).paid, false);
+  assert.equal(formPayDecision('annet', {}, { rules: none }).typeId, '');
+  // Typen finnes ikke hos bedriften: beholder typen dagene sto med.
+  const custom = [{ id: 'annet_med' }, { id: 'velferd' }];
+  const t = formTypeFor({ type: 'annet_med', category: 'lege', details: { whoFor: 'selv' } }, { rules: none, catalog: custom });
+  assert.equal(t.resolvedType, 'annet_med');
+  assert.equal(t.missingType, 'lege_uten');
+  // Skjemaet bytter typen på dagen som sto som «Annet fravær med lønn».
+  let state = { ...emptyProjectState(), absences: [normalizeAbsenceRow({ id: 'l1', employeeId: 'e1', date: '2026-11-04', hours: 2, type: 'annet_med' })] };
+  const res = applyAbsenceForm(state, {
+    employeeId: 'e1', type: 'lege_uten', originType: 'annet_med', category: 'lege', details: { whoFor: 'selv', provider: 'spesialist' },
+    fromDate: '2026-11-04', toDate: '2026-11-04',
+  }, { hoursForDate: hours });
+  assert.equal(res.ok, true);
+  assert.equal(res.state.absences.length, 1);
+  assert.equal(res.state.absences[0].id, 'l1');
+  assert.equal(res.state.absences[0].type, 'lege_uten');
+  assert.equal(res.state.absences[0].hours, 2);
+  assert.ok(validateAbsenceForm({ type: 'lege_med', category: 'lege', fromDate: '2026-11-04', details: { whoFor: 'selv' } }).some((e) => /type time/.test(e)));
 }
 
 console.log('absenceForm ok');

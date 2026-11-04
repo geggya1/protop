@@ -4,7 +4,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import CheckBox from '../CheckBox';
-import { IA_SELF_CERT, SICK_LEAVE_DEFAULTS, normalizeSickRules, selfCertScheme } from '../../src/arbeid/sickLeave.js';
+import OptionPicker from '../OptionPicker';
+import {
+  AGREEMENT_OPTIONS, IA_SELF_CERT, PAID_LEAVE_OPTIONS, SICK_LEAVE_DEFAULTS, normalizeSickRules, selfCertScheme,
+} from '../../src/arbeid/sickLeave.js';
 import { loadSickRules, saveSickRules } from '../../src/arbeid/sickStorage.js';
 import { radius, type } from '../../src/ui/tokens';
 
@@ -69,10 +72,10 @@ export default function SickRulesSettings({ familyId, colors, canEdit }) {
       const saved = await saveSickRules(familyId, { ...next, denied: [] });
       setRules({ ...saved, denied: rules.denied });
       setDraft(null);
-      setMessage('Reglene for egenmelding er lagret.');
+      setMessage('Reglene er lagret.');
     } catch (cause) {
       const denied = /permission|insufficient/i.test(String(cause?.message || cause?.code || ''));
-      setError(denied ? 'Du trenger skrivetilgang til HR for å endre egenmeldingsreglene.' : 'Kunne ikke lagre reglene.');
+      setError(denied ? 'Du trenger skrivetilgang til HR for å endre disse reglene.' : 'Kunne ikke lagre reglene.');
     } finally {
       setBusy(false);
     }
@@ -84,7 +87,7 @@ export default function SickRulesSettings({ familyId, colors, canEdit }) {
   return (
     <View style={styles.stack} nativeID="fravaer-innstillinger-sykefravaer">
       <Text style={[styles.body, { color: colors.muted }]}>
-        Ordningen gjelder egenmelding i timelisten og i skjemaet for sykefravær. Den samme innstillingen står under HR → Sykefravær.
+        Egenmeldingsordningen gjelder i timelisten og i skjemaet for sykefravær, og står også under HR → Sykefravær. Lønnsvalgene nederst styrer fraværsskjemaet.
       </Text>
 
       {SCHEMES.map((row) => {
@@ -171,6 +174,31 @@ export default function SickRulesSettings({ familyId, colors, canEdit }) {
         </View>
       </View>
 
+      <View style={[styles.divider, { borderTopColor: colors.line }]} />
+      <Text style={[styles.strong, { color: colors.ink }]}>Lønn ved permisjon og legetime</Text>
+      <Text style={[styles.caption, { color: colors.muted }]}>
+        Arbeidsmiljøloven gir lønn bare ved svangerskapskontroll (§ 12-1) og ammefri inntil én time per dag første leveår (§ 12-8). Sykt barn betales som omsorgsdager (ftrl. § 9-5). Alt annet følger av tariffavtale, personalhåndbok eller arbeidsavtale. Kryss av det avtalen gir lønn for, så fører fraværsskjemaet dagene som fravær med eller uten lønn.
+      </Text>
+      <View style={styles.field}>
+        <Text style={[styles.label, { color: colors.muted }]}>Avtalegrunnlag</Text>
+        <OptionPicker
+          options={AGREEMENT_OPTIONS}
+          value={current.agreement || 'none'}
+          onChange={(id) => canEdit && set({ agreement: id || 'none' })}
+          title="Avtalegrunnlag"
+          clearable={false}
+          disabled={!canEdit}
+        />
+      </View>
+      {PAID_LEAVE_OPTIONS.map((row) => (
+        <CheckBox
+          key={row.id}
+          checked={!!current.paidLeave?.[row.id]}
+          onPress={canEdit ? () => set({ paidLeave: { ...(current.paidLeave || {}), [row.id]: !current.paidLeave?.[row.id] } }) : undefined}
+          label={`Med lønn: ${row.label}`}
+        />
+      ))}
+
       {error ? <Text style={{ color: colors.dangerInk || colors.danger }}>{error}</Text> : null}
       {message ? <Text style={{ color: colors.brand }}>{message}</Text> : null}
       {canEdit && draft ? (
@@ -189,6 +217,7 @@ export default function SickRulesSettings({ familyId, colors, canEdit }) {
 
 const styles = StyleSheet.create({
   stack: { gap: 12 },
+  divider: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 4 },
   stackTight: { gap: 4 },
   flex: { flex: 1, minWidth: 0, gap: 4 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

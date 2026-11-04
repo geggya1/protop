@@ -19,7 +19,12 @@ const rnMock = {
   View: host('div'),
   Text: host('span'),
   TouchableOpacity: host('button'),
-  StyleSheet: { create: (styles) => styles, hairlineWidth: 1 },
+  Pressable: host('button'),
+  ScrollView: host('div'),
+  Modal: (props) => (props?.visible ? React.createElement('dialog', null, props.children) : null),
+  Linking: { openURL: async () => {} },
+  Share: { share: async () => {} },
+  StyleSheet: { create: (styles) => styles, hairlineWidth: 1, absoluteFill: {} },
   Platform: { OS: 'web', select: (options) => options?.web || options?.default },
 };
 
@@ -83,6 +88,15 @@ function day(date, hours, clockIn = '', clockOut = '') {
   assert.match(html, /id="working-time-warnings-arbeidstilsynet"/);
   assert.match(html, /AML § 10-6 \(6\)/);
   assert.match(html, /Øverste leder og administrator får varsel/);
+  // Vanlig ansatt: ingen søknadsknapp, men beskjed om at ledelsen har utkastet.
+  assert.doesNotMatch(html, /Lag søknad til Arbeidstilsynet/);
+  assert.match(html, /har et ferdig søknadsutkast/);
+  const lead = renderToStaticMarkup(React.createElement(WorkingTimeWarnings, {
+    colors, entries, employeeId: 'e1', from: '2026-01-01', to: '2026-10-31', canApply: true,
+    employee: { name: 'Kari' }, applicant: { name: 'Per' },
+  }));
+  assert.match(lead, /Lag søknad til Arbeidstilsynet/);
+  assert.match(lead, /id="working-time-warnings-draft-open"/);
 }
 
 {

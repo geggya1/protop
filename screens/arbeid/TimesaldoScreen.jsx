@@ -17,6 +17,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
 import WorkingTimeWarnings from '../../components/arbeid/WorkingTimeWarnings';
+import { workingTimeAlertRecipients } from '../../src/arbeid/workingTimePolicy';
 import { canManageTimesheets, employeeDisplayName } from '../../src/arbeid/roles.js';
 import {
   canSwitchTimesheetPerson,
@@ -47,7 +48,7 @@ export default function TimesaldoScreen({
 } = {}) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
-  const { family, isAdmin } = useApp();
+  const { family, isAdmin, uid, user, userProfile } = useApp();
   const access = useCompanyAccess();
   const [through, setThrough] = useState(todayKey());
   const year = Number(through.slice(0, 4)) || new Date().getFullYear();
@@ -341,6 +342,12 @@ export default function TimesaldoScreen({
           from={`${year}-01-01`}
           to={through}
           company={family?.company || null}
+          canApply={isAdmin || workingTimeAlertRecipients({ family, employees: workspace.employees }).includes(uid)}
+          employee={{ name: selectedName, position: employee?.company?.title || '' }}
+          applicant={{
+            name: userProfile?.displayName || userProfile?.name || user?.displayName || '',
+            email: user?.email || '',
+          }}
           nativeID="timesaldo-working-time"
         />
       </ScrollView>

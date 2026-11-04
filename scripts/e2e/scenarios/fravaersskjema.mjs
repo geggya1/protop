@@ -281,8 +281,8 @@ await check('3.1 Neste arbeidsdag: legetime med barnet spør om barnet er sykt',
   await phone.click('Lege, tannlege, spesialist eller behandling');
   await phone.click('Barnet mitt');
   await expectText(phone, 'Er barnet sykt?');
-  const second = (await absences()).find((r) => r.date === workday(first.offset + 1).iso);
-  console.log('DIAG dag 2 i skyen (før skjema):', second ? `${second.type} ${second.hours}` : 'nei');
+  const day2 = (await absences()).find((r) => r.date === second.iso);
+  console.log('DIAG dag 2 i skyen (før skjema):', day2 ? `${day2.type} ${day2.hours}` : 'nei');
   await expectText(phone, 'Føres som: Legebesøk uten lønn');
   await phone.shot('skjema-barn');
 });

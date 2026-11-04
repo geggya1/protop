@@ -228,11 +228,15 @@ export function useTimesheetWorkspace({
 
   useEffect(() => {
     if (!ready) return;
-    putProjectState(state, workspaceId);
-    if (loadedStates.current.has(state)) return;
+    if (loadedStates.current.has(state)) {
+      putProjectState(state, workspaceId);
+      return;
+    }
     // Timer og fravær går til egne samlinger. Prosjektdokumentet får bare radene som faktisk
     // er endret her (lås, saldo, fraværstyper), lagt på skyens ferske kopi.
+    // Grunnlaget leses før minnet oppdateres (se ArbeidScreen), ellers lagres ikke første endring.
     saveProjectState(state, workspaceId).catch(() => setError('Kunne ikke lagre.'));
+    putProjectState(state, workspaceId);
   }, [state, ready, workspaceId]);
 
   const linked = useMemo(() => {

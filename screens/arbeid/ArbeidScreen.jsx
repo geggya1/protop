@@ -334,11 +334,17 @@ export default function ArbeidScreen({
 
   useEffect(() => {
     if (!ready) return;
-    putProjectState(state, workspaceId);
-    if (loadedStates.current.has(state)) return;
+    if (loadedStates.current.has(state)) {
+      putProjectState(state, workspaceId);
+      return;
+    }
     // Timer og fravær går til egne samlinger. Prosjektdokumentet får bare radene som faktisk
     // er endret (lås, medlemskap, utlegg fra sideskjemaet), aldri hele listen fra denne kopien.
+    // saveProjectState leser grunnlaget (forrige versjon i minnet) før første await, så
+    // minnet oppdateres etterpå. Ellers så den nye raden ut som lagret, og første fravær
+    // i en økt ble aldri skrevet til skyen.
     saveProjectState(state, workspaceId).catch((cause) => setError(timesheetSaveErrorText(cause)));
+    putProjectState(state, workspaceId);
   }, [state, ready, workspaceId]);
 
   const linked = useMemo(() => {

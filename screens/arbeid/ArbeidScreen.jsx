@@ -22,6 +22,8 @@ import { showSaveError, showSaveToast } from '../../src/ui/saveToast';
 import { watchEmployees } from '../../src/employees/storage';
 import { isActiveEmployee, isHiredPersonnel, ownEmployee } from '../../src/employees/model';
 import { recordUsage } from '../../src/employees/usageClient';
+import { notifyWorkingTimeBreaches } from '../../src/arbeid/workingTimeAlerts';
+import WorkingTimeSaveWarning from '../../components/arbeid/WorkingTimeSaveWarning';
 import {
   addAbsence,
   addProjectMember,
@@ -171,6 +173,8 @@ export default function ArbeidScreen({
   const [hoursLoading, setHoursLoading] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  // Advarsel til den som fører timene når en arbeidstidsgrense er brutt. Timene er lagret.
+  const [workWarning, setWorkWarning] = useState([]);
   // Prosjektdokumentet kunne ikke leses fra skyen (tidsavbrudd, ingen nett). Da vises en
   // reserve, og felles data (lås, deltakelse, utlegg) endres ikke herfra.
   const [loadFailed, setLoadFailed] = useState(false);
@@ -903,6 +907,19 @@ export default function ArbeidScreen({
     showSaveToast('Timer lagret.');
     setError('');
     if (!(await purgeCloudEntries(removed))) return;
+    // Overskridelser av arbeidstidsgrensene: advarsel her, og varsel til øverste leder og administrator.
+    // Sperrer ikke: timene er lagret.
+    setWorkWarning([]);
+    notifyWorkingTimeBreaches({
+      companyId: workspaceId,
+      family,
+      employees,
+      employeeId,
+      employeeName: selectedName,
+      dates: [editor.day?.key],
+      entries: (next.timeEntries || []).filter((row) => row.employeeId === employeeId),
+      actorUid: uid,
+    }).then((res) => setWorkWarning(res?.alerts || []));
     const hours = list.reduce((sum, row) => sum + parseHours(row.hours), 0);
     recordUsage({
       type: 'hour',
@@ -1552,6 +1569,7 @@ export default function ArbeidScreen({
         </View>
       ) : null}
       {note ? <Text style={{ color: colors.brand, marginBottom: 6 }}>{note}</Text> : null}
+      <WorkingTimeSaveWarning colors={colors} alerts={workWarning} onClose={() => setWorkWarning([])} />
       {error && !(loadFailed && error === PROJECTS_NOT_LOADED) ? (
         <Text style={{ color: colors.dangerInk || colors.danger, marginBottom: 6 }}>{error}</Text>
       ) : null}

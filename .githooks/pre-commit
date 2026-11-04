@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stopper en commit når main har endringer eldre enn et døgn som mangler her (scripts/check-base.js).
+# Slipp gjennom likevel med PROTOP_ALLOW_STALE=1.
+exec node scripts/check-base.js --commit

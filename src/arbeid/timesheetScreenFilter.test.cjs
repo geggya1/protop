@@ -202,6 +202,7 @@ function loadJsx(rel) {
       || id.includes('SickNoteModal')
       || id.includes('AbsenceNoticeModal')
       || id.includes('TimesheetSideForm')
+      || id.includes('WorkingTimeSaveWarning')
       || id.includes('ScrollSheet')
       || id.includes('BillingChainLine')
       || id.includes('components/Breadcrumb')

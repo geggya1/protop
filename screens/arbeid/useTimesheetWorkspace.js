@@ -52,7 +52,15 @@ export function useTimesheetWorkspace({
   });
   const [ready, setReady] = useState(!!cached);
   const [error, setError] = useState('');
-  const skipSave = useRef(true);
+  // Versjoner som kom fra skyen (lasting, lytter), og som ikke skal lagres tilbake. Et flagg
+  // ble stående når en lasting ikke endret noe (samme objekt, ingen ny render), og da ble
+  // brukerens neste endring ikke lagret. Nå hoppes bare akkurat de lastede versjonene over.
+  const loadedStates = useRef(new WeakSet());
+  // `current` med: ga lastingen ingen endring, merkes ikke versjonen brukeren kan ha laget.
+  const markLoaded = (next, current = undefined) => {
+    if (next && typeof next === 'object' && next !== current) loadedStates.current.add(next);
+    return next;
+  };
   const stateRef = useRef(state);
   stateRef.current = state;
   // Prosjektdokumentet i sanntid (felles lytter i skallet), bare for låsene.
@@ -73,19 +81,17 @@ export function useTimesheetWorkspace({
     let live = true;
     const warm = peekProjectState(workspaceId);
     if (warm) {
-      setState(warm);
+      setState(markLoaded(warm));
       setReady(true);
-      skipSave.current = true;
     }
     loadProjectState(workspaceId, { hours: false }).then((loaded) => {
       if (!live) return;
-      skipSave.current = true;
       setState((current) => {
         const next = applyHoursOntoState(current, loaded);
-        return {
+        return markLoaded({
           ...next,
           timeEntries: keepFilledList(current?.timeEntries, loaded?.timeEntries),
-        };
+        });
       });
       setReady(true);
     });
@@ -97,8 +103,7 @@ export function useTimesheetWorkspace({
     let live = true;
     ensureProjectHours(workspaceId, { fromDate, toDate: toDate || fromDate }).then((loaded) => {
       if (!live) return;
-      skipSave.current = true;
-      setState((current) => applyHoursOntoState(current, loaded));
+      setState((current) => markLoaded(applyHoursOntoState(current, loaded), current));
     }).catch(() => {});
     return () => { live = false; };
   }, [ready, workspaceId, fromDate, toDate]);
@@ -119,8 +124,7 @@ export function useTimesheetWorkspace({
         }
       }
       if (!live || !loaded) return;
-      skipSave.current = true;
-      setState((current) => applyHoursOntoState(current, loaded));
+      setState((current) => markLoaded(applyHoursOntoState(current, loaded), current));
     })().catch(() => {});
     return () => { live = false; };
   }, [liveLocks, ready, workspaceId, remoteLockSig]);
@@ -140,8 +144,7 @@ export function useTimesheetWorkspace({
       : { fromDate: absenceFrom, toDate: absenceTo || absenceFrom, employeeId: absenceEmployee };
     ensureProjectAbsences(workspaceId, range).then((loaded) => {
       if (!live) return;
-      skipSave.current = true;
-      setState((current) => applyAbsencesOntoState(current, loaded));
+      setState((current) => markLoaded(applyAbsencesOntoState(current, loaded), current));
       setAbsencesReady(true);
     }).catch(() => {
       if (live) setAbsencesReady(true);
@@ -188,9 +191,8 @@ export function useTimesheetWorkspace({
         if (!next.length) return;
         setAbsencesReady(true);
         setState((current) => {
-          skipSave.current = true;
           noteAbsencesImported(workspaceId, next);
-          return putProjectState({ ...current, absences: next }, workspaceId);
+          return markLoaded(putProjectState({ ...current, absences: next }, workspaceId));
         });
       },
     );
@@ -227,10 +229,7 @@ export function useTimesheetWorkspace({
   useEffect(() => {
     if (!ready) return;
     putProjectState(state, workspaceId);
-    if (skipSave.current) {
-      skipSave.current = false;
-      return;
-    }
+    if (loadedStates.current.has(state)) return;
     // Timer og fravær går til egne samlinger. Prosjektdokumentet får bare radene som faktisk
     // er endret her (lås, saldo, fraværstyper), lagt på skyens ferske kopi.
     saveProjectState(state, workspaceId).catch(() => setError('Kunne ikke lagre.'));

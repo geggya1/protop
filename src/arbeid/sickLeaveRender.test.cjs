@@ -189,7 +189,7 @@ function collect(node, out = { text: [], ids: [] }, depth = 0) {
   for (const pattern of [
     /Egenmelding og sykmelding/, /Sykmelding · 05\.01\.2026 – 31\.03\.2026/, /Godkjenn/,
     /Hyppig korttidsfravær/, /Omsorgsdager \d{4}: 0 av 10/, /antall barn er ikke registrert/,
-    /Krev skriftlig skjema/, /Utvidet egenmelding/,
+    /Krev skriftlig skjema/, /Utvidet egenmelding er ikke valgt/, /Egenmelding og lønn/,
   ]) assert.match(all, pattern, String(pattern));
   // Sykedagen i dag mangler skjema. Egenmelding kreves bare fra lanseringen 01.01.2027.
   if (iso >= '2027-01-01') assert.match(all, /Sykedager uten skjema/);

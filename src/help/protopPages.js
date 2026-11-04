@@ -610,7 +610,7 @@ export const PROTOP_PAGES = {
     nav: { tab: 'selskap', subView: 'fravaerstyper' },
     icon: 'options',
     process: 'ferie',
-    kicker: tx('Fraværstyper, fridager og ferieplan', 'Absence types, days off and holiday plan'),
+    kicker: tx('Fraværstyper, fridager, ferieplan, egenmelding og lønn', 'Absence types, days off, holiday plan, self-certification and pay'),
     title: tx('Sett opp fravær for bedriften', 'Set up absence for the company'),
     pitch: tx(
       'Bestem fraværstypene (ferie, sykdom, avspasering …), helligdager og egne fridager i timelisten, og inngående feriedager for de ansatte.',
@@ -629,8 +629,12 @@ export const PROTOP_PAGES = {
         '«Ferieplan» setter inngående feriedager og frist for når de ansatte skal planlegge ferien.',
         '“Holiday plan” sets opening holiday days and the deadline for staff to plan their holiday.',
         { find: ['Ferieplan'] }),
+      step(tx('Egenmelding og lønn', 'Self-certification and pay'),
+        '«Egenmelding og lønn» velger lovens regler, IA-ordning eller egen ordning for egenmelding, og hva bedriften dekker ut over loven (legetime, velferd, begravelse o.l.). Alt som ikke er lovpålagt, er av til det krysses på.',
+        '“Self-certification and pay” chooses the statutory rules, the IA scheme or a custom scheme, and what the company pays beyond the law (doctor visits, welfare leave, funerals etc.). Everything not required by law is off until ticked.',
+        { find: ['Egenmelding og lønn'] }),
     ],
-    keywords: ['fraværstype', 'fridager', 'helligdager', 'ferieplan', 'feriedager', 'sykdom', 'avspasering'],
+    keywords: ['fraværstype', 'fridager', 'helligdager', 'ferieplan', 'feriedager', 'sykdom', 'avspasering', 'egenmelding', 'ia', 'legetime', 'velferdspermisjon', 'lønn'],
   }),
   'selskap.kontoplan': page({
     section: 'company-finance',

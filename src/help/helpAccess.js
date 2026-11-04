@@ -39,7 +39,7 @@ export const PAGE_ACCESS = {
   'selskap.moduler': { res: 'moduleSettings', steps: [W, W, S] },
   'selskap.tilgang': { res: 'accessControl', steps: [S, W, W, on(S, 'viewAs')] },
   'selskap.underenheter': { res: 'units', steps: [W, W, on(R, 'projects'), W] },
-  'selskap.fravaerstyper': { res: 'absenceSettings', steps: [W, W, W] },
+  'selskap.fravaerstyper': { res: 'absenceSettings', steps: [W, W, W, W] },
   'selskap.kontoplan': { res: 'economySettings', steps: [W, W, W] },
 
   ansatte: { res: 'employees', steps: [R, R, W, S] },

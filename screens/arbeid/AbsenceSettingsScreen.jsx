@@ -26,7 +26,7 @@ const TABS = [
   { id: 'fravaerstyper', label: 'Fraværstyper', icon: 'sunny-outline', hint: 'Betalt fravær, timebalanse og fakturerbart arbeid' },
   { id: 'fridager', label: 'Fridager', icon: 'calendar-outline', hint: 'Helligdager og egne fridager i timelisten' },
   { id: 'ferieplan', label: 'Ferieplan', icon: 'airplane-outline', hint: 'Inngående feriedagssaldo for aktive interne ansatte' },
-  { id: 'sykefravaer', label: 'Sykefravær og permisjon', icon: 'medkit-outline', hint: 'Egenmelding (lov, IA eller egen) og lønn ved permisjon og legetime' },
+  { id: 'sykefravaer', label: 'Egenmelding og lønn', icon: 'medkit-outline', hint: 'Egenmeldingsordning og hvilket fravær bedriften dekker' },
 ];
 
 function initialTab(startTab) {

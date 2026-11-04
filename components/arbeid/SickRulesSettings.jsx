@@ -29,6 +29,13 @@ const SCHEMES = [
   },
 ];
 
+const STATUTORY = [
+  'Egenmelding og sykmelding i arbeidsgiverperioden, 16 kalenderdager (ftrl. § 8-19)',
+  'Sykt barn: omsorgsdager, de første 10 dagene betales av arbeidsgiver (ftrl. §§ 9-5 til 9-8)',
+  'Svangerskapskontroll (aml. § 12-1)',
+  'Ammefri inntil én time per dag til barnet er ett år (aml. § 12-8)',
+];
+
 function digits(value) {
   return String(value || '').replace(/[^0-9]/g, '').slice(0, 3);
 }
@@ -87,7 +94,7 @@ export default function SickRulesSettings({ familyId, colors, canEdit }) {
   return (
     <View style={styles.stack} nativeID="fravaer-innstillinger-sykefravaer">
       <Text style={[styles.body, { color: colors.muted }]}>
-        Egenmeldingsordningen gjelder i timelisten og i skjemaet for sykefravær, og står også under HR → Sykefravær. Lønnsvalgene nederst styrer fraværsskjemaet.
+        Egenmeldingsordningen gjelder i timelisten og i skjemaet for sykefravær. Valgene nederst bestemmer hvilket fravær bedriften dekker ut over loven.
       </Text>
 
       {SCHEMES.map((row) => {
@@ -175,9 +182,16 @@ export default function SickRulesSettings({ familyId, colors, canEdit }) {
       </View>
 
       <View style={[styles.divider, { borderTopColor: colors.line }]} />
-      <Text style={[styles.strong, { color: colors.ink }]}>Lønn ved permisjon og legetime</Text>
+      <Text style={[styles.strong, { color: colors.ink }]}>Hva bedriften dekker</Text>
+      <Text style={[styles.caption, { color: colors.muted }]}>Lovpålagt, alltid med lønn fra arbeidsgiver:</Text>
+      {STATUTORY.map((label) => (
+        <View key={label} style={styles.lawRow}>
+          <Ionicons name="lock-closed-outline" size={16} color={colors.muted} />
+          <Text style={[styles.caption, styles.flex, { color: colors.ink }]}>{label}</Text>
+        </View>
+      ))}
       <Text style={[styles.caption, { color: colors.muted }]}>
-        Arbeidsmiljøloven gir lønn bare ved svangerskapskontroll (§ 12-1) og ammefri inntil én time per dag første leveår (§ 12-8). Sykt barn betales som omsorgsdager (ftrl. § 9-5). Alt annet følger av tariffavtale, personalhåndbok eller arbeidsavtale. Kryss av det avtalen gir lønn for, så fører fraværsskjemaet dagene som fravær med eller uten lønn.
+        Ikke lovpålagt. Av som standard, og dekkes bare hvis tariffavtale, personalhåndbok eller arbeidsavtale sier det. Fraværsskjemaet fører dagene med eller uten lønn etter valgene her.
       </Text>
       <View style={styles.field}>
         <Text style={[styles.label, { color: colors.muted }]}>Avtalegrunnlag</Text>
@@ -195,7 +209,7 @@ export default function SickRulesSettings({ familyId, colors, canEdit }) {
           key={row.id}
           checked={!!current.paidLeave?.[row.id]}
           onPress={canEdit ? () => set({ paidLeave: { ...(current.paidLeave || {}), [row.id]: !current.paidLeave?.[row.id] } }) : undefined}
-          label={`Med lønn: ${row.label}`}
+          label={`Dekkes: ${row.label}`}
         />
       ))}
 
@@ -217,6 +231,7 @@ export default function SickRulesSettings({ familyId, colors, canEdit }) {
 
 const styles = StyleSheet.create({
   stack: { gap: 12 },
+  lawRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   divider: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 4 },
   stackTight: { gap: 4 },
   flex: { flex: 1, minWidth: 0, gap: 4 },

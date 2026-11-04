@@ -54,7 +54,7 @@ export function selskapMenuTitle(subView) {
   if (subView === 'moduler') return 'Modulinnstillinger';
   if (subView === 'tilgang') return 'Tilgangsstyring';
   if (subView === 'innstillinger') return 'Bedriftsinnstillinger';
-  if (subView === 'fravaerstyper' || subView === 'fridager') return 'Fraværsinnstillinger';
+  if (subView === 'fravaerstyper' || subView === 'fridager' || subView === 'sykefravaer') return 'Fraværsinnstillinger';
   if (subView === 'kontoplan' || subView === 'regnskapskontoer') return 'Økonomiinnstillinger';
   // «Bedrift» i alt brukeren ser; «selskap» bare i juridisk sammenheng (UX-10).
   return 'Bedriften';

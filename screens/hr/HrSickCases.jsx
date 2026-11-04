@@ -12,10 +12,10 @@ import { saveEmployee } from '../../src/employees/storage';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { useSickLeave } from '../../src/arbeid/useSickLeave.js';
 import { applySickCaseToState } from '../../src/arbeid/sickApply.js';
-import { removeSelfCertDenial, saveSelfCertDenial, saveSickRules, sickCaseId } from '../../src/arbeid/sickStorage.js';
+import { removeSelfCertDenial, saveSelfCertDenial, sickCaseId } from '../../src/arbeid/sickStorage.js';
 import {
   CASE_STATUS_LABEL,
-  IA_SELF_CERT,
+  PAID_LEAVE_OPTIONS,
   SICK_KIND_LABEL,
   addMonths,
   calendarDays,
@@ -459,51 +459,33 @@ function Quotas({ ctx }) {
 
 /** Firmaets regler for egenmelding (ftrl §§ 8-24 og 8-26). */
 function Rules({ ctx }) {
-  const { colors, sick, canWrite, workspaceId } = ctx;
-  const [draft, setDraft] = useState(null);
-  const current = draft || sick.rules;
-  const set = (patch) => setDraft((d) => ({ ...(d || sick.rules), ...patch }));
-
-  function save() {
-    ctx.run(async () => {
-      const next = await saveSickRules(workspaceId, current);
-      sick.setRules({ ...next, denied: sick.rules.denied });
-      setDraft(null);
-    }, 'Reglene er lagret.');
-  }
-
+  const { colors, sick } = ctx;
+  const r = sick.rules;
+  const scheme = selfCertScheme(r);
+  const active = r.extendedSelfCert && r.extendedDiscussed;
+  const paid = PAID_LEAVE_OPTIONS.filter((row) => r.paidLeave?.[row.id]).map((row) => row.label);
   return (
     <HrCard colors={colors}>
       <View nativeID="hr-sick-rules" style={styles.stack}>
         <HrSectionTitle
           colors={colors}
           title="Regler for egenmelding"
-          subtitle="Lovens utgangspunkt er tre kalenderdager om gangen etter to måneders ansettelse (ftrl § 8-24). Utvidet egenmelding gjelder bare innenfor arbeidsgiverperioden og krever drøfting med tillitsvalgte."
+          subtitle="Settes under Bedrift → Fravær → Innstillinger → Egenmelding og lønn."
         />
-        <View style={styles.row}>
-          <HrChip colors={colors} label="Krev skriftlig skjema (§ 8-26)" active={!!current.requireForm} onPress={canWrite ? () => set({ requireForm: !current.requireForm }) : undefined} />
-          <HrChip colors={colors} label="IA-ordning (8 / 24 dager)" active={selfCertScheme(current) === 'ia'} onPress={canWrite ? () => set(selfCertScheme(current) === 'ia' ? { extendedSelfCert: false, annualCapDays: 0 } : { ...IA_SELF_CERT }) : undefined} />
-          <HrChip colors={colors} label="Utvidet egenmelding" active={!!current.extendedSelfCert} onPress={canWrite ? () => set({ extendedSelfCert: !current.extendedSelfCert }) : undefined} />
-          {current.extendedSelfCert ? (
-            <HrChip colors={colors} label="Drøftet med tillitsvalgte" active={!!current.extendedDiscussed} onPress={canWrite ? () => set({ extendedDiscussed: !current.extendedDiscussed }) : undefined} />
-          ) : null}
-        </View>
-        {current.extendedSelfCert && !current.extendedDiscussed ? (
-          <Text style={[styles.line, { color: colors.warnInk }]}>Utvidelsen gjelder ikke før drøftingen er krysset av.</Text>
+        <Text style={[styles.line, { color: colors.ink }]}>
+          {scheme === 'ia' ? 'IA-ordning: 8 kalenderdager om gangen, 24 per 12 måneder.'
+            : scheme === 'custom' ? `Utvidet egenmelding: ${r.extendedDays} kalenderdager om gangen${r.annualCapDays ? `, høyst ${r.annualCapDays} per 12 måneder` : ''}.`
+              : 'Lovens regler: 3 kalenderdager om gangen (ftrl § 8-24). Utvidet egenmelding er ikke valgt.'}
+        </Text>
+        {r.extendedSelfCert && !active ? (
+          <Text style={[styles.line, { color: colors.warnInk }]}>Utvidelsen er ikke drøftet med tillitsvalgte, så lovens tre dager gjelder.</Text>
         ) : null}
-        <View style={styles.row}>
-          {current.extendedSelfCert ? (
-            <View style={styles.field}><HrField colors={colors} label="Dager om gangen (høyst 16)" value={String(current.extendedDays ?? '')} keyboardType="number-pad" onChangeText={(v) => set({ extendedDays: digits(v) })} /></View>
-          ) : null}
-          <View style={styles.field}><HrField colors={colors} label="Tak på egenmeldingsdager per 12 måneder (0 = ingen tak)" value={String(current.annualCapDays ?? '')} keyboardType="number-pad" onChangeText={(v) => set({ annualCapDays: digits(v) })} /></View>
-          <View style={styles.field}><HrField colors={colors} label="Varsle om hyppig fravær ved antall på 12 måneder" value={String(current.frequentOccasions ?? '')} keyboardType="number-pad" onChangeText={(v) => set({ frequentOccasions: digits(v) })} /></View>
-        </View>
-        {canWrite && draft ? (
-          <View style={styles.row}>
-            <HrButton colors={colors} primary label="Lagre regler" nativeID="hr-sick-rules-save" onPress={save} />
-            <HrButton colors={colors} label="Avbryt" onPress={() => setDraft(null)} />
-          </View>
-        ) : null}
+        <Text style={[styles.line, { color: colors.muted }]}>
+          {r.requireForm ? 'Krev skriftlig skjema (§ 8-26): ja.' : 'Krev skriftlig skjema (§ 8-26): nei.'}
+        </Text>
+        <Text style={[styles.line, { color: colors.muted }]}>
+          {paid.length ? `Bedriften dekker også: ${paid.join(', ')}.` : 'Bedriften dekker bare det loven krever.'}
+        </Text>
       </View>
     </HrCard>
   );

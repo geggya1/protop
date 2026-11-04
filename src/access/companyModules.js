@@ -58,7 +58,7 @@ export const COMPANY_MODULES = [
     navIds: ['fravaer'],
     routes: [
       ['arbeid', ['fravaer', 'fravaersrapport', 'planlagt', 'fravaer-innstillinger']],
-      ['selskap', ['fravaerstyper', 'fridager']],
+      ['selskap', ['fravaerstyper', 'fridager', 'sykefravaer']],
     ],
   },
   {

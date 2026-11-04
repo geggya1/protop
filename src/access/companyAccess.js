@@ -1268,7 +1268,7 @@ export function companyTabAllowed(tab, subView, grants) {
   if (tab === 'selskap' && subView === 'moduler') return seeResource(grants, 'moduleSettings');
   if (tab === 'selskap' && subView === 'tilgang') return seeResource(grants, 'accessControl');
   if (tab === 'selskap' && subView === 'innstillinger') return seeResource(grants, 'companyProfile');
-  if (tab === 'selskap' && (subView === 'fravaerstyper' || subView === 'fridager')) {
+  if (tab === 'selskap' && (subView === 'fravaerstyper' || subView === 'fridager' || subView === 'sykefravaer')) {
     return adminResource(grants, 'absenceSettings');
   }
   if (tab === 'selskap' && (subView === 'kontoplan' || subView === 'regnskapskontoer')) {

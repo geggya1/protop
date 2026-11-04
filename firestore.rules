@@ -641,6 +641,26 @@ service cloud.firestore {
         empAccessStable(d.get('company', {}), old.get('company', {}), levels, oldLevels));
     }
 
+    // Nivåene i den eksterne delen av personalet: innleide og eksterne (kindOf i employees/model.js).
+    function hiredLevelIds() {
+      return ['innleie_ekstern', 'regnskap_ekstern', 'ansatt_andre_avdelinger', 'innleie eksternt', 'regnskap eksternt'];
+    }
+
+    function hiredEmploymentText(c) {
+      let t = c.get('employmentType', '');
+      return t is string && t.lower().matches('.*(innleid|innleie|ekstern).*');
+    }
+
+    // En innleid eller ekstern kan ikke gjøre seg selv til egen ansatt: alt som sier innleid/ekstern
+    // på posten (nivå, personelltype, eksternt-flagg, ansettelsesform) må bli stående når en endrer
+    // sin egen post. Ellers kunne hen få HR-ordningene for egne ansatte (f.eks. medarbeiderundersøkelsen).
+    function empStaysHired(c, oc, levels, oldLevels) {
+      return (!oldLevels.hasAny(hiredLevelIds()) || levels.hasAny(hiredLevelIds()))
+        && (!(oc.get('personnelKind', '') in ['innleid', 'external']) || c.get('personnelKind', '') in ['innleid', 'external'])
+        && (oc.get('external', false) != true || c.get('external', false) == true)
+        && (!hiredEmploymentText(oc) || hiredEmploymentText(c));
+    }
+
     function empUpdateWith(familyId, d, old, levels, oldLevels, accessStable) {
       let c = d.get('company', {});
       let oc = old.get('company', {});
@@ -657,12 +677,14 @@ service cloud.firestore {
         // Å avslutte eller ta opp igjen ansettelsen (status eller passert sluttdato) krever Admin (REV-21).
         ? accessStable && ((bound && statusStable) ? true : empAccessManager(familyId))
           && (empEmploymentStable(d, old) ? true : empEmploymentManager(familyId))
+          && (empStaysHired(c, oc, levels, oldLevels) ? true : empAccessManager(familyId))
         : (selfNew
           // Kobler seg selv til en post: når serveren godtok invitasjonen for en selv (invite.acceptedUid
           // kan ikke settes av vanlige medlemmer, se under), eller på en post uten ledernivå med en
           // bekreftet e-post som står på posten (Gjenopprett min profil), eller for den som administrerer
           // ansatte. Ellers kunne et medlem koble en kollegas post til seg og lese personnummeret (SEC-26).
           ? accessStable && statusStable && bound && empEmploymentStable(d, old)
+            && empStaysHired(c, oc, levels, oldLevels)
             && (old.get('invite', {}).get('acceptedUid', '') == me
                 || (!empPrivileged(oldLevels, oc) && (empOwnEmail(old) || empEmploymentManager(familyId))))
           // Andres post. Permisjon og innlogging krever Begrenset redigering på Ansatte, å avslutte eller

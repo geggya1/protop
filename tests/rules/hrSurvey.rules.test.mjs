@@ -43,10 +43,14 @@ async function seed() {
     });
     for (const uid of members) {
       await setDoc(doc(db, 'families', A, 'parents', uid), { uid, active: true });
+      const level = uid === 'inn' ? 'innleie_ekstern' : 'ansatt';
       await setDoc(doc(db, 'families', A, 'employees', `emp_${uid}`), {
         personUid: uid,
         person: { firstName: uid },
-        company: { accessLevels: ['ansatt'], accessLevel: 'ansatt', status: 'active', canLogin: true },
+        company: {
+          accessLevels: [level], accessLevel: level, status: 'active', canLogin: true,
+          ...(uid === 'inn' ? { personnelKind: 'innleid', employmentType: 'Innleid via byrå' } : {}),
+        },
         invite: { status: 'accepted', acceptedUid: uid },
       });
     }
@@ -123,6 +127,19 @@ describe('Medarbeiderundersøkelse', () => {
     await assertFails(answer(as('inn'), 'inn'), 'innleid');
     await assertSucceeds(answer(as('bob'), 'bob'));
     await assertSucceeds(answer(as('own'), 'own'), 'eier uten speil');
+  });
+
+  test('en innleid kan ikke gjøre seg selv til egen ansatt, men kan redigere profilen sin', async () => {
+    const mine = doc(as('inn'), 'families', A, 'employees', 'emp_inn');
+    await assertFails(updateDoc(mine, { 'company.accessLevels': ['ansatt'], 'company.accessLevel': 'ansatt' }), 'nivå');
+    await assertFails(updateDoc(mine, { 'company.personnelKind': 'staff' }), 'personelltype');
+    await assertFails(updateDoc(mine, { 'company.employmentType': 'Fast ansatt' }), 'ansettelsesform');
+    await assertSucceeds(updateDoc(mine, { 'person.firstName': 'Ina' }), 'egen profil ellers');
+    // Egne ansatte redigerer som før, og eieren kan endre klassifiseringen.
+    await assertSucceeds(updateDoc(doc(as('bob'), 'families', A, 'employees', 'emp_bob'), { 'person.firstName': 'Bob' }));
+    await assertSucceeds(updateDoc(doc(as('own'), 'families', A, 'employees', 'emp_inn'), {
+      'company.accessLevels': ['ansatt'], 'company.accessLevel': 'ansatt', 'company.personnelKind': 'staff', 'company.employmentType': 'Fast ansatt',
+    }));
   });
 
   test('ingen leser andres svar: ikke HR, ikke kolleger, ikke liste', async () => {

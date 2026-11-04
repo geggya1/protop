@@ -332,7 +332,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
     >
       <View style={styles.switchRow} nativeID="company-tariff-row">
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.label, { color: colors.ink, fontSize: 15 }]}>Bundet av tariffavtale</Text>
+          <Text style={[styles.sectionTitle, { color: colors.ink }]}>Bundet av tariffavtale</Text>
           <Text style={[styles.sectionHint, { color: colors.muted }]}>
             Slå på når bedriften er bundet av tariffavtale og har skriftlig avtale med tillitsvalgte om utvidet overtid. Standard er av.
           </Text>
@@ -355,10 +355,10 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
           }}
         />
       </View>
-      <Text style={[styles.lead, { color: colors.muted, fontSize: 13, lineHeight: 18 }]} nativeID="company-tariff-focus">
+      <Text style={[styles.sectionHint, { color: colors.muted }]} nativeID="company-tariff-focus">
         {workingTimeFocusText(company)}
       </Text>
-      <Text style={[styles.lead, { color: colors.muted, fontSize: 13, lineHeight: 18 }]}>
+      <Text style={[styles.sectionHint, { color: colors.muted }]}>
         Timer over grensene sperres ikke. Øverste leder og administrator får varsel, og ved høy overtid foreslås søknad til Arbeidstilsynet om utvidet ramme (§ 10-6 (6)). Lagres med en gang.
       </Text>
     </SettingsSection>

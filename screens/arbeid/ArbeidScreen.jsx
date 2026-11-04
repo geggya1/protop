@@ -23,6 +23,7 @@ import { watchEmployees } from '../../src/employees/storage';
 import { isActiveEmployee, isHiredPersonnel, ownEmployee } from '../../src/employees/model';
 import { recordUsage } from '../../src/employees/usageClient';
 import { notifyWorkingTimeBreaches } from '../../src/arbeid/workingTimeAlerts';
+import WorkingTimeSaveWarning from '../../components/arbeid/WorkingTimeSaveWarning';
 import {
   addAbsence,
   addProjectMember,
@@ -1568,24 +1569,7 @@ export default function ArbeidScreen({
         </View>
       ) : null}
       {note ? <Text style={{ color: colors.brand, marginBottom: 6 }}>{note}</Text> : null}
-      {workWarning.length ? (
-        <View
-          nativeID="timesheet-working-time-warning"
-          accessibilityRole="alert"
-          style={{ borderWidth: 1, borderColor: colors.danger || '#b42318', borderRadius: 10, padding: 10, marginBottom: 8, gap: 4 }}
-        >
-          <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>
-            Timene er lagret, men går over arbeidstidsgrensene
-          </Text>
-          {workWarning.map((row) => (
-            <Text key={row.id} style={{ color: colors.ink, fontSize: 13, lineHeight: 19 }}>{row.text}</Text>
-          ))}
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Øverste leder og administrator har fått varsel.</Text>
-          <TouchableOpacity onPress={() => setWorkWarning([])} accessibilityRole="button">
-            <Text style={{ color: colors.brand }}>Lukk</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
+      <WorkingTimeSaveWarning colors={colors} alerts={workWarning} onClose={() => setWorkWarning([])} />
       {error && !(loadFailed && error === PROJECTS_NOT_LOADED) ? (
         <Text style={{ color: colors.dangerInk || colors.danger, marginBottom: 6 }}>{error}</Text>
       ) : null}

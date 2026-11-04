@@ -96,7 +96,7 @@ import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePi
 import AbsenceTypeModal from '../../components/arbeid/AbsenceTypeModal';
 import SickNoteModal from '../../components/arbeid/SickNoteModal';
 import AbsenceNoticeModal from '../../components/arbeid/AbsenceNoticeModal';
-import { SICK_KIND_LABEL, addDays, addMonths, missingSickNotes, sickCaseId, sickKind, todayIso } from '../../src/arbeid/sickLeave.js';
+import { SICK_KIND_LABEL, addDays, addMonths, missingSickNotes, sickCaseId, sickKind, todayIso, validateSickNote } from '../../src/arbeid/sickLeave.js';
 import { applySickCaseToState } from '../../src/arbeid/sickApply.js';
 import { useSickLeave } from '../../src/arbeid/useSickLeave.js';
 import TimesheetSideForm from '../../components/arbeid/TimesheetSideForm';
@@ -207,6 +207,7 @@ export default function ArbeidScreen({
   const pickerSearchRef = useRef(null);
   const [reportMenuOpen, setReportMenuOpen] = useState(false);
   const [absenceForm, setAbsenceForm] = useState({ id: '', type: 'ferie', hours: '7:30', description: '', date: '' });
+  const [absenceBlock, setAbsenceBlock] = useState('');
   const [monthJump, setMonthJump] = useState(false);
   const [typePicker, setTypePicker] = useState(false);
   const [sideForm, setSideForm] = useState(null);
@@ -1195,6 +1196,7 @@ export default function ArbeidScreen({
       description: existing?.description || '',
       date: day.key,
     });
+    setAbsenceBlock('');
     setAbsenceOpen(true);
   }
 
@@ -1207,6 +1209,25 @@ export default function ArbeidScreen({
       if (applyResult(removed, 'Fravær fjernet.')) setAbsenceOpen(false);
       return;
     }
+    // Egenmelding og sykt barn: lovens dagegrense gjelder også når skjema ikke kreves.
+    const kind = hiredSubject ? '' : sickKind(absenceForm.type, absenceTypes);
+    if (hours > 0 && (kind === 'self' || kind === 'child')) {
+      const check = validateSickNote({
+        kind,
+        fromDate: date,
+        toDate: date,
+        employee: selectedEmployee,
+        absences: sickAbsences.filter((row) => row.id !== absenceForm.id && row.date !== date),
+        catalog: absenceTypes,
+        rules: sick.rules,
+        confirmed: true,
+      });
+      if (!check.ok) {
+        setAbsenceBlock(check.errors.join(' '));
+        return;
+      }
+    }
+    setAbsenceBlock('');
     const result = addAbsence(state, {
       id: absenceForm.id,
       employeeId,
@@ -1931,6 +1952,12 @@ export default function ArbeidScreen({
             {isHealthAbsence(absenceForm.type) ? (
               <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>{HEALTH_FREE_TEXT_NOTICE}</Text>
             ) : null}
+            {absenceBlock ? (
+              <View nativeID="fravaer-sperret" accessibilityRole="alert" style={[styles.blockBox, { borderColor: colors.dangerInk || colors.danger }]}>
+                <Ionicons name="alert-circle" size={18} color={colors.dangerInk || colors.danger} />
+                <Text style={{ flex: 1, color: colors.dangerInk || colors.danger, fontSize: 13, lineHeight: 18 }}>{absenceBlock}</Text>
+              </View>
+            ) : null}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
               <TouchableOpacity onPress={() => setAbsenceOpen(false)} style={[styles.ctaGhost, { flex: 1, borderColor: colors.line }]}>
                 <Text style={{ color: colors.ink }}>Avbryt</Text>
@@ -1955,6 +1982,7 @@ const styles = StyleSheet.create({
   screenEmbeddedPhone: { paddingTop: 8 },
   monthNavFill: { flex: 1 },
   sickRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 },
+  blockBox: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', borderWidth: 1, borderRadius: 10, padding: 10, marginTop: 12 },
   sickBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: radius.card, paddingHorizontal: 12, paddingVertical: 8, flexGrow: 1, minHeight: 44 },
   gridBleed: {
     flex: 1,

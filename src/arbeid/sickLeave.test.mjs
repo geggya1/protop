@@ -213,4 +213,30 @@ function day(date, type = 'egenmelding', extra = {}) {
   assert.equal(stats.months.length, 1);
 }
 
+// Egenmelding føres dag for dag: dagene rett før, etter og over helg er samme tilfelle.
+{
+  const seq = [day('2026-11-09'), day('2026-11-10'), day('2026-11-11')];
+  const fourth = validateSickNote({ kind: 'self', fromDate: '2026-11-12', toDate: '2026-11-12', employee: emp, absences: seq, confirmed: true });
+  assert.equal(fourth.ok, false);
+  assert.equal(fourth.limitExceeded, true);
+  assert.match(fourth.errors[0], /^Beklager, egenmelding kan bare brukes i 3 kalenderdager/);
+  assert.match(fourth.errors[0], /Fra og med 12\.11\.2026 må fraværet dokumenteres med sykmelding/);
+  const earlier = validateSickNote({ kind: 'self', fromDate: '2026-11-08', toDate: '2026-11-08', employee: emp, absences: seq, confirmed: true });
+  assert.equal(earlier.ok, false);
+  const weekend = validateSickNote({ kind: 'self', fromDate: '2026-11-16', toDate: '2026-11-16', employee: emp, absences: [day('2026-11-12'), day('2026-11-13')], confirmed: true });
+  assert.equal(weekend.ok, false);
+  assert.match(weekend.errors[0], /5 kalenderdager sammenhengende, helg medregnet/);
+  // Grensen vises selv om erklæringen ikke er krysset av ennå.
+  const early = validateSickNote({ kind: 'self', fromDate: '2026-11-12', toDate: '2026-11-12', employee: emp, absences: seq });
+  assert.equal(early.limitExceeded, true);
+  // Sykmelding rett før teller ikke som egenmeldingsdager.
+  const afterDoctor = validateSickNote({ kind: 'self', fromDate: '2026-11-11', toDate: '2026-11-11', employee: emp, absences: [{ ...day('2026-11-09'), type: 'syk_melding' }, { ...day('2026-11-10'), type: 'syk_melding' }], confirmed: true });
+  assert.equal(afterDoctor.ok, true);
+  // Sykt barn: tre kalenderdager per tilfelle, også når dagene føres hver for seg.
+  const kids = ['2026-11-09', '2026-11-10', '2026-11-11'].map((d) => ({ ...day(d), type: 'sykt_barn' }));
+  const kid4 = validateSickNote({ kind: 'child', fromDate: '2026-11-12', toDate: '2026-11-12', employee: emp, absences: kids, confirmed: true });
+  assert.equal(kid4.ok, false);
+  assert.match(kid4.errors[0], /sykt barn kan bare brukes i 3 kalenderdager/);
+}
+
 console.log('sickLeave ok');

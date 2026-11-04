@@ -342,6 +342,27 @@ export function selfCertStatus({ employee, absences, catalog, rules, at } = {}) 
   };
 }
 
+function nbDate(iso) {
+  const [y, m, d] = text(iso).split('-');
+  return y && m && d ? `${d}.${m}.${y}` : text(iso);
+}
+
+/**
+ * Tilfellet en ny periode havner i: den nye perioden slått sammen med dager av
+ * samme sort rett før og etter (helg mellom regnes som sammenhengende).
+ */
+export function joinedOccasion(absences, employeeId, fromIso, toIso, kind, catalog) {
+  const type = SICK_KIND_TYPE[kind] || 'egenmelding';
+  const added = [];
+  for (let day = fromIso; day && day <= toIso; day = addDays(day, 1)) {
+    added.push({ id: `ny-${day}`, employeeId: text(employeeId), date: day, type, hours: 0 });
+  }
+  const list = [...(Array.isArray(absences) ? absences : []), ...added];
+  const occ = sickOccasions(list, employeeId, { catalog, kinds: [kind] })
+    .find((row) => row.start <= fromIso && row.end >= fromIso);
+  return occ || { start: fromIso, end: toIso, calendarDays: calendarDays(fromIso, toIso) };
+}
+
 /**
  * Sjekk en ny egenmelding før den sendes.
  * Returnerer feil som stopper innsending og varsler som bare vises.
@@ -360,17 +381,19 @@ export function validateSickNote({
 } = {}) {
   const errors = [];
   const warnings = [];
+  let limitExceeded = false;
   const r = normalizeSickRules(rules);
   const from = text(fromDate);
   const to = text(toDate) || from;
   if (!isIsoDate(from) || !isIsoDate(to)) errors.push('Velg dato for fraværet.');
   else if (to < from) errors.push('Til-dato kan ikke være før fra-dato.');
   const days = calendarDays(from, to);
+  const datesOk = !errors.length;
   if ((kind === 'self' || kind === 'child') && !confirmed) {
     errors.push('Du må bekrefte erklæringen før du sender.');
   }
   const rest = (Array.isArray(absences) ? absences : []).filter((row) => !ignoreCaseId || text(row.caseId) !== ignoreCaseId);
-  if (kind === 'self' && !errors.length) {
+  if (kind === 'self' && datesOk) {
     const status = selfCertStatus({ employee, absences: rest, catalog, rules: r, at: from });
     if (status.eligible === false) {
       errors.push(`Egenmelding kan brukes etter to måneders ansettelse (fra ${status.eligibleFrom}). Fraværet må dokumenteres med sykmelding.`);
@@ -378,16 +401,26 @@ export function validateSickNote({
     if (status.denied) {
       errors.push('Retten til egenmelding er midlertidig fratatt. Fraværet må dokumenteres med sykmelding.');
     }
-    // Tidligere dager uten legeerklæring innen 16 dager regnes med (ftrl § 8-24).
-    const chainStart = addDays(from, -r.employerPeriodDays);
+    // Egenmeldingsdager rett før eller etter (også over helg) er samme tilfelle, og
+    // tidligere dager uten legeerklæring innen 16 dager regnes med (ftrl § 8-24).
+    const occ = joinedOccasion(rest, employee?.id, from, to, 'self', catalog);
+    const chainStart = addDays(occ.start, -r.employerPeriodDays);
     const before = sickOccasions(rest, employee?.id, { catalog, kinds: ['self', 'doctor'] })
-      .filter((occ) => occ.selfOnly && occ.end < from && occ.end >= chainStart);
-    const linked = before.reduce((sum, occ) => sum + occ.calendarDays, 0);
+      .filter((row) => row.selfOnly && row.end < occ.start && row.end >= chainStart);
+    const linked = before.reduce((sum, row) => sum + row.calendarDays, 0);
     const max = status.maxDaysPerOccasion;
-    if (days + linked > max) {
-      errors.push(linked
-        ? `Egenmelding gjelder ${max} kalenderdager. Fravær de siste 16 dagene teller med (${linked} dager), så resten må dokumenteres med sykmelding.`
-        : `Egenmelding gjelder ${max} kalenderdager om gangen. Lengre fravær må dokumenteres med sykmelding.`);
+    if (occ.calendarDays + linked > max) {
+      limitExceeded = true;
+      const doctorFrom = addDays(occ.start, Math.max(0, max - linked));
+      const sameRun = occ.calendarDays > days;
+      errors.push(`Beklager, egenmelding kan bare brukes i ${max} kalenderdager om gangen (folketrygdloven § 8-24). `
+        + (linked
+          ? `Egenmelding de siste 16 dagene teller med (${linked} ${linked === 1 ? 'dag' : 'dager'}). `
+          : '')
+        + (sameRun ? `Med dagene rett før og etter blir dette ${occ.calendarDays} kalenderdager sammenhengende${workdaysBetween(occ.start, occ.end) < occ.calendarDays ? ', helg medregnet' : ''}. ` : '')
+        + (doctorFrom <= to
+          ? `Fra og med ${nbDate(doctorFrom < from ? from : doctorFrom)} må fraværet dokumenteres med sykmelding fra lege.`
+          : 'Fraværet må dokumenteres med sykmelding fra lege.'));
     }
     if (status.daysLeft != null && days > status.daysLeft) {
       warnings.push(`Firmaet har satt et tak på ${status.annualCapDays} egenmeldingsdager per 12 måneder. ${status.daysLeft} dager er igjen.`);
@@ -399,9 +432,17 @@ export function validateSickNote({
       warnings.push('Startdato for ansettelsen mangler, så toumånedersregelen kan ikke sjekkes.');
     }
   }
-  if (kind === 'child' && !errors.length) {
-    if (days > r.childCertDays) {
-      errors.push(`Egenmelding for sykt barn gjelder ${r.childCertDays} kalenderdager om gangen. Lengre fravær må dokumenteres med legeerklæring.`);
+  if (kind === 'child' && datesOk) {
+    // Dager med sykt barn rett før eller etter er samme tilfelle (ftrl § 9-7).
+    const occ = joinedOccasion(rest, employee?.id, from, to, 'child', catalog);
+    if (occ.calendarDays > r.childCertDays) {
+      limitExceeded = true;
+      const doctorFrom = addDays(occ.start, r.childCertDays);
+      errors.push(`Beklager, egenmelding for sykt barn kan bare brukes i ${r.childCertDays} kalenderdager om gangen (folketrygdloven § 9-7). `
+        + (occ.calendarDays > days ? `Med dagene rett før og etter blir dette ${occ.calendarDays} kalenderdager sammenhengende${workdaysBetween(occ.start, occ.end) < occ.calendarDays ? ', helg medregnet' : ''}. ` : '')
+        + (doctorFrom <= to
+          ? `Fra og med ${nbDate(doctorFrom < from ? from : doctorFrom)} må fraværet dokumenteres med legeerklæring.`
+          : 'Fraværet må dokumenteres med legeerklæring.'));
     }
     const startedAt = text(employee?.company?.periodFrom).slice(0, 10);
     if (isIsoDate(startedAt) && from < addDays(startedAt, r.childMinEmploymentDays)) {
@@ -423,7 +464,7 @@ export function validateSickNote({
         : 'Du har ferie i perioden. For å få ferien utsatt må fraværet dokumenteres med legeerklæring (ferieloven § 9).');
     }
   }
-  return { ok: errors.length === 0, errors, warnings, days };
+  return { ok: errors.length === 0, errors, warnings, days, limitExceeded };
 }
 
 export function workdaysBetween(fromIso, toIso) {

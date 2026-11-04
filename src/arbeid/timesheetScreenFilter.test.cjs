@@ -192,6 +192,10 @@ function loadJsx(rel) {
         },
       };
     }
+    if (id.includes('AbsenceFormModal')) {
+      const Stub = function Stub() { return null; };
+      return { __esModule: true, default: Stub, AbsenceFormPrompt: Stub };
+    }
     if (
       id.includes('TimeEntryModal')
       || id.includes('BrandBusyOverlay')

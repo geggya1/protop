@@ -13,6 +13,7 @@ export const TIMEOUT_MS = 60_000;
 export const FILES = [
   'scripts/ensure-functions-modules.mjs',
   'scripts/resolve-build-id.test.mjs',
+  'scripts/check-base.test.mjs',
   'scripts/hosting-stamp.test.mjs',
   'scripts/stage-function-src.test.mjs',
   'scripts/open-callable-invoker.test.mjs',

@@ -96,6 +96,9 @@ import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePi
 import AbsenceTypeModal from '../../components/arbeid/AbsenceTypeModal';
 import SickNoteModal from '../../components/arbeid/SickNoteModal';
 import AbsenceNoticeModal from '../../components/arbeid/AbsenceNoticeModal';
+import AbsenceFormModal, { AbsenceFormPrompt } from '../../components/arbeid/AbsenceFormModal';
+import { formatNbDate } from '../../src/arbeid/absenceDashboard.js';
+import { absenceFormFromRows, applyAbsenceForm, missingAbsenceForms, needsAbsenceForm } from '../../src/arbeid/absenceForm.js';
 import { SICK_KIND_LABEL, addDays, addMonths, missingSickNotes, sickCaseId, sickKind, todayIso, validateSickNote } from '../../src/arbeid/sickLeave.js';
 import { applySickCaseToState } from '../../src/arbeid/sickApply.js';
 import { useSickLeave } from '../../src/arbeid/useSickLeave.js';
@@ -635,6 +638,43 @@ export default function ArbeidScreen({
     () => (employeeId && !hiredSubject ? missingSickNotes(sickAbsences, sick.cases, employeeId, { catalog: absenceTypes, rules: sick.rules }) : []),
     [sickAbsences, sick.cases, employeeId, absenceTypes, sick.rules, hiredSubject],
   );
+
+  // Fraværsskjema (permisjon, annet fravær, legebesøk o.l.): spørsmål etter lagring, påminnelse
+  // når fravær står uten skjema.
+  const [formPrompt, setFormPrompt] = useState(null);
+  const [absenceFormInitial, setAbsenceFormInitial] = useState(null);
+  const [absenceFormError, setAbsenceFormError] = useState('');
+  const missingForms = useMemo(
+    () => (employeeId && !hiredSubject ? missingAbsenceForms(sickAbsences, employeeId, { catalog: absenceTypes }) : []),
+    [sickAbsences, employeeId, absenceTypes, hiredSubject],
+  );
+
+  function openAbsenceForm(initial) {
+    if (readOnly || hiredSubject) return;
+    setAbsenceOpen(false);
+    setFormPrompt(null);
+    setAbsenceFormError('');
+    // Fravær med skjema fra før: åpne skjemaet slik det står, ellers et nytt for perioden.
+    const linked = initial?.formId ? absenceFormFromRows(sickAbsences, initial.formId) : null;
+    setAbsenceFormInitial(linked || { type: initial?.type, fromDate: initial?.fromDate, toDate: initial?.toDate || initial?.fromDate });
+  }
+
+  function submitAbsenceForm(input) {
+    if (readOnly || !selectedEmployee) return;
+    const result = applyAbsenceForm(state, {
+      ...input,
+      employeeId,
+      employeeName: selectedName,
+    }, { hoursForDate: agreedForDate, createdByUid: uid });
+    if (!result.ok) {
+      setAbsenceFormError(result.error);
+      return;
+    }
+    if (applyResult(result, 'Fraværsskjema sendt til leder.')) {
+      setAbsenceFormInitial(null);
+      if (result.error) setError(`Noen dager ble ikke ført: ${result.error}`);
+    }
+  }
 
   // Fraværsbeskjed fra innleide: én rad per arbeidsdag i perioden, uten lønn eller timebank.
   const [noticeForm, setNoticeForm] = useState(null);
@@ -1228,6 +1268,7 @@ export default function ArbeidScreen({
       }
     }
     setAbsenceBlock('');
+    const before = absenceForm.id ? (state.absences || []).find((row) => row.id === absenceForm.id) : null;
     const result = addAbsence(state, {
       id: absenceForm.id,
       employeeId,
@@ -1238,7 +1279,13 @@ export default function ArbeidScreen({
       description: absenceForm.description,
       createdByUid: uid,
     });
-    if (applyResult(result, 'Fravær registrert.')) setAbsenceOpen(false);
+    if (applyResult(result, 'Fravær registrert.')) {
+      setAbsenceOpen(false);
+      // Typer som skal ha fraværsskjema: spør om det skal fylles ut nå.
+      if (!hiredSubject && hours > 0 && !before?.formId && needsAbsenceForm(absenceForm.type, absenceTypes)) {
+        setFormPrompt({ type: absenceForm.type, fromDate: date, toDate: date });
+      }
+    }
   }
 
   function printSelection() {
@@ -1646,8 +1693,26 @@ export default function ArbeidScreen({
       {error && !(loadFailed && error === PROJECTS_NOT_LOADED) ? (
         <Text style={{ color: colors.dangerInk || colors.danger, marginBottom: 6 }}>{error}</Text>
       ) : null}
-      {!readOnly && employeeId && !hiredSubject && (missingNotes.length || sickReplies.length) ? (
+      {!readOnly && employeeId && !hiredSubject && (missingNotes.length || sickReplies.length || missingForms.length) ? (
         <View style={styles.sickRow}>
+          {missingForms.slice(0, 2).map((row) => (
+            <TouchableOpacity
+              key={`skjema:${row.type}:${row.fromDate}`}
+              onPress={() => openAbsenceForm(row)}
+              style={[styles.sickBanner, { borderColor: colors.warn, backgroundColor: colors.card }]}
+              accessibilityRole="button"
+              nativeID="husk-fravaersskjema"
+            >
+              <Ionicons name="alert-circle-outline" size={18} color={colors.warnInk} />
+              <Text style={{ color: colors.warnInk, flex: 1 }}>
+                {`Mangler fraværsskjema: ${absenceTypeById(row.type, absenceTypes).label} ${row.fromDate === row.toDate ? formatNbDate(row.fromDate) : `${formatNbDate(row.fromDate)} – ${formatNbDate(row.toDate)}`}.`}
+              </Text>
+              <Text style={{ color: colors.warnInk, fontWeight: '700' }}>Fyll ut</Text>
+            </TouchableOpacity>
+          ))}
+          {missingForms.length > 2 ? (
+            <Text style={{ color: colors.warnInk }}>{`+ ${missingForms.length - 2} til uten fraværsskjema`}</Text>
+          ) : null}
           {missingNotes.slice(0, 2).map((row) => (
             <TouchableOpacity
               key={`${row.kind}:${row.fromDate}`}
@@ -1906,6 +1971,27 @@ export default function ArbeidScreen({
         onClose={() => setNoticeForm(null)}
         onSubmit={submitNotice}
       />
+      <AbsenceFormPrompt
+        visible={!!formPrompt}
+        colors={colors}
+        typeLabel={formPrompt ? absenceTypeById(formPrompt.type, absenceTypes).label : ''}
+        onLater={() => {
+          setFormPrompt(null);
+          showSaveToast('Fraværet mangler skjema. Du får en påminnelse i timelisten.');
+        }}
+        onOpen={() => openAbsenceForm(formPrompt)}
+      />
+      <AbsenceFormModal
+        visible={!!absenceFormInitial && !hiredSubject}
+        colors={colors}
+        catalog={absenceTypes}
+        employeeName={selectedName}
+        initial={absenceFormInitial}
+        onBehalf={!!selectedEmployee && selectedEmployee.personUid !== uid}
+        error={absenceFormError}
+        onClose={() => setAbsenceFormInitial(null)}
+        onSubmit={submitAbsenceForm}
+      />
       <SickNoteModal
         visible={!!sickForm && !hiredSubject}
         colors={colors}
@@ -1952,6 +2038,24 @@ export default function ArbeidScreen({
             {isHealthAbsence(absenceForm.type) ? (
               <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>{HEALTH_FREE_TEXT_NOTICE}</Text>
             ) : null}
+            {absenceForm.id && !hiredSubject && needsAbsenceForm(absenceForm.type, absenceTypes) ? (() => {
+              const row = (state.absences || []).find((item) => item.id === absenceForm.id);
+              const done = !!row?.formId;
+              return (
+                <TouchableOpacity
+                  onPress={() => openAbsenceForm({ type: absenceForm.type, fromDate: absenceForm.date, formId: row?.formId })}
+                  style={[styles.blockBox, { borderColor: done ? colors.line : colors.warn }]}
+                  accessibilityRole="button"
+                  nativeID="fravaer-skjema-status"
+                >
+                  <Ionicons name={done ? 'document-text-outline' : 'alert-circle-outline'} size={18} color={done ? colors.brand : colors.warnInk} />
+                  <Text style={{ flex: 1, color: done ? colors.ink : colors.warnInk, fontSize: 13, lineHeight: 18 }}>
+                    {done ? `Fraværsskjema levert${row.formReason ? `: ${row.formReason}` : '.'}` : 'Fraværsskjema mangler.'}
+                  </Text>
+                  <Text style={{ color: done ? colors.brand : colors.warnInk, fontWeight: '700' }}>{done ? 'Endre' : 'Fyll ut'}</Text>
+                </TouchableOpacity>
+              );
+            })() : null}
             {absenceBlock ? (
               <View nativeID="fravaer-sperret" accessibilityRole="alert" style={[styles.blockBox, { borderColor: colors.dangerInk || colors.danger }]}>
                 <Ionicons name="alert-circle" size={18} color={colors.dangerInk || colors.danger} />

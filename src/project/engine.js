@@ -692,6 +692,8 @@ export function normalizeAbsenceRow(row) {
     ...(text(row.sourceCompanyId) ? { sourceCompanyId: text(row.sourceCompanyId) } : {}),
     // Egenmelding / sykmelding som dagen hører til (sickCases).
     ...(text(row.caseId) ? { caseId: text(row.caseId) } : {}),
+    // Fraværsskjema som dagen hører til (absenceForm.js): samme formId på alle dagene i perioden.
+    ...(text(row.formId) ? { formId: text(row.formId), formReason: text(row.formReason), formAt: text(row.formAt) } : {}),
     ...absenceApproval(row),
   };
 }
@@ -1865,6 +1867,9 @@ export function addAbsence(state, input) {
     source: input.source || existing?.source || null,
     extraordinary: input.extraordinary != null ? input.extraordinary === true : existing?.extraordinary === true,
     caseId: input.caseId != null ? text(input.caseId) : existing?.caseId,
+    formId: input.formId != null ? text(input.formId) : existing?.formId,
+    formReason: input.formReason != null ? text(input.formReason) : existing?.formReason,
+    formAt: input.formAt != null ? text(input.formAt) : existing?.formAt,
     createdAt: existing?.createdAt || now,
     updatedAt: now,
     createdByUid: text(input.createdByUid) || existing?.createdByUid,

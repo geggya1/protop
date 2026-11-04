@@ -287,10 +287,15 @@ export function isoMenuTitle(subView) {
 /**
  * Innleie: innleide fra bemanningsforetak og eksterne. Egen modul, ikke HR, fordi de har en
  * annen arbeidsgiver. Her står det dere som innleier har ansvaret for (src/hr/hired.js).
+ * Står i egen menygruppe, «Innleie og eksterne», så skillet mot egne ansatte er tydelig.
+ * Timer er samme timeliste som under Ansatte, med bryter mellom eksterne og interne.
  */
 export const INNLEIE_MENU = [
   { id: 'oversikt', icon: 'grid-outline', label: 'Oversikt' },
   { id: 'personell', icon: 'people-outline', label: 'Personell' },
+  { id: 'leverandorer', icon: 'business-outline', label: 'Leverandørkontroll' },
+  { id: 'timer', icon: 'time-outline', label: 'Timer' },
+  { id: 'oppfolging', icon: 'happy-outline', label: 'Oppfølging' },
 ];
 
 export const INNLEIE_SUBVIEW_IDS = INNLEIE_MENU.map((item) => item.id);
@@ -465,7 +470,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
         },
       ],
     },
-    { id: 'ansatte', icon: 'id-card', label: 'Ansatte og eksterne', action: { type: 'tab', tab: 'ansatte' } },
+    { id: 'ansatte', icon: 'id-card', label: 'Ansatte', action: { type: 'tab', tab: 'ansatte' } },
     hrNavItem(),
     innleieNavItem(),
     fravaerNavItem(),
@@ -613,7 +618,14 @@ export const COMPANY_DRAWER_GROUPS = [
     id: 'company-people',
     label: 'Ansatte og arbeidstid',
     icon: 'people',
-    itemIds: ['ansatte', 'hr', 'innleie', 'fravaer', 'arbeid'],
+    itemIds: ['ansatte', 'hr', 'fravaer', 'arbeid'],
+  },
+  {
+    // Innleide og eksterne har en annen arbeidsgiver. Egen gruppe, atskilt fra egne ansatte.
+    id: 'company-hired',
+    label: 'Innleie og eksterne',
+    icon: 'swap-horizontal',
+    itemIds: ['innleie'],
   },
   {
     id: 'company-quality',

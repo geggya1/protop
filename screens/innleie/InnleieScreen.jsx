@@ -22,6 +22,8 @@ import { defaultInnleieSubView } from '../../src/navigation/shellModules';
 import { showSaveToast } from '../../src/ui/saveToast';
 import InnleieDashboard from './InnleieDashboard';
 import InnleiePeople from './InnleiePeople';
+import InnleieSuppliers from './InnleieSuppliers';
+import InnleieFollowUp from './InnleieFollowUp';
 
 function shiftDays(days) {
   const d = new Date();
@@ -55,6 +57,7 @@ export default function InnleieScreen({ subView = 'oversikt' }) {
   const [sheet, setSheet] = useState('krav');
   const [focusCaseId, setFocusCaseId] = useState('');
   const [gapFilter, setGapFilter] = useState('');
+  const [followUpId, setFollowUpId] = useState('');
   const hrRef = useRef(hr);
   const familyIdRef = useRef(familyId);
   const saveChainRef = useRef(Promise.resolve());
@@ -156,6 +159,13 @@ export default function InnleieScreen({ subView = 'oversikt' }) {
   }, [persist, canWrite]);
 
   // Fra HR, saker og oversikten: åpne personen direkte.
+  // Fra oversikten: åpne personen under Oppfølging.
+  useEffect(() => {
+    if (shellIntent?.type !== 'innleieFollowUp') return;
+    setFollowUpId(shellIntent.employeeId || '');
+    clearShellIntent?.();
+  }, [shellIntent, clearShellIntent]);
+
   useEffect(() => {
     if (shellIntent?.type !== 'hrEmployee' || !shellIntent.employeeId) return;
     setSelectedId(shellIntent.employeeId);
@@ -184,6 +194,14 @@ export default function InnleieScreen({ subView = 'oversikt' }) {
     requestShellTab?.('innleie', 'personell');
   }, [requestShellTab]);
 
+  const openFollowUp = useCallback((id) => {
+    requestShellTab?.('innleie', 'oppfolging', id ? { type: 'innleieFollowUp', employeeId: id } : null);
+  }, [requestShellTab]);
+
+  const openProfile = useCallback((id) => {
+    if (id) requestShellTab?.('ansatte', null, { type: 'openEmployee', employeeId: id });
+  }, [requestShellTab]);
+
   const openLinkedTask = useCallback((taskId) => {
     if (taskId) nav.navigate('ParentTask', { task: { id: taskId }, familyId });
   }, [nav, familyId]);
@@ -198,6 +216,27 @@ export default function InnleieScreen({ subView = 'oversikt' }) {
     <ScrollView style={[styles.scroll, { backgroundColor: colors.bg }]} contentContainerStyle={styles.content} nativeID="innleie-screen">
       {ready ? (
         <View key={familyId || 'innleie'}>
+          {page === 'leverandorer' ? (
+            <InnleieSuppliers
+              colors={colors}
+              employees={employees}
+              hr={hrView}
+              canWrite={canWrite}
+              onPatch={onPatch}
+            />
+          ) : null}
+          {page === 'oppfolging' ? (
+            <InnleieFollowUp
+              colors={colors}
+              employees={employees}
+              hr={hrView}
+              canWrite={canWrite}
+              onPatch={onPatch}
+              assigneeName={assigneeName}
+              selectedId={followUpId}
+              onSelect={setFollowUpId}
+            />
+          ) : null}
           {page === 'personell' ? (
             <InnleiePeople
               colors={colors}
@@ -218,8 +257,11 @@ export default function InnleieScreen({ subView = 'oversikt' }) {
               onCreateFollowUpTask={createTask}
               gapFilter={gapFilter}
               onClearGap={() => setGapFilter('')}
+              onOpenProfile={openProfile}
+              onOpenFollowUp={openFollowUp}
             />
-          ) : (
+          ) : null}
+          {page === 'oversikt' ? (
             <InnleieDashboard
               colors={colors}
               employees={employees}
@@ -227,8 +269,10 @@ export default function InnleieScreen({ subView = 'oversikt' }) {
               notices={notices}
               onOpenPerson={(id) => openPerson(id, 'krav')}
               onOpenPeople={openPeople}
+              onOpenFollowUp={openFollowUp}
+              onOpenSuppliers={() => requestShellTab?.('innleie', 'leverandorer')}
             />
-          )}
+          ) : null}
         </View>
       ) : null}
     </ScrollView>

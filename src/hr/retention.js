@@ -25,7 +25,7 @@ export const PAYROLL_YEARS = 5;
 const MAX_RUNS = 20;
 
 /** Lister i HR-tilstanden som er personalmappe for én ansatt (employeeId). */
-export const PERSONNEL_LISTS = ['reviews', 'cases', 'memos', 'tasks', 'files', 'contracts', 'compliance', 'hmsCards', 'sickFollowUps'];
+export const PERSONNEL_LISTS = ['reviews', 'cases', 'memos', 'tasks', 'files', 'contracts', 'compliance', 'hmsCards', 'sickFollowUps', 'hiredFollowUps'];
 
 function text(value) {
   return String(value ?? '').trim();
@@ -178,6 +178,14 @@ export function hrRetentionPlan(state, { employees = [], policy = RETENTION_DEFA
       }
       return true;
     });
+  }
+  // Leverandørkontrollen er per firma. Bare koblingen til personen slettes.
+  if (Array.isArray(src.suppliers)) {
+    next.suppliers = src.suppliers.map((row) => (
+      Array.isArray(row?.employeeIds) && row.employeeIds.some((id) => personnelGone.has(text(id)))
+        ? { ...row, employeeIds: row.employeeIds.filter((id) => !personnelGone.has(text(id))) }
+        : row
+    ));
   }
   next.salaries = (Array.isArray(src.salaries) ? src.salaries : []).filter((row) => {
     const emp = text(row?.employeeId);

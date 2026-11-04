@@ -13,7 +13,7 @@ import HrFollowUp from '../hr/HrFollowUp';
 import {
   ACCENT, Avatar, Pill, Segmented, gridItem, gridStyle,
 } from '../hr/HrDashParts';
-import { EmptyHint } from '../hr/HrShared';
+import { EmptyHint, HrButton } from '../hr/HrShared';
 import HiredChecklist from './HiredChecklist';
 import { PersonCard } from './InnleieDashboard';
 
@@ -29,7 +29,7 @@ const SHEETS = [
 export default function InnleiePeople({
   colors, employees, hr, notices, selectedId, onSelect, sheet = 'krav', onSheet,
   canWrite, onPatch, familyId, focusCaseId, assigneeUid, assigneeName, onOpenTask, onCreateFollowUpTask,
-  formKit = null, gapFilter = '', onClearGap,
+  formKit = null, gapFilter = '', onClearGap, onOpenProfile, onOpenFollowUp,
 }) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('active');
@@ -75,7 +75,7 @@ export default function InnleiePeople({
           </Pressable>
         ) : null}
         <Text style={[styles.caption, { color: colors.muted }]} nativeID="hr-hired-count">
-          {`${dash.innleid} innleid · ${dash.ekstern} ekstern. Det som mangler, står først.`}
+          {`${dash.innleid} innleid · ${dash.ekstern} ekstern. Det som mangler, står først. Nye registreres under Ny ansatt med personelltype Innleid eller Ekstern.`}
         </Text>
         {rows.length ? (
           <View style={gridStyle(3, 260, 10)}>
@@ -127,6 +127,14 @@ export default function InnleiePeople({
                 icon="calendar-clear-outline"
               />
             ))}
+          </View>
+          <View style={styles.headActions}>
+            {onOpenProfile ? (
+              <HrButton colors={colors} icon="person-circle-outline" label="Profil og kontakt" onPress={() => onOpenProfile(selected.id)} nativeID="innleie-open-profile" />
+            ) : null}
+            {onOpenFollowUp ? (
+              <HrButton colors={colors} icon="happy-outline" label="Trivsel og evaluering" onPress={() => onOpenFollowUp(selected.id)} nativeID="innleie-open-followup" />
+            ) : null}
           </View>
         </View>
       </View>
@@ -189,4 +197,5 @@ const styles = StyleSheet.create({
   headText: { flex: 1, minWidth: 0, gap: 3 },
   title: { ...type.h2 },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  headActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
 });

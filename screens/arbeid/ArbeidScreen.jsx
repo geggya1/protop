@@ -154,6 +154,8 @@ export default function ArbeidScreen({
   hideReportTools = false,
   // «Legg til prosjekt» viser bare prosjekter personen er registrert i.
   memberProjectsOnly = false,
+  // Innleie → Timer: velgeren viser eksterne først, med bryter til interne.
+  personScope = '',
 } = {}) {
   const colors = useColors();
   const { isPhone } = useLayout();
@@ -196,6 +198,7 @@ export default function ArbeidScreen({
   const [addProjectOpen, setAddProjectOpen] = useState(false);
   const [absenceOpen, setAbsenceOpen] = useState(false);
   const [empPickerOpen, setEmpPickerOpen] = useState(false);
+  const [pickScope, setPickScope] = useState(personScope);
   const [empPickerQuery, setEmpPickerQuery] = useState('');
   const pickerSearchRef = useRef(null);
   const [reportMenuOpen, setReportMenuOpen] = useState(false);
@@ -1329,7 +1332,7 @@ export default function ArbeidScreen({
     ? <Text style={[styles.crumb, { color: colors.muted }]}>{crumb}</Text>
     : (lockedId
       ? <Breadcrumb tab="ansatte" current="Timeliste" style={styles.crumbRow} />
-      : <Breadcrumb tab="arbeid" subView="timeliste" style={styles.crumbRow} />);
+      : <Breadcrumb tab={personScope ? 'innleie' : 'arbeid'} subView={personScope ? 'timer' : 'timeliste'} style={styles.crumbRow} />);
   const canSwitchPerson = canSwitchTimesheetPerson({ personal, locked: !!lockedId, manager });
   const needsPersonStep = needsTimesheetPersonStep({
     personal,
@@ -1375,6 +1378,8 @@ export default function ArbeidScreen({
           }}
           title="Velg medarbeider"
           subtitle="Steg 1 · Velg intern eller ekstern medarbeider for å åpne timelisten."
+          scope={pickScope}
+          onScopeChange={setPickScope}
         />
         <BrandBusyOverlay
           visible={!ready}
@@ -1798,6 +1803,8 @@ export default function ArbeidScreen({
               compact
               title="Bytt medarbeider"
               subtitle=""
+              scope={pickScope}
+              onScopeChange={setPickScope}
               onSelect={(row) => {
                 setEmployeeId(row.id);
                 setEmpPickerOpen(false);

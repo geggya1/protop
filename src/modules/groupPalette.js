@@ -13,6 +13,7 @@ export const GROUP_PALETTE = {
   personal: { bg: '#E5F6FE', bg2: '#f7fbff', accent: '#075985', soft: '#dbeafe' },
   'company-org': { bg: '#e8eef6', bg2: '#f7f9fc', accent: '#07274C', soft: '#e2e8f0' },
   'company-people': { bg: '#eef0fd', bg2: '#f8f9ff', accent: '#4338ca', soft: '#e0e7ff' },
+  'company-hired': { bg: '#fdf3e4', bg2: '#fffaf3', accent: '#92400e', soft: '#fef3c7' },
   'company-quality': { bg: '#e6f6f3', bg2: '#f5fcfa', accent: '#0f766e', soft: '#ccfbf1' },
   'company-productivity': { bg: '#f1e9ff', bg2: '#faf7ff', accent: '#6d28d9', soft: '#ede9fe' },
   'company-finance': { bg: '#e7f7ee', bg2: '#f5fcf8', accent: '#15803d', soft: '#dcfce7' },

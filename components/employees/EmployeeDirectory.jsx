@@ -175,6 +175,9 @@ export default function EmployeeDirectory({
   renderPerson,
   renderIdentity,
   onToggleLevel,
+  // Ansatte-siden: bare egne ansatte. Innleide og eksterne har egen menygruppe (Innleie og eksterne).
+  ownOnly = false,
+  externalNote = null,
 }) {
   const [companyOpen, setCompanyOpen] = useState(true);
   const [externalOpen, setExternalOpen] = useState(true);
@@ -186,7 +189,7 @@ export default function EmployeeDirectory({
   const externalLevels = sections.find((section) => section.id === 'external')?.levels || [];
   const { isDesktop } = useLayout();
   // Listen står side om side på bred skjerm. Nivåtabellen trenger hele bredden.
-  const split = variant === 'list' && isDesktop;
+  const split = variant === 'list' && isDesktop && !ownOnly;
 
   useEffect(() => {
     if (focusSection === 'external') setExternalOpen(true);
@@ -262,6 +265,7 @@ export default function EmployeeDirectory({
             companyTab === 'inactive' ? 'Ingen deaktiverte ansatte.' : 'Ingen aktive ansatte.',
           )}
         </Drawer>
+        {ownOnly ? null : (
         <Drawer
           nativeID="employees-section-external"
           title={accessSectionTitle('external', companyName)}
@@ -292,7 +296,9 @@ export default function EmployeeDirectory({
             externalTab === 'inactive' ? 'Ingen deaktiverte eksterne.' : 'Ingen aktive eksterne.',
           )}
         </Drawer>
+        )}
       </View>
+      {ownOnly ? externalNote : null}
       {trash.length ? (
         <Drawer
           nativeID="employees-section-trash"

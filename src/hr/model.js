@@ -12,6 +12,8 @@ import { emptyHandbook, handbookHasContent, normalizeHandbook } from './handbook
 import { normalizeHmsCard, normalizeHmsSetting } from './hmsCard.js';
 import { normalizeAnnualSettings } from './annualWheel.js';
 import { normalizeSickFollowUp } from './sickLeave.js';
+import { normalizeHiredFollowUp } from '../innleie/followUp.js';
+import { normalizeSupplier } from '../innleie/suppliers.js';
 
 export const HR_VERSION = 2;
 
@@ -137,6 +139,10 @@ export function emptyHrState() {
     sickFollowUps: [],
     // Tiltaksplaner etter medarbeiderundersøkelsene (fem trinn). Se surveyPlan.js.
     surveyPlans: [],
+    // Innleie: trivsel, evaluering og avslutning per innleid (src/innleie/followUp.js).
+    hiredFollowUps: [],
+    // Innleie: leverandørkontroll per firma (src/innleie/suppliers.js).
+    suppliers: [],
     // HR-årshjulet: av-slåtte aktiviteter, avkrysninger per år og automatiske oppgaver. Se annualWheel.js.
     annual: normalizeAnnualSettings(null),
     // hmsCard: '' følger næringskoden, 'on' eller 'off' er valgt av bedriften. Se hmsCard.js.
@@ -674,6 +680,8 @@ export function normalizeHrState(raw) {
     handbook: normalizeHandbook(raw.handbook),
     sickFollowUps: normalizeList(raw.sickFollowUps, normalizeSickFollowUp),
     surveyPlans: normalizeList(raw.surveyPlans, normalizeSurveyPlan),
+    hiredFollowUps: normalizeList(raw.hiredFollowUps, normalizeHiredFollowUp),
+    suppliers: normalizeList(raw.suppliers, normalizeSupplier),
     annual: normalizeAnnualSettings(raw.annual),
     settings: {
       hmsCard: normalizeHmsSetting(raw.settings?.hmsCard),

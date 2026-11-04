@@ -34,12 +34,12 @@ export const COMPANY_HERO = {
   },
   ansatte: {
     wideArt: true,
-    name: 'Ansatte og eksterne',
-    kicker: t('Ansatte og eksterne', 'Employees and externals'),
+    name: 'Ansatte',
+    kicker: t('Ansatte', 'Employees'),
     title: t('Folkene i bedriften', 'The people in the company'),
     pitch: t(
-      'Register, CV og tilgang for medarbeiderne.',
-      'Directory, CV and access for the people who work here.',
+      'Register, CV og tilgang for egne ansatte. Innleide og eksterne står under Innleie og eksterne.',
+      'Directory, CV and access for your own employees. Hired-in and external staff are under Hired-in and external.',
     ),
   },
   'hr-oversikt': {
@@ -80,6 +80,36 @@ export const COMPANY_HERO = {
     pitch: t(
       'Lovkrav for innleie, HMS-kort, saker og oppgaver per person.',
       'Legal requirements for hiring in, HSE cards, cases and tasks per person.',
+    ),
+  },
+  'innleie-leverandorer': {
+    wideArt: true,
+    name: 'Leverandørkontroll',
+    kicker: t('Innleie', 'Hired-in staff'),
+    title: t('Leverandørkontroll', 'Supplier checks'),
+    pitch: t(
+      'Bemanningsforetak, underentreprenører og leverandører: det dere skal påse før og under oppdraget.',
+      'Staffing agencies, subcontractors and suppliers: what you must check before and during the job.',
+    ),
+  },
+  'innleie-timer': {
+    wideArt: true,
+    name: 'Timer',
+    kicker: t('Innleie', 'Hired-in staff'),
+    title: t('Timer for innleide', 'Hours for hired-in staff'),
+    pitch: t(
+      'Samme timeliste som for egne ansatte. Bytt mellom eksterne og interne i visningen.',
+      'The same timesheet as for your own staff. Switch between external and internal in the view.',
+    ),
+  },
+  'innleie-oppfolging': {
+    wideArt: true,
+    name: 'Oppfølging',
+    kicker: t('Innleie', 'Hired-in staff'),
+    title: t('Trivsel og evaluering', 'Wellbeing and evaluation'),
+    pitch: t(
+      'Trivsel underveis, evaluering av oppdraget og sjekkliste når personen går.',
+      'Wellbeing along the way, evaluation of the job and a checklist when the person leaves.',
     ),
   },
   'hr-avtaler': {

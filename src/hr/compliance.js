@@ -202,13 +202,13 @@ export const AML_CONTRACT_FIELDS = [
   { key: 'paySchedule', label: 'Utbetalingsmåte og tidspunkt for lønn', aml: 'i' },
   { key: 'workPercent', label: 'Stillingsprosent / omfang', aml: 'j' },
   { key: 'workHours', label: 'Daglig og ukentlig arbeidstid, og når den ligger', aml: 'j' },
-  { key: 'overtimeTerms', label: 'Overtid og godtgjøring for overtid', aml: 'j' },
+  { key: 'overtimeTerms', label: 'Overtid og godtgjøring for overtid', aml: 'm' },
   { key: 'breakLength', label: 'Pauser', aml: 'k' },
   { key: 'specialWorkingHours', label: 'Særlig arbeidstidsordning (hvis avtalt)', aml: 'l' },
-  { key: 'collectiveAgreement', label: 'Tariffavtale (skriv «Ingen» hvis ingen)', aml: 'm' },
-  { key: 'hirerIdentity', label: 'Innleievirksomhet (ved utleie fra bemanningsforetak)', aml: 'n' },
-  { key: 'competenceDevelopment', label: 'Rett til kompetanseutvikling', aml: 'o' },
-  { key: 'pensionInsurance', label: 'Pensjon og andre trygdeordninger / forsikringer', aml: 'p' },
+  { key: 'collectiveAgreement', label: 'Tariffavtale (skriv «Ingen» hvis ingen)', aml: 'n' },
+  { key: 'hirerIdentity', label: 'Innleievirksomhet (ved utleie fra bemanningsforetak)', aml: 'o' },
+  { key: 'competenceDevelopment', label: 'Rett til kompetanseutvikling', aml: 'p' },
+  { key: 'pensionInsurance', label: 'Pensjon og andre trygdeordninger / forsikringer', aml: 'q' },
   { key: 'passportOrId', label: 'ID / pass (referanse)', aml: '' },
   { key: 'loanOrAdvance', label: 'Lån / forskudd (hvis aktuelt)', aml: '' },
   { key: 'otherTerms', label: 'Øvrige betingelser', aml: '' },
@@ -304,10 +304,19 @@ export function probationIssues(contract = {}) {
   return out;
 }
 
-/** Siste dag for skriftlig avtale: sju dager etter tiltredelse. */
-export function contractDueDate(startDate) {
+/**
+ * Siste dag for skriftlig avtale (AML § 14-5): sju dager etter tiltredelse når
+ * arbeidsforholdet varer mer enn en måned, ellers umiddelbart. Utleie fra
+ * bemanningsforetak krever også avtale umiddelbart.
+ */
+export function contractDueDate(startDate, contract = null) {
   const m = String(startDate || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return '';
+  const start = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  const end = String(contract?.endDate || '').slice(0, 10);
+  const monthAfter = new Date(Date.UTC(+m[1], +m[2], +m[3])).toISOString().slice(0, 10);
+  const immediate = (contract && isHiredOutContract(contract)) || (/^\d{4}-\d{2}-\d{2}$/.test(end) && end < monthAfter);
+  if (immediate) return start.toISOString().slice(0, 10);
   return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + 7)).toISOString().slice(0, 10);
 }
 
@@ -364,7 +373,7 @@ export function syncComplianceFromEvidence(compliance, {
       if (aml && aml.pct >= 100) {
         return row.status === 'ok' ? row : markOk(row);
       }
-      const dueDate = contractDueDate(active?.startDate) || row.dueDate;
+      const dueDate = contractDueDate(active?.startDate, active) || row.dueDate;
       const status = dueDate && dueDate < now ? 'overdue' : 'missing';
       if (row.status === status && row.dueDate === dueDate && !row.completedAt) return row;
       return { ...row, status, dueDate, completedAt: '', updatedAt: new Date().toISOString() };

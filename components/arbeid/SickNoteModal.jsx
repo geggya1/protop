@@ -23,6 +23,8 @@ import {
   validateSickNote,
 } from '../../src/arbeid/sickLeave.js';
 
+const CONFIRM_ERROR = 'Du må bekrefte erklæringen før du sender.';
+
 const KINDS = ['self', 'child', 'doctor'];
 
 /**
@@ -203,9 +205,28 @@ function SickNoteForm({
               />
             </View>
 
-            {(tried ? check.errors : []).map((msg) => (
-              <Text key={msg} style={[styles.msg, { color: '#B42318' }]}>{msg}</Text>
-            ))}
+            {/* Lovkrav (dager, ansettelsestid, fratatt rett) vises med en gang. Glemt avkrysning først ved sending. */}
+            {check.errors.filter((msg) => tried || msg !== CONFIRM_ERROR).length ? (
+              <View style={[styles.block, { borderColor: '#F04438', backgroundColor: '#FEF3F2' }]} nativeID="egenmelding-feil" accessibilityRole="alert">
+                {check.errors.filter((msg) => tried || msg !== CONFIRM_ERROR).map((msg) => (
+                  <View key={msg} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+                    <Ionicons name="alert-circle" size={18} color="#B42318" />
+                    <Text style={[styles.msg, { color: '#B42318', flex: 1 }]}>{msg}</Text>
+                  </View>
+                ))}
+                {kind === 'self' && check.errors.some((msg) => msg !== CONFIRM_ERROR) ? (
+                  <TouchableOpacity
+                    onPress={() => { setKind('doctor'); setTried(false); }}
+                    style={[styles.switchBtn, { borderColor: '#B42318' }]}
+                    accessibilityRole="button"
+                    nativeID="egenmelding-bytt-sykmelding"
+                  >
+                    <Ionicons name="document-text-outline" size={16} color="#B42318" />
+                    <Text style={{ color: '#B42318', fontWeight: '700' }}>Registrer som sykmelding i stedet</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
             {check.warnings.map((msg) => (
               <Text key={msg} style={[styles.msg, { color: '#9A6700' }]}>{msg}</Text>
             ))}
@@ -273,6 +294,8 @@ const styles = StyleSheet.create({
   field: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
   area: { minHeight: 72, textAlignVertical: 'top' },
   msg: { fontSize: 13, lineHeight: 18 },
+  block: { borderWidth: 1, borderRadius: 10, padding: 12, gap: 10 },
+  switchBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 4 },
   ghost: { flex: 1, borderWidth: 1, borderRadius: 10, minHeight: 46, alignItems: 'center', justifyContent: 'center' },
   cta: { flex: 1, borderRadius: 10, minHeight: 46, alignItems: 'center', justifyContent: 'center' },

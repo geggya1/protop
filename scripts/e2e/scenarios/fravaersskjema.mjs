@@ -153,10 +153,28 @@ await check('1.8 Ansattkortet har «Barn og omsorgsdager»', async () => {
   await desk.open('ansatte', null, 3500);
   await desk.click('Ola Tømrer', { exact: false, timeout: 10000 });
   await desk.page.waitForTimeout(1500);
-  if (!(await desk.hasText('Barn og omsorgsdager', { timeout: 4000 }))) {
-    await desk.click('Rediger', { exact: false, timeout: 4000 }).catch(() => {});
-  }
   await expectText(desk, 'Barn og omsorgsdager');
+});
+await check('1.9 Registrer 3 barn og alene om omsorgen: 30 omsorgsdager, lagret på ansatt', async () => {
+  await desk.page.getByRole('button', { name: 'Rediger Barn og omsorgsdager' }).first().click();
+  await desk.page.waitForTimeout(800);
+  const box = desk.page.locator('[id="employee-inline-section-childCare"]');
+  await box.waitFor({ state: 'visible', timeout: 8000 });
+  const inputs = box.locator('input');
+  await inputs.nth(0).fill('3');
+  await inputs.nth(1).fill('0');
+  await box.getByText('Alene om omsorgen', { exact: true }).first().click();
+  await desk.page.getByText('Lagre', { exact: true }).last().click();
+  await desk.page.waitForTimeout(2000);
+  await expectText(desk, '30 dager');
+  const deadline = Date.now() + 15000;
+  let care = null;
+  while (Date.now() < deadline) {
+    care = (await getDoc(`families/${BOT_COMPANY_ID}/employees/emp-ola`))?.extras?.childCare;
+    if (care?.alone === true) break;
+    await desk.page.waitForTimeout(800);
+  }
+  if (String(care?.children) !== '3' || care?.alone !== true) throw new Error(`extras.childCare = ${JSON.stringify(care)}`);
   await desk.shot('ansatt-barn');
 });
 
@@ -184,8 +202,12 @@ await check('2.2 Lagre gir spørsmålet «Vil du registrere fraværet?»', async
 await check('2.3 «Senere» gir påminnelsen «Mangler fraværsskjema»', async () => {
   await clickId(phone, 'fravaersskjema-senere');
   await expectText(phone, 'Mangler fraværsskjema');
-  const rows = await absences();
-  const row = rows.find((r) => r.date === first.iso && r.type === 'annet_med');
+  let row = null;
+  const until = Date.now() + 20000;
+  while (!row && Date.now() < until) {
+    row = (await absences()).find((r) => r.date === first.iso && r.type === 'annet_med');
+    if (!row) await phone.page.waitForTimeout(1000);
+  }
   if (!row) throw new Error(`Fant ikke fraværet ${first.iso} i skyen`);
   if (row.formId) throw new Error('Fraværet har skjema allerede');
   await phone.shot('mangler-skjema');
@@ -255,7 +277,8 @@ await check('3.2 «Ja, meld sykt barn» åpner egenmelding for sykt barn', async
   await phone.shot('sykt-barn');
 });
 
-const errors = [...desk.errors, ...phone.errors];
+// Emulatoren laster bare konsernfunksjonene: CORS-feil fra andre funksjoner ved innlogging er miljøstøy.
+const errors = [...desk.errors, ...phone.errors].filter((e) => !/blocked by CORS policy|net::ERR_FAILED/.test(e.message));
 const calls = [...desk.failedCalls, ...phone.failedCalls];
 log(!errors.length, '4.1 Ingen JS-feil', errors.map((e) => `${e.at}: ${e.message}`).join(' | ').slice(0, 600));
 log(!calls.length, '4.2 Ingen funksjonskall feilet', calls.map((c) => `${c.at}: ${c.url} ${c.status}`).join(' | ').slice(0, 600));

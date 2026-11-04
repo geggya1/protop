@@ -708,9 +708,12 @@ export function normalizeAbsenceRow(row) {
 function absenceFormDetails(value) {
   const src = value && typeof value === 'object' ? value : {};
   const out = {};
-  for (const key of ['childName', 'childDate', 'relation', 'person', 'occasion', 'education', 'organ', 'holiday']) {
+  for (const key of ['childName', 'childDate', 'relation', 'person', 'occasion', 'education', 'organ', 'holiday', 'whoFor', 'provider']) {
     const v = text(src[key]).slice(0, 120);
     if (v) out[key] = v;
+  }
+  for (const key of ['ordered', 'childSick']) {
+    if (src[key] === true) out[key] = true;
   }
   const pct = Number(src.percent);
   if (Number.isFinite(pct) && pct > 0 && pct <= 100) out.percent = pct;

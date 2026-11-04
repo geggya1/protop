@@ -166,6 +166,17 @@ assert.ok(formWarnings({ category: 'livets_sluttfase', fromDate: '2026-11-04', t
   assert.equal(res.state.absences[0].id, 'l1');
   assert.equal(res.state.absences[0].type, 'lege_uten');
   assert.equal(res.state.absences[0].hours, 2);
+  // Alle feltene skjemaet lagrer, overlever normaliseringen (det som skrives til skyen).
+  assert.deepEqual(normalizeAbsenceRow(res.state.absences[0]).formDetails, { whoFor: 'selv', provider: 'spesialist' });
+  for (const cat of ['foreldre', 'naerstaende', 'velferd', 'kurs', 'religios', 'verv', 'utdanning', 'lege']) {
+    const details = {
+      childName: 'Ida', childDate: '2026-01-02', percent: 50, relation: 'forelder', person: 'Per', occasion: 'begravelse',
+      education: 'Fagskole', organ: 'Kommunestyret', holiday: 'Eid', whoFor: 'barn', provider: 'tannlege', ordered: true,
+    };
+    const clean = cleanFormDetails(cat, details);
+    const row = normalizeAbsenceRow({ id: 'x', employeeId: 'e1', date: '2026-11-04', hours: 1, type: 'annet_med', formId: 'f', formDetails: clean });
+    assert.deepEqual(row.formDetails, clean, cat);
+  }
   assert.ok(validateAbsenceForm({ type: 'lege_med', category: 'lege', fromDate: '2026-11-04', details: { whoFor: 'selv' } }).some((e) => /type time/.test(e)));
 }
 

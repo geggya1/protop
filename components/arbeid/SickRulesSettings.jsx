@@ -193,7 +193,7 @@ export default function SickRulesSettings({ familyId, colors, canEdit }) {
       <Text style={[styles.caption, { color: colors.muted }]}>
         Ikke lovpålagt. Av som standard, og dekkes bare hvis tariffavtale, personalhåndbok eller arbeidsavtale sier det. Fraværsskjemaet fører dagene med eller uten lønn etter valgene her.
       </Text>
-      <View style={styles.field}>
+      <View style={styles.fieldColumn}>
         <Text style={[styles.label, { color: colors.muted }]}>Avtalegrunnlag</Text>
         <OptionPicker
           options={AGREEMENT_OPTIONS}
@@ -237,6 +237,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0, gap: 4 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   field: { flexGrow: 1, flexBasis: 180, gap: 4 },
+  // I kolonnen (ikke i en rad): flexBasis ville blitt høyde.
+  fieldColumn: { gap: 4, maxWidth: 520 },
   option: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderWidth: 1, borderRadius: radius.card, padding: 12 },
   info: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', borderWidth: 1, borderRadius: radius.card, padding: 12 },
   body: { ...type.body },

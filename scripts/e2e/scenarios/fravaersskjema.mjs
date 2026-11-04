@@ -214,8 +214,13 @@ await check('2.3 «Senere» gir påminnelsen «Mangler fraværsskjema»', async 
     const all = await listDocs(`families/${BOT_COMPANY_ID}/absences`).catch((e) => [String(e)]);
     const screen = await phone.visibleText();
     console.log('DIAG absences:', JSON.stringify(all).slice(0, 1500));
-    console.log('DIAG skjerm:', screen.replace(/\s+/g, ' ').slice(0, 800));
-    console.log('DIAG konsoll:', JSON.stringify(consoleLog.slice(-25)).slice(0, 3000));
+    const flat = screen.replace(/\s+/g, ' ');
+    const i = flat.indexOf('Fravær registrert');
+    console.log('DIAG skjerm:', flat.slice(Math.max(0, i - 300), i + 300));
+    console.log('DIAG feiltekst:', /Kunne ikke|feilet|avvist|ikke lagret/i.test(flat) ? flat.match(/.{0,120}(Kunne ikke|feilet|avvist|ikke lagret).{0,160}/i)?.[0] : 'ingen');
+    console.log('DIAG konsoll:', JSON.stringify(consoleLog.filter((m) => !/CORS|ERR_FAILED/.test(m)).slice(-30)).slice(0, 3000));
+    const local = await phone.page.evaluate(() => Object.keys(localStorage).filter((k) => /absen|frav|pending|queue|outbox/i.test(k)).map((k) => `${k}=${String(localStorage.getItem(k)).slice(0, 200)}`));
+    console.log('DIAG localStorage:', JSON.stringify(local).slice(0, 2000));
   }
   if (!row) throw new Error(`Fant ikke fraværet ${first.iso} i skyen`);
   if (row.formId) throw new Error('Fraværet har skjema allerede');
@@ -276,6 +281,8 @@ await check('3.1 Neste arbeidsdag: legetime med barnet spør om barnet er sykt',
   await phone.click('Lege, tannlege, spesialist eller behandling');
   await phone.click('Barnet mitt');
   await expectText(phone, 'Er barnet sykt?');
+  const second = (await absences()).find((r) => r.date === workday(first.offset + 1).iso);
+  console.log('DIAG dag 2 i skyen (før skjema):', second ? `${second.type} ${second.hours}` : 'nei');
   await expectText(phone, 'Føres som: Legebesøk uten lønn');
   await phone.shot('skjema-barn');
 });

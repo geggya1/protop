@@ -74,7 +74,12 @@ const FULL_CONTRACT = withAmlStandardTexts({
   assert.equal(amlContractCompleteness({ ...temp, endDate: '2020-12-31', temporaryBasis: 'Vikariat for Kari' }).pct, 100);
   assert.deepEqual(amlRequiredKeys({ employmentType: 'Utleid fra bemanningsforetak' }).slice(-1), ['hirerIdentity']);
   assert.ok(AML_CONTRACT_FIELDS.every((row) => row.label && 'aml' in row));
-  assert.equal(AML_CONTRACT_FIELDS.find((row) => row.key === 'collectiveAgreement').aml, 'm');
+  // § 14-6 (1) fra 1.7.2024: m vaktendring og arbeid utover avtalt tid, n tariff, o innleier, p kompetanse, q trygd.
+  const letter = (key) => AML_CONTRACT_FIELDS.find((row) => row.key === key).aml;
+  assert.deepEqual(
+    ['overtimeTerms', 'collectiveAgreement', 'hirerIdentity', 'competenceDevelopment', 'pensionInsurance'].map(letter),
+    ['m', 'n', 'o', 'p', 'q'],
+  );
   assert.equal(amlFieldLabel('terminationProcedure'), 'Framgangsmåte ved opphør: formkrav, oppsigelsesfrister og frister for søksmål');
 }
 
@@ -97,6 +102,10 @@ const FULL_CONTRACT = withAmlStandardTexts({
   assert.deepEqual(probationIssues({ ...temp, probationMonths: '3' }), []);
   assert.equal(contractDueDate('2026-10-27'), '2026-11-03');
   assert.equal(contractDueDate(''), '');
+  // § 14-5 (3): under en måned eller utleie fra bemanningsforetak gir frist samme dag.
+  assert.equal(contractDueDate('2026-10-27', { endDate: '2026-11-15' }), '2026-10-27');
+  assert.equal(contractDueDate('2026-10-27', { endDate: '2027-03-31' }), '2026-11-03');
+  assert.equal(contractDueDate('2026-10-27', { employmentType: 'Utleid fra bemanningsforetak' }), '2026-10-27');
 }
 
 {

@@ -3,6 +3,7 @@ import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons';
 import { checkWorkingTime, formatDateNb } from '../../src/arbeid/workingTimeRules.js';
 import { arbeidstilsynetSuggestion, workingTimeFocusText, workingTimeOptions } from '../../src/arbeid/workingTimePolicy.js';
+import ArbeidstilsynetDraft from './ArbeidstilsynetDraft.jsx';
 
 const INFO_LIMIT = 4;
 
@@ -16,9 +17,12 @@ function hoursText(value) {
  * Varsler, men sperrer ikke: timene står som de er ført.
  * entries er føringene som er lastet (helst 52 uker tilbake), from/to perioden som vises.
  * company: bedriften. Innstillingen for tariffavtale bestemmer grensene (Selskapsinnstillinger).
+ * canApply: øverste leder eller administrator. Får ferdig søknad til Arbeidstilsynet som forslag.
+ * employee: { id, name, position } for søknaden. applicant: { name, email } for kontaktperson.
  */
 export default function WorkingTimeWarnings({
-  colors, entries, employeeId, from = '', to = '', limits = null, company = null, nativeID = 'working-time-warnings',
+  colors, entries, employeeId, from = '', to = '', limits = null, company = null,
+  canApply = false, employee = null, applicant = null, nativeID = 'working-time-warnings',
 }) {
   const [showAll, setShowAll] = useState(false);
   const { tariff } = workingTimeOptions(company);
@@ -71,6 +75,19 @@ export default function WorkingTimeWarnings({
             {suggestion.text}
             <Text style={{ color: colors.muted }}>{` ${suggestion.ref}.`}</Text>
           </Text>
+          {canApply ? (
+            <ArbeidstilsynetDraft
+              colors={colors}
+              company={company}
+              employee={{ id: employeeId, ...(employee || {}) }}
+              result={result}
+              entries={entries}
+              applicant={applicant}
+              nativeID={`${nativeID}-draft`}
+            />
+          ) : (
+            <Text style={[styles.line, { color: colors.muted }]}>Øverste leder og administrator har et ferdig søknadsutkast.</Text>
+          )}
           <TouchableOpacity onPress={() => Linking.openURL(suggestion.url).catch(() => {})} accessibilityRole="link">
             <Text style={[styles.line, { color: colors.brand }]}>Slik søker dere (arbeidstilsynet.no)</Text>
           </TouchableOpacity>

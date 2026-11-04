@@ -104,7 +104,7 @@ assert.match(screen, /canEdit=\{fullPersonAccess \|\| selfEditor\}\s*canDelete=\
 assert.match(screen, /canEdit=\{isAdmin \|\| \(isSelfRow\(detailEmployee\) && ownLevel !== 'reader'\)\}/);
 
 // Timelisten: «Skriv ut utvalg» ligger under tannhjulet, som kan skjules.
-assert.match(arbeid, /\{readOnly \|\| hideReportTools \? null : \(/);
+assert.match(arbeid, /if \(readOnly \|\| hideReportTools\) return null;/);
 assert.match(arbeid, /includeJoinable: !memberProjectsOnly/);
 const gearPanel = arbeid.slice(arbeid.indexOf('nativeID="arbeid-report-panel"'));
 assert.match(gearPanel.slice(0, 2500), /nativeID="timesheet-print"/);

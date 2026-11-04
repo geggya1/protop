@@ -20,6 +20,11 @@ export default function TimesheetGrid({
   days,
   weeks,
   monthLabel = '',
+  onPrevMonth,
+  onNextMonth,
+  onPickMonth,
+  projectHeader = null,
+  monthCorner = null,
   projects,
   hiddenProjects = [],
   absenceRows = [],
@@ -80,7 +85,46 @@ export default function TimesheetGrid({
               },
             ]}
           >
-            <Text style={{ color: colors.ink, fontSize: 11, fontWeight: '700' }}>{monthLabel}</Text>
+            <View style={styles.monthNav}>
+              {onPrevMonth ? (
+                <TouchableOpacity
+                  onPress={onPrevMonth}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Forrige måned"
+                  nativeID="timesheet-month-prev"
+                  style={[styles.monthArrow, { borderColor: colors.line, backgroundColor: colors.card }]}
+                >
+                  <Ionicons name="chevron-back" size={16} color={colors.ink} />
+                </TouchableOpacity>
+              ) : null}
+              {onPickMonth ? (
+                <TouchableOpacity
+                  onPress={onPickMonth}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Velg måned og år, nå ${monthLabel}`}
+                  nativeID="timesheet-month-label"
+                  style={[styles.monthPill, { borderColor: colors.line, backgroundColor: colors.card }]}
+                >
+                  <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '700' }}>{monthLabel}</Text>
+                  <Ionicons name="chevron-down" size={14} color={colors.muted} />
+                </TouchableOpacity>
+              ) : (
+                <Text style={{ color: colors.ink, fontSize: 11, fontWeight: '700' }}>{monthLabel}</Text>
+              )}
+              {onNextMonth ? (
+                <TouchableOpacity
+                  onPress={onNextMonth}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Neste måned"
+                  nativeID="timesheet-month-next"
+                  style={[styles.monthArrow, { borderColor: colors.line, backgroundColor: colors.card }]}
+                >
+                  <Ionicons name="chevron-forward" size={16} color={colors.ink} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
           <View
             style={[
@@ -88,7 +132,9 @@ export default function TimesheetGrid({
               styles.monthSideCell,
               { width: totalW, borderColor: colors.line, borderRightWidth: 0 },
             ]}
-          />
+          >
+            {monthCorner}
+          </View>
         </View>
       ) : null}
       <View style={styles.row}>
@@ -114,8 +160,8 @@ export default function TimesheetGrid({
       </View>
 
       <View style={styles.row}>
-        <View style={[styles.labelCell, { width: labelW, borderColor: colors.line }]}>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Prosjekt</Text>
+        <View style={[styles.labelCell, projectHeader && styles.labelCellSlot, { width: labelW, borderColor: colors.line }]}>
+          {projectHeader || <Text style={{ color: colors.muted, fontSize: 12 }}>Prosjekt</Text>}
         </View>
         {days.map((day) => {
           const locked = isDateLocked(lockThrough, day.key);
@@ -449,6 +495,10 @@ const styles = StyleSheet.create({
   monthSideCell: {
     borderRightWidth: StyleSheet.hairlineWidth,
   },
+  monthNav: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  monthArrow: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  monthPill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1 },
+  labelCellSlot: { paddingVertical: 6, paddingHorizontal: 8 },
   dayHead: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderRightWidth: StyleSheet.hairlineWidth,

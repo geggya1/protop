@@ -97,7 +97,7 @@ function idsIn(sections) {
   assert.deepEqual(
     companyItems.map((i) => i.id),
     [
-      'selskap', 'selskapsinnstillinger', 'ansatte', 'hr', 'fravaer', 'arbeid', 'produktivitet', 'fremdrift',
+      'selskap', 'selskapsinnstillinger', 'ansatte', 'hr', 'innleie', 'fravaer', 'arbeid', 'produktivitet', 'fremdrift',
       'okonomi-inntjening', 'kunder', 'kundeundersokelse', 'anbud', 'kontrakt', 'projects', 'moter', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
       'skjema',
     ],
@@ -144,7 +144,11 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'ansatte').action.tab, 'ansatte');
   const hr = companyItems.find((i) => i.id === 'hr');
   assert.equal(hr.action.tab, 'hr');
-  assert.equal(hr.children.length, 9);
+  assert.equal(hr.children.length, 12);
+  // Innleie er egen modul ved siden av HR.
+  const innleie = companyItems.find((i) => i.id === 'innleie');
+  assert.equal(innleie.action.tab, 'innleie');
+  assert.deepEqual(innleie.children.map((i) => i.action.subView), ['oversikt', 'personell']);
   assert.deepEqual(
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
     ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Vurdering av aktuelle', '3. Tilbud', 'Innstillinger'],
@@ -703,13 +707,13 @@ function collectPresented(items, acc = []) {
     presented.filter((item) => item.group).map((item) => item.children.map((child) => child.id)),
     [
       ['selskap', 'underenheter', 'selskapsinnstillinger'],
-      ['ansatte', 'hr', 'fravaer', 'arbeid'],
+      ['ansatte', 'hr', 'innleie', 'fravaer', 'arbeid'],
       ['iso', 'skjema'],
       ['produktivitet', 'fremdrift', 'okonomi-inntjening'],
       ['okonomi'],
       ['produkt', 'utstyr', 'kjorebok'],
       ['anbud'],
-      ['kunder', 'kontrakt', 'projects'],
+      ['kunder', 'kundeundersokelse', 'kontrakt', 'projects'],
       ['moter'],
     ],
   );

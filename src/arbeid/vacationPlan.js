@@ -291,8 +291,7 @@ export function isPlanningEmployee(employee) {
   const company = employee?.company || {};
   const status = text(company.status) || 'active';
   if (status !== 'active') return false;
-  if (company.personnelKind === 'external' || company.external === true) return false;
-  // Innleide (nivå eller personelltype) har ferien sin hos utleieren, ikke i denne planen.
+  // Innleide og eksterne har ferien sin hos sin arbeidsgiver. Samme regel som HR (kindOf).
   if (kindOf(employee) !== 'staff') return false;
   return !!text(employee?.id);
 }

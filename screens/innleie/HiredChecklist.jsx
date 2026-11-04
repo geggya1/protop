@@ -26,11 +26,12 @@ const STATUS_OPTIONS = [
 ];
 
 /** Ikon og farge for én linje: grønn hake, rødt varsel, grått for ikke aktuelt, tom ring for anbefalt. */
-function rowLook(row, required) {
+function rowLook(row, required, law = false) {
   if (row.status === 'ok') return { icon: 'checkmark-circle', color: ACCENT.green, text: 'OK' };
   if (row.status === 'na') return { icon: 'remove-circle-outline', color: ACCENT.slate, text: 'Ikke aktuelt' };
   if (row.status === 'overdue') return { icon: 'alert-circle', color: ACCENT.red, text: 'Utløpt' };
   if (required) return { icon: 'alert-circle', color: ACCENT.red, text: 'Mangler' };
+  if (law) return { icon: 'ellipse-outline', color: ACCENT.amber, text: 'Ved behov' };
   return { icon: 'ellipse-outline', color: ACCENT.amber, text: 'Ikke gjort' };
 }
 
@@ -131,7 +132,7 @@ export default function HiredChecklist({
             {group.map((row, index) => {
               const cat = hiredCatalogItem(row.catalogId);
               const required = isHiredRequired(row.catalogId, type, { hmsRequired });
-              const look = rowLook(row, required || cat?.level === 'law');
+              const look = rowLook(row, required, cat?.level === 'law');
               const expanded = open === row.catalogId;
               const sub = subline(row, cat);
               return (

@@ -762,9 +762,44 @@ export function isDeletedEmployee(employee) {
   return statusOf(employee?.company?.status) === 'deleted';
 }
 
+/**
+ * Personellgruppe: 'staff' (egne ansatte), 'innleid' eller 'external'.
+ * Den ene regelen for hvem som er egen ansatt, brukt av HR, Innleie, ferieplan, kapasitet og ISO.
+ * Tilgangsnivået vinner over en eldre personelltype som ikke er oppdatert. Uten nivå avgjør
+ * personelltypen, og uten den ansettelsesformen (Innleid / Ekstern).
+ */
+export function kindOf(employee) {
+  // Flere nivå kan være huket av; samme rekkefølge gjelder over alle nivåene.
+  const levels = employeeLevelIds(employee).map((id) => levelById(id)).filter(Boolean);
+  if (levels.some((row) => row.kind === 'innleid')) return 'innleid';
+  if (levels.some((row) => row.section === 'company' && row.kind === 'staff')) return 'staff';
+  if (levels.some((row) => row.kind === 'external' || row.section === 'external')) return 'external';
+  const level = levelById(employee?.company?.accessLevel);
+  if (level?.kind === 'innleid') return 'innleid';
+  if (level?.section === 'company' && level?.kind === 'staff') return 'staff';
+  if (level?.kind === 'external' || level?.section === 'external') return 'external';
+  const kind = personnelKind(employee);
+  if (kind === 'innleid' || kind === 'external') return kind;
+  // Ansettelsesformen sier det også når personelltypen ikke er oppdatert («Innleid via byrå»).
+  const employment = text(employee?.company?.employmentType).toLowerCase();
+  if (/innleid|innleie/.test(employment)) return 'innleid';
+  if (/ekstern/.test(employment)) return 'external';
+  return 'staff';
+}
+
+/** Innleid eller ekstern: har en annen arbeidsgiver. */
+export function isHiredPersonnel(employee) {
+  return kindOf(employee) !== 'staff';
+}
+
+/** Egen ansatt (ikke innleid eller ekstern), uansett status. */
+export function isOwnEmployee(employee) {
+  return !!employee && kindOf(employee) === 'staff';
+}
+
 /** Eget personell (ikke innleid/eksternt) med status Aktiv. */
 export function isOwnActiveEmployee(employee) {
-  return personnelKind(employee) === 'staff' && statusOf(employee?.company?.status) === 'active';
+  return isOwnEmployee(employee) && statusOf(employee?.company?.status) === 'active';
 }
 
 export function applyEmployeeClassification(employee, patch = {}) {

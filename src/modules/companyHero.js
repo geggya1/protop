@@ -7,6 +7,7 @@ import {
   defaultAnbudSubView,
   defaultArbeidSubView,
   defaultHrSubView,
+  defaultInnleieSubView,
   defaultMoterSubView,
   defaultOkonomiSubView,
 } from '../navigation/shellModules.js';
@@ -61,14 +62,24 @@ export const COMPANY_HERO = {
       'Hire date, anniversary, birthday and contracts.',
     ),
   },
-  'hr-innleid': {
+  'innleie-oversikt': {
     wideArt: true,
-    name: 'Innleid personell',
-    kicker: t('HR · Innleide', 'HR · Hired-in'),
-    title: t('Innleid og eksternt personell', 'Hired-in and external staff'),
+    name: 'Innleie',
+    kicker: t('Innleie', 'Hired-in staff'),
+    title: t('Innleide og eksterne', 'Hired-in and external staff'),
     pitch: t(
-      'Det dere som innleier skal ha kontroll på, atskilt fra egne ansatte.',
-      'What you as the hiring company must keep track of, kept apart from your own staff.',
+      'Hvem som er her, hvem som er borte, og det dere som innleier har ansvaret for.',
+      'Who is here, who is away, and what you as the hiring company are responsible for.',
+    ),
+  },
+  'innleie-personell': {
+    wideArt: true,
+    name: 'Personell',
+    kicker: t('Innleie', 'Hired-in staff'),
+    title: t('Innleid personell', 'Hired-in personnel'),
+    pitch: t(
+      'Lovkrav for innleie, HMS-kort, saker og oppgaver per person.',
+      'Legal requirements for hiring in, HSE cards, cases and tasks per person.',
     ),
   },
   'hr-avtaler': {
@@ -583,6 +594,7 @@ export function companyHeroId(tab, moreSubView = null) {
   if (tab === 'skjema') return 'skjema';
   if (tab === 'iso') return 'iso';
   if (tab === 'moter') return `moter-${defaultMoterSubView(moreSubView)}`;
+  if (tab === 'innleie') return `innleie-${defaultInnleieSubView(moreSubView)}`;
   if (tab === 'timeliste') return 'timeliste';
   if (tab === 'underenheter') return 'underenheter';
   if (tab === 'selskap') {
@@ -599,7 +611,7 @@ export function companyHeroId(tab, moreSubView = null) {
   return null;
 }
 
-const ROUTE_PREFIXES = ['hr', 'anbud', 'arbeid', 'okonomi', 'selskap', 'moter', 'kunder'];
+const ROUTE_PREFIXES = ['hr', 'anbud', 'arbeid', 'okonomi', 'selskap', 'moter', 'kunder', 'innleie'];
 
 /** Fane og underside for en bånd-id (motsatt vei av companyHeroId). */
 export function companyHeroRoute(id) {

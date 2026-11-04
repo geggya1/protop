@@ -193,8 +193,6 @@ export const INNTJENING_NAV = { id: 'inntjening', icon: 'analytics', label: 'Inn
 export const HR_GROUPS = [
   { id: 'oversikt', label: 'Oversikt' },
   { id: 'ansatte', label: 'Ansatte' },
-  // Innleide og eksterne er ikke egne ansatte, og følges opp for seg (src/hr/hired.js).
-  { id: 'innleide', label: 'Innleide' },
   { id: 'oppfolging', label: 'Oppfølging' },
   { id: 'rekruttering', label: 'Rekruttering' },
   { id: 'rutiner', label: 'Rutiner' },
@@ -206,7 +204,6 @@ export const HR_MENU = [
   { id: 'avtaler', icon: 'document-text', label: 'Avtaler', group: 'ansatte' },
   { id: 'lonn', icon: 'cash', label: 'Lønn', group: 'ansatte' },
   { id: 'compliance', icon: 'shield-checkmark', label: 'Lovpålagt', group: 'ansatte' },
-  { id: 'innleid', icon: 'swap-horizontal', label: 'Innleid personell', group: 'innleide' },
   { id: 'oppfolging', icon: 'flag', label: 'Samtaler og saker', group: 'oppfolging' },
   { id: 'sykefravaer', icon: 'medkit', label: 'Sykefravær', group: 'oppfolging' },
   { id: 'undersokelse', icon: 'stats-chart', label: 'Medarbeiderundersøkelse', group: 'oppfolging' },
@@ -287,6 +284,43 @@ export function isoMenuTitle(subView) {
  * Møter: liste over møter, oppfølgingspunkter på tvers og bedriftens møtemaler.
  * Et åpent møte er en tilstand i siden, ikke en egen underside.
  */
+/**
+ * Innleie: innleide fra bemanningsforetak og eksterne. Egen modul, ikke HR, fordi de har en
+ * annen arbeidsgiver. Her står det dere som innleier har ansvaret for (src/hr/hired.js).
+ */
+export const INNLEIE_MENU = [
+  { id: 'oversikt', icon: 'grid-outline', label: 'Oversikt' },
+  { id: 'personell', icon: 'people-outline', label: 'Personell' },
+];
+
+export const INNLEIE_SUBVIEW_IDS = INNLEIE_MENU.map((item) => item.id);
+
+export function defaultInnleieSubView(subView) {
+  // Den gamle HR-siden (hr/innleid) og lenker til «innleid» går til personellisten.
+  if (subView === 'innleid') return 'personell';
+  return INNLEIE_SUBVIEW_IDS.includes(subView) ? subView : 'oversikt';
+}
+
+export function innleieMenuTitle(subView) {
+  const row = INNLEIE_MENU.find((item) => item.id === subView);
+  return row && row.id !== 'oversikt' ? `Innleie · ${row.label}` : 'Innleie';
+}
+
+function innleieNavItem() {
+  return {
+    id: 'innleie',
+    icon: 'swap-horizontal',
+    label: 'Innleie',
+    action: { type: 'tab', tab: 'innleie', subView: 'oversikt' },
+    children: INNLEIE_MENU.map((item) => ({
+      id: `innleie-${item.id}`,
+      icon: item.icon,
+      label: item.label,
+      action: { type: 'tab', tab: 'innleie', subView: item.id },
+    })),
+  };
+}
+
 export const MOTER_MENU = [
   { id: 'oversikt', icon: 'calendar-outline', label: 'Møter' },
   { id: 'oppfolging', icon: 'checkbox-outline', label: 'Oppfølging' },
@@ -433,6 +467,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
     },
     { id: 'ansatte', icon: 'id-card', label: 'Ansatte og eksterne', action: { type: 'tab', tab: 'ansatte' } },
     hrNavItem(),
+    innleieNavItem(),
     fravaerNavItem(),
     arbeidNavItem(),
     {
@@ -578,7 +613,7 @@ export const COMPANY_DRAWER_GROUPS = [
     id: 'company-people',
     label: 'Ansatte og arbeidstid',
     icon: 'people',
-    itemIds: ['ansatte', 'hr', 'fravaer', 'arbeid'],
+    itemIds: ['ansatte', 'hr', 'innleie', 'fravaer', 'arbeid'],
   },
   {
     id: 'company-quality',

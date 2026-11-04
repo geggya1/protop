@@ -1,11 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { innleieDashboard } from '../../src/innleie/dashboard';
 import { formatNbDate } from '../../src/hr/model';
 import { radius, type } from '../../src/ui/tokens';
 import {
-  ACCENT, Avatar, Bar, DashCard, KpiTile, Pill, SectionLabel, gridItem, gridStyle, tint,
+  ACCENT, Avatar, Bar, DashCard, KpiTile, MoreToggle, Pill, SectionLabel, gridItem, gridStyle, tint,
 } from '../hr/HrDashParts';
 
 function plural(n, one, many) {
@@ -26,6 +26,7 @@ export default function InnleieDashboard({
 }) {
   const dash = useMemo(() => innleieDashboard(employees, hr, { notices }), [employees, hr, notices]);
   const maxGap = Math.max(1, ...dash.gaps.map((row) => row.count));
+  const [showAllGaps, setShowAllGaps] = useState(false);
 
   if (!dash.total) {
     return (
@@ -41,8 +42,9 @@ export default function InnleieDashboard({
 
   return (
     <View nativeID="innleie-dashboard" style={styles.page}>
-      <View style={gridStyle(4, 200, 12)} nativeID="innleie-kpis">
-        <View style={gridItem(200)}>
+      {/* To og to på telefon, fire på rad på PC. */}
+      <View style={gridStyle(4, 150, 10)} nativeID="innleie-kpis">
+        <View style={gridItem(150)}>
           <KpiTile
             colors={colors}
             icon="people-outline"
@@ -54,7 +56,7 @@ export default function InnleieDashboard({
             nativeID="innleie-kpi-total"
           />
         </View>
-        <View style={gridItem(200)}>
+        <View style={gridItem(150)}>
           <KpiTile
             colors={colors}
             accent={dash.peopleWithGaps ? ACCENT.red : ACCENT.green}
@@ -66,7 +68,7 @@ export default function InnleieDashboard({
             nativeID="innleie-kpi-law"
           />
         </View>
-        <View style={gridItem(200)}>
+        <View style={gridItem(150)}>
           <KpiTile
             colors={colors}
             icon="calendar-clear-outline"
@@ -77,7 +79,7 @@ export default function InnleieDashboard({
             nativeID="innleie-kpi-away"
           />
         </View>
-        <View style={gridItem(200)}>
+        <View style={gridItem(150)}>
           <KpiTile
             colors={colors}
             icon="card-outline"
@@ -125,7 +127,7 @@ export default function InnleieDashboard({
             badge={dash.peopleWithGaps || null}
             nativeID="innleie-gaps"
           >
-            {dash.gaps.length ? dash.gaps.map((row) => (
+            {dash.gaps.length ? dash.gaps.slice(0, showAllGaps ? undefined : 5).map((row) => (
               <Pressable key={row.id} onPress={() => onOpenPeople?.({ gap: row.id })} style={styles.gap} accessibilityRole="button">
                 <View style={styles.gapHead}>
                   <Text numberOfLines={1} style={[styles.name, { color: colors.ink, flex: 1 }]}>{row.label}</Text>
@@ -136,6 +138,9 @@ export default function InnleieDashboard({
             )) : (
               <Empty colors={colors} icon="checkmark-circle-outline" text="Alle lovkrav er på plass." accent={ACCENT.green} />
             )}
+            {dash.gaps.length > 5 ? (
+              <MoreToggle colors={colors} expanded={showAllGaps} more={dash.gaps.length - 5} onPress={() => setShowAllGaps((v) => !v)} />
+            ) : null}
           </DashCard>
         </View>
       </View>

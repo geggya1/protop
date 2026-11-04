@@ -22,7 +22,7 @@ const TAB_SLUGS = {
 const KNOWN_TABS = new Set([
   'home', 'plan', 'notes', 'mail', 'chat', 'chores', 'stars', 'more',
   'selskap', 'underenheter', 'ansatte', 'hr', 'arbeid', 'timeliste', 'okonomi', 'kunder',
-  'anbud', 'kontrakt', 'projects', 'moter', 'utstyr', 'iso', 'skjema',
+  'anbud', 'kontrakt', 'projects', 'moter', 'utstyr', 'iso', 'skjema', 'innleie',
 ]);
 
 const SLUG_TABS = Object.fromEntries(Object.entries(TAB_SLUGS).map(([tab, slug]) => [slug, tab]));
@@ -153,7 +153,7 @@ export function companyLandingTab(path, { company = false, allowed = true } = {}
 /** Faner som bare finnes i Bedrift. */
 const COMPANY_ONLY_TABS = new Set([
   'selskap', 'underenheter', 'ansatte', 'hr', 'arbeid', 'okonomi', 'kunder',
-  'anbud', 'kontrakt', 'projects', 'utstyr', 'iso', 'skjema',
+  'anbud', 'kontrakt', 'projects', 'utstyr', 'iso', 'skjema', 'innleie',
 ]);
 
 /**

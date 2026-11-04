@@ -107,6 +107,15 @@ export const COMPANY_MODULES = [
     routes: [['projects', null]],
   },
   {
+    id: 'innleie',
+    groupId: 'company-people',
+    label: 'Innleie',
+    icon: 'swap-horizontal',
+    hint: 'Innleide og eksterne: lovkrav for innleie, HMS-kort og fravær. Atskilt fra HR.',
+    navIds: ['innleie'],
+    routes: [['innleie', null]],
+  },
+  {
     id: 'moter',
     groupId: 'company-meetings',
     label: 'Møter',

@@ -32,6 +32,41 @@ function daysBetween(fromIso, toIso) {
   return Math.round((b - a) / 86400000);
 }
 
+/** Fraværstypen innleide bruker i stedet for egenmelding (src/arbeid/absenceCatalog.js). */
+export const NOTICE_TYPE = 'fravaersbeskjed';
+
+/**
+ * Fraværsrader (én per dag) blir perioder per person: { id, employeeId, fromDate, toDate, note }.
+ * Dager med inntil to dagers opphold (helg) slås sammen. Bare for personene i «people».
+ */
+export function noticesFromAbsences(absences, people) {
+  const ids = new Set((people || []).map((row) => row.id));
+  const byEmployee = new Map();
+  for (const row of absences || []) {
+    const id = text(row?.employeeId);
+    const date = dayKey(row?.date);
+    if (!ids.has(id) || !date || Number(row?.hours) <= 0) continue;
+    const list = byEmployee.get(id) || [];
+    list.push({ date, note: text(row.description) });
+    byEmployee.set(id, list);
+  }
+  const out = [];
+  for (const [employeeId, list] of byEmployee) {
+    list.sort((a, b) => a.date.localeCompare(b.date));
+    let current = null;
+    for (const day of list) {
+      if (current && (daysBetween(current.toDate, day.date) ?? 99) <= 3) {
+        current.toDate = day.date;
+        if (!current.note && day.note) current.note = day.note;
+        continue;
+      }
+      current = { id: `${employeeId}_${day.date}`, employeeId, fromDate: day.date, toDate: day.date, note: day.note };
+      out.push(current);
+    }
+  }
+  return out.sort((a, b) => a.fromDate.localeCompare(b.fromDate));
+}
+
 /** Innleide og eksterne, uten slettede. status: 'active' | 'inactive' | 'all'. */
 export function hiredPeople(employees, status = 'active') {
   return (employees || []).filter((row) => {

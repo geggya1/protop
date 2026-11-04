@@ -778,7 +778,6 @@ export function hrResourceForSubView(subView) {
   const map = {
     oversikt: 'hr',
     personell: 'hrPeople',
-    innleid: 'hrPeople',
     avtaler: 'hrAgreements',
     lonn: 'hrPayroll',
     oppfolging: 'hrFollowup',
@@ -1165,6 +1164,7 @@ const COMPANY_TAB_RESOURCE = {
   okonomi: 'economy',
   utstyr: 'equipment',
   moter: 'meetings',
+  innleie: 'hrPeople',
 };
 
 /** Meny-id → rettighetsressurs. Foreldre uten egen rad dekkes i navItemAllowed. */
@@ -1180,7 +1180,10 @@ const NAV_RESOURCE = {
   hr: 'hr',
   'hr-oversikt': 'hr',
   'hr-personell': 'hrPeople',
-  'hr-innleid': 'hrPeople',
+  // Innleie bruker HR-dokumentet (der lønn også ligger), så samme tilgang som Personell.
+  innleie: 'hrPeople',
+  'innleie-oversikt': 'hrPeople',
+  'innleie-personell': 'hrPeople',
   'hr-avtaler': 'hrAgreements',
   'hr-lonn': 'hrPayroll',
   'hr-oppfolging': 'hrFollowup',
@@ -1235,7 +1238,7 @@ const NAV_RESOURCE = {
 
 export const COMPANY_TAB_IDS = [
   'selskap', 'underenheter', 'ansatte', 'hr', 'kunder', 'anbud', 'kontrakt',
-  'skjema', 'projects', 'moter', 'arbeid', 'utstyr', 'iso', 'okonomi',
+  'skjema', 'projects', 'moter', 'arbeid', 'utstyr', 'iso', 'okonomi', 'innleie',
 ];
 
 function hoursAllowed(grants) {

@@ -4,7 +4,7 @@
  * Alle moduler har samme meny (også HR og Anbud): fanene som får plass, og resten under «Mer» (UX-19).
  */
 import {
-  COMPANY_DRAWER_GROUPS, HR_GROUPS, HR_MENU, ISO_MENU, companyNavItems, defaultAnbudSubView, defaultHrSubView, defaultIsoSubView, defaultMoterSubView,
+  COMPANY_DRAWER_GROUPS, HR_GROUPS, HR_MENU, ISO_MENU, companyNavItems, defaultAnbudSubView, defaultHrSubView, defaultInnleieSubView, defaultIsoSubView, defaultMoterSubView,
   isNavItemActive,
 } from './shellModules.js';
 
@@ -45,6 +45,7 @@ const DEFAULT_SUB = {
   iso: defaultIsoSubView,
   moter: defaultMoterSubView,
   hr: defaultHrSubView,
+  innleie: defaultInnleieSubView,
   anbud: (sub) => (sub === 'pipeline' ? 'tilbud' : defaultAnbudSubView(sub)),
 };
 

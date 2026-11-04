@@ -745,9 +745,9 @@ export const PROTOP_PAGES = {
         'The “Next of kin” card shows how many of your own employees are missing it. Tap the alert to see who. Employees fill it in on their profile, get a task with a notification and a reminder after the deadline. “Send reminder now” sends at once.',
         { find: ['Pårørende'] }),
       step(tx('Eksterne og innleide', 'External and hired-in'),
-        'Eksterne og innleide vises for seg nederst: åpne saker, oppgaver og avtaleslutt. De telles ikke med i tallene for ansatte og får ikke oppgave om pårørende. «Følg opp» åpner Innleid personell.',
-        'External and hired-in staff are shown separately at the bottom: open cases, tasks and contract end. They are not counted as employees and get no next-of-kin task. “Follow up” opens Hired-in staff.',
-        { find: ['Aktive eksterne'],
+        'HR gjelder egne ansatte. Innleide og eksterne har en annen arbeidsgiver, telles ikke med og følges opp i modulen Innleie. Lenken nederst åpner den.',
+        'HR covers your own employees. Hired-in and external staff have another employer, are not counted and are followed up in the Hired-in module. The link at the bottom opens it.',
+        { find: ['#hr-dash-external'],
           pending: tx('Feltet vises når bedriften har eksterne eller innleide registrert.', 'This appears once the company has external or hired-in staff registered.') }),
     ],
     keywords: ['hr', 'personal', 'oversikt', 'jubileum', 'bursdag', 'kontrakt utløper', 'pårørende', 'nærmeste pårørende', 'eksterne', 'innleid'],
@@ -775,33 +775,61 @@ export const PROTOP_PAGES = {
     ],
     keywords: ['personell', 'personalmappe', 'ansatt', 'hr'],
   }),
-  'hr.innleid': page({
+  'innleie.oversikt': page({
     section: 'company-people',
-    label: tx('HR — Innleid personell', 'HR — Hired-in staff'),
-    path: tx('Bedrift → HR → Innleide → Innleid personell', 'Company → HR → Hired-in → Hired-in staff'),
-    nav: { tab: 'hr', subView: 'innleid' },
+    label: tx('Innleie — Oversikt', 'Hired-in — Overview'),
+    path: tx('Bedrift → Innleie → Oversikt', 'Company → Hired-in → Overview'),
+    nav: { tab: 'innleie', subView: 'oversikt' },
     icon: 'swap-horizontal',
     kicker: tx('Atskilt fra egne ansatte', 'Kept apart from your own staff'),
-    title: tx('Innleid og eksternt personell', 'Hired-in and external staff'),
+    title: tx('Innleide og eksterne', 'Hired-in and external staff'),
     pitch: tx(
-      'Innleide fra bemanningsforetak og eksterne som konsulenter og regnskap følges opp her, ikke i personellmappen. Bemanningsforetaket eller leverandøren er arbeidsgiver og har ansvaret for arbeidsavtale, lønn og medarbeidersamtaler. Her står det dere som innleier skal ha kontroll på: lovkrav og anbefalinger.',
-      'Staff hired in from agencies and externals such as consultants and accountants are followed up here, not in the personnel file. The agency or supplier is the employer and handles the employment agreement, pay and reviews. This page shows what you as the hiring company must keep track of: legal requirements and recommendations.',
+      'Innleide fra bemanningsforetak og eksterne som konsulenter og underleverandører har en annen arbeidsgiver. Den har ansvaret for arbeidsavtale, lønn, sykefravær og medarbeidersamtaler. Her ser dere hvem som er her, hvem som er borte, og det dere som innleier har ansvaret for.',
+      'Staff hired in from agencies and externals such as consultants and subcontractors have another employer, which handles the employment agreement, pay, sick leave and reviews. Here you see who is here, who is away, and what you as the hiring company are responsible for.',
+    ),
+    steps: [
+      step(tx('Nøkkeltall', 'Key figures'),
+        'Øverst: hvor mange som er aktive, hvor mange lovkrav som er på plass, hvem som er borte i dag og HMS-kort som går ut.',
+        'At the top: how many are active, how many legal requirements are in place, who is away today and HSE cards about to expire.',
+        { find: ['#innleie-kpis'] }),
+      step(tx('Borte', 'Away'),
+        'Innleide sender fraværsbeskjed fra timelisten, ikke egenmelding. Her ser dere hvem som er borte i dag og de neste sju dagene. Sykefraværet følges opp av arbeidsgiveren deres.',
+        'Hired-in staff send an absence notice from the timesheet, not a self-certification. Here you see who is away today and the next seven days. Their sick leave is followed up by their own employer.',
+        { find: ['#innleie-away'] }),
+      step(tx('Lovkrav som mangler', 'Missing legal requirements'),
+        'Hvor mange personer som mangler hvert lovkrav. Trykk på et krav for å se hvem.',
+        'How many people lack each legal requirement. Tap a requirement to see who.',
+        { find: ['#innleie-gaps'] }),
+    ],
+    keywords: ['innleie', 'innleid', 'bemanningsforetak', 'ekstern', 'eksterne', 'fraværsbeskjed', 'borte', 'underleverandør', 'konsulent'],
+  }),
+  'innleie.personell': page({
+    section: 'company-people',
+    label: tx('Innleie — Personell', 'Hired-in — Personnel'),
+    path: tx('Bedrift → Innleie → Personell', 'Company → Hired-in → Personnel'),
+    nav: { tab: 'innleie', subView: 'personell' },
+    icon: 'people',
+    kicker: tx('Krav per person', 'Requirements per person'),
+    title: tx('Innleid personell', 'Hired-in personnel'),
+    pitch: tx(
+      'Ett kort per innleid eller ekstern. Personen har kravene for innleie og saker og oppgaver. Arbeidsavtale, lønn og medarbeidersamtaler er leverandørens ansvar og ligger ikke her.',
+      'One card per hired-in or external person. The person has the requirements for hiring in, and cases and tasks. Employment agreement, pay and reviews are the supplier’s responsibility and are not here.',
     ),
     steps: [
       step(tx('Velg person', 'Pick a person'),
-        'Tabellen viser lovkrav som mangler (rødt) og hvor mange anbefalte punkter som er gjort. Aktive og Deaktiverte viser nåværende og tidligere innleide.',
-        'The table shows missing legal requirements (red) and how many recommended items are done. Active and Deactivated show current and former hired-in staff.',
-        { find: ['#hr-row-*'], anchor: 'content' }),
+        'Kortet viser om lovkravene er på plass, og om personen er borte i dag. Det som mangler, står først. Aktive og Deaktiverte viser nåværende og tidligere innleide.',
+        'The card shows whether the legal requirements are in place and whether the person is away today. What is missing comes first. Active and Deactivated show current and former hired-in staff.',
+        { find: ['#innleie-person-*'], anchor: 'content' }),
       step(tx('Krav', 'Requirements'),
-        'Lovkrav for innleie: grunnlag for innleien, registrert bemanningsforetak, lønns- og arbeidsvilkår (likebehandling), HMS-kort, HMS-introduksjon, arbeidstid og personvern. Anbefalt: avtale med leverandøren, kontroll av lønn (solidaransvar) og varighet. Marker OK, Mangler eller Ikke aktuelt, og skriv notat som bevis.',
-        'Legal requirements for hiring in: basis for hiring, registered agency, pay and working conditions (equal treatment), HSE card, HSE induction, working hours and privacy. Recommended: agreement with the supplier, pay check (joint liability) and duration. Mark OK, Missing or Not relevant, and add a note as evidence.',
-        { find: ['#hr-hired-summary'], via: ['#hr-row-*'], viaText: tx('Velg en person først: trykk den markerte raden, så åpnes personen og jeg viser deg resten.', 'Pick a person first: tap the highlighted row, the person opens and I show you the rest.') }),
+        'Én linje per krav med status. Trykk på linjen for hva som må gjøres, hvorfor, og for å markere OK, Mangler eller Ikke aktuelt. Lovkrav: grunnlag for innleien, registrert bemanningsforetak, likebehandling, HMS-kort, HMS-introduksjon, arbeidstid og personvern. Anbefalt: avtale med leverandøren, lønnskontroll og varighet.',
+        'One line per requirement with its status. Tap the line for what to do, why, and to mark OK, Missing or Not relevant. Legal: basis for hiring, registered agency, equal treatment, HSE card, HSE induction, working hours and privacy. Recommended: supplier agreement, pay check and duration.',
+        { find: ['#hr-hired-summary'], via: ['#innleie-person-*'], viaText: tx('Velg en person først: trykk det markerte kortet, så åpnes personen og jeg viser deg resten.', 'Pick a person first: tap the highlighted card, the person opens and I show you the rest.') }),
       step(tx('Saker og oppgaver', 'Cases and tasks'),
-        'Under «Saker og oppgaver» registrerer dere saker, memo, filer og oppgaver på personen. Medarbeidersamtaler holdes av bemanningsforetaket og ligger ikke her.',
-        'Under “Cases and tasks” you register cases, memos, files and tasks on the person. Reviews are held by the agency and are not here.',
-        { find: ['#hr-hired-sheet-oppfolging'], via: ['#hr-row-*'], viaText: tx('Velg en person først: trykk den markerte raden, så åpnes personen og jeg viser deg resten.', 'Pick a person first: tap the highlighted row, the person opens and I show you the rest.') }),
+        'Saker, memo, filer og oppgaver på personen. Medarbeidersamtaler holdes av arbeidsgiveren deres og ligger ikke her.',
+        'Cases, memos, files and tasks on the person. Reviews are held by their employer and are not here.',
+        { find: ['#hr-hired-sheet-oppfolging'], via: ['#innleie-person-*'], viaText: tx('Velg en person først: trykk det markerte kortet, så åpnes personen og jeg viser deg resten.', 'Pick a person first: tap the highlighted card, the person opens and I show you the rest.') }),
     ],
-    keywords: ['innleid', 'innleie', 'bemanningsforetak', 'ekstern', 'eksterne', 'likebehandling', 'solidaransvar', 'underleverandør', 'konsulent'],
+    keywords: ['innleid', 'innleie', 'bemanningsforetak', 'ekstern', 'likebehandling', 'solidaransvar', 'hms-kort', 'underleverandør'],
   }),
   'hr.avtaler': page({
     section: 'company-people',
@@ -2594,6 +2622,8 @@ export const PAGE_ALIASES = {
   'arbeid': 'arbeid.timeliste',
   'okonomi': 'okonomi.oversikt',
   'hr': 'hr.oversikt',
+  'innleie': 'innleie.oversikt',
+  'hr.innleid': 'innleie.personell',
 };
 
 const DEFAULT_SUBVIEW = {
@@ -2602,9 +2632,10 @@ const DEFAULT_SUBVIEW = {
   okonomi: 'oversikt',
   hr: 'oversikt',
   iso: 'oversikt',
+  innleie: 'oversikt',
 };
 
-const SUBVIEW_TABS = new Set(['anbud', 'arbeid', 'okonomi', 'hr', 'iso', 'selskap', 'kunder']);
+const SUBVIEW_TABS = new Set(['anbud', 'arbeid', 'okonomi', 'hr', 'iso', 'selskap', 'kunder', 'innleie']);
 
 /**
  * Side-id for hjelp ut fra fane og underside i skallet.

@@ -210,7 +210,9 @@ const HrPeople = component('screens/hr/HrPeople.jsx');
 const HrControl = component('screens/hr/HrControl.jsx');
 const HrContracts = component('screens/hr/HrContracts.jsx');
 const HrDashboard = component('screens/hr/HrDashboard.jsx');
-const HrHired = component('screens/hr/HrHired.jsx');
+const localIsoDate = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const InnleiePeople = component('screens/innleie/InnleiePeople.jsx');
+const InnleieDashboard = component('screens/innleie/InnleieDashboard.jsx');
 
 const peopleProps = {
   colors,
@@ -570,6 +572,7 @@ let followHtml = '';
 
 let hiredHtml = '';
 let hiredSheetHtml = '';
+let innleieDashHtml = '';
 {
   // Innleid personell: egen liste med lovkrav for innleie, ikke egne ansattes Lovpålagt.
   const hiredEmployees = [
@@ -595,44 +598,62 @@ let hiredSheetHtml = '';
     onPatch: () => {},
     familyId: 'fam',
   };
-  hiredHtml = renderToStaticMarkup(React.createElement(HrHired, { ...hiredProps, selectedId: '' }));
+  hiredHtml = renderToStaticMarkup(React.createElement(InnleiePeople, { ...hiredProps, notices: [], selectedId: '' }));
   const html = hiredHtml;
   assert.match(html, /id="hr-hired"/);
   assert.match(html, /Aina Jespersen/);
   assert.match(html, /Rolf Regnskap/);
   assert.equal(html.includes('Ada Nordmann'), false, 'egne ansatte står ikke her');
-  assert.match(html, /Aktive · 2/);
-  assert.match(html, /Deaktiverte · 1/);
+  assert.match(html, /id="innleie-status-active"/);
+  assert.match(html, /id="innleie-status-inactive"/);
   assert.match(html, /1 innleid · 1 ekstern/);
-  assert.match(html, />Lovkrav</);
-  assert.match(html, />Anbefalt</);
+  assert.match(html, /7 lovkrav mangler/);
   assert.equal(html.includes('Ansettelsesavtale'), false);
   assert.equal(html.includes('Medarbeidersamtale'), false);
 
-  hiredSheetHtml = renderToStaticMarkup(React.createElement(HrHired, { ...hiredProps, selectedId: 'e3', sheet: 'krav' }));
+  hiredSheetHtml = renderToStaticMarkup(React.createElement(InnleiePeople, {
+    ...hiredProps, selectedId: 'e3', sheet: 'krav', notices: [{ employeeId: 'e3', fromDate: localIsoDate(), toDate: localIsoDate(), note: '' }],
+  }));
   const sheet = hiredSheetHtml;
   assert.match(sheet, /Til innleid personell/);
+  assert.match(sheet, /Borte/);
+  assert.match(sheet, /id="hr-hired-summary"/);
+  assert.match(sheet, /7 lovkrav mangler/);
   assert.match(sheet, /id="hr-hired-level-law"/);
   assert.match(sheet, /id="hr-hired-level-advice"/);
   assert.match(sheet, /Lovlig grunnlag for innleien/);
   assert.match(sheet, /Bemanningsforetaket er registrert hos Arbeidstilsynet/);
-  assert.match(sheet, /Lønns- og arbeidsvilkår gitt til bemanningsforetaket/);
   assert.match(sheet, /Gyldig HMS-kort/);
   assert.match(sheet, /Skriftlig avtale med leverandøren/);
+  // Kompakt: detaljene (lovtekst, knapper) vises først når linjen åpnes.
+  assert.equal(sheet.includes('hr-hired-detail-'), false);
+  assert.equal(sheet.includes('AML § 14-12a'), false);
   assert.equal(sheet.includes('Skriftlig arbeidsavtale'), false, 'arbeidsavtalen er bemanningsforetakets ansvar');
   assert.equal(sheet.includes('Databehandleravtale'), false, 'gjelder eksterne, ikke innleide');
 
-  const ext = renderToStaticMarkup(React.createElement(HrHired, { ...hiredProps, selectedId: 'e4', sheet: 'krav' }));
+  const ext = renderToStaticMarkup(React.createElement(InnleiePeople, { ...hiredProps, notices: [], selectedId: 'e4', sheet: 'krav' }));
   assert.match(ext, /Databehandleravtale/);
   assert.equal(ext.includes('Lovlig grunnlag for innleien'), false);
 
   // Saker og oppgaver uten medarbeidersamtaler.
-  const follow = renderToStaticMarkup(React.createElement(HrHired, { ...hiredProps, selectedId: 'e3', sheet: 'oppfolging' }));
+  const follow = renderToStaticMarkup(React.createElement(InnleiePeople, { ...hiredProps, notices: [], selectedId: 'e3', sheet: 'oppfolging' }));
   assert.match(follow, /id="hr-follow-tab-cases"/);
   assert.equal(follow.includes('hr-follow-tab-reviews'), false);
 
+  // Oversikten i Innleie.
+  innleieDashHtml = renderToStaticMarkup(React.createElement(InnleieDashboard, {
+    colors, employees: hiredEmployees, hr, notices: [{ employeeId: 'e3', fromDate: localIsoDate(), toDate: localIsoDate(), note: 'Kurs' }],
+  }));
+  assert.match(innleieDashHtml, /id="innleie-kpis"/);
+  assert.match(innleieDashHtml, /Borte i dag/);
+  assert.match(innleieDashHtml, /id="innleie-away"/);
+  assert.match(innleieDashHtml, /Kurs/);
+  assert.match(innleieDashHtml, /id="innleie-gaps"/);
+  assert.match(innleieDashHtml, /id="innleie-person-e3"/);
+  assert.equal(innleieDashHtml.includes('Ada Nordmann'), false);
+
   // En egen ansatt åpnes ikke her, og en innleid åpnes ikke i personellmappen.
-  const wrong = renderToStaticMarkup(React.createElement(HrHired, { ...hiredProps, selectedId: 'e1', sheet: 'krav' }));
+  const wrong = renderToStaticMarkup(React.createElement(InnleiePeople, { ...hiredProps, notices: [], selectedId: 'e1', sheet: 'krav' }));
   assert.match(wrong, /id="hr-hired"/);
   const wrongPeople = renderToStaticMarkup(React.createElement(HrPeople, { ...peopleProps, employees: hiredEmployees, selectedId: 'e3', sheet: 'oversikt' }));
   assert.match(wrongPeople, /id="hr-people"/);
@@ -707,8 +728,8 @@ let caseHtml = '';
   const externalPart = html.slice(externalAt);
   assert.ok(html.indexOf('Geir Ove Andersen') > staffAt);
   assert.ok(staffPart.includes('Daniel Edvard Wold'));
-  assert.equal(staffPart.includes('Øyvind Granberg'), false, 'eksterne skal ikke blandes inn hos egne ansatte');
-  assert.ok(externalPart.includes('Øyvind Granberg'));
+  assert.equal(html.includes('Øyvind Granberg'), false, 'innleide og eksterne vises i Innleie, ikke i HR');
+  assert.match(externalPart, /Følges opp i Innleie/);
   assert.equal(externalPart.includes('Geir Ove Andersen'), false);
   assert.match(html, /aria-label="Egne ansatte: 2"/, 'eksterne telles ikke som ansatte');
   assert.match(html, /id="hr-event-list"/);
@@ -717,9 +738,7 @@ let caseHtml = '';
   assert.match(html, /id="hr-kpis"/);
   assert.match(html, /repeat\(auto-fill, minmax\(min\(100%, max\(300px, calc\(\(100% - 32px\) \/ 3\)\)\), 1fr\)\)/);
   assert.match(html, /Planlegg/);
-  assert.match(externalPart, /Aktive eksterne/);
-  assert.match(externalPart, /Følg opp/);
-  assert.equal(html.includes('Deaktiverte eksterne'), false);
+  assert.match(externalPart, /1 innleid eller ekstern er aktiv/);
 }
 
 {
@@ -831,6 +850,7 @@ if (fs.existsSync(previewDir)) {
   fs.writeFileSync(path.join(previewDir, 'hr-lovpalagt.html'), page('Lovpålagt', complianceHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-oppfolging.html'), page('Oppfølging', followHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-innleid.html'), page('Innleid personell', hiredHtml));
+  fs.writeFileSync(path.join(previewDir, 'innleie-oversikt.html'), page('Innleie', innleieDashHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-innleid-krav.html'), page('Krav', hiredSheetHtml));
 }
 

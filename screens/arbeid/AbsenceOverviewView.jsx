@@ -7,7 +7,7 @@ import Svg, { Circle, Rect } from 'react-native-svg';
 import RegisterVacationModal from '../../components/arbeid/RegisterVacationModal';
 import { useApp } from '../../src/context/AppContext';
 import {
-  absencePickerTypes, absenceTypeById, isHealthAbsence, resolveAbsenceTypes,
+  NOTICE_TYPE_ID, absencePickerTypes, absenceTypeById, isHealthAbsence, resolveAbsenceTypes,
 } from '../../src/arbeid/absenceCatalog.js';
 import {
   ABSENCE_DAY_HOURS,
@@ -17,7 +17,7 @@ import {
   eachWeekday,
 } from '../../src/arbeid/absenceDashboard.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
-import { employeeActivityTab } from '../../src/employees/model.js';
+import { employeeActivityTab, isHiredPersonnel } from '../../src/employees/model.js';
 import { setAbsenceAdjustment } from '../../src/arbeid/timesheetState.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { addAbsence } from '../../src/project/engine';
@@ -221,7 +221,10 @@ export function AbsenceOverviewScreen({
       return false;
     }
     const phase = planningWindow(vacationPlan || {}, today);
-    const registeringVacation = (typeId || 'ferie') === 'ferie';
+    // Innleide og eksterne fører bare fraværsbeskjed. Ferie og sykdom er arbeidsgiverens sak.
+    const hired = isHiredPersonnel((workspace.employees || []).find((row) => row.id === personId));
+    const type = hired ? NOTICE_TYPE_ID : (typeId || 'ferie');
+    const registeringVacation = type === 'ferie';
     const extraordinary = registeringVacation && !!vacationPlan?.announcedAt && phase.locked && !workspace.manager;
     let state = workspace.state;
     const name = names[personId] || '';
@@ -231,7 +234,7 @@ export function AbsenceOverviewScreen({
         employeeName: name,
         date,
         hours: fullDay,
-        type: typeId || 'ferie',
+        type,
         description: note,
         extraordinary,
         createdByUid: workspace.uid,

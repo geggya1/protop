@@ -372,6 +372,14 @@ service cloud.firestore {
       return hasFreshAcl(familyId) ? get(aclPath(familyId)).data.get('employeeId', '') : '';
     }
 
+    // Innleide og eksterne: nivå i den eksterne delen av personalet (samme som kindOf i
+    // src/employees/model.js). De har en annen arbeidsgiver, og HR-ordninger som
+    // medarbeiderundersøkelsen gjelder ikke dem.
+    function hiredMember(familyId) {
+      return hasFreshAcl(familyId)
+        && get(aclPath(familyId)).data.get('levelId', '') in ['regnskap_ekstern', 'innleie_ekstern', 'ansatt_andre_avdelinger'];
+    }
+
     function grantAtLeast(g, res, n) {
       return grantRank(g.get(res, 'none')) >= n;
     }
@@ -1365,6 +1373,7 @@ service cloud.firestore {
       match /hrSurveyAnswers/{answerId} {
         allow get: if isFamilyMember(familyId) && answerId.matches('^.+_' + request.auth.uid + '$');
         allow create: if isFamilyMember(familyId)
+          && !hiredMember(familyId)
           && request.resource.data.keys().hasOnly(['surveyId', 'answers', 'comment'])
           && request.resource.data.surveyId is string
           && answerId == request.resource.data.surveyId + '_' + request.auth.uid

@@ -2,8 +2,7 @@
  * HR-katalog: søk, intern/ekstern og aktiv/deaktivert.
  * Samlesider leser disse radene. Registrering skjer på den enkelte ansatte.
  */
-import { levelById, placedLevelId } from '../access/companyAccess.js';
-import { displayName, employeeDirectoryBucket, personnelKind } from '../employees/model.js';
+import { displayName, isHiredPersonnel, kindOf } from '../employees/model.js';
 import { companyComplianceOverview, complianceGapText } from './compliance.js';
 import {
   CONTRACT_STATUSES,
@@ -18,29 +17,18 @@ import {
 } from './model.js';
 import { summarizeProductivity } from './productivity.js';
 
-function employmentText(employee) {
-  return String(employee?.company?.employmentType || '').toLowerCase();
-}
-
 /**
- * Intern er egne ansatte. Eksternt-gruppen i personalet (tilgangsnivå),
- * innleid og ansettelsestype Ekstern/Innleid skal ikke ligge blant interne
- * selv om lagret personelltype fortsatt sier staff.
+ * Intern er egne ansatte. Innleide og eksterne har en annen arbeidsgiver.
+ * Samme regel som resten av appen (kindOf i employees/model.js).
  */
 export function hrKindBucket(employee) {
-  const kind = personnelKind(employee);
-  if (kind === 'external' || kind === 'innleid') return 'external';
-  if (/innleid|innleie|ekstern/.test(employmentText(employee))) return 'external';
-  return employeeDirectoryBucket(employee) === 'external' ? 'external' : 'internal';
+  return isHiredPersonnel(employee) ? 'external' : 'internal';
 }
 
 export function hrKindLabel(employee) {
-  const kind = personnelKind(employee);
-  const level = levelById(placedLevelId(employee));
-  if (kind === 'innleid' || level?.kind === 'innleid' || /innleid|innleie/.test(employmentText(employee))) {
-    return 'Innleid';
-  }
-  if (hrKindBucket(employee) === 'external') return 'Ekstern';
+  const kind = kindOf(employee);
+  if (kind === 'innleid') return 'Innleid';
+  if (kind === 'external') return 'Ekstern';
   return 'Intern';
 }
 

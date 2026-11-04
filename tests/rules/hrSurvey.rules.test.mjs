@@ -24,6 +24,8 @@ const ACL = {
   rek: { levelId: 'ansatt', employeeId: 'emp_rek', grants: { ...ansatt, hr: 'read', hrRecruitment: 'write' } },
   bob: { levelId: 'ansatt', employeeId: 'emp_bob', grants: ansatt },
   eve: { levelId: 'ansatt', employeeId: 'emp_eve', grants: ansatt },
+  // Innleid: har en annen arbeidsgiver og er ikke med i medarbeiderundersøkelsen.
+  inn: { levelId: 'innleie_ekstern', employeeId: 'emp_inn', grants: ansatt },
 };
 
 let env;
@@ -34,7 +36,7 @@ async function seed() {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    const members = ['own', 'hr', 'rek', 'bob', 'eve'];
+    const members = ['own', 'hr', 'rek', 'bob', 'eve', 'inn'];
     await setDoc(doc(db, 'families', A), {
       name: 'Bygg AS', type: 'company', ownerUid: 'own', adminUids: ['own'], members, activeUsers: members,
       company: { navn: 'Bygg AS', accessPolicy: { v: 1 } },
@@ -115,6 +117,12 @@ describe('Medarbeiderundersøkelse', () => {
     await assertSucceeds(answer(as('eve'), 'eve'));
     const stats = await assertSucceeds(getDoc(doc(as('hr'), 'families', A, 'hrSurveyStats', 'mu1')));
     if (stats.data().count !== 2) throw new Error(`teller ${stats.data().count}`);
+  });
+
+  test('innleide kan ikke svare, egne ansatte og eieren kan', async () => {
+    await assertFails(answer(as('inn'), 'inn'), 'innleid');
+    await assertSucceeds(answer(as('bob'), 'bob'));
+    await assertSucceeds(answer(as('own'), 'own'), 'eier uten speil');
   });
 
   test('ingen leser andres svar: ikke HR, ikke kolleger, ikke liste', async () => {

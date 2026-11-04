@@ -45,12 +45,13 @@ import MeetingsScreen from '../screens/meetings/MeetingsScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
 import HrScreen from '../screens/hr/HrScreen';
+import InnleieScreen from '../screens/innleie/InnleieScreen';
 import UsageRecorder from './UsageRecorder';
 import ArbeidHub from '../screens/arbeid/ArbeidHub';
 import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
 import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
 import { isOrganizationType } from '../src/utils/groupTypes';
-import { companyHasRegisteredUnits, companyMenuItems, defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultIsoSubView, defaultMoterSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
+import { companyHasRegisteredUnits, companyMenuItems, defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultInnleieSubView, defaultIsoSubView, defaultMoterSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
 import { moduleTabsFor } from '../src/navigation/moduleTabs';
 import ModuleTabs from './ModuleTabs';
 import { companyLandingTab, isShellPath, parseShellPath, setHomeRouteKey, setShellLocation, shellPathFor, shellSearchFor } from '../src/navigation/shellPaths';
@@ -191,7 +192,7 @@ function SkipToContent() {
 }
 
 /** Moduler med tipsfeltet på alle undersider unntatt oversikten: fane → standard underside. */
-const SUBPAGE_ASIDE = { iso: defaultIsoSubView, hr: defaultHrSubView };
+const SUBPAGE_ASIDE = { iso: defaultIsoSubView, hr: defaultHrSubView, innleie: defaultInnleieSubView };
 /** Under denne vindusbredden får modulen hele bredden i stedet for tipsfeltet. */
 const SUBPAGE_ASIDE_MIN_WIDTH = 1280;
 
@@ -669,6 +670,12 @@ function AppShellInner() {
       setTab('okonomi');
       return;
     }
+    // Innleid personell lå før under HR (hr/innleid). Gamle lenker går til modulen Innleie.
+    if ((id === 'hr' && subView === 'innleid') || id === 'innleie') {
+      setMoreSubView(defaultInnleieSubView(id === 'hr' ? 'personell' : subView));
+      setTab('innleie');
+      return;
+    }
     if (id === 'hr') {
       setMoreSubView(defaultHrSubView(subView));
       setTab('hr');
@@ -820,7 +827,9 @@ function AppShellInner() {
     // Kunder → Kundeundersøkelse (/hjem/kunder/undersokelse).
     if (tab === 'kunder') return moreSubView === 'undersokelse' ? <CustomerSurveyScreen /> : <CustomersScreen />;
     if (tab === 'ansatte') return <EmployeesScreen />;
+    if (tab === 'hr' && moreSubView === 'innleid') return <InnleieScreen subView="personell" />;
     if (tab === 'hr') return <HrScreen subView={moreSubView || defaultHrSubView(null)} />;
+    if (tab === 'innleie') return <InnleieScreen subView={defaultInnleieSubView(moreSubView)} />;
     if (tab === 'kontrakt') return <ContractScreen />;
     if (tab === 'skjema') {
       return (

@@ -52,7 +52,13 @@ const DEFAULT_ROWS = [
   { id: 'sykdom', label: 'Sykdom', category: 'Sykdom', paid: true, deductBalance: false, billable: true, legacy: true },
   { id: 'permisjon', label: 'Permisjon', category: 'Permisjon', paid: true, deductBalance: false, billable: true, legacy: true },
   { id: 'annet', label: 'Annet fravær', category: 'Annet fravær', paid: true, deductBalance: false, billable: true, legacy: true },
+  // Fraværsbeskjed fra innleide og eksterne: at de er borte, uten lønn, timebank eller sykefravær.
+  // Skjult i velgerne (legacy) og alltid kjent, også når bedriften har egne fraværstyper.
+  { id: 'fravaersbeskjed', label: 'Fraværsbeskjed', category: 'Annet fravær', paid: false, deductBalance: false, billable: false, legacy: true },
 ];
+
+/** Typen innleide og eksterne bruker i stedet for egenmelding og sykmelding. */
+export const NOTICE_TYPE_ID = 'fravaersbeskjed';
 
 function monthName(month) {
   return ABSENCE_MONTHS.find((row) => row.id === Number(month))?.label || 'januar';
@@ -140,4 +146,12 @@ export const HEALTH_FREE_TEXT_NOTICE = 'Ikke skriv diagnose eller andre helseopp
 export function absencePickerTypes(catalog) {
   const list = Array.isArray(catalog) ? catalog : defaultAbsenceTypes();
   return list.filter((row) => !row.legacy);
+}
+
+/**
+ * Typene en innleid eller ekstern kan føre: bare fraværsbeskjed. Sykdom, ferie og permisjon
+ * er arbeidsgiverens (bemanningsforetakets) sak, ikke deres.
+ */
+export function hiredAbsenceTypes() {
+  return [BY_ID.get(NOTICE_TYPE_ID)];
 }

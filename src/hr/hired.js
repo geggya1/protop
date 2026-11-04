@@ -270,6 +270,7 @@ export function hiredSummary(items, type, { hmsRequired = true } = {}) {
     lawTotal: law.length,
     lawOk: law.filter((row) => row.status === 'ok').length,
     lawMissing: lawGaps.length,
+    lawGapIds: lawGaps.map((row) => row.catalogId),
     lawGapShort: lawGaps.map((row) => {
       const name = hiredCatalogItem(row.catalogId)?.short || row.label;
       return row.status === 'overdue' ? `${name} (forfalt)` : name;

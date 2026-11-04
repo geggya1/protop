@@ -20,7 +20,7 @@ import { radius } from '../../src/ui/tokens';
 import { useLayout } from '../../src/theme';
 import { showSaveError, showSaveToast } from '../../src/ui/saveToast';
 import { watchEmployees } from '../../src/employees/storage';
-import { isActiveEmployee, ownEmployee } from '../../src/employees/model';
+import { isActiveEmployee, isHiredPersonnel, ownEmployee } from '../../src/employees/model';
 import { recordUsage } from '../../src/employees/usageClient';
 import {
   addAbsence,
@@ -93,7 +93,8 @@ import TimesheetGrid from '../../components/arbeid/TimesheetGrid';
 import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
 import AbsenceTypeModal from '../../components/arbeid/AbsenceTypeModal';
 import SickNoteModal from '../../components/arbeid/SickNoteModal';
-import { SICK_KIND_LABEL, addMonths, missingSickNotes, sickCaseId, sickKind, todayIso } from '../../src/arbeid/sickLeave.js';
+import AbsenceNoticeModal from '../../components/arbeid/AbsenceNoticeModal';
+import { SICK_KIND_LABEL, addDays, addMonths, missingSickNotes, sickCaseId, sickKind, todayIso } from '../../src/arbeid/sickLeave.js';
 import { applySickCaseToState } from '../../src/arbeid/sickApply.js';
 import { useSickLeave } from '../../src/arbeid/useSickLeave.js';
 import TimesheetSideForm from '../../components/arbeid/TimesheetSideForm';
@@ -102,7 +103,7 @@ import BillingChainLine from '../economy/billing/BillingChainLine';
 import Breadcrumb from '../../components/Breadcrumb';
 import DateInput from '../../components/DateInput';
 import { agreedHoursForDate, redDayMap, resolveRedDays } from '../../src/arbeid/holidays.js';
-import { resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
+import { NOTICE_TYPE_ID, hiredAbsenceTypes, resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
 import { employmentRange, monthTimebank, payrollHoursOnDate } from '../../src/arbeid/balance.js';
 import { loadTimeEntries, readCachedTimeEntries } from '../../src/economy/timeEntryStorage.js';
@@ -394,6 +395,9 @@ export default function ArbeidScreen({
 
   const selectedEmployee = employees.find((row) => row.id === employeeId) || (!manager ? linked : null);
   const selectedName = employeeDisplayName(selectedEmployee) || 'Medarbeider';
+  // Innleide og eksterne: egenmelding og sykmelding går til deres egen arbeidsgiver.
+  // De sender fraværsbeskjed i stedet, og fører bare den typen fravær her.
+  const hiredSubject = !!selectedEmployee && isHiredPersonnel(selectedEmployee);
 
   const { days, weeks } = useMemo(() => buildMonthGrid(year, monthIndex), [year, monthIndex]);
   const todayKey = toDateKey(today);
@@ -538,7 +542,7 @@ export default function ArbeidScreen({
   const hiddenIds = ownPrefs.hidden;
   const shownProjects = myProjects.filter((row) => !hiddenIds.has(row.project.id));
   const hiddenProjects = myProjects.filter((row) => hiddenIds.has(row.project.id));
-  const pinnedTypes = ownPrefs.pins;
+  const pinnedTypes = hiredSubject ? [NOTICE_TYPE_ID] : ownPrefs.pins;
 
   const payrollByDay = useMemo(() => {
     const map = new Map();
@@ -620,9 +624,42 @@ export default function ArbeidScreen({
     return [...byId.values()];
   }, [sickHistory.rows, state.absences, employeeId]);
   const missingNotes = useMemo(
-    () => (employeeId ? missingSickNotes(sickAbsences, sick.cases, employeeId, { catalog: absenceTypes, rules: sick.rules }) : []),
-    [sickAbsences, sick.cases, employeeId, absenceTypes, sick.rules],
+    () => (employeeId && !hiredSubject ? missingSickNotes(sickAbsences, sick.cases, employeeId, { catalog: absenceTypes, rules: sick.rules }) : []),
+    [sickAbsences, sick.cases, employeeId, absenceTypes, sick.rules, hiredSubject],
   );
+
+  // Fraværsbeskjed fra innleide: én rad per arbeidsdag i perioden, uten lønn eller timebank.
+  const [noticeForm, setNoticeForm] = useState(null);
+  function submitNotice({ fromDate, toDate, note: message }) {
+    if (readOnly || !selectedEmployee) return;
+    let next = state;
+    let failed = '';
+    let count = 0;
+    for (let day = fromDate; day && day <= toDate; day = addDays(day, 1)) {
+      const hours = agreedForDate(day);
+      if (!(hours > 0)) continue;
+      const existing = (next.absences || []).find((row) => row.employeeId === employeeId && row.date === day && row.type === NOTICE_TYPE_ID);
+      const result = addAbsence(next, {
+        id: existing?.id || '',
+        employeeId,
+        employeeName: selectedName,
+        date: day,
+        hours,
+        type: NOTICE_TYPE_ID,
+        description: message,
+        createdByUid: uid,
+      });
+      if (result.ok) { next = result.state; count += 1; } else failed = result.error;
+    }
+    if (!count) {
+      setError(failed || 'Ingen arbeidsdager i perioden.');
+      return;
+    }
+    if (applyResult({ ok: true, state: next }, 'Fraværsbeskjeden er sendt.')) {
+      setNoticeForm(null);
+      if (failed) setError(`Noen dager ble ikke ført: ${failed}`);
+    }
+  }
 
   function openSickForm(initial = {}) {
     if (readOnly) return;
@@ -1125,7 +1162,7 @@ export default function ArbeidScreen({
     ));
     // Egenmelding og sykt barn krever skjema (ftrl §§ 8-26 og 9-7), sykmelding registreres med periode.
     const kind = sickKind(row.id, absenceTypes);
-    if (sick.rules.requireForm && (kind === 'self' || kind === 'child' || kind === 'doctor')) {
+    if (!hiredSubject && sick.rules.requireForm && (kind === 'self' || kind === 'child' || kind === 'doctor')) {
       const linkedCase = existing?.caseId ? sick.cases.find((c) => c.id === existing.caseId) : null;
       openSickForm(linkedCase || { kind, fromDate: day.key, toDate: day.key });
       return;
@@ -1518,7 +1555,20 @@ export default function ArbeidScreen({
       {error && !(loadFailed && error === PROJECTS_NOT_LOADED) ? (
         <Text style={{ color: colors.dangerInk || colors.danger, marginBottom: 6 }}>{error}</Text>
       ) : null}
-      {!readOnly && employeeId ? (
+      {!readOnly && employeeId && hiredSubject ? (
+        <View style={styles.sickRow}>
+          <TouchableOpacity
+            onPress={() => setNoticeForm({ fromDate: selectedDay || todayKey, toDate: selectedDay || todayKey })}
+            style={[styles.sickLink, { borderColor: colors.line }]}
+            accessibilityRole="button"
+            nativeID="meld-fravaer"
+          >
+            <Ionicons name="calendar-clear-outline" size={16} color={colors.brand} />
+            <Text style={{ color: colors.brand, fontWeight: '600' }}>Meld fravær</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+      {!readOnly && employeeId && !hiredSubject ? (
         <View style={styles.sickRow}>
           {missingNotes.slice(0, 2).map((row) => (
             <TouchableOpacity
@@ -1718,7 +1768,7 @@ export default function ArbeidScreen({
         visible={typePicker}
         colors={colors}
         selected={pinnedTypes}
-        types={absenceTypes}
+        types={hiredSubject ? hiredAbsenceTypes() : absenceTypes}
         onClose={() => setTypePicker(false)}
         onSave={savePins}
       />
@@ -1783,8 +1833,17 @@ export default function ArbeidScreen({
         </Pressable>
       </Modal>
 
+      <AbsenceNoticeModal
+        visible={!!noticeForm}
+        colors={colors}
+        employeeName={selectedName}
+        initial={noticeForm}
+        onBehalf={!!selectedEmployee && selectedEmployee.personUid !== uid}
+        onClose={() => setNoticeForm(null)}
+        onSubmit={submitNotice}
+      />
       <SickNoteModal
-        visible={!!sickForm}
+        visible={!!sickForm && !hiredSubject}
         colors={colors}
         employee={selectedEmployee}
         employeeName={selectedName}

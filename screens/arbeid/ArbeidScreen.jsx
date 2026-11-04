@@ -1360,6 +1360,58 @@ export default function ArbeidScreen({
   const identity = timesheetIdentity({ personal, compact: isPhone });
   const currentMonthLabel = monthLabel(year, monthIndex);
 
+  function reportGear(marginLeft = 0, size = 40) {
+    if (readOnly || hideReportTools) return null;
+    return (
+      <TouchableOpacity
+        onPress={() => setReportMenuOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Rapport og eksport"
+        accessibilityState={{ expanded: reportMenuOpen }}
+        nativeID="arbeid-report-gear"
+        style={[styles.gearBtn, { width: size, height: size, borderRadius: size / 2, borderColor: reportMenuOpen ? colors.brand : colors.line, backgroundColor: reportMenuOpen ? colors.brandSoft : colors.card, marginLeft }]}
+      >
+        <Ionicons name="settings-outline" size={size < 36 ? 15 : 18} color={reportMenuOpen ? colors.brand : colors.ink} />
+      </TouchableOpacity>
+    );
+  }
+
+  const projectSearch = (
+    <View dataSet={{ focusWithin: '1' }} style={[styles.searchWrap, isPhone ? styles.searchWrapPhone : styles.searchWrapGrid, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <Ionicons name="search" size={isPhone ? 16 : 14} color={colors.muted} />
+      <TextInput
+        value={projectQuery}
+        onChangeText={setProjectQuery}
+        placeholder="Finn prosjekt"
+        placeholderTextColor={colors.placeholder}
+        accessibilityLabel="Finn prosjekt"
+        style={[styles.search, { color: colors.ink }]}
+      />
+    </View>
+  );
+
+  const sickReplies = sick.cases
+    .filter((c) => c.employeeId === employeeId && (c.status === 'dokumentasjon'
+      || (c.status === 'avvist' && String(c.handledAt || '').slice(0, 10) >= addMonths(todayIso(), -1))))
+    .slice(0, 2);
+
+  // Sykefravær/fravær meldes fra «Legg til fravær / ferie», ikke som egen knapp over tabellen.
+  const reportAbsence = readOnly || !employeeId ? null : (hiredSubject
+    ? {
+      label: 'Meld fravær',
+      detail: 'Gi beskjed til oppdragsgiver om dager du er borte.',
+      icon: 'calendar-clear-outline',
+      nativeID: 'meld-fravaer',
+      onPress: () => setNoticeForm({ fromDate: selectedDay || todayKey, toDate: selectedDay || todayKey }),
+    }
+    : {
+      label: 'Meld sykefravær',
+      detail: 'Egenmelding eller sykt barn. Går til HR.',
+      icon: 'medkit-outline',
+      nativeID: 'meld-sykefravaer',
+      onPress: () => openSickForm({ kind: 'self', fromDate: selectedDay || todayKey, toDate: selectedDay || todayKey }),
+    });
+
   // Leder: hvor timene står i kjeden mot faktura (Timer → Godkjenn → Til fakturering → Faktura).
   const chainLine = !personal && !lockedId && !embedded && manager ? (
     <View style={[styles.chainLine, isPhone && styles.chainLinePhone]}>
@@ -1410,6 +1462,8 @@ export default function ArbeidScreen({
   return (
     <View style={[styles.screen, personal && styles.screenPersonal, embedded && isPhone && styles.screenEmbeddedPhone, { backgroundColor: colors.bg, position: 'relative' }]} nativeID={personal ? 'personal-timeliste-screen' : 'arbeid-screen'}>
       {chainLine}
+      {/* Inne i ansattprofilen på PC viser skallet allerede navnet: ingen egen topplinje. */}
+      {embedded && !isPhone ? null : (
       <View style={[styles.topBar, (personal || isPhone) && styles.topBarPersonal, isPhone && styles.topBarPhone]}>
         {embedded && isPhone ? null : (
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -1456,7 +1510,9 @@ export default function ArbeidScreen({
           )}
         </View>
         )}
-        <View style={[styles.monthNav, embedded && isPhone && styles.monthNavFill]}>
+        {/* PC: månedsbytte, søk og rapport ligger i tabellhodet. Mobil har ikke tabellen. */}
+        {isPhone ? (
+        <View style={[styles.monthNav, embedded && styles.monthNavFill]}>
           <TouchableOpacity onPress={() => monthNav(-1)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Forrige måned" style={styles.navHit}>
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
@@ -1466,25 +1522,16 @@ export default function ArbeidScreen({
             accessibilityLabel="Velg måned og år"
             nativeID="timesheet-month-label"
           >
-            <Text style={[styles.monthLabel, isPhone && styles.monthLabelPhone, { color: colors.ink }]}>{currentMonthLabel}</Text>
+            <Text style={[styles.monthLabel, styles.monthLabelPhone, { color: colors.ink }]}>{currentMonthLabel}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => monthNav(1)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Neste måned" style={styles.navHit}>
             <Ionicons name="chevron-forward" size={22} color={colors.ink} />
           </TouchableOpacity>
-          {readOnly || hideReportTools ? null : (
-          <TouchableOpacity
-            onPress={() => setReportMenuOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Rapport og eksport"
-            accessibilityState={{ expanded: reportMenuOpen }}
-            nativeID="arbeid-report-gear"
-            style={[styles.gearBtn, { borderColor: reportMenuOpen ? colors.brand : colors.line, backgroundColor: reportMenuOpen ? colors.brandSoft : colors.card, marginLeft: embedded && isPhone ? 'auto' : 4 }]}
-          >
-            <Ionicons name="settings-outline" size={18} color={reportMenuOpen ? colors.brand : colors.ink} />
-          </TouchableOpacity>
-          )}
+          {reportGear(embedded ? 'auto' : 4)}
         </View>
+        ) : null}
       </View>
+      )}
       <MonthJump
         visible={monthJump}
         year={year}
@@ -1578,20 +1625,7 @@ export default function ArbeidScreen({
       {error && !(loadFailed && error === PROJECTS_NOT_LOADED) ? (
         <Text style={{ color: colors.dangerInk || colors.danger, marginBottom: 6 }}>{error}</Text>
       ) : null}
-      {!readOnly && employeeId && hiredSubject ? (
-        <View style={styles.sickRow}>
-          <TouchableOpacity
-            onPress={() => setNoticeForm({ fromDate: selectedDay || todayKey, toDate: selectedDay || todayKey })}
-            style={[styles.sickLink, { borderColor: colors.line }]}
-            accessibilityRole="button"
-            nativeID="meld-fravaer"
-          >
-            <Ionicons name="calendar-clear-outline" size={16} color={colors.brand} />
-            <Text style={{ color: colors.brand, fontWeight: '600' }}>Meld fravær</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-      {!readOnly && employeeId && !hiredSubject ? (
+      {!readOnly && employeeId && !hiredSubject && (missingNotes.length || sickReplies.length) ? (
         <View style={styles.sickRow}>
           {missingNotes.slice(0, 2).map((row) => (
             <TouchableOpacity
@@ -1609,11 +1643,7 @@ export default function ArbeidScreen({
             </TouchableOpacity>
           ))}
           {/* Svar fra HR: legeerklæring trengs, eller meldingen er avvist (siste 30 dager). */}
-          {sick.cases
-            .filter((c) => c.employeeId === employeeId && (c.status === 'dokumentasjon'
-              || (c.status === 'avvist' && String(c.handledAt || '').slice(0, 10) >= addMonths(todayIso(), -1))))
-            .slice(0, 2)
-            .map((c) => (
+          {sickReplies.map((c) => (
               <TouchableOpacity
                 key={c.id}
                 onPress={() => openSickForm(c)}
@@ -1628,28 +1658,10 @@ export default function ArbeidScreen({
                 {c.status === 'dokumentasjon' ? <Text style={{ color: colors.warnInk, fontWeight: '700' }}>Åpne</Text> : null}
               </TouchableOpacity>
             ))}
-          <TouchableOpacity
-            onPress={() => openSickForm({ kind: 'self', fromDate: selectedDay || todayKey, toDate: selectedDay || todayKey })}
-            style={[styles.sickLink, { borderColor: colors.line }]}
-            accessibilityRole="button"
-            nativeID="meld-sykefravaer"
-          >
-            <Ionicons name="medkit-outline" size={16} color={colors.brand} />
-            <Text style={{ color: colors.brand, fontWeight: '600' }}>Meld sykefravær</Text>
-          </TouchableOpacity>
         </View>
       ) : null}
 
-      <View dataSet={{ focusWithin: '1' }} style={[styles.searchWrap, (isPhone || personal) && styles.searchWrapPhone, { borderColor: colors.line, backgroundColor: colors.card }]}>
-        <Ionicons name="search" size={16} color={colors.muted} />
-        <TextInput
-          value={projectQuery}
-          onChangeText={setProjectQuery}
-          placeholder="Finn prosjekt"
-          placeholderTextColor={colors.placeholder}
-          style={[styles.search, { color: colors.ink }]}
-        />
-      </View>
+      {isPhone ? projectSearch : null}
 
       {isPhone ? (
         <ScrollView
@@ -1717,6 +1729,11 @@ export default function ArbeidScreen({
             days={markedDays}
             weeks={weeks}
             monthLabel={currentMonthLabel}
+            onPrevMonth={() => monthNav(-1)}
+            onNextMonth={() => monthNav(1)}
+            onPickMonth={() => setMonthJump(true)}
+            projectHeader={projectSearch}
+            monthCorner={reportGear(0, 28)}
             projects={shownProjects.map(({ project, member, starred }) => ({
               project,
               member,
@@ -1792,6 +1809,7 @@ export default function ArbeidScreen({
         colors={colors}
         selected={pinnedTypes}
         types={hiredSubject ? hiredAbsenceTypes() : absenceTypes}
+        reportAction={reportAbsence}
         onClose={() => setTypePicker(false)}
         onSave={savePins}
       />
@@ -1938,7 +1956,6 @@ const styles = StyleSheet.create({
   monthNavFill: { flex: 1 },
   sickRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 },
   sickBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: radius.card, paddingHorizontal: 12, paddingVertical: 8, flexGrow: 1, minHeight: 44 },
-  sickLink: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 12, minHeight: 40 },
   gridBleed: {
     flex: 1,
     minHeight: 0,
@@ -1977,6 +1994,8 @@ const styles = StyleSheet.create({
     maxWidth: 360,
   },
   searchWrapPhone: { maxWidth: '100%', alignSelf: 'stretch' },
+  // I «Prosjekt»-cellen i tabellhodet.
+  searchWrapGrid: { maxWidth: '100%', alignSelf: 'stretch', marginBottom: 0, paddingVertical: Platform.OS === 'web' ? 6 : 4, paddingHorizontal: 10 },
   gearBtn: {
     width: 40,
     height: 40,

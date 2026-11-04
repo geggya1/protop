@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { absencePickerTypes } from '../../src/arbeid/absenceCatalog.js';
 
 /** Velg fraværskategorier som skal ligge som rader i timelisten. */
@@ -8,6 +9,7 @@ export default function AbsenceTypeModal({
   colors,
   selected = [],
   types: catalog,
+  reportAction = null,
   onClose,
   onSave,
 }) {
@@ -24,6 +26,29 @@ export default function AbsenceTypeModal({
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]} onPress={() => {}}>
           <Text style={[styles.title, { color: colors.ink }]}>Legg til fravær / ferie</Text>
+          {reportAction ? (
+            <TouchableOpacity
+              onPress={() => {
+                onClose?.();
+                reportAction.onPress?.();
+              }}
+              style={[styles.report, { borderColor: colors.line, backgroundColor: colors.brandSoft || colors.sunken }]}
+              accessibilityRole="button"
+              nativeID={reportAction.nativeID}
+            >
+              <Ionicons name={reportAction.icon || 'medkit-outline'} size={18} color={colors.brand} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ color: colors.brand, fontWeight: '700', fontSize: 14 }}>{reportAction.label}</Text>
+                {reportAction.detail ? (
+                  <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>{reportAction.detail}</Text>
+                ) : null}
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.brand} />
+            </TouchableOpacity>
+          ) : null}
+          {reportAction ? (
+            <Text style={[styles.section, { color: colors.muted }]}>Rader i timelisten</Text>
+          ) : null}
           <ScrollView style={{ maxHeight: 420 }}>
             {types.map((row) => {
               const on = picked.includes(row.id);
@@ -78,6 +103,19 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   title: { fontSize: 16, fontWeight: '700', padding: 12 },
+  report: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 12,
+    marginBottom: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    minHeight: 44,
+  },
+  section: { fontSize: 12, fontWeight: '600', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 2 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

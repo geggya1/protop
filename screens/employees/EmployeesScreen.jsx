@@ -1772,7 +1772,13 @@ export default function EmployeesScreen() {
     {personFills ? (
       <View style={styles.personFill}>
         {view === 'hours' ? (
-          <View style={styles.hoursHost} nativeID="employee-hours-view">
+          // Lav skjerm: tabellen får minstehøyde og siden ruller, i stedet for at prosjektene klemmes bort.
+          <ScrollView
+            style={styles.hoursHost}
+            contentContainerStyle={[styles.hoursScrollInner, !isPhone && styles.hoursScrollInnerDesk]}
+            nativeID="employee-hours-view"
+            keyboardShouldPersistTaps="handled"
+          >
             <ArbeidScreen
               lockedEmployeeId={selected.id}
               embedded
@@ -1780,7 +1786,7 @@ export default function EmployeesScreen() {
               hideReportTools={!fullPersonAccess}
               memberProjectsOnly={!fullPersonAccess}
             />
-          </View>
+          </ScrollView>
         ) : null}
         {view === 'report' ? (
           <View style={styles.hoursHost} nativeID="employee-report-view">
@@ -2650,6 +2656,8 @@ const styles = StyleSheet.create({
   innerHours: { maxWidth: '100%', width: '100%', alignSelf: 'stretch', flexGrow: 1 },
   innerAbsence: { padding: 0, gap: 0, maxWidth: 1180, paddingBottom: 28 },
   hoursHost: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', alignSelf: 'stretch' },
+  hoursScrollInner: { flexGrow: 1 },
+  hoursScrollInnerDesk: { minHeight: 560 },
   absenceHost: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' },
   subTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   subTabsPhone: { gap: 4, flexWrap: 'nowrap' },

@@ -185,14 +185,22 @@ export default function ArbeidScreen({
   // reserve, og felles data (lås, deltakelse, utlegg) endres ikke herfra.
   const [loadFailed, setLoadFailed] = useState(false);
   const [busyLock, setBusyLock] = useState(false);
-  const skipSave = useRef(true);
+  // Versjoner som kom fra skyen og ikke skal lagres tilbake. Før var dette et flagg som ble satt
+  // ved hver lasting. Endret lastingen ingenting (samme objekt, ingen ny render), ble flagget
+  // stående, og brukerens neste endring (f.eks. fravær) ble ikke lagret i skyen. Nå hoppes bare
+  // akkurat de lastede versjonene over, og startversjonen.
+  const loadedStates = useRef(null);
+  if (!loadedStates.current) loadedStates.current = new WeakSet([state]);
+  const markLoaded = (next, current = undefined) => {
+    if (next && typeof next === 'object' && next !== current) loadedStates.current.add(next);
+    return next;
+  };
 
   function applyLoadedState(loaded) {
     setState((current) => {
       const next = adoptLoadedHours(current, loaded, workspaceId);
       const keptLocalEdit = memberSignature(next.members) !== memberSignature(loaded?.members);
-      if (!keptLocalEdit) skipSave.current = true;
-      return next;
+      return keptLocalEdit ? next : markLoaded(next, current);
     });
   }
 
@@ -224,9 +232,8 @@ export default function ArbeidScreen({
     let live = true;
     const warm = peekProjectState(workspaceId);
     if (warm) {
-      setState(warm);
+      setState(markLoaded(warm));
       setReady(true);
-      skipSave.current = true;
     }
     loadProjectState(workspaceId, { hours: false }).then((loaded) => {
       if (!live) return;
@@ -235,7 +242,8 @@ export default function ArbeidScreen({
       setReady(true);
     }).catch(() => {
       if (!live) return;
-      skipSave.current = true;
+      // Ingenting nytt å lagre: det som står, er reserven, ikke en endring.
+      setState((current) => { loadedStates.current.add(current); return current; });
       setLoadFailed(true);
       setReady(true);
       setError('Kunne ikke laste timeføring.');
@@ -278,9 +286,8 @@ export default function ArbeidScreen({
       if (!live) return;
       const rows = groups.flat().filter(Boolean);
       if (!rows.length) return;
-      skipSave.current = true;
       startTransition(() => {
-        setState((current) => adoptLoadedHours(current, { ...current, timeEntries: rows }, workspaceId));
+        setState((current) => markLoaded(adoptLoadedHours(current, { ...current, timeEntries: rows }, workspaceId), current));
       });
     }).catch(() => {});
     (async () => {
@@ -328,10 +335,7 @@ export default function ArbeidScreen({
   useEffect(() => {
     if (!ready) return;
     putProjectState(state, workspaceId);
-    if (skipSave.current) {
-      skipSave.current = false;
-      return;
-    }
+    if (loadedStates.current.has(state)) return;
     // Timer og fravær går til egne samlinger. Prosjektdokumentet får bare radene som faktisk
     // er endret (lås, medlemskap, utlegg fra sideskjemaet), aldri hele listen fra denne kopien.
     saveProjectState(state, workspaceId).catch((cause) => setError(timesheetSaveErrorText(cause)));
@@ -893,8 +897,7 @@ export default function ArbeidScreen({
 
   /** Fakturert siden timelisten ble åpnet: vis status og si fra, i stedet for å feile stille. */
   function refuseInvoiced(base, fresh, message) {
-    skipSave.current = true;
-    setState(mergeFreshTimesheet(base, { entries: fresh }));
+    setState(markLoaded(mergeFreshTimesheet(base, { entries: fresh })));
     setEditor(null);
     setError(message);
     showSaveError(message);
@@ -1081,8 +1084,7 @@ export default function ArbeidScreen({
     // i stedet for å tolke trykket som «Lås opp».
     const wantedUnlock = lockThroughDate(state.timesheetLocks, employeeId) === dateKey;
     if (!wantedUnlock && lockThroughDate(working.timesheetLocks, employeeId) === dateKey) {
-      skipSave.current = true;
-      setState(working);
+      setState(markLoaded(working));
       setError('');
       setNote(`Timelisten er allerede låst til ${dateKey}.`);
       return;
@@ -1096,8 +1098,7 @@ export default function ArbeidScreen({
     });
     if (!result.ok) {
       // Vis den ferske statusen (f.eks. «godkjent») selv om endringen ble stoppet.
-      skipSave.current = true;
-      setState(working);
+      setState(markLoaded(working));
       setError(result.error);
       showSaveError(result.error);
       return;

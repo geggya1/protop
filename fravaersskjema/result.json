@@ -1,0 +1,107 @@
+{
+  "failed": 1,
+  "results": [
+    {
+      "ok": true,
+      "step": "1.1 Fanen «Egenmelding og lønn» åpnes fra Bedrift → Fravær → Innstillinger",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.2 Lovpålagt dekning vises låst",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.3 Alt som ikke er lovpålagt, er av som standard",
+      "detail": "7 valg, alle av"
+    },
+    {
+      "ok": true,
+      "step": "1.4 Velg IA-ordning, drøftet og egen legetime, lagre",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.5 hr/sickLeave er lagret riktig",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.6 Etter ny innlasting står IA-ordning og «Gjelder nå: 8 kalenderdager»",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.7 HR → Sykefravær viser reglene og peker til innstillingene",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.8 Ansattkortet har «Barn og omsorgsdager»",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.9 Registrer 3 barn og alene om omsorgen: 30 omsorgsdager, lagret på ansatt",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.1 «Annet fravær med lønn» åpner timedialogen",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.2 Lagre gir spørsmålet «Vil du registrere fraværet?»",
+      "detail": ""
+    },
+    {
+      "ok": false,
+      "step": "2.3 «Senere» gir påminnelsen «Mangler fraværsskjema»",
+      "detail": "Fant ikke fraværet 2026-11-04 i skyen"
+    },
+    {
+      "ok": true,
+      "step": "2.4 «Fyll ut» åpner fraværsskjemaet",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.5 Sende uten grunnlag og bekreftelse gir feil",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.6 Legetime hos spesialist for meg selv: føres som «Legebesøk med lønn»",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.7 Send skjema: dagen får skjema og riktig type",
+      "detail": "2026-11-04 lege_med"
+    },
+    {
+      "ok": true,
+      "step": "3.1 Neste arbeidsdag: legetime med barnet spør om barnet er sykt",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "3.2 «Ja, meld sykt barn» åpner egenmelding for sykt barn",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "4.1 Ingen JS-feil",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "4.2 Ingen funksjonskall feilet",
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "calls": []
+}

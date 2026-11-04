@@ -200,6 +200,7 @@ function loadJsx(rel) {
       || id.includes('TimesheetEmployeePicker')
       || id.includes('AbsenceTypeModal')
       || id.includes('SickNoteModal')
+      || id.includes('AbsenceNoticeModal')
       || id.includes('TimesheetSideForm')
       || id.includes('ScrollSheet')
       || id.includes('BillingChainLine')

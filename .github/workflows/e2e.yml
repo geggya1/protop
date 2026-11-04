@@ -58,6 +58,11 @@ jobs:
         continue-on-error: true
         timeout-minutes: 45
         run: node scripts/help-bot/run.mjs --base=http://localhost:8081 --views=${{ vars.E2E_VIEWS || 'phone,desktop' }} --no-assistant --shots=first --out=e2e-out/sider
+      - name: Fraværsskjema, egenmelding og lønn
+        id: fravaer
+        continue-on-error: true
+        timeout-minutes: 15
+        run: node scripts/e2e/scenarios/fravaersskjema.mjs
       - name: Emulatorlogg
         if: always()
         run: cp emulators.log e2e-out/ 2>/dev/null || true
@@ -83,5 +88,6 @@ jobs:
       - name: Resultat
         if: always()
         run: |
-          echo "konsern=${{ steps.konsern.outcome }} sider=${{ steps.sider.outcome }}"
+          echo "konsern=${{ steps.konsern.outcome }} sider=${{ steps.sider.outcome }} fravaer=${{ steps.fravaer.outcome }}"
           test "${{ steps.konsern.outcome }}" = "success"
+          test "${{ steps.fravaer.outcome }}" = "success"

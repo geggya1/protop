@@ -16,6 +16,7 @@ import {
   planFollowUpCases,
 } from '../../src/hr/model';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { radius } from '../../src/ui/tokens';
 import {
   ACCENT, Avatar, Bar, DashCard, IconDisc, KpiTile, MoreToggle, Pill, Ring, SectionLabel, Segmented,
   gridItem, gridStyle, tint,
@@ -381,21 +382,27 @@ export default function HrDashboard({
       </View>
 
       {externalTotal ? (
-        <>
-          <SectionLabel
-            colors={colors}
-            icon="briefcase-outline"
-            title="Eksterne og innleide"
-            hint="Egen oppfølging, ikke med i tallene over"
-          />
-          <ExternalCard
-            colors={colors}
-            external={dash.external}
-            inactive={inactive}
-            onOpenPerson={openPerson}
-            onOpenFollowUp={onOpenHired || onOpenFollowUp}
-          />
-        </>
+        // Innleide og eksterne har en annen arbeidsgiver og følges opp i modulen Innleie.
+        <Pressable
+          nativeID="hr-dash-external"
+          onPress={onOpenHired || undefined}
+          disabled={!onOpenHired}
+          accessibilityRole="link"
+          style={[styles.hiredLink, { backgroundColor: colors.card, borderColor: colors.line }]}
+        >
+          <IconDisc icon="swap-horizontal-outline" accent={ACCENT.slate} size={36} iconSize={17} />
+          <View style={styles.flexText}>
+            <Text style={[styles.rowTitle, { color: colors.ink }]}>
+              {dash.external.total === 1
+                ? `1 innleid eller ekstern er ${inactive ? 'deaktivert' : 'aktiv'}`
+                : `${dash.external.total} innleide og eksterne er ${inactive ? 'deaktivert' : 'aktive'}`}
+            </Text>
+            <Text style={[styles.rowSub, { color: colors.muted }]}>
+              Har en annen arbeidsgiver og er ikke med i tallene over. Følges opp i Innleie.
+            </Text>
+          </View>
+          {onOpenHired ? <Ionicons name="chevron-forward" size={16} color={colors.muted} /> : null}
+        </Pressable>
       ) : null}
     </View>
   );
@@ -843,84 +850,6 @@ function RecentHiresCard({
   );
 }
 
-function ExternalCard({
-  colors, external, inactive, onOpenPerson, onOpenFollowUp,
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const limit = expanded ? external.rows.length : 6;
-  const shown = external.rows.slice(0, limit);
-  const ext = external.total - external.innleid;
-  return (
-    <View
-      nativeID="hr-dash-external"
-      style={[styles.extCard, { backgroundColor: colors.card, borderColor: tint(ACCENT.slate, 0.35) }]}
-    >
-      <View style={styles.extHead}>
-        <IconDisc icon="briefcase-outline" accent={ACCENT.slate} size={40} iconSize={19} />
-        <View style={styles.flexText}>
-          <Text style={[styles.extTitle, { color: colors.ink }]}>{inactive ? 'Deaktiverte eksterne' : 'Aktive eksterne'}</Text>
-          <Text style={[styles.rowSub, { color: colors.muted }]}>
-            Følges opp under Innleid personell: lovkrav for innleie, saker og oppgaver. Lønn, avtaler og samtaler gjelder egne ansatte.
-          </Text>
-        </View>
-        {onOpenFollowUp ? (
-          <Pressable onPress={onOpenFollowUp} accessibilityRole="link" style={styles.extLink}>
-            <Text style={[styles.moreText, { color: colors.brand }]}>Følg opp</Text>
-            <Ionicons name="chevron-forward" size={14} color={colors.brand} />
-          </Pressable>
-        ) : null}
-      </View>
-      <View style={styles.pills}>
-        <Pill label={plural(ext, 'ekstern', 'eksterne')} accent={ACCENT.slate} icon="business-outline" solid />
-        <Pill label={plural(external.innleid, 'innleid', 'innleide')} accent={ACCENT.slate} icon="swap-horizontal-outline" />
-        {external.cases ? <Pill label={plural(external.cases, 'åpen sak', 'åpne saker')} accent={ACCENT.amber} icon="flag-outline" /> : null}
-        {external.tasks ? <Pill label={plural(external.tasks, 'oppgave', 'oppgaver')} accent={ACCENT.teal} icon="checkbox-outline" /> : null}
-      </View>
-      {shown.length ? (
-        <View style={gridStyle(3, 240, 10)} nativeID="hr-external-list">
-          {shown.map((row) => {
-            const open = row.openCases + row.openTasks;
-            let meta = 'Ingen åpne saker';
-            let metaColor = colors.muted;
-            if (open) {
-              meta = [
-                row.openCases ? plural(row.openCases, 'åpen sak', 'åpne saker') : '',
-                row.openTasks ? plural(row.openTasks, 'oppgave', 'oppgaver') : '',
-              ].filter(Boolean).join(' · ');
-              metaColor = ACCENT.amber;
-            } else if (row.next) {
-              meta = `${row.next.type === 'contract' ? 'Avtale utløper' : row.next.label} · ${daysText(row.next.days)}`;
-            }
-            return (
-              <View key={row.id} style={gridItem(240)}>
-                <Pressable
-                  onPress={() => onOpenPerson(row.id, 'oppfolging')}
-                  style={[styles.extRow, { backgroundColor: tint(ACCENT.slate, 0.06) }]}
-                >
-                  <Avatar name={row.name} photoUrl={row.employee.person?.photoUrl} size={38} accent={ACCENT.slate} square />
-                  <View style={styles.flexText}>
-                    <View style={styles.extNameRow}>
-                      <Text numberOfLines={1} style={[styles.rowTitle, styles.extName, { color: colors.ink }]}>{row.name}</Text>
-                      <Text style={[styles.kindTag, { color: ACCENT.slate, borderColor: tint(ACCENT.slate, 0.4) }]}>{row.kindLabel}</Text>
-                    </View>
-                    <Text numberOfLines={1} style={[styles.rowSub, { color: colors.muted }]}>{row.title || 'Uten rolle'}</Text>
-                    <Text numberOfLines={1} style={[styles.extMeta, { color: metaColor }]}>{meta}</Text>
-                  </View>
-                </Pressable>
-              </View>
-            );
-          })}
-        </View>
-      ) : (
-        <EmptyState colors={colors} icon="briefcase-outline" text={inactive ? 'Ingen deaktiverte eksterne.' : 'Ingen aktive eksterne eller innleide.'} />
-      )}
-      {external.rows.length > 6 ? (
-        <MoreToggle colors={colors} expanded={expanded} more={external.rows.length - 6} onPress={() => setExpanded((v) => !v)} />
-      ) : null}
-    </View>
-  );
-}
-
 function EmptyState({
   colors, icon, text, accent,
 }) {
@@ -1053,36 +982,9 @@ const styles = StyleSheet.create({
   hire: { alignItems: 'center', gap: 2, flexGrow: 1, flexBasis: 52, minWidth: 52, maxWidth: 96 },
   hireName: { fontSize: 13, fontWeight: '500', marginTop: 4 },
   hireSub: { fontSize: 11 },
-  extCard: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
+  hiredLink: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: radius.card, padding: 12, minHeight: 56,
   },
-  extHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  extTitle: { fontSize: 16, fontWeight: '500' },
-  extLink: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  extRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: 12,
-    padding: 10,
-  },
-  extNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  extName: { flexShrink: 1 },
-  kindTag: {
-    fontSize: 10,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  extMeta: { fontSize: 12, fontWeight: '500', marginTop: 2 },
   empty: {
     flexDirection: 'row',
     alignItems: 'center',

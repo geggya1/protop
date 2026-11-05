@@ -391,7 +391,8 @@ export function setBalanceAdjustment(state, { employeeId, month, hours, note } =
   const value = Number(hours);
   if (!Number.isFinite(value)) return fail(state, 'Justering må være et timetall.');
   const current = list(state, 'balanceAdjustments');
-  const existing = current.find((row) => row.employeeId === id && row.month === key);
+  // Uttak av mertid til utbetaling (kind 'payout', src/arbeid/payroll.js) er egne rader og røres ikke her.
+  const existing = current.find((row) => row.employeeId === id && row.month === key && row.kind !== 'payout');
   const row = {
     id: existing?.id || createId('sal'),
     employeeId: id,

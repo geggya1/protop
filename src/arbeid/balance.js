@@ -64,13 +64,20 @@ function registeredByDate(entries, absences, employeeId, types) {
   return registered;
 }
 
-export function adjustmentHours(adjustments, employeeId, month) {
+/**
+ * Sum av justeringene for måneden. Uttak av mertid til utbetaling (kind 'payout') er med,
+ * så saldoen går ned når timer tas ut i lønn. kind: 'manual' gir bare de manuelle, 'payout' bare uttakene.
+ */
+export function adjustmentHours(adjustments, employeeId, month, { kind = '' } = {}) {
   const id = String(employeeId || '');
   const key = String(month || '');
   let total = 0;
   for (const row of adjustments || []) {
     if (row?.employeeId !== id) continue;
     if (String(row.month || '') !== key) continue;
+    const payout = row.kind === 'payout';
+    if (kind === 'manual' && payout) continue;
+    if (kind === 'payout' && !payout) continue;
     total += parseHours(row.hours);
   }
   return roundHours(total);
@@ -157,6 +164,7 @@ export function buildTimesaldo({
     const payrollIncl = roundHours(payrollWork + paidAbsence);
     const payrollExcl = roundHours(payrollIncl - (flexCountsAsPay ? overtime : 0));
     const adjustment = adjustmentHours(adjustments, employeeId, `${y}-${String(month + 1).padStart(2, '0')}`);
+    const payout = adjustmentHours(adjustments, employeeId, `${y}-${String(month + 1).padStart(2, '0')}`, { kind: 'payout' });
     saldo = roundHours(saldo + flex + adjustment);
     totals.agreed = roundHours(totals.agreed + agreed);
     totals.agreedFull = roundHours(totals.agreedFull + agreedFull);
@@ -185,6 +193,8 @@ export function buildTimesaldo({
       payrollExcl,
       flex,
       adjustment,
+      // Herav uttak til utbetaling (negativt). Den manuelle delen er adjustment − payout.
+      payout,
       saldo,
     });
   }

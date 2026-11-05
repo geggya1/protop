@@ -38,6 +38,9 @@ const CHECKS = [
   { key: 'mustLockTimesheet', label: 'Skal låse timelisten', locked: 'external' },
   { key: 'requireClockTimes', label: 'Skal spesifisere kom- og gå-tid', locked: 'external' },
   { key: 'flexCountsAsPay', label: 'Mertid teller i lønn' },
+  // Lønnsoppsummeringen (HR › Lønn): «Overtid: Fastlønn», eller tilbud om å ta ut mertid ved månedsslutt.
+  { key: 'overtimeInSalary', label: 'Fastlønn – overtid inngår i lønnen', locked: 'external' },
+  { key: 'bankPayout', label: 'Kan få mertid utbetalt som overtid ved månedsslutt', locked: 'external' },
 ];
 
 export default function EmployeeWorkViews({

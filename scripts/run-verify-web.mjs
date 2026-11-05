@@ -361,6 +361,8 @@ export const FILES = [
   'src/arbeid/timesheetGuard.test.mjs',
   'src/arbeid/timesheetRules.test.mjs',
   'src/arbeid/vacationPlan.test.mjs',
+  'src/arbeid/payroll.test.mjs',
+  'functions/payrollSend.test.mjs',
   'src/economy/expenseRegistry.test.mjs',
   // Utlegg: prosjekt og internt på én side (UX-17).
   'src/economy/expenseScope.test.mjs',

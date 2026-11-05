@@ -149,7 +149,8 @@ export default function TimesaldoScreen({
   function saveAdjustment() {
     if (!edit || !activeId || readOnly) return;
     // Begrenset redigering: justere, men ikke fjerne en justering som finnes.
-    if (rights !== 'admin' && Number(edit.adjustment || 0) !== 0 && parseHours(draft) === 0) {
+    const manual = Number(edit.adjustment || 0) - Number(edit.payout || 0);
+    if (rights !== 'admin' && manual !== 0 && parseHours(draft) === 0) {
       workspace.setError('Bare Admin kan fjerne en justering.');
       return;
     }
@@ -287,7 +288,8 @@ export default function TimesaldoScreen({
                   <Text style={[styles.cell, { color: colors.ink }]}>{formatHours(row.adjustment || 0)}</Text>
                 ) : (
                 <TouchableOpacity
-                  onPress={() => { setEdit(row); setDraft(formatHours(row.adjustment || 0)); }}
+                  // Uttak til utbetaling (payout) endres ikke her, bare den manuelle justeringen.
+                  onPress={() => { setEdit(row); setDraft(formatHours((row.adjustment || 0) - (row.payout || 0))); }}
                   style={styles.cell}
                   accessibilityRole="button"
                   accessibilityLabel={`Juster ${row.label}`}
@@ -318,6 +320,11 @@ export default function TimesaldoScreen({
           <View style={[styles.editor, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="timesaldo-editor">
             <Text style={{ color: colors.ink, fontWeight: '700' }}>Justering · {edit.label}</Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>Negativt tall tar timer ut av timebanken og over i lønn.</Text>
+            {edit.payout ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }} nativeID="timesaldo-payout-note">
+                {`I tillegg er ${formatHours(-edit.payout)} t tatt ut som overtid til utbetaling. Det ser du i HR › Lønn.`}
+              </Text>
+            ) : null}
             <TextInput
               value={draft}
               onChangeText={setDraft}

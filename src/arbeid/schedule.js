@@ -230,6 +230,9 @@ export function timeSettingsOf(employee) {
     mustLockTimesheet: raw.mustLockTimesheet === true,
     requireClockTimes: raw.requireClockTimes === true,
     flexCountsAsPay: raw.flexCountsAsPay !== false,
+    // Lønn (HR › Lønn): fastlønn der overtid inngår, og om mertid kan tas ut som overtid ved månedsslutt.
+    overtimeInSalary: raw.overtimeInSalary === true,
+    bankPayout: raw.bankPayout === true,
     utilizationTarget: Number.isFinite(target) ? target : 100,
     hourlyRate: raw.hourlyRate == null ? '' : String(raw.hourlyRate),
     notifyTimesheet: raw.notifyTimesheet !== false,

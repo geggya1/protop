@@ -95,6 +95,7 @@ import TimesheetGrid from '../../components/arbeid/TimesheetGrid';
 import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
 import AbsenceTypeModal from '../../components/arbeid/AbsenceTypeModal';
 import SickNoteModal from '../../components/arbeid/SickNoteModal';
+import OvertimePayoutModal from '../../components/arbeid/OvertimePayoutModal';
 import AbsenceNoticeModal from '../../components/arbeid/AbsenceNoticeModal';
 import { SICK_KIND_LABEL, addDays, addMonths, missingSickNotes, sickCaseId, sickKind, todayIso, validateSickNote } from '../../src/arbeid/sickLeave.js';
 import { applySickCaseToState } from '../../src/arbeid/sickApply.js';
@@ -108,6 +109,16 @@ import { agreedHoursForDate, redDayMap, resolveRedDays } from '../../src/arbeid/
 import { NOTICE_TYPE_ID, hiredAbsenceTypes, resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
 import { employmentRange, monthTimebank, payrollHoursOnDate } from '../../src/arbeid/balance.js';
+import {
+  canRequestPayout,
+  cancelOvertimePayout,
+  isMonthEnd,
+  monthBounds,
+  monthOf,
+  newlyClosedMonthEnd,
+  payoutRowsFor,
+  requestOvertimePayout,
+} from '../../src/arbeid/payroll.js';
 import { loadTimeEntries, readCachedTimeEntries } from '../../src/economy/timeEntryStorage.js';
 import { loadAbsences } from '../../src/arbeid/absenceStorage.js';
 import { HEALTH_FREE_TEXT_NOTICE, absenceTypeById, isHealthAbsence } from '../../src/arbeid/absenceCatalog.js';
@@ -610,6 +621,81 @@ export default function ArbeidScreen({
   // Samme grunnlag som Timesaldo: til og med i dag, og bare mens personen er ansatt.
   const employed = employmentRange(selectedEmployee);
 
+  // Mertid til utbetaling: tilbud når timelisten låses ut måneden (src/arbeid/payroll.js).
+  const [payoutOffer, setPayoutOffer] = useState(null);
+  const [payoutError, setPayoutError] = useState('');
+  const payoutEligible = canRequestPayout(selectedEmployee);
+
+  /** Saldo ved månedsslutt uten uttak for måneden, og et uttak som finnes. null uten grunnlag. */
+  function payoutOfferFor(monthEnd, base = state) {
+    const month = monthOf(monthEnd);
+    if (!month || !employeeId || !historyReady) return null;
+    const [yy, mm] = month.split('-').map(Number);
+    // Historikken er lastet for året som vises. Et annet år gir ikke riktig inngående saldo.
+    if (yy !== year || mm - 1 > monthIndex) return null;
+    const bank = monthTimebank({
+      year: yy,
+      monthIndex: mm - 1,
+      employeeId,
+      entries: [...(base.timeEntries || []), ...carriedHours.entries],
+      absences: [...(base.absences || []), ...carriedHours.absences],
+      adjustments: base.balanceAdjustments,
+      agreedForDate,
+      types: absenceTypes,
+      throughDate: monthEnd,
+      employedFrom: employed.from,
+      employedTo: employed.to,
+    });
+    const existing = payoutRowsFor(base.balanceAdjustments, { employeeId, month })[0] || null;
+    const available = roundHours(bank.outgoing - (existing ? parseHours(existing.hours) : 0));
+    return {
+      month,
+      employeeId,
+      available,
+      existing,
+      employeeName: employeeDisplayName(selectedEmployee),
+      onBehalf: !!selectedEmployee && selectedEmployee.personUid !== uid,
+    };
+  }
+
+  function offerPayoutAfterLock(previousThrough, nextThrough, base) {
+    if (!payoutEligible || readOnly) return;
+    const monthEnd = newlyClosedMonthEnd(previousThrough, nextThrough);
+    if (!monthEnd) return;
+    const offer = payoutOfferFor(monthEnd, base);
+    if (!offer || (offer.available <= 0 && !offer.existing)) return;
+    setPayoutError('');
+    setPayoutOffer(offer);
+  }
+
+  function submitPayout({ hours, rate }) {
+    if (!payoutOffer) return;
+    const result = requestOvertimePayout(state, {
+      employeeId: payoutOffer.employeeId,
+      month: payoutOffer.month,
+      hours,
+      rate,
+      available: payoutOffer.available,
+      byUid: uid,
+    });
+    if (!result.ok) {
+      setPayoutError(result.error);
+      return;
+    }
+    if (applyResult(result, `${formatHours(hours)} t er tatt ut av timebanken og meldt til lønn.`)) {
+      setPayoutOffer(null);
+    }
+  }
+
+  function cancelPayout(row) {
+    const result = cancelOvertimePayout(state, { id: row?.id });
+    if (!result.ok) {
+      setPayoutError(result.error);
+      return;
+    }
+    if (applyResult(result, 'Uttaket er angret. Timene står i timebanken.')) setPayoutOffer(null);
+  }
+
   // Sykefravær: egenmeldingsskjema, kvoter og påminnelse om manglende skjema.
   const sick = useSickLeave(workspaceId, { uid, manager, family: policySource, employees });
   const [sickForm, setSickForm] = useState(null);
@@ -1051,9 +1137,11 @@ export default function ArbeidScreen({
       return;
     }
     const through = lockThroughDate(result.state.timesheetLocks, employeeId);
-    applyResult(result, result.notice || (through
+    const applied = applyResult(result, result.notice || (through
       ? `Timelisten er låst til ${through}. Klar for kontroll.`
       : 'Timelisten er låst opp.'));
+    // Låst ut måneden: spør om mertid skal utbetales som overtid.
+    if (applied && through) offerPayoutAfterLock(lockThroughDate(working.timesheetLocks, employeeId), through, result.state);
   }
 
   /** Personlig valg: skrives på den ansatte, aldri i prosjektdokumentet. */
@@ -1327,6 +1415,24 @@ export default function ArbeidScreen({
     selectDate(new Date(base.getFullYear(), base.getMonth(), base.getDate() + deltaDays));
   }
 
+  // Måneden som vises er låst ut: uttaket kan gjøres eller endres her også.
+  const shownMonthEnd = monthBounds(`${year}-${String(monthIndex + 1).padStart(2, '0')}`).to;
+  const payoutButton = payoutEligible && historyReady && lockThrough && shownMonthEnd && lockThrough >= shownMonthEnd && isMonthEnd(shownMonthEnd) ? (
+    <TouchableOpacity
+      onPress={() => {
+        const offer = payoutOfferFor(shownMonthEnd);
+        if (!offer) return;
+        setPayoutError('');
+        setPayoutOffer(offer);
+      }}
+      style={[styles.ctaGhost, { borderColor: colors.line }, isPhone && styles.ctaPhone]}
+      accessibilityRole="button"
+      nativeID="timeliste-mertid-utbetaling"
+    >
+      <Text style={{ color: colors.ink }}>Mertid til utbetaling</Text>
+    </TouchableOpacity>
+  ) : null;
+
   const actions = readOnly ? (rightsReadOnly && access.ready ? (
     <View style={[styles.footer, isPhone && styles.footerPhone]}>
       <Text style={{ color: colors.muted }}>Du har lesetilgang. Timene kan ses, men ikke endres.</Text>
@@ -1351,6 +1457,7 @@ export default function ArbeidScreen({
         <Ionicons name="add" size={18} color="#fff" />
         <Text style={styles.ctaText}>Legg til fravær / ferie</Text>
       </TouchableOpacity>
+      {payoutButton}
       {assignedOnly || (personal && familyId !== workspaceId) ? null : (
       <TouchableOpacity
         onPress={() => requestShellTab?.('projects')}
@@ -1905,6 +2012,15 @@ export default function ArbeidScreen({
         onBehalf={!!selectedEmployee && selectedEmployee.personUid !== uid}
         onClose={() => setNoticeForm(null)}
         onSubmit={submitNotice}
+      />
+      <OvertimePayoutModal
+        colors={colors}
+        offer={payoutOffer}
+        fullDayHours={fullDayHours}
+        error={payoutError}
+        onClose={() => setPayoutOffer(null)}
+        onSubmit={submitPayout}
+        onCancelExisting={payoutOffer?.existing?.status === 'approved' ? null : cancelPayout}
       />
       <SickNoteModal
         visible={!!sickForm && !hiredSubject}

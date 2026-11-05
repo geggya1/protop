@@ -97,6 +97,7 @@ import {
 import EmployeeCvView from './EmployeeCvView';
 import EmployeeDetailView from './EmployeeDetailView';
 import { useShellDetail } from '../../src/navigation/shellDetail';
+import { ansattSelfView } from '../../src/navigation/shellModules';
 import { DetailMissing } from '../../src/ui/BackLink';
 import EmployeePersonChrome from './EmployeePersonChrome';
 import ArbeidScreen from '../arbeid/ArbeidScreen';
@@ -144,7 +145,9 @@ const EDITOR_PERSON_VIEWS = new Set(['detail', 'overview', 'hours', 'report', 'a
 // Egen profil med begrenset redigering: holde egen profil oppdatert. Inntjening og Innstillinger krever Admin.
 const SELF_EDITOR_VIEWS = new Set(['detail', 'hours', 'report', 'saldo', 'absence', 'overview', 'files', 'expenses', 'cv']);
 
-export default function EmployeesScreen() {
+export default function EmployeesScreen({ subView = null } = {}) {
+  // Bedrift › Ansatt: egen side (Min side, Gjøremål, Fravær, Utlegg). Null = ansattregisteret.
+  const selfRoute = ansattSelfView(subView);
   const colors = useColors();
   const { isDesktop, isPhone } = useLayout();
   const { familyId, family, members, uid, user, userProfile, requestShellTab, shellIntent, clearShellIntent } = useApp();
@@ -190,7 +193,8 @@ export default function EmployeesScreen() {
   const [directoryReady, setDirectoryReady] = useState(false);
   const [profile, setProfile] = useState(null);
   const [projectState, setProjectState] = useState(() => emptyProjectState());
-  const [view, setView] = useState('list');
+  // Egen side venter på registeret før personen åpnes, så listen ikke blinker forbi.
+  const [view, setView] = useState(selfRoute ? 'self-pending' : 'list');
   const [selectedId, setSelectedId] = useState('');
   const [draft, setDraft] = useState(null);
   const [focusSection, setFocusSection] = useState('');
@@ -1006,6 +1010,22 @@ export default function EmployeesScreen() {
     if (first) openPersonView(first);
   }
 
+  // Bedrift › Ansatt: åpne egen ansattpost på riktig fane. Uten ansattpost: Min side-skjemaet.
+  const pendingSelf = useRef(!!selfRoute);
+  useEffect(() => {
+    if (!pendingSelf.current || !selfRoute) return;
+    const person = mineTodoEmployee || linked || mine;
+    if (person) {
+      pendingSelf.current = false;
+      if (selfRoute === 'detail') openDetail(person);
+      else openWork(person, selfRoute);
+      return;
+    }
+    if (!directoryReady) return;
+    pendingSelf.current = false;
+    openMine();
+  }, [rows, directoryReady, linked, mine, mineTodoEmployee]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!pendingMyAbsence.current) return;
     const person = linked || mine;
@@ -1713,6 +1733,14 @@ export default function EmployeesScreen() {
     }
   }, [familyId, view, selected?.id, loggedNationalId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (view === 'self-pending') {
+    return (
+      <View nativeID="employees-page" style={[styles.screen, styles.selfPending, { backgroundColor: colors.bg }]}>
+        <ActivityIndicator color={colors.brand} />
+      </View>
+    );
+  }
+
   // Lenke til en person som ikke finnes i registeret her (annen bedrift, slettet eller uten tilgang).
   if (PERSON_VIEWS.has(view) && selectedId && !selected && directoryReady) {
     return (
@@ -1733,6 +1761,7 @@ export default function EmployeesScreen() {
           companyName={companyName}
           siblings={visible}
           people={rows}
+          own={!!selfRoute && selfSelected}
           tabs={EMPLOYEE_DETAIL_TABS.filter((tab) => allowedTabViews(selected, tab.id).length > 0)}
           activeTab={employeeViewToTab(view)}
           onBack={openList}
@@ -1842,7 +1871,8 @@ export default function EmployeesScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      {view !== 'list' && !PERSON_VIEWS.has(view) ? (
+      {/* Én tittel per side: på Bedrift › Ansatt › Min side viser skallet allerede «Min side». */}
+      {view !== 'list' && !PERSON_VIEWS.has(view) && !(selfRoute && view === 'mine') ? (
         <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
           {view === 'mine' ? 'Min side'
             : view === 'import' ? 'Kontroller import'
@@ -2035,7 +2065,7 @@ export default function EmployeesScreen() {
         </>
       ) : null}
 
-      {view !== 'list' && !PERSON_VIEWS.has(view) ? (
+      {view !== 'list' && !PERSON_VIEWS.has(view) && !selfRoute ? (
         <View style={styles.row}>
           <TouchableOpacity onPress={openList} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
             <Text style={{ color: colors.ink }}>Til oversikten</Text>
@@ -2640,6 +2670,7 @@ function summaryNote(labels) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', alignSelf: 'stretch' },
+  selfPending: { alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
   screenScroll: { flex: 1, minWidth: 0, alignSelf: 'stretch' },
   // Fanene står kant i kant rett under båndet, som modulmenyen i HR. Polstringen ligger i EmployeePersonChrome.
   personChrome: {

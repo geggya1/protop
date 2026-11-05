@@ -777,6 +777,8 @@ export function canAdminResource(grants, resource) {
 export function hrResourceForSubView(subView) {
   const map = {
     oversikt: 'hr',
+    // Ansattregisteret følger Ansatte i tilgangsstyringen, som før det ble en side i HR.
+    ansatte: 'employees',
     personell: 'hrPeople',
     avtaler: 'hrAgreements',
     lonn: 'hrPayroll',
@@ -1179,6 +1181,11 @@ const NAV_RESOURCE = {
   ansatte: 'employees',
   hr: 'hr',
   'hr-oversikt': 'hr',
+  'hr-ansatte': 'employees',
+  // Ansatt: Min side og Gjøremål er egen ansattpost, som før under Ansatte. Fravær og Utlegg: se navItemAllowed.
+  'ansatt-minside': 'employees',
+  'ansatt-gjoremal': 'employees',
+  'ansatt-timeliste': 'hours',
   'hr-personell': 'hrPeople',
   // Innleie bruker HR-dokumentet (der lønn også ligger), så samme tilgang som Personell.
   innleie: 'hrPeople',
@@ -1385,6 +1392,9 @@ function navItemAllowed(id, grants) {
   if (id === 'hr') {
     return allowsHr(grants, 'see');
   }
+  // Bedrift › Ansatt: egen ansattpost (tab ansatte) og fanen på den.
+  if (id === 'ansatt-fravaer') return seeResource(grants, 'employees') && seeResource(grants, 'absence');
+  if (id === 'ansatt-utlegg') return seeResource(grants, 'employees') && seeResource(grants, 'economyProjectExpenses');
   if (id === 'okonomi-utlegg') return expensesAllowed(grants);
   if (id === 'okonomi-inntjening') {
     return seeResource(grants, 'economyEarnings')

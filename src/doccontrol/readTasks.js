@@ -81,8 +81,8 @@ export function docReadTask(control, employee, { uid = '', today = '' } = {}) {
   return {
     title: `${sign ? 'Fyll ut og signer' : 'Les og bekreft'}: ${control.title}`,
     description: sign
-      ? `Gå til Ansatte › Min side › Dokumenter å lese, fyll ut og signer «${control.title}». Det lagres i HR med begrenset tilgang. Oppgaven lukkes når dokumentet er signert.`
-      : `Gå til Ansatte › Min side › Dokumenter å lese, les «${control.title}» (versjon ${pub?.revision || 1}) og trykk «Jeg har lest og forstått». Oppgaven lukkes når det er bekreftet.`,
+      ? `Gå til Ansatt › Min side › Dokumenter å lese, fyll ut og signer «${control.title}». Det lagres i HR med begrenset tilgang. Oppgaven lukkes når dokumentet er signert.`
+      : `Gå til Ansatt › Min side › Dokumenter å lese, les «${control.title}» (versjon ${pub?.revision || 1}) og trykk «Jeg har lest og forstått». Oppgaven lukkes når det er bekreftet.`,
     deadline: addDays(today, DOC_TASK_DUE_DAYS),
     deadlineTime: null,
     participants: [],

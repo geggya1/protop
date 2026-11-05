@@ -26,7 +26,8 @@ import { fileURLToPath } from 'node:url';
 assert.equal(defaultHrSubView('lonn'), 'lonn');
 assert.equal(defaultHrSubView('nope'), 'oversikt');
 assert.equal(hrMenuTitle('rekruttering'), 'Rekruttering');
-assert.equal(HR_MENU.length, 12);
+assert.equal(HR_MENU.length, 13);
+assert.equal(HR_MENU[1].id, 'ansatte', 'ansattregisteret er en side i HR');
 assert.ok(HR_MENU.some((item) => item.id === 'avtaler'));
 assert.ok(HR_MENU.some((item) => item.id === 'compliance'));
 assert.equal(defaultHrSubView('avtaler'), 'avtaler');
@@ -43,16 +44,21 @@ for (const item of HR_MENU) {
   const hr = adminNav.find((item) => item.id === 'hr');
   const selskap = adminNav.find((item) => item.id === 'selskap');
   assert.ok(hr);
-  assert.equal(hr.children.length, 12);
+  assert.equal(hr.children.length, 13);
   assert.equal(hr.action.tab, 'hr');
   assert.equal(selskap.children, undefined);
   assert.ok(adminNav.some((item) => item.id === 'hr'));
-  assert.ok(adminNav.some((item) => item.id === 'ansatte'));
+  // Ansattregisteret er en side i HR. Egen side står under Bedrift › Ansatt.
+  assert.ok(hr.children.some((item) => item.id === 'hr-ansatte'));
+  assert.ok(adminNav.some((item) => item.id === 'ansatt-minside'));
   assert.ok(adminNav.some((item) => item.id === 'selskapsinnstillinger'));
 }
 
 {
   assert.equal(companyTabAllowed('hr', 'rekruttering', standardGrants('ansatt')), false);
+  assert.equal(companyTabAllowed('hr', 'ansatte', standardGrants('ansatt')), true, 'registeret følger Ansatte-tilgangen');
+  assert.equal(companyTabAllowed('ansatte', 'min-side', standardGrants('ansatt')), true);
+  assert.equal(companyTabAllowed('ansatte', 'min-side', standardGrants('innleie_ekstern')), false);
   assert.equal(companyTabAllowed('hr', 'lonn', standardGrants('leder')), true);
   assert.equal(companyTabAllowed('hr', 'oversikt', standardGrants('avdelingsleder')), true);
   assert.equal(standardGrants('ansatt').hr, 'none');

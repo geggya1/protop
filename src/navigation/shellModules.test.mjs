@@ -89,15 +89,17 @@ function idsIn(sections) {
   assert.equal(ids.includes('members'), false);
   assert.ok(ids.includes('mail'));
   const mainIds = company.find((s) => s.id === 'main').items.map((i) => i.id);
-  assert.ok(mainIds.includes('timeliste'));
-  assert.equal(company.find((s) => s.id === 'main').items.find((i) => i.id === 'timeliste').action.tab, 'timeliste');
+  // I en bedrift ligger egen timeliste under Bedrift › Ansatt, ikke i den personlige delen.
+  assert.equal(mainIds.includes('timeliste'), false);
   assert.equal(mainIds.includes('anbud'), false);
   assert.equal(mainIds.includes('projects'), false);
   const companyItems = company.find((s) => s.id === 'company').items;
   assert.deepEqual(
     companyItems.map((i) => i.id),
     [
-      'selskap', 'selskapsinnstillinger', 'ansatte', 'hr', 'innleie', 'fravaer', 'arbeid', 'produktivitet', 'fremdrift',
+      'selskap', 'selskapsinnstillinger',
+      'ansatt-minside', 'ansatt-gjoremal', 'ansatt-timeliste', 'ansatt-fravaer', 'ansatt-utlegg',
+      'hr', 'innleie', 'fravaer', 'arbeid', 'produktivitet', 'fremdrift',
       'okonomi-inntjening', 'kunder', 'kundeundersokelse', 'anbud', 'kontrakt', 'projects', 'moter', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
       'skjema',
     ],
@@ -141,10 +143,18 @@ function idsIn(sections) {
     ['Modulinnstillinger', 'Tilgangsstyring'],
   );
   assert.equal(settings.children[1].action.subView, 'tilgang');
-  assert.equal(companyItems.find((i) => i.id === 'ansatte').action.tab, 'ansatte');
+  // Bedrift › Ansatt: egne sider, låst til innlogget bruker.
+  const own = (id) => companyItems.find((i) => i.id === id).action;
+  assert.deepEqual(own('ansatt-minside'), { type: 'tab', tab: 'ansatte', subView: 'min-side' });
+  assert.deepEqual(own('ansatt-gjoremal'), { type: 'tab', tab: 'ansatte', subView: 'mine-gjoremal' });
+  assert.deepEqual(own('ansatt-timeliste'), { type: 'tab', tab: 'timeliste' });
+  assert.deepEqual(own('ansatt-fravaer'), { type: 'tab', tab: 'ansatte', subView: 'mitt-fravaer' });
+  assert.deepEqual(own('ansatt-utlegg'), { type: 'tab', tab: 'ansatte', subView: 'mine-utlegg' });
+  assert.equal(companyItems.some((i) => i.id === 'ansatte'), false, 'registeret er en side i HR');
   const hr = companyItems.find((i) => i.id === 'hr');
   assert.equal(hr.action.tab, 'hr');
-  assert.equal(hr.children.length, 12);
+  assert.equal(hr.children.length, 13);
+  assert.deepEqual(hr.children.find((i) => i.id === 'hr-ansatte').action, { type: 'tab', tab: 'hr', subView: 'ansatte' });
   // Innleie er egen modul ved siden av HR.
   const innleie = companyItems.find((i) => i.id === 'innleie');
   assert.equal(innleie.action.tab, 'innleie');
@@ -692,6 +702,7 @@ function collectPresented(items, acc = []) {
   assert.deepEqual(
     presented.filter((item) => item.group).map((item) => item.label),
     [
+      'Ansatt',
       'Bedrift og organisasjon',
       'Ansatte og arbeidstid',
       'Innleie og eksterne',
@@ -707,8 +718,9 @@ function collectPresented(items, acc = []) {
   assert.deepEqual(
     presented.filter((item) => item.group).map((item) => item.children.map((child) => child.id)),
     [
+      ['ansatt-minside', 'ansatt-gjoremal', 'ansatt-timeliste', 'ansatt-fravaer', 'ansatt-utlegg'],
       ['selskap', 'underenheter', 'selskapsinnstillinger'],
-      ['ansatte', 'hr', 'fravaer', 'arbeid'],
+      ['hr', 'fravaer', 'arbeid'],
       ['innleie'],
       ['iso', 'skjema'],
       ['produktivitet', 'fremdrift', 'okonomi-inntjening'],
@@ -721,7 +733,8 @@ function collectPresented(items, acc = []) {
   );
   assert.deepEqual(
     presented.filter((item) => item.group).map((item) => item.icon),
-    ['business', 'people', 'swap-horizontal', 'shield-checkmark', 'stats-chart', 'wallet', 'cube', 'megaphone', 'briefcase', 'people-circle'],
+    ['person',
+      'business', 'people', 'swap-horizontal', 'shield-checkmark', 'stats-chart', 'wallet', 'cube', 'megaphone', 'briefcase', 'people-circle'],
   );
   const org = presented.find((item) => item.id === 'company-org');
   const people = presented.find((item) => item.id === 'company-people');
@@ -772,12 +785,12 @@ function collectPresented(items, acc = []) {
   ]);
   assert.equal(withExtra.at(-1).id, 'ekstra');
   assert.equal(withExtra.at(-1).label, 'Ekstra');
-  assert.equal(withExtra.filter((item) => item.group).length, 10);
+  assert.equal(withExtra.filter((item) => item.group).length, 11);
 
   const innleie = groupCompanyDrawerItems(filterCompanyNav(source, standardGrants('innleie_ekstern')));
   const innleieIds = innleie.filter((item) => item.group).flatMap((item) => item.children.map((child) => child.id));
   // Innleide har Tildelte prosjekt, og ser derfor Prosjekt (bare egne prosjekter).
-  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'okonomi-utlegg', 'produkt-salg', 'utstyr', 'projects']);
+  assert.deepEqual(innleieIds, ['ansatt-timeliste', 'selskap', 'fravaer', 'arbeid', 'produktivitet', 'okonomi-utlegg', 'produkt-salg', 'utstyr', 'projects']);
   assert.equal(innleie.find((item) => item.id === 'company-people').children.find((item) => item.id === 'fravaer').pages.length, 3);
 
   assert.equal(drawerGroupOpen(org, 'home', {}, null), false);
@@ -819,7 +832,8 @@ function collectPresented(items, acc = []) {
   });
   assert.deepEqual(
     personal.find((section) => section.id === 'main').items.map((item) => item.id),
-    ['home', 'chat', 'friends', 'plan', 'mail', 'stars', 'notes', 'timeliste'],
+    // Timeliste ligger under Bedrift › Ansatt når du står i en bedrift.
+    ['home', 'chat', 'friends', 'plan', 'mail', 'stars', 'notes'],
   );
   // Eier i Bedrift: Aktiverte moduler ligger i Modulinnstillinger, ikke under Konto (UX-17).
   assert.deepEqual(

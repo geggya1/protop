@@ -812,7 +812,8 @@ let phoneSheetHtml = '';
   }));
   for (const label of sectionLabels) assert.match(phoneNavHtml, new RegExp(label));
   assert.match(phoneNavHtml, /id="module-tab-del-ansatte"/);
-  assert.match(phoneNavHtml, /Ansatte \(4 sider\)/);
+  // Ansattregisteret (HR › Ansatte) er første side i delen.
+  assert.match(phoneNavHtml, /Ansatte \(5 sider\)/);
   for (const id of ['personell', 'avtaler', 'lonn', 'compliance']) {
     assert.match(phoneNavHtml, new RegExp(`id="module-tab-hr-${id}"`));
   }

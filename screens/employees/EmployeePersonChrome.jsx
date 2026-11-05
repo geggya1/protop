@@ -40,6 +40,8 @@ export default function EmployeePersonChrome({
   colors,
   companyName = '',
   siblings = [],
+  // Egen side (Bedrift › Ansatt): bare deg selv, uten vei til registeret eller andre ansatte.
+  own = false,
   people = null,
   activeTab = 'home',
   onBack,
@@ -61,7 +63,7 @@ export default function EmployeePersonChrome({
   const deactivated = state !== 'active' && state !== 'leave';
   const subtitle = cardSubtitle(employee, companyName);
   const pickable = people || siblings;
-  const canSwitch = !!onSelect && pickable.length > 1;
+  const canSwitch = !own && !!onSelect && pickable.length > 1;
 
   const pageTabs = useMemo(() => tabs.map((tab) => ({ ...tab, short: SHORT[tab.id] })), [tabs]);
 
@@ -82,8 +84,12 @@ export default function EmployeePersonChrome({
 
       <View style={[styles.body, isPhone && styles.bodyPhone]}>
         <View style={styles.identity}>
-          <BackLink label={SHELL_DETAILS.employee.list} onPress={onBack} nativeID="employee-back" />
-          <View style={[styles.divider, { backgroundColor: colors.line }]} />
+          {own ? null : (
+            <>
+              <BackLink label={SHELL_DETAILS.employee.list} onPress={onBack} nativeID="employee-back" />
+              <View style={[styles.divider, { backgroundColor: colors.line }]} />
+            </>
+          )}
           <View style={styles.titleBlock}>
             <Pressable
               onPress={() => canSwitch && setPickerOpen(true)}
@@ -111,7 +117,7 @@ export default function EmployeePersonChrome({
               {subtitle ? ` · ${subtitle}` : ''}
             </Text>
           </View>
-          <View style={styles.navActions}>
+          {own ? null : <View style={styles.navActions}>
             <TouchableOpacity
               onPress={() => prev && onSelect?.(prev)}
               disabled={!prev}
@@ -140,7 +146,7 @@ export default function EmployeePersonChrome({
               {isPhone ? null : <Text style={{ color: colors.ink, fontSize: 13 }}>Neste</Text>}
               <Ionicons name="chevron-forward" size={isPhone ? 18 : 16} color={colors.ink} />
             </TouchableOpacity>
-          </View>
+          </View>}
         </View>
 
         {deactivated ? (

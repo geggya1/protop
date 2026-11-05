@@ -202,10 +202,8 @@ export const HR_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt', group: 'oversikt' },
   // Ansattregisteret (samme side som tidligere Ansatte i bedriftsmenyen). Egen side ligger under Ansatt › Min side.
   { id: 'ansatte', icon: 'id-card', label: 'Ansatte', group: 'ansatte' },
+  // Personell er kontrollsiden for egne ansatte: avtale, lønn, lovpålagt og oppfølging i én liste.
   { id: 'personell', icon: 'people', label: 'Personell', group: 'ansatte' },
-  { id: 'avtaler', icon: 'document-text', label: 'Avtaler', group: 'ansatte' },
-  { id: 'lonn', icon: 'cash', label: 'Lønn', group: 'ansatte' },
-  { id: 'compliance', icon: 'shield-checkmark', label: 'Lovpålagt', group: 'ansatte' },
   { id: 'oppfolging', icon: 'flag', label: 'Samtaler og saker', group: 'oppfolging' },
   { id: 'sykefravaer', icon: 'medkit', label: 'Sykefravær', group: 'oppfolging' },
   { id: 'undersokelse', icon: 'stats-chart', label: 'Medarbeiderundersøkelse', group: 'oppfolging' },
@@ -217,7 +215,12 @@ export const HR_MENU = [
 
 export const HR_SUBVIEW_IDS = HR_MENU.map((item) => item.id);
 
+// Avtaler, Lønn og Lovpålagt var egne sider. Nå er de kolonner og deler av Personell,
+// så gamle lenker (årshjul, hjelp, oversikten) lander der.
+export const HR_SUBVIEW_ALIASES = { avtaler: 'personell', lonn: 'personell', compliance: 'personell' };
+
 export function defaultHrSubView(subView) {
+  if (HR_SUBVIEW_ALIASES[subView]) return HR_SUBVIEW_ALIASES[subView];
   return HR_SUBVIEW_IDS.includes(subView) ? subView : 'oversikt';
 }
 

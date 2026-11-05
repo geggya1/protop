@@ -274,13 +274,13 @@ const COMPANY_PAGES = [
   ['timeliste', null, 'timeliste'],
   ['hr', 'oversikt', 'hr-oversikt'],
   ['hr', 'personell', 'hr-personell'],
-  ['hr', 'avtaler', 'hr-avtaler'],
+  ['hr', 'avtaler', 'hr-personell'],
   ['hr', 'produktivitet', 'hr-oversikt'],
   ['arbeid', 'produktivitet', 'arbeid-produktivitet'],
   ['arbeid', 'fremdrift', 'arbeid-fremdrift'],
-  ['hr', 'lonn', 'hr-lonn'],
+  ['hr', 'lonn', 'hr-personell'],
   ['hr', 'oppfolging', 'hr-oppfolging'],
-  ['hr', 'compliance', 'hr-compliance'],
+  ['hr', 'compliance', 'hr-personell'],
   ['hr', 'rekruttering', 'hr-rekruttering'],
   ['hr', 'handbok', 'hr-handbok'],
   ['hr', 'skjema', 'hr-skjema'],
@@ -414,7 +414,7 @@ for (const id of Object.keys(COMPANY_HERO)) {
   assert.equal(band.bg2, GROUP_PALETTE[group].bg2, `${id} bg2 følger gruppen ${group}`);
   assert.equal(band.accent, GROUP_PALETTE[group].accent, `${id} accent følger gruppen ${group}`);
 }
-const hrColors = new Set(['hr-oversikt', 'hr-personell', 'hr-avtaler', 'hr-lonn', 'hr-oppfolging', 'hr-compliance']
+const hrColors = new Set(['hr-oversikt', 'hr-personell', 'hr-oppfolging', 'hr-sykefravaer']
   .map((id) => resolveModuleHero(id, 'nb').bg));
 assert.equal(hrColors.size, 1, 'HR har én farge på alle fanene');
 assert.equal(resolveModuleHero('okonomi-faktura', 'nb').accent, resolveModuleHero('okonomi-oversikt', 'nb').accent);
@@ -632,7 +632,8 @@ for (const hrId of ['hr-oversikt', 'hr-personell', 'hr-avtaler', 'hr-produktivit
     `${hrId} bundled != public`,
   );
   assert.match(assetsSrc, new RegExp(`'${hrId}': require\\('\\.\\./\\.\\./assets/module-activation/${hrFile.replace(/\./g, '\\.')}'\\)`));
-  if (hrId !== 'hr-produktivitet') {
+  // Avtaler, Lønn og Lovpålagt er samlet i Personell og har ikke eget bånd lenger.
+  if (!['hr-produktivitet', 'hr-avtaler', 'hr-lonn', 'hr-compliance'].includes(hrId)) {
     assert.equal(resolveModuleHero(hrId, 'nb').wideArt, true, `${hrId} uses the illustration`);
   }
 }

@@ -153,7 +153,7 @@ function idsIn(sections) {
   assert.equal(companyItems.some((i) => i.id === 'ansatte'), false, 'registeret er en side i HR');
   const hr = companyItems.find((i) => i.id === 'hr');
   assert.equal(hr.action.tab, 'hr');
-  assert.equal(hr.children.length, 13);
+  assert.equal(hr.children.length, 10);
   assert.deepEqual(hr.children.find((i) => i.id === 'hr-ansatte').action, { type: 'tab', tab: 'hr', subView: 'ansatte' });
   // Innleie er egen modul ved siden av HR.
   const innleie = companyItems.find((i) => i.id === 'innleie');

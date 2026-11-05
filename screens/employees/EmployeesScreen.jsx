@@ -2628,8 +2628,8 @@ function InviteMark({ employee, colors }) {
   const mark = INVITE_MARKS[state.key];
   if (!mark) return null;
   const label = INVITE_MARK_LABELS[state.key] || state.label;
-  const color = mark.tone === 'ok' ? (colors.success || '#1a7f37')
-    : mark.tone === 'warn' ? '#9a6700'
+  const color = mark.tone === 'ok' ? colors.success
+    : mark.tone === 'warn' ? colors.warn
       : mark.tone === 'danger' ? (colors.danger || '#b42318')
         : colors.muted;
   return (

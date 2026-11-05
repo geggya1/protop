@@ -208,15 +208,15 @@ function person(id, {
   assert.doesNotMatch(compliance, /people\.map/);
   assert.match(people, /label: 'Lovpålagt', width: 200, sheet: 'compliance'/);
   assert.doesNotMatch(people, /Sjekkliste/);
-  // Lønn står bare under HR → Lønn, ikke i personellisten eller som fane på personen.
-  assert.doesNotMatch(people, /key: 'salary'/);
+  // Personell er kontrollsiden: Lønn er en kolonne med egen rettighet, ikke en fane på personen.
+  assert.match(people, /key: 'salary', label: 'Lønn', width: 150, sheet: 'lonn', see: 'payroll'/);
   assert.doesNotMatch(people, /\{ id: 'lonn', label: 'Lønn' \}/);
   assert.doesNotMatch(people, /label="Lønn"/);
   assert.match(people, /onSheet\?\.\(col\?\.sheet \|\| 'oversikt'\)/);
   assert.match(screen, /scrollRef\.current\?\.scrollTo\?\.\(\{ y: 0, animated: false \}\);\n  \}, \[page, selectedEmployeeId, employeeSheet\]\);/);
   assert.match(people, /Ansettelsesavtale/);
   assert.match(people, /Medarbeidersamtale/);
-  assert.match(people, /Fakturerbarhet/);
+  assert.match(people, /label: 'Avtale', width: 150, sheet: 'avtale'/);
   assert.doesNotMatch(people, /Hurtigregistrer kontrakt/);
   assert.match(screen, /HrControl/);
   // Undersidene ligger i modulmenyen i skallet (ModuleTabs), ikke i en egen HR-meny (UX-19).

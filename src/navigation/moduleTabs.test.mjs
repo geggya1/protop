@@ -59,11 +59,12 @@ test('modulmeny: Kunder, Kundeundersøkelse, Kontrakter og Prosjekt står som fa
 });
 
 test('modulmeny: HR og Anbud bruker samme meny som de andre modulene (UX-19)', () => {
+  // Avtaler, Lønn og Lovpålagt er samlet i Personell. Gamle lenker markerer Personell.
   const hr = moduleTabsFor('hr', 'lonn');
   assert.equal(hr.moduleId, 'hr');
-  assert.equal(hr.activeId, 'hr-lonn');
+  assert.equal(hr.activeId, 'hr-personell');
   assert.deepEqual(hr.pages.map((p) => p.label), [
-    'Oversikt', 'Ansatte', 'Personell', 'Avtaler', 'Lønn', 'Lovpålagt', 'Samtaler og saker', 'Sykefravær', 'Medarbeiderundersøkelse',
+    'Oversikt', 'Ansatte', 'Personell', 'Samtaler og saker', 'Sykefravær', 'Medarbeiderundersøkelse',
     'Rekruttering', 'Årshjul', 'Personalhåndbok', 'Skjemaer',
   ]);
   assert.equal(moduleTabsFor('hr', null).activeId, 'hr-oversikt');
@@ -81,7 +82,7 @@ test('modulmeny: tilgangen styrer fanene i HR og Anbud', () => {
   };
   const items = companyMenuItems({ grants });
   const hr = moduleTabsFor('hr', 'oversikt', items);
-  assert.deepEqual(hr.pages.map((p) => p.id).filter((id) => ['hr-lonn', 'hr-rekruttering', 'hr-compliance'].includes(id)), []);
+  assert.deepEqual(hr.pages.map((p) => p.id).filter((id) => ['hr-rekruttering'].includes(id)), []);
   assert.ok(hr.pages.some((p) => p.id === 'hr-personell'));
   const anbud = moduleTabsFor('anbud', 'tilbud', items);
   assert.equal(anbud.pages.some((p) => p.id === 'anbud-innstillinger'), false, 'innstillingene krever Admin');
@@ -92,7 +93,8 @@ test('modulmeny: telefon viser 3–4 faner og «Mer» med resten', () => {
   // HR har deler (som ISO). Arket har delene som titler når det brukes.
   const hr = splitModuleTabs(moduleTabsFor('hr', 'oversikt'), PHONE);
   assert.deepEqual(hr.visible.map((p) => p.label), ['Oversikt', 'Ansatte', 'Personell']);
-  assert.deepEqual(hr.more.map((g) => g.label), ['Ansatte', 'Oppfølging', 'Rekruttering', 'Rutiner']);
+  // Delen Ansatte har bare to sider (Ansatte og Personell), og begge står fremme.
+  assert.deepEqual(hr.more.map((g) => g.label), ['Oppfølging', 'Rekruttering', 'Rutiner']);
   const anbud = splitModuleTabs(moduleTabsFor('anbud', 'varsling'), PHONE);
   assert.deepEqual(anbud.visible.map((p) => p.short), ['Varsling', 'Forespørsel', 'Vurdering']);
   const iso = splitModuleTabs(moduleTabsFor('iso', 'avvik'), PHONE);
@@ -130,7 +132,7 @@ test('modulmeny: PC viser alt som får plass, ISO har resten under «Mer»', () 
   assert.deepEqual(ok.more, [], 'Økonomi får plass i én rad');
   // HR vises med deler (to rader), så alle sidene finnes i raden eller arket.
   const hr = splitModuleTabs(moduleTabsFor('hr', 'oversikt'), DESKTOP);
-  assert.equal(hr.visible.length + hr.more.flatMap((g) => g.pages).length, 13);
+  assert.equal(hr.visible.length + hr.more.flatMap((g) => g.pages).length, 10);
   const iso = splitModuleTabs(moduleTabsFor('iso', 'avvik'), DESKTOP);
   assert.deepEqual(iso.visible.slice(0, 3).map((p) => p.label), ['Oversikt', 'Avvik og forbedring', 'Risiko']);
   assert.ok(iso.visible.length >= 6 && iso.visible.length < 23);
@@ -210,7 +212,7 @@ test('modulmeny: HR har delene som første rad og sidene i delen som andre rad, 
   assert.equal(m.activeSectionId, 'ansatte');
   const pagesIn = (id) => m.sections.find((s) => s.id === id).pages.map((p) => p.short || p.label);
   // Ansattregisteret er første side i HR-delen Ansatte.
-  assert.deepEqual(pagesIn('ansatte'), ['Ansatte', 'Personell', 'Avtaler', 'Lønn', 'Lovpålagt']);
+  assert.deepEqual(pagesIn('ansatte'), ['Ansatte', 'Personell']);
   // Innleide og eksterne er ikke en del av HR, men egen modul.
   assert.equal(m.sections.some((s) => s.id === 'innleide'), false);
   const inn = moduleTabsFor('innleie', 'personell');

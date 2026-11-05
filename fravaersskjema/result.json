@@ -1,0 +1,112 @@
+{
+  "failed": 1,
+  "results": [
+    {
+      "ok": true,
+      "step": "1.1 Fanen «Egenmelding og lønn» åpnes fra Bedrift → Fravær → Innstillinger",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.2 Lovpålagt dekning vises låst",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.3 Alt som ikke er lovpålagt, er av som standard",
+      "detail": "7 valg, alle av"
+    },
+    {
+      "ok": true,
+      "step": "1.4 Velg IA-ordning, drøftet og egen legetime, lagre",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.5 hr/sickLeave er lagret riktig",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.6 Etter ny innlasting står IA-ordning og «Gjelder nå: 8 kalenderdager»",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.7 HR → Sykefravær viser reglene og peker til innstillingene",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.8 Ansattkortet har «Barn og omsorgsdager»",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.9 Registrer 3 barn og alene om omsorgen: 30 omsorgsdager, lagret på ansatt",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.1 Linjen «Fravær» står nederst og åpner «Registrer fravær»",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.2 Lege: felt, lønn etter avtale og timer per dag",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.3 Sende uten bekreftelse gir feil",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.4 Send: legetime 2:00 med skjema i skyen",
+      "detail": "2026-11-05 lege_med 2"
+    },
+    {
+      "ok": true,
+      "step": "2.5 Linjen viser dagens fravær, og trykk viser det først",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.6 Nytt fravær samme dag: velferd (flytting) via «Permisjon og velferd»",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.7 Ferie neste arbeidsdag: lagres uten skjema, hel dag",
+      "detail": "2026-11-06 8 t"
+    },
+    {
+      "ok": true,
+      "step": "2.8 Sykt barn går til egenmeldingen",
+      "detail": ""
+    },
+    {
+      "ok": false,
+      "step": "2.9 Eldre fravær uten skjema: «Mangler fraværsskjema» → skjema, typen byttes",
+      "detail": "det eldre fraværet: ikke i skyen"
+    },
+    {
+      "ok": true,
+      "step": "3.1 PC: «Fravær» nederst i rutenettet, knappene synlige over tabellen, uten «Åpne prosjekt»",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "4.1 Ingen JS-feil",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "4.2 Ingen funksjonskall feilet",
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "calls": []
+}

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
@@ -12,7 +13,6 @@ import {
   employeeMatchEmails,
   inviteDeliveryError,
   inviteLevelFor,
-  inviteOverview,
   inviteStatusLabel,
   matchEmployeeByEmail,
   placedAccessLevel,
@@ -413,7 +413,6 @@ export default function EmployeesScreen({ subView = null } = {}) {
   );
   // Innleide og eksterne: pårørende og medarbeiderundersøkelsen gjelder egne ansatte.
   const mineIsHired = !!mineTodoEmployee && hrKindBucket(mineTodoEmployee) === 'external';
-  const inviteCounts = useMemo(() => inviteOverview(rows), [rows]);
   // Avsluttede ansettelser der personen fortsatt står som medlem: deaktivert før tilgangen ble
   // stengt på serveren, eller sluttdatoen har passert. Administrator rydder med ett trykk.
   const lingering = useMemo(() => {
@@ -1947,31 +1946,6 @@ export default function EmployeesScreen({ subView = null } = {}) {
               </TouchableOpacity>
             </View>
           ) : null}
-          {canInvite && inviteCounts.none + inviteCounts.missingEmail > 0 ? (
-            <View nativeID="employees-invite-overview" style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>
-                {inviteCounts.none + inviteCounts.missingEmail === 1
-                  ? '1 person er ikke invitert'
-                  : `${inviteCounts.none + inviteCounts.missingEmail} personer er ikke invitert`}
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                {[
-                  'De ligger i listen, men har ikke fått invitasjon. Du velger selv hvem som skal inviteres og når.',
-                  inviteCounts.missingEmail ? `${inviteCounts.missingEmail} mangler e-post.` : '',
-                  inviteCounts.sent ? `${inviteCounts.sent} venter på svar.` : '',
-                ].filter(Boolean).join(' ')}
-              </Text>
-              <TouchableOpacity
-                nativeID="employees-invite-open"
-                onPress={openInvite}
-                disabled={busy}
-                accessibilityRole="button"
-                style={[styles.primary, { marginTop: 6, backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
-              >
-                <Text style={styles.primaryText}>Velg hvem som skal inviteres</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
           {!rows.length ? (
             <EmptyState
               nativeID="employees-empty"
@@ -2028,14 +2002,16 @@ export default function EmployeesScreen({ subView = null } = {}) {
                     </View>
                   )}
                   <View style={styles.grow}>
-                    <Text style={[styles.personName, { color: colors.ink }]}>{displayName(row)}</Text>
+                    <View style={styles.nameRow}>
+                      <Text style={[styles.personName, styles.nameText, { color: colors.ink }]} numberOfLines={1}>{displayName(row)}</Text>
+                      {canInvite ? <InviteMark employee={row} colors={colors} /> : null}
+                    </View>
                     {!!contactLine(row) && <Text style={[styles.personMeta, { color: colors.muted }]}>{contactLine(row)}</Text>}
                     <Text style={[styles.personMeta, { color: colors.muted }]}>{cardSubtitle(row, companyName)}</Text>
                     <View style={styles.chips}>
                       {mine?.id === row.id ? (
                         <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Din profil</Text>
                       ) : null}
-                      {canInvite ? <InviteChip employee={row} colors={colors} /> : null}
                       {departmentLabels(row, departments).map((name) => (
                         <Text key={name} style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>{name}</Text>
                       ))}
@@ -2606,7 +2582,6 @@ function withInviteFields(draft, saved) {
   };
 }
 
-const INVITE_CHIP_KEYS = new Set(['none', 'missingEmail', 'queued', 'sent', 'declined']);
 
 /** Lagremelding etter aktivering eller deaktivering på Brukerkonto. */
 function classificationNote(employee, patch) {
@@ -2631,15 +2606,42 @@ function membershipNote(employee, membership) {
   return '';
 }
 
-/** Invitasjonsstatus på personen i listen (bare for den som kan invitere). */
-function InviteChip({ employee, colors }) {
+// Symbolet bak navnet i listen. Teksten står i verktøytipset og for skjermleser.
+const INVITE_MARKS = {
+  accepted: { icon: 'checkmark-circle', tone: 'ok' },
+  member: { icon: 'checkmark-circle', tone: 'ok' },
+  sent: { icon: 'paper-plane-outline', tone: 'muted' },
+  queued: { icon: 'time-outline', tone: 'muted' },
+  none: { icon: 'mail-unread-outline', tone: 'warn' },
+  missingEmail: { icon: 'alert-circle-outline', tone: 'danger' },
+  declined: { icon: 'close-circle-outline', tone: 'danger' },
+};
+
+const INVITE_MARK_LABELS = {
+  accepted: 'Har tilgang',
+  member: 'Har tilgang',
+};
+
+/** Invitasjonsstatus som symbol bak navnet (bare for den som kan invitere). */
+function InviteMark({ employee, colors }) {
   const state = employeeInviteState(employee);
-  if (!INVITE_CHIP_KEYS.has(state.key)) return null;
-  const alert = state.key === 'declined' || state.key === 'missingEmail';
+  const mark = INVITE_MARKS[state.key];
+  if (!mark) return null;
+  const label = INVITE_MARK_LABELS[state.key] || state.label;
+  const color = mark.tone === 'ok' ? (colors.success || '#1a7f37')
+    : mark.tone === 'warn' ? '#9a6700'
+      : mark.tone === 'danger' ? (colors.danger || '#b42318')
+        : colors.muted;
   return (
-    <Text style={[styles.dept, { color: alert ? (colors.danger || '#b42318') : colors.muted, backgroundColor: colors.sunken }]}>
-      {state.label}
-    </Text>
+    <View
+      nativeID={`employee-invite-mark-${employee.id}`}
+      accessible
+      accessibilityLabel={label}
+      {...(Platform.OS === 'web' ? { title: label } : {})}
+      style={styles.inviteMark}
+    >
+      <Ionicons name={mark.icon} size={15} color={color} />
+    </View>
   );
 }
 
@@ -2714,6 +2716,9 @@ const styles = StyleSheet.create({
   identity: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },
   personName: { fontSize: 14, fontWeight: '700' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  nameText: { flexShrink: 1 },
+  inviteMark: { flexShrink: 0 },
   personMeta: { fontSize: 14, fontWeight: '400' },
   hiredLink: { alignSelf: 'flex-start', minHeight: 36, justifyContent: 'center', paddingHorizontal: 4 },
   grow: { flex: 1, gap: 1 },

@@ -7,7 +7,6 @@ import { mirrorAwaitingSupplier } from '../intercompany/model.js';
 import { parseHours, roundHours } from '../arbeid/hours.js';
 import { rateWithOvertime, timeTypeById } from '../arbeid/overtime.js';
 import { resolveHourlyRate } from './hourlyRate.js';
-import { withCustomerPrices } from '../customers/customerPrices.js';
 import { normalizeExpense } from './expenses.js';
 import { normalizeTrip } from './mileage.js';
 import { normalizeSale } from './products.js';
@@ -36,17 +35,17 @@ export function periodEndFor(id, today = '', custom = '') {
   return iso(new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 0)));
 }
 
-/** Trinnene i resolveHourlyRate som Til fakturering bruker: avtalen, så prosjektet, så kunden. */
-const BILLING_RATE_STEPS = ['contract', 'project', 'customer'];
+/** Trinnene i resolveHourlyRate som Til fakturering bruker: avtalen, så prosjektet. */
+const BILLING_RATE_STEPS = ['contract', 'project'];
 
-/** Timepris på datoen med kilde: prisversjon fra avtalen, prosjektets timepris, ellers kundens. */
-export function billingRateFor(project, date = '', contracts = [], customer = null) {
-  return resolveHourlyRate({ project, contracts, date, customer, steps: BILLING_RATE_STEPS });
+/** Timepris på datoen med kilde: prisversjon fra avtalen, ellers prosjektets timepris. */
+export function billingRateFor(project, date = '', contracts = []) {
+  return resolveHourlyRate({ project, contracts, date, steps: BILLING_RATE_STEPS });
 }
 
-/** Timepris på datoen: avtalen, prosjektet, så kunden. Null når den mangler. */
-export function hourlyRateFor(project, date = '', contracts = [], customer = null) {
-  return billingRateFor(project, date, contracts, customer).rate;
+/** Timepris på datoen: prisversjon fra avtalen, ellers prosjektets timepris. Null når den mangler. */
+export function hourlyRateFor(project, date = '', contracts = []) {
+  return billingRateFor(project, date, contracts).rate;
 }
 
 function entryHours(row) {
@@ -238,10 +237,7 @@ export function buildReadyProjects({
     if (!projectId || !byId.has(projectId)) return null;
     if (!out.has(projectId)) {
       const project = byId.get(projectId);
-      const customer = customerForProject(project, customers);
-      // Rabatter på kundekortet gjelder foran selskapets standard, når prosjektet ikke har egne.
-      const settings = withCustomerPrices(settingsFor(project) || {}, { project, customer });
-      out.set(projectId, emptyProject(project, customer, settings));
+      out.set(projectId, emptyProject(project, customerForProject(project, customers), settingsFor(project) || {}));
     }
     return out.get(projectId);
   }
@@ -255,7 +251,7 @@ export function buildReadyProjects({
     const model = target.pricingModel;
     if (model === 'not_billable' || model === 'fixed' || model === 'retainer' || model === 'unit') continue;
     const type = timeTypeById(row.timeType || 'ordinary');
-    const priced = billingRateFor(target.project, row.date, contracts, target.customer);
+    const priced = billingRateFor(target.project, row.date, contracts);
     const base = priced.rate;
     const rate = base == null ? null : rateWithOvertime(base, type.id);
     const key = [target.projectId, row.employeeId || row.employeeName, row.activityId || row.activityName, type.id, rate ?? 'x'].join('|');
@@ -389,10 +385,8 @@ export function buildReadyProjects({
       unitPrice: row.unitPrice,
       unit: row.unit,
       markupPercent: Number(row.surchargePercent) || 0,
-      // Rabatten på raden (fra konsernavtalen) gjelder først; ellers kundens utleie- eller varerabatt.
-      discountPercent: Number(row.discountPercent) || (row.kind === 'rental'
-        ? Number(target.settings.discountRental) || 0
-        : Number(target.settings.discountProducts) || 0),
+      // Utleie har rabatten på raden (fra konsernavtalen); produktrabatten gjelder varer.
+      discountPercent: Number(row.discountPercent) || (row.kind === 'rental' ? 0 : Number(target.settings.discountProducts) || 0),
       kind: row.kind === 'rental' ? 'rental' : 'product',
       intercompany: row.intercompany?.mirror ? row.intercompany : null,
       amount: row.amountExVat,

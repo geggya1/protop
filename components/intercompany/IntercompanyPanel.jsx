@@ -87,8 +87,8 @@ function LinkRow({ link, colors, children, badge }) {
       <View style={[styles.summary, { backgroundColor: colors.sunken }]}>
         <Ionicons name="pricetags-outline" size={14} color={colors.muted} />
         <View style={{ flex: 1 }}>
-          <Text style={{ color: colors.ink, fontSize: 13 }}>{`Standardpriser: ${settingsSummary(link.settings)}`}</Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Priser på kundekortet gjelder foran.</Text>
+          <Text style={{ color: colors.ink, fontSize: 13 }}>{`Omfatter: ${settingsSummary(link.settings)}`}</Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Prisen settes på hvert prosjekt.</Text>
         </View>
       </View>
       {link.message ? <Text style={{ color: colors.ink, fontSize: 13, fontStyle: 'italic' }}>«{link.message}»</Text> : null}
@@ -263,20 +263,20 @@ export default function IntercompanyPanel({ familyId, family = null, colors, can
       ))}
 
       {groups.active.map((link) => (
-        <LinkRow key={link.id} link={link} colors={colors} badge={link.settingsToAnswer ? 'Nye priser foreslått' : null}>
+        <LinkRow key={link.id} link={link} colors={colors} badge={link.settingsToAnswer ? 'Endring foreslått' : null}>
           {link.pendingSettings ? (
             <View style={[styles.proposal, { borderColor: colors.line }]}>
               <Text style={{ color: colors.ink, fontSize: 13 }}>
                 {link.settingsProposedByUs
-                  ? `Dere har foreslått nye priser: ${settingsSummary(link.pendingSettings.settings)}. Venter på «${link.partner.name}».`
-                  : `«${link.partner.name}» foreslår nye priser: ${settingsSummary(link.pendingSettings.settings)}.`}
+                  ? `Dere har foreslått en endring i avtalen: ${settingsSummary(link.pendingSettings.settings)}. Venter på «${link.partner.name}».`
+                  : `«${link.partner.name}» foreslår en endring i avtalen: ${settingsSummary(link.pendingSettings.settings)}.`}
               </Text>
               {canEdit ? (
                 <View style={styles.actions}>
                   {link.settingsToAnswer ? (
-                    <Button nativeID={`ic-prices-accept-${link.id}`} primary label="Godta prisene" colors={colors} disabled={!!busyId} onPress={() => run(link.id, () => answerLinkSettings({ companyId: familyId, linkId: link.id, accept: true }), 'De nye standardprisene gjelder for prosjekter som tildeles fra nå. Prosjekter som finnes, beholder sine priser.')} />
+                    <Button nativeID={`ic-prices-accept-${link.id}`} primary label="Godta endringen" colors={colors} disabled={!!busyId} onPress={() => run(link.id, () => answerLinkSettings({ companyId: familyId, linkId: link.id, accept: true }), 'Endringen i avtalen er godtatt.')} />
                   ) : null}
-                  <Button label={link.settingsToAnswer ? 'Avslå' : 'Trekk forslaget'} colors={colors} disabled={!!busyId} onPress={() => run(link.id, () => answerLinkSettings({ companyId: familyId, linkId: link.id, accept: false }), 'Prisene står som før.')} />
+                  <Button label={link.settingsToAnswer ? 'Avslå' : 'Trekk forslaget'} colors={colors} disabled={!!busyId} onPress={() => run(link.id, () => answerLinkSettings({ companyId: familyId, linkId: link.id, accept: false }), 'Avtalen står som før.')} />
                 </View>
               ) : null}
             </View>
@@ -285,8 +285,8 @@ export default function IntercompanyPanel({ familyId, family = null, colors, can
             <>
               <LinkSettingsForm value={editDraft} onChange={setEditDraft} colors={colors} disabled={busyId === link.id} ourCompanyId={familyId} />
               <View style={styles.actions}>
-                <Button primary label={busyId === link.id ? 'Sender…' : 'Foreslå nye priser'} colors={colors} disabled={!!busyId} onPress={async () => {
-                  const out = await run(link.id, () => saveLinkSettings({ companyId: familyId, linkId: link.id, settings: editDraft }), `Forslaget er sendt. De nye standardprisene gjelder nye prosjekter når «${link.partner.name}» har godtatt dem.`);
+                <Button primary label={busyId === link.id ? 'Sender…' : 'Foreslå endring'} colors={colors} disabled={!!busyId} onPress={async () => {
+                  const out = await run(link.id, () => saveLinkSettings({ companyId: familyId, linkId: link.id, settings: editDraft }), `Forslaget er sendt. Endringen gjelder når «${link.partner.name}» har godtatt den.`);
                   if (out) setEditingId('');
                 }} />
                 <Button label="Avbryt" colors={colors} disabled={!!busyId} onPress={() => setEditingId('')} />
@@ -294,7 +294,7 @@ export default function IntercompanyPanel({ familyId, family = null, colors, can
             </>
           ) : canEdit ? (
             <View style={styles.actions}>
-              <Button nativeID={`ic-edit-${link.id}`} label="Foreslå nye priser" colors={colors} disabled={!!busyId} onPress={() => { setEditingId(link.id); setEditDraft(link.settings); }} />
+              <Button nativeID={`ic-edit-${link.id}`} label="Endre avtalen" colors={colors} disabled={!!busyId} onPress={() => { setEditingId(link.id); setEditDraft(link.settings); }} />
               <Button danger label="Avslutt avtalen" colors={colors} disabled={!!busyId} onPress={() => run(link.id, () => endLinkAgreement({ companyId: familyId, linkId: link.id }), 'Avtalen er avsluttet.')} />
             </View>
           ) : null}

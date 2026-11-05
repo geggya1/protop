@@ -1,7 +1,6 @@
 /** Kunderegister for bedriften. Knyttes til avtaler via customerId. */
 import { collapseNameTokens, displayName, isActiveEmployee } from '../employees/model.js';
 import { activeRange, nextInRange } from '../intercompany/numberSeries.js';
-import { customerPrices } from '../customers/customerPrices.js';
 
 function text(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -304,7 +303,6 @@ export const CUSTOMER_INVOICE_DELIVERY = ['ehf', 'email', 'manual'];
 /**
  * Faktureringsvalg på kunden. Tomme felt lagres ikke; da gjelder selskapets standard.
  * invoiceReference er «Deres referanse» eller bestillingsnummer, som offentlige kunder krever.
- * Priser og rabatter (customers/customerPrices.js) gjelder foran selskapets standard.
  */
 export function customerInvoiceFields(raw = {}) {
   const out = {};
@@ -316,9 +314,6 @@ export function customerInvoiceFields(raw = {}) {
   if (Number.isInteger(days) && days >= 0 && days <= 365) out.creditDays = days;
   if (CUSTOMER_INVOICE_LANGUAGES.includes(raw.invoiceLanguage)) out.invoiceLanguage = raw.invoiceLanguage;
   if (CUSTOMER_INVOICE_DELIVERY.includes(raw.invoiceDelivery)) out.invoiceDelivery = raw.invoiceDelivery;
-  for (const [key, value] of Object.entries(customerPrices(raw))) {
-    if (value != null) out[key] = value;
-  }
   return out;
 }
 

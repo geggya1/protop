@@ -11,7 +11,6 @@ import { normalizeLine, normalizeLines, round2 } from './invoiceLines.js';
 import { dueDateFor, recalcInvoice, withEvent } from './invoiceFlow.js';
 import { customerFieldsFrom } from './invoiceCustomer.js';
 import { REVERSE_CHARGE_ACCOUNT_VAT_CODE } from './vat.js';
-import { withCustomerPrices } from '../customers/customerPrices.js';
 
 const MONTHS = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
 
@@ -356,9 +355,7 @@ export function adminLine(lines = [], { settings = {}, accounts, chart = [], pri
 }
 
 /** Alle genererte linjer for utvalget, med adm.-kostnad til slutt. */
-export function linesFromSelection(selection, { settings: projectSettings = {}, chart = [], periodEnd = '' } = {}) {
-  // Kundens rabatter gjelder når prosjektet ikke har egne (samme regel som Til fakturering).
-  const settings = withCustomerPrices(projectSettings, { project: selection.project, customer: selection.customer });
+export function linesFromSelection(selection, { settings = {}, chart = [], periodEnd = '' } = {}) {
   const accounts = accountsFrom(settings, { foreign: isForeignCustomer(selection.customer) });
   const hourGroup = selection.hourGroups?.[0];
   const lines = [

@@ -78,10 +78,9 @@ test('avslag, tilbaketrekking, avslutning og innstillinger', () => {
   const ended = endLink(active, { companyId: DATTER.id });
   assert.equal(ended.link.status, 'ended');
   assert.equal(updateLinkSettings(ended.link, { companyId: MOR.id, settings: {} }).ok, false);
-  const fixedMissing = updateLinkSettings(active, { companyId: MOR.id, settings: { hours: { mode: 'fixed' } } });
-  assert.equal(fixedMissing.ok, false);
-  const fixed = updateLinkSettings(active, { companyId: MOR.id, settings: { hours: { mode: 'fixed', fixedRate: '850,5' } } });
-  assert.equal(fixed.link.settings.hours.fixedRate, 850.5);
+  const noRental = updateLinkSettings(active, { companyId: MOR.id, settings: { rental: { enabled: false }, invoiceDelivery: 'email' } });
+  assert.equal(noRental.link.settings.rental.enabled, false);
+  assert.equal(noRental.link.settings.invoiceDelivery, 'email');
 });
 
 test('innstillinger normaliseres', () => {
@@ -89,7 +88,7 @@ test('innstillinger normaliseres', () => {
   assert.equal(s.hours.discountPercent, 100);
   assert.equal(s.products.discountPercent, 0);
   assert.equal(s.invoiceDelivery, 'ehf');
-  assert.equal(settingsError({ hours: { mode: 'fixed', fixedRate: 0 } }), 'Fyll inn den faste timeprisen.');
+  assert.equal(settingsError({ hours: { mode: 'fixed', fixedRate: 0 } }), '', 'avtalen har ingen priser å fylle inn');
 });
 
 test('gruppering og åpen avtale', () => {
@@ -114,7 +113,7 @@ test('prosjektkopi-id kan leses tilbake', () => {
   assert.equal(mirrorId('famA', 'tid1'), 'ic_famA_tid1');
 });
 
-test('kopien har eierens nummer, eieren som kunde og avtalt pris', () => {
+test('kopien har eierens nummer, eieren som kunde og eierens timepris', () => {
   const link = { ...pendingFromMor({ hours: { mode: 'discount', discountPercent: 15 }, products: { discountPercent: 10 }, rental: { discountPercent: 5 } }), status: 'active' };
   const ownerProject = { id: 'prjA', number: '24017', name: 'Skole', pricingSettings: { hourlyRate: 1200 }, phase: 'utførelse' };
   const clone = buildCloneProject({
@@ -126,15 +125,16 @@ test('kopien har eierens nummer, eieren som kunde og avtalt pris', () => {
   assert.equal(clone.customerId, 'cus-famMor');
   assert.equal(clone.client, 'Mor AS');
   assert.equal(clone.pricingSettings.hourlyRate, 1200);
-  assert.equal(clone.invoiceSettings.discountHours, 15);
-  assert.equal(clone.invoiceSettings.discountProducts, 10);
+  assert.equal(clone.invoiceSettings.discountHours, undefined, 'prisen settes på prosjektet, ikke i avtalen');
+  assert.equal(clone.invoiceSettings.discountProducts, undefined);
   assert.equal(clone.intercompany.ownerProjectNumber, '24017');
-  assert.equal(clone.intercompany.rentalDiscountPercent, 5);
+  assert.equal(clone.intercompany.rentalDiscountPercent, 0);
 
   const fixedLink = { ...link, settings: { hours: { mode: 'fixed', fixedRate: 900 } } };
-  const fixedClone = buildCloneProject({ link: fixedLink, owner: MOR, ownerProject, existing: { ...clone, manager: 'Kari' } });
-  assert.equal(fixedClone.pricingSettings.hourlyRate, 1200, 'en kopi som finnes, beholder sin egen pris');
-  assert.equal(buildCloneProject({ link: fixedLink, owner: MOR, ownerProject }).pricingSettings.hourlyRate, 900, 'ny kopi får avtalens pris');
+  const edited = { ...clone, manager: 'Kari', pricingSettings: { hourlyRate: 1100 } };
+  const fixedClone = buildCloneProject({ link: fixedLink, owner: MOR, ownerProject, existing: edited });
+  assert.equal(fixedClone.pricingSettings.hourlyRate, 1100, 'en kopi som finnes, beholder sin egen pris');
+  assert.equal(buildCloneProject({ link: fixedLink, owner: MOR, ownerProject }).pricingSettings.hourlyRate, 1200, 'gamle avtalepriser brukes ikke');
   assert.equal(fixedClone.manager, 'Kari', 'leverandørens egne felt står');
   assert.equal(fixedClone.number, '24017');
 });
@@ -305,11 +305,12 @@ test('utlegg speiles: godkjent hos arbeidsgiveren kan faktureres sluttkunden hos
   assert.equal(mirrorExpense({ source: { ...source, status: 'rejected' }, existing: approved.row, clone: CLONE, supplier: DATTER }).action, 'delete');
 });
 
-test('pris på kopien settes som på ethvert prosjekt; avtalens pris er bare utgangspunkt', () => {
-  const link = { ...pendingFromMor({ hours: { mode: 'fixed', fixedRate: 900 } }), status: 'active' };
+test('pris på kopien settes som på ethvert prosjekt; eierens timepris er bare utgangspunkt', () => {
+  const link = { ...pendingFromMor(), status: 'active' };
   const ownerProject = { id: 'prjA', number: '24017', name: 'Skole' };
   const first = buildCloneProject({ link, owner: MOR, ownerProject });
-  assert.equal(first.pricingSettings.hourlyRate, 900);
+  assert.equal(first.pricingSettings.hourlyRate, null, 'eieren har ingen timepris');
+  assert.equal(first.intercompany.rateMissing, true, 'leverandøren setter pris på kopien');
   const edited = { ...first, pricingModel: 'fixed', pricingSettings: { fixedFee: 50000 } };
   const again = buildCloneProject({ link, owner: MOR, ownerProject: { ...ownerProject, name: 'Skole, trinn 2' }, existing: edited });
   assert.equal(again.pricingModel, 'fixed', 'egne betingelser på prosjektet står');

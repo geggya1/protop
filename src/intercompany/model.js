@@ -15,7 +15,6 @@
  *
  * Modulen er ren (ingen Firebase), så appen og Cloud Functions bruker de samme reglene.
  */
-import { customerPrices } from '../customers/customerPrices.js';
 
 export const LINK_STATUS = Object.freeze({
   pending: 'pending',
@@ -173,11 +172,8 @@ export function normalizeLinkSettings(raw = {}) {
   };
 }
 
-export function settingsError(settings) {
-  const s = normalizeLinkSettings(settings);
-  if (s.hours.enabled && s.hours.mode === 'fixed' && !(s.hours.fixedRate > 0)) {
-    return 'Fyll inn den faste timeprisen.';
-  }
+/** Avtalen har ingen priser å fylle inn (prisen settes på prosjektet), så det er ingenting å avvise. */
+export function settingsError() {
   return '';
 }
 
@@ -381,8 +377,8 @@ export function endLink(link, { companyId, at = '' }) {
 }
 
 /**
- * Nye priser i en aktiv avtale er et forslag til den andre parten godtar det (prisene er avtalt
- * mellom to selskaper, og den ene kan ikke endre dem alene). Ventende forespørsler kan justeres
+ * En endring i en aktiv avtale er et forslag til den andre parten godtar det (avtalen er inngått
+ * mellom to selskaper, og den ene kan ikke endre den alene). Ventende forespørsler kan justeres
  * av den som spurte, før den andre har svart.
  */
 export function proposeLinkSettings(link, { companyId, settings, uid = '', at = '' }) {
@@ -413,7 +409,7 @@ export function answerLinkSettings(link, { companyId, accept, uid = '', at = '' 
   const row = normalizeLink(link, link?.id);
   const id = text(companyId);
   const pending = row.pendingSettings;
-  if (!pending) return { ok: false, error: 'Det er ingen nye priser å svare på.' };
+  if (!pending) return { ok: false, error: 'Det er ingen endring å svare på.' };
   if (!row.companyIds.includes(id)) return { ok: false, error: 'Selskapet er ikke part i avtalen.' };
   const stamp = text(at) || new Date().toISOString();
   if (accept) {
@@ -455,17 +451,13 @@ export function updateLinkSettings(link, { companyId, settings, uid = '', at = '
   };
 }
 
-/** Kort tekst om prisen, til lister og prosjektmerket. */
+/** Hva avtalen omfatter, til lister: «Timer · Produkter · Utleie». Prisen settes på prosjektet. */
 export function settingsSummary(settings) {
   const s = normalizeLinkSettings(settings);
   const parts = [];
-  if (s.hours.enabled) {
-    parts.push(s.hours.mode === 'fixed'
-      ? `Timer: fast ${s.hours.fixedRate ?? 0} kr/t`
-      : (s.hours.discountPercent ? `Timer: ${s.hours.discountPercent} % rabatt` : 'Timer: ordinær pris'));
-  }
-  if (s.products.enabled) parts.push(s.products.discountPercent ? `Produkter: ${s.products.discountPercent} % rabatt` : 'Produkter: ordinær pris');
-  if (s.rental.enabled) parts.push(s.rental.discountPercent ? `Utleie: ${s.rental.discountPercent} % rabatt` : 'Utleie: ordinær pris');
+  if (s.hours.enabled) parts.push('Timer');
+  if (s.products.enabled) parts.push('Produkter');
+  if (s.rental.enabled) parts.push('Utleie');
   return parts.join(' · ') || 'Ingen områder valgt';
 }
 
@@ -503,40 +495,24 @@ export function ownerHourlyRate(project) {
   return rate == null || rate <= 0 ? null : rate;
 }
 
-/**
- * Rabatt på ordinær pris krever at eierens prosjekt har timepris. Ellers må avtalen ha fast pris,
- * eller leverandøren ha timepris på kundekortet til eieren.
- */
-export function cloneRateMissing({ settings, ownerProject, customer = null }) {
+/** Kopien får eierens timepris som utgangspunkt. Mangler den, setter leverandøren pris på kopien. */
+export function cloneRateMissing({ settings, ownerProject }) {
   const s = normalizeLinkSettings(settings);
-  if (customerPrices(customer).hourlyRate != null) return false;
-  return s.hours.enabled && s.hours.mode !== 'fixed' && ownerHourlyRate(ownerProject) == null;
+  return s.hours.enabled && ownerHourlyRate(ownerProject) == null;
 }
 
 /**
- * Prisen leverandøren fakturerer eieren. Priser settes for det meste på kundenivå: det
- * leverandøren har satt på kundekortet til eieren, gjelder (feltet står tomt på kopien, så
- * kundens pris brukes). Det kundekortet ikke har, tas fra avtalen: fast timepris, eller eierens
- * ordinære timepris med avtalt rabatt, og rabatt på produkter og utleie.
+ * Prisen leverandøren fakturerer eieren settes på prosjektnivå, på kopien som på ethvert
+ * prosjekt. Kopien starter med timeprisen på eierens prosjekt, uten rabatter. Avtalen har
+ * ingen priser; den sier bare hva som er med (timer, produkter, utleie) og hvordan fakturaen sendes.
  */
-export function clonePricing({ settings, ownerProject, customer = null }) {
+export function clonePricing({ settings, ownerProject }) {
   const s = normalizeLinkSettings(settings);
-  const c = customerPrices(customer);
-  const ordinary = ownerHourlyRate(ownerProject);
-  const fixed = s.hours.mode === 'fixed';
-  const linkRate = !s.hours.enabled ? null : (fixed ? s.hours.fixedRate : ordinary);
-  const linkHoursDiscount = s.hours.enabled && !fixed && s.hours.discountPercent ? s.hours.discountPercent : null;
-  const customerRate = c.hourlyRate != null;
   return {
     pricingModel: s.hours.enabled ? 'hourly' : 'not_billable',
-    pricingSettings: { hourlyRate: s.hours.enabled && !customerRate ? linkRate : null },
-    invoiceSettings: {
-      // Kundens timepris står for seg; avtalens rabatt hører til eierens ordinære pris.
-      discountHours: c.discountHours != null || customerRate ? null : linkHoursDiscount,
-      discountProducts: c.discountProducts != null ? null : (s.products.discountPercent || null),
-    },
-    rentalDiscountPercent: c.discountRental != null ? c.discountRental : s.rental.discountPercent,
-    fromCustomer: customerRate || c.discountHours != null || c.discountProducts != null || c.discountRental != null,
+    pricingSettings: { hourlyRate: s.hours.enabled ? ownerHourlyRate(ownerProject) : null },
+    invoiceSettings: {},
+    rentalDiscountPercent: 0,
   };
 }
 
@@ -562,7 +538,7 @@ export function buildCloneProject({ link, owner, ownerProject, customer = null, 
   const row = normalizeLink(link, link?.id);
   const stamp = text(at) || new Date().toISOString();
   const id = cloneProjectId(row.id, ownerProject.id);
-  const pricing = clonePricing({ settings: row.settings, ownerProject, customer });
+  const pricing = clonePricing({ settings: row.settings, ownerProject });
   const base = existing && typeof existing === 'object' ? existing : {};
   return {
     ...base,
@@ -580,8 +556,8 @@ export function buildCloneProject({ link, owner, ownerProject, customer = null, 
     end: text(base.end) || text(ownerProject.end),
     place: text(base.place) || text(ownerProject.place),
     description: text(base.description) || `Underleveranse til ${text(owner.name)}, prosjekt ${text(ownerProject.number)}.`,
-    // Pris og betingelser settes på kopien som på ethvert prosjekt. Avtalens priser er bare
-    // utgangspunktet når kopien lages; en kopi som finnes, beholder sine egne.
+    // Pris og betingelser settes på kopien som på ethvert prosjekt (prosjektnivå). Eierens
+    // timepris er bare utgangspunktet når kopien lages; en kopi som finnes, beholder sine egne.
     pricingModel: existing ? base.pricingModel : pricing.pricingModel,
     pricingSettings: existing ? (base.pricingSettings || {}) : pricing.pricingSettings,
     invoiceSettings: existing ? (base.invoiceSettings || {}) : pricing.invoiceSettings,
@@ -599,7 +575,7 @@ export function buildCloneProject({ link, owner, ownerProject, customer = null, 
         : pricing.rentalDiscountPercent,
       rateMissing: existing
         ? (!!base.intercompany?.rateMissing && !(Number(base.pricingSettings?.hourlyRate) > 0))
-        : cloneRateMissing({ settings: row.settings, ownerProject, customer }),
+        : cloneRateMissing({ settings: row.settings, ownerProject }),
       clonedAt: text(base.intercompany?.clonedAt) || stamp,
       updatedAt: stamp,
     },

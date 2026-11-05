@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import { HOUR_PRICE_MODES, INVOICE_DELIVERY_OPTIONS, normalizeLinkSettings } from '../../src/intercompany/model';
+import { INVOICE_DELIVERY_OPTIONS, normalizeLinkSettings } from '../../src/intercompany/model';
 
 function Choice({ options, value, onChange, colors, disabled, idPrefix }) {
   return (
@@ -25,28 +25,7 @@ function Choice({ options, value, onChange, colors, disabled, idPrefix }) {
   );
 }
 
-function NumberField({ label, value, onChange, suffix, colors, disabled, nativeID }) {
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.label, { color: colors.muted }]}>{label}</Text>
-      <View style={styles.inputRow}>
-        <TextInput
-          nativeID={nativeID}
-          value={value == null ? '' : String(value)}
-          onChangeText={onChange}
-          editable={!disabled}
-          keyboardType="decimal-pad"
-          placeholder="0"
-          placeholderTextColor={colors.placeholder}
-          style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-        />
-        {suffix ? <Text style={{ color: colors.muted }}>{suffix}</Text> : null}
-      </View>
-    </View>
-  );
-}
-
-function Area({ title, hint, enabled, onToggle, colors, disabled, children }) {
+function Area({ title, hint, enabled, onToggle, colors, disabled }) {
   return (
     <View style={[styles.area, { borderColor: colors.line }]}>
       <View style={styles.areaHead}>
@@ -56,15 +35,14 @@ function Area({ title, hint, enabled, onToggle, colors, disabled, children }) {
         </View>
         <Switch value={enabled} onValueChange={onToggle} disabled={disabled} accessibilityLabel={title} />
       </View>
-      {enabled ? children : null}
     </View>
   );
 }
 
 /**
- * Prisene i avtalen: timer (rabatt eller fast pris), produkter og utleie (rabatt), og hvordan
- * fakturaen sendes. Gjelder begge veier: den som leverer folk eller varer, fakturerer den andre.
- * value holder rå tekst fra feltene; normalizeLinkSettings gjør den om ved lagring.
+ * Hva avtalen omfatter (timer, produktsalg, utleie) og hvordan fakturaen sendes. Gjelder begge
+ * veier: den som leverer folk eller varer, fakturerer den andre. Prisen settes på prosjektnivå,
+ * ikke her. value holder rå tekst fra feltene; normalizeLinkSettings gjør den om ved lagring.
  */
 export default function LinkSettingsForm({ value, onChange, colors, disabled = false, ourCompanyId = '' }) {
   const raw = value || {};
@@ -78,8 +56,8 @@ export default function LinkSettingsForm({ value, onChange, colors, disabled = f
   return (
     <View style={styles.block}>
       <Text style={{ color: colors.muted, fontSize: 13 }}>
-        Priser settes for det meste på kundekortet. Har dere satt pris eller rabatt på kundekortet til det andre
-        selskapet, gjelder den. Standardprisene her brukes for det kundekortet ikke har.
+        Prisen settes på hvert prosjekt. Prosjektet hos arbeidsgiveren starter med timeprisen på prosjekteierens
+        prosjekt, og pris og betingelser kan endres der som på ethvert prosjekt.
       </Text>
       <Area
         title="Timer"
@@ -88,21 +66,7 @@ export default function LinkSettingsForm({ value, onChange, colors, disabled = f
         onToggle={(on) => set({ hours: { ...hours, enabled: on } })}
         colors={colors}
         disabled={disabled}
-      >
-        <Choice
-          idPrefix="ic-hours-mode"
-          options={HOUR_PRICE_MODES}
-          value={hours.mode === 'fixed' ? 'fixed' : 'discount'}
-          onChange={(mode) => set({ hours: { ...hours, mode } })}
-          colors={colors}
-          disabled={disabled}
-        />
-        {hours.mode === 'fixed' ? (
-          <NumberField nativeID="ic-hours-fixed" label="Fast timepris eks. mva" suffix="kr/t" value={hours.fixedRate} onChange={(fixedRate) => set({ hours: { ...hours, fixedRate } })} colors={colors} disabled={disabled} />
-        ) : (
-          <NumberField nativeID="ic-hours-discount" label="Rabatt på prosjektets timepris" suffix="%" value={hours.discountPercent} onChange={(discountPercent) => set({ hours: { ...hours, discountPercent } })} colors={colors} disabled={disabled} />
-        )}
-      </Area>
+      />
       <Area
         title="Produktsalg"
         hint="Varer som selges på prosjektet."
@@ -110,9 +74,7 @@ export default function LinkSettingsForm({ value, onChange, colors, disabled = f
         onToggle={(on) => set({ products: { ...products, enabled: on } })}
         colors={colors}
         disabled={disabled}
-      >
-        <NumberField nativeID="ic-products-discount" label="Rabatt på ordinær pris" suffix="%" value={products.discountPercent} onChange={(discountPercent) => set({ products: { ...products, discountPercent } })} colors={colors} disabled={disabled} />
-      </Area>
+      />
       <Area
         title="Utleie av utstyr"
         hint="Maskiner og utstyr booket på prosjektet."
@@ -120,9 +82,7 @@ export default function LinkSettingsForm({ value, onChange, colors, disabled = f
         onToggle={(on) => set({ rental: { ...rental, enabled: on } })}
         colors={colors}
         disabled={disabled}
-      >
-        <NumberField nativeID="ic-rental-discount" label="Rabatt på utleieprisen" suffix="%" value={rental.discountPercent} onChange={(discountPercent) => set({ rental: { ...rental, discountPercent } })} colors={colors} disabled={disabled} />
-      </Area>
+      />
       <Text style={[styles.label, { color: colors.muted }]}>Faktura mellom selskapene sendes som</Text>
       <Choice
         idPrefix="ic-delivery"
@@ -160,6 +120,5 @@ const styles = StyleSheet.create({
   choice: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   field: { gap: 4 },
   label: { fontSize: 12 },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, fontSize: 16, minWidth: 120 },
 });

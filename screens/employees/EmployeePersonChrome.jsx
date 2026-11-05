@@ -90,7 +90,8 @@ export default function EmployeePersonChrome({
               <View style={[styles.divider, { backgroundColor: colors.line }]} />
             </>
           )}
-          <View style={styles.titleBlock}>
+          {/* Navn og status på én linje: navnet tar lite høyde, og siden under får plassen. */}
+          <View style={[styles.titleBlock, !isPhone && styles.titleRow]}>
             <Pressable
               onPress={() => canSwitch && setPickerOpen(true)}
               disabled={!canSwitch}
@@ -102,15 +103,15 @@ export default function EmployeePersonChrome({
               <Text
                 accessibilityRole="header"
                 numberOfLines={1}
-                style={[isPhone ? type.h2 : styles.name, styles.nameText, { color: colors.ink }]}
+                style={[styles.name, isPhone && styles.namePhone, styles.nameText, { color: colors.ink }]}
               >
                 {name}
               </Text>
-              {canSwitch ? <Ionicons name="chevron-down" size={isPhone ? 16 : 18} color={colors.muted} /> : null}
+              {canSwitch ? <Ionicons name="chevron-down" size={16} color={colors.muted} /> : null}
             </Pressable>
-            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: isPhone ? 12 : 14 }}>
+            <Text numberOfLines={1} style={[styles.meta, { color: colors.muted }]}>
               {deactivated ? (
-                <Text style={{ color: colors.danger || '#dc2626', fontWeight: '600' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
+                <Text style={{ color: colors.danger || '#dc2626' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
               ) : (
                 <Text style={{ color: colors.muted }}>{status}</Text>
               )}
@@ -124,13 +125,9 @@ export default function EmployeePersonChrome({
               accessibilityRole="button"
               accessibilityLabel="Forrige medarbeider"
               hitSlop={4}
-              style={[
-                isPhone ? styles.navIcon : styles.navBtn,
-                { borderColor: colors.line, backgroundColor: colors.card, opacity: prev ? 1 : 0.45 },
-              ]}
+              style={[styles.navIcon, { borderColor: colors.line, backgroundColor: colors.card, opacity: prev ? 1 : 0.45 }]}
             >
-              <Ionicons name="chevron-back" size={isPhone ? 18 : 16} color={colors.ink} />
-              {isPhone ? null : <Text style={{ color: colors.ink, fontSize: 13 }}>Forrige</Text>}
+              <Ionicons name="chevron-back" size={16} color={colors.ink} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => next && onSelect?.(next)}
@@ -138,13 +135,9 @@ export default function EmployeePersonChrome({
               accessibilityRole="button"
               accessibilityLabel="Neste medarbeider"
               hitSlop={4}
-              style={[
-                isPhone ? styles.navIcon : styles.navBtn,
-                { borderColor: colors.line, backgroundColor: colors.card, opacity: next ? 1 : 0.45 },
-              ]}
+              style={[styles.navIcon, { borderColor: colors.line, backgroundColor: colors.card, opacity: next ? 1 : 0.45 }]}
             >
-              {isPhone ? null : <Text style={{ color: colors.ink, fontSize: 13 }}>Neste</Text>}
-              <Ionicons name="chevron-forward" size={isPhone ? 18 : 16} color={colors.ink} />
+              <Ionicons name="chevron-forward" size={16} color={colors.ink} />
             </TouchableOpacity>
           </View>}
         </View>
@@ -156,7 +149,7 @@ export default function EmployeePersonChrome({
           >
             <Ionicons name="remove-circle" size={18} color={colors.danger || '#dc2626'} />
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
+              <Text style={{ color: colors.danger || '#dc2626', fontWeight: '600' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
               <Text style={{ color: colors.danger || '#dc2626', fontSize: 13, lineHeight: 18 }}>
                 {closedNote(state)}
               </Text>
@@ -207,23 +200,26 @@ export default function EmployeePersonChrome({
 
 const styles = StyleSheet.create({
   root: { width: '100%', flexShrink: 0 },
-  body: { paddingHorizontal: space.md, paddingVertical: space.sm, gap: 10 },
-  bodyPhone: { paddingHorizontal: space.sm, paddingVertical: space.xs, gap: 6 },
+  body: { paddingHorizontal: space.md, paddingVertical: 6, gap: 8 },
+  bodyPhone: { paddingHorizontal: space.sm, paddingVertical: 4, gap: 6 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   divider: { width: 1, alignSelf: 'stretch', marginVertical: 6 },
-  titleBlock: { flex: 1, minWidth: 0, gap: 2 },
+  titleBlock: { flex: 1, minWidth: 0, gap: 0 },
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+  meta: { fontSize: 13, lineHeight: 18, flexShrink: 1 },
   nameBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', maxWidth: '100%' },
-  name: { fontSize: 28, fontWeight: '700', letterSpacing: -0.3 },
+  name: { fontSize: 18, lineHeight: 24, fontWeight: '600', letterSpacing: -0.2 },
+  namePhone: { fontSize: 16, lineHeight: 22 },
   nameText: { flexShrink: 1 },
   navIcon: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderRadius: radius.pill,
   },
-  navActions: { flexDirection: 'row', gap: 8 },
+  navActions: { flexDirection: 'row', gap: 6 },
   navBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -251,5 +247,5 @@ const styles = StyleSheet.create({
     zIndex: 2,
     position: 'relative',
   },
-  sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  sheetTitle: { fontSize: 17, fontWeight: '600', marginBottom: 12 },
 });

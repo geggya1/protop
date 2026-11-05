@@ -308,6 +308,7 @@ function InlineEditor({
 const INVITABLE = new Set(['none', 'missingEmail', 'queued', 'sent', 'declined']);
 
 export default function EmployeeDetailView({
+  showName = true,
   employee,
   colors,
   companyName,
@@ -659,7 +660,7 @@ export default function EmployeeDetailView({
                   <Image source={{ uri: employee.person.photoUrl }} style={styles.photo} />
                 ) : (
                   <View style={[styles.photo, styles.photoFallback, { backgroundColor: colors.brandSoft }]}>
-                    <Text style={{ color: colors.brand, fontSize: 32, fontWeight: '700' }}>{initials(employee)}</Text>
+                    <Text style={{ color: colors.brand, fontSize: 32, fontWeight: '600' }}>{initials(employee)}</Text>
                   </View>
                 )}
                 {canEdit ? (
@@ -677,7 +678,8 @@ export default function EmployeeDetailView({
                 ) : null}
               </View>
               <View style={styles.heroFacts}>
-                <Text style={[styles.heroName, { color: colors.ink }]}>{name}</Text>
+                {/* Navnet står i toppfeltet over fanene. Bare vist her når kortet står alene. */}
+                {showName ? <Text style={[styles.heroName, { color: colors.ink }]}>{name}</Text> : null}
                 {!!contactLine(employee) && (
                   <Text style={{ color: colors.muted, fontSize: 13 }}>{contactLine(employee)}</Text>
                 )}
@@ -1171,7 +1173,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   heroFacts: { flex: 1, gap: 8, minWidth: 0 },
-  heroName: { fontSize: 22, fontWeight: '700', letterSpacing: -0.2 },
+  heroName: { fontSize: 22, fontWeight: '600', letterSpacing: -0.2 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   statusChip: {
     overflow: 'hidden',
@@ -1249,7 +1251,7 @@ const styles = StyleSheet.create({
     gap: 8,
     flexWrap: 'wrap',
   },
-  sideTitle: { fontSize: 17, fontWeight: '700' },
+  sideTitle: { fontSize: 17, fontWeight: '600' },
   activeCheck: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 28 },
   checkBox: {
     width: 18,

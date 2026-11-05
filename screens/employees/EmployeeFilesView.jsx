@@ -235,7 +235,7 @@ export default function EmployeeFilesView({
 const styles = StyleSheet.create({
   wrap: { gap: 12, width: '100%', maxWidth: 900 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
-  title: { fontSize: 18, fontWeight: '700' },
+  title: { fontSize: 18, fontWeight: '600' },
   sub: { fontSize: 14, fontWeight: '600', marginTop: 8 },
   actions: { flexDirection: 'row', gap: 8 },
   ghostBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },

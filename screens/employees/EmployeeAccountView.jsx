@@ -136,7 +136,7 @@ export default function EmployeeAccountView({
             onPress={() => onClassify?.({ status: 'active' })}
             style={[styles.switchSide, !deactivated && { backgroundColor: colors.successSoft || '#e4f5ea' }]}
           >
-            <Text style={{ color: !deactivated ? success : colors.muted, fontWeight: '700' }}>Aktiv</Text>
+            <Text style={{ color: !deactivated ? success : colors.muted, fontWeight: '600' }}>Aktiv</Text>
           </TouchableOpacity>
           <TouchableOpacity
             nativeID="employee-account-deactivate"
@@ -147,7 +147,7 @@ export default function EmployeeAccountView({
             onPress={() => onClassify?.({ status: 'inactive' })}
             style={[styles.switchSide, deactivated && { backgroundColor: danger }]}
           >
-            <Text style={{ color: deactivated ? '#fff' : colors.muted, fontWeight: '700' }}>Deaktivert</Text>
+            <Text style={{ color: deactivated ? '#fff' : colors.muted, fontWeight: '600' }}>Deaktivert</Text>
           </TouchableOpacity>
         </View>
         <Text style={[styles.hint, { color: deactivated ? danger : colors.muted }]}>

@@ -2056,6 +2056,7 @@ export default function ArbeidScreen({
         projects={myProjects.map((row) => row.project)}
         requireDescription={editor?.project?.workSettings?.requireDescription !== false}
         requireClock={timeSettings.requireClockTimes}
+        hideOvertime={timeSettings.overtimeInSalary}
         locked={!!editor?.locked}
         lockedText={editor?.lockedText || ''}
         onSave={saveEntry}

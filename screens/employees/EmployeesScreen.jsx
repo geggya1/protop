@@ -2087,6 +2087,7 @@ export default function EmployeesScreen({ subView = null } = {}) {
               employee={selected}
               colors={colors}
               canEdit={access.canEdit('economyEarnings') || access.canEdit('economy')}
+              showTitle={false}
             />
           ) : null}
 
@@ -2140,22 +2141,28 @@ export default function EmployeesScreen({ subView = null } = {}) {
             />
           ) : null}
 
-          {view === 'detail' && selected && canSeeTodo(selected) ? (
-            <EmployeeTodo
-              compact
-              colors={colors}
-              companyId={familyId}
-              employee={selected}
-              naeringskode={family?.company?.naeringskode || ''}
-              onOpenTodo={() => openPersonView('todo')}
-            />
-          ) : null}
-
+          {/* Hovedside: personkortet i midten, gjøremålene som en huskeliste i margen til høyre
+              (på telefon øverst). Frister vises, og passerte frister er røde. */}
           {view === 'detail' && detailEmployee ? (
+          <View nativeID="employee-home" style={isDesktop ? styles.homeRow : styles.homeStack}>
+            {selected && canSeeTodo(selected) ? (
+              <View style={isDesktop ? styles.homeSide : [styles.homeSideTop, { borderColor: colors.line, backgroundColor: colors.card }]}>
+                <EmployeeTodo
+                  variant="side"
+                  colors={colors}
+                  companyId={familyId}
+                  employee={selected}
+                  naeringskode={family?.company?.naeringskode || ''}
+                  onOpenTodo={() => openPersonView('todo')}
+                />
+              </View>
+            ) : null}
+            <View style={isDesktop ? styles.homeMain : null}>
             <EmployeeDetailView
               companyId={familyId}
               currentUid={uid}
               employee={detailEmployee}
+              showName={false}
               colors={colors}
               companyName={companyName}
               departments={departments}
@@ -2193,6 +2200,8 @@ export default function EmployeesScreen({ subView = null } = {}) {
               canInvite={canInvite}
               onInvite={() => inviteEmployee(detailEmployee)}
             />
+            </View>
+          </View>
           ) : null}
 
           {/* Brukerloggen står alene på egen underside under Innstillinger, ikke på hovedsiden. */}
@@ -2673,6 +2682,12 @@ function summaryNote(labels) {
 }
 
 const styles = StyleSheet.create({
+  // Hovedside: margen står til høyre (order), selv om den ligger først i koden for telefon.
+  homeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 24 },
+  homeMain: { flex: 1, minWidth: 0, order: 1 },
+  homeSide: { width: 260, order: 2 },
+  homeStack: { gap: 12 },
+  homeSideTop: { borderWidth: 1, borderRadius: 12, padding: 12 },
   screen: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', alignSelf: 'stretch' },
   selfPending: { alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
   screenScroll: { flex: 1, minWidth: 0, alignSelf: 'stretch' },

@@ -31,6 +31,7 @@ const rnMock = {
   TextInput: host('TextInput'),
   StyleSheet: { create: (styles) => styles, hairlineWidth: 1, absoluteFill: {} },
   Platform: { OS: 'web', select: (options) => options && (options.web || options.default) },
+  useWindowDimensions: () => ({ width: 1280, height: 800 }),
 };
 
 const employee = {

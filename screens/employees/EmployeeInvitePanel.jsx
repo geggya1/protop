@@ -97,7 +97,7 @@ export default function EmployeeInvitePanel({
             return (
               <View key={request.id} style={[styles.person, { borderColor: colors.line }]}>
                 <View style={styles.grow}>
-                  <Text style={{ color: colors.ink, fontWeight: '700' }}>{request.name || request.email || 'Uten navn'}</Text>
+                  <Text style={{ color: colors.ink, fontWeight: '600' }}>{request.name || request.email || 'Uten navn'}</Text>
                   {request.email ? <Text style={{ color: colors.muted }}>{request.email}</Text> : null}
                   {status === 'sent' || status === 'queued' ? (
                     <Text style={{ color: colors.muted }}>{inviteStatusLabel(status)}</Text>
@@ -198,7 +198,7 @@ export default function EmployeeInvitePanel({
         ) : queued.map((row) => (
           <View key={row.id} style={[styles.person, { borderColor: colors.line }]}>
             <View style={styles.grow}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>{displayName(row)}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>{displayName(row)}</Text>
               <Text style={{ color: colors.muted }}>{employeeContactEmail(row)}</Text>
               <Text style={{ color: colors.muted }}>{row.company?.accessRole || inviteStatusLabel(row.invite?.status)}</Text>
             </View>
@@ -225,7 +225,7 @@ export default function EmployeeInvitePanel({
           {sent.map((row) => (
             <View key={row.id} style={[styles.person, { borderColor: colors.line }]}>
               <View style={styles.grow}>
-                <Text style={{ color: colors.ink, fontWeight: '700' }}>{displayName(row)}</Text>
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>{displayName(row)}</Text>
                 <Text style={{ color: colors.muted }}>{employeeContactEmail(row)}</Text>
                 {!!row.invite?.error && <Text style={{ color: colors.danger || '#b42318' }}>{row.invite.error}</Text>}
               </View>
@@ -253,7 +253,7 @@ export default function EmployeeInvitePanel({
           {declined.map((row) => (
             <View key={row.id} style={[styles.person, { borderColor: colors.line }]}>
               <View style={styles.grow}>
-                <Text style={{ color: colors.ink, fontWeight: '700' }}>{displayName(row)}</Text>
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>{displayName(row)}</Text>
                 <Text style={{ color: colors.muted }}>{employeeContactEmail(row)}</Text>
                 <Text style={{ color: colors.muted }}>{inviteStatusLabel('declined')}</Text>
               </View>
@@ -368,7 +368,7 @@ function NotInvitedSection({ colors, employees, busy, progress, onInvite }) {
           >
             <Ionicons name={on ? 'checkbox' : 'square-outline'} size={22} color={on ? colors.brand : colors.muted} />
             <View style={styles.grow}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>{displayName(row)}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>{displayName(row)}</Text>
               <Text style={{ color: colors.muted }}>{employeeContactEmail(row)}</Text>
               <Text style={{ color: colors.muted }}>{levelText(row)}</Text>
             </View>
@@ -404,7 +404,7 @@ function NotInvitedSection({ colors, employees, busy, progress, onInvite }) {
 const styles = StyleSheet.create({
   stack: { gap: 12 },
   card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 },
-  heading: { fontSize: 17, fontWeight: '700' },
+  heading: { fontSize: 17, fontWeight: '600' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
@@ -412,6 +412,6 @@ const styles = StyleSheet.create({
   grow: { flex: 1, gap: 2 },
   pickAll: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', paddingVertical: 4 },
   primary: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, alignSelf: 'flex-start', minWidth: 96, alignItems: 'center' },
-  primaryText: { color: '#fff', fontWeight: '700' },
+  primaryText: { color: '#fff', fontWeight: '600' },
   secondary: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, alignSelf: 'flex-start' },
 });

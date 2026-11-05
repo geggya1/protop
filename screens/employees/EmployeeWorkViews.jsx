@@ -38,10 +38,12 @@ const CHECKS = [
   { key: 'mustLockTimesheet', label: 'Skal låse timelisten', locked: 'external' },
   { key: 'requireClockTimes', label: 'Skal spesifisere kom- og gå-tid', locked: 'external' },
   { key: 'flexCountsAsPay', label: 'Mertid teller i lønn' },
-  // Lønnsoppsummeringen (HR › Lønn): «Overtid: Fastlønn», eller tilbud om å ta ut mertid ved månedsslutt.
-  { key: 'overtimeInSalary', label: 'Fastlønn – overtid inngår i lønnen', locked: 'external' },
-  { key: 'bankPayout', label: 'Kan få mertid utbetalt som overtid ved månedsslutt', locked: 'external' },
+  // Lønn: vises etter lønnsformen. Fastlønn med overtid inkludert skjuler overtid og uttak av mertid.
+  { key: 'overtimeInSalary', label: 'Overtid inngår i fastlønnen (ikke krav på overtid)', locked: 'external', show: (f) => f.fixedSalary },
+  { key: 'bankPayout', label: 'Kan få mertid utbetalt som overtid ved månedsslutt', locked: 'external', show: (f) => !f.overtimeInSalary },
 ];
+
+const PAY_FORMS = ['Fastlønn', 'Timelønn', 'Provisjon', 'Honorar'];
 
 export default function EmployeeWorkViews({
   mode = 'settings',
@@ -178,7 +180,29 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, sub = 'general' }
 
       {sub === 'general' ? (
         <View style={styles.checks}>
-          {CHECKS.map((row) => {
+          {membership.externalRules ? null : (
+            <View style={styles.payForm} nativeID="employee-pay-form">
+              <Text style={{ color: colors.muted }}>Lønnsform</Text>
+              <View style={styles.payChips}>
+                {PAY_FORMS.map((form) => {
+                  const on = String(employee?.company?.compensationType || '').toLowerCase() === form.toLowerCase();
+                  return (
+                    <TouchableOpacity
+                      key={form}
+                      disabled={!canEdit}
+                      onPress={() => onSave?.(patchSettings({}, { compensationType: on ? '' : form }))}
+                      style={[styles.payChip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brand : 'transparent', opacity: canEdit ? 1 : 0.6 }]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on, disabled: !canEdit }}
+                    >
+                      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13 }}>{form}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+          {CHECKS.filter((row) => !row.show || row.show(flags)).map((row) => {
             const on = !!flags[row.key];
             const locked = rowLocked(row, membership);
             const box = (
@@ -416,7 +440,7 @@ function ScheduleSection({ employee, colors, canEdit, onSave, onNote, onError })
     <View nativeID="employee-schedule" style={{ gap: 14 }}>
       <View style={styles.scheduleHead}>
         <View style={{ flex: 1, gap: 4 }}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>Tidsplaner</Text>
+          <Text style={{ color: colors.ink, fontWeight: '600' }}>Tidsplaner</Text>
           <Text style={{ color: colors.muted }}>
             {`Bedriften anbefaler ${STANDARD_DAY_HOURS} timer mandag til fredag. Periodene kan ikke overlappe. En lagret plan på personen endres ikke når bedriftsstandarden oppdateres.`}
           </Text>
@@ -431,7 +455,7 @@ function ScheduleSection({ employee, colors, canEdit, onSave, onNote, onError })
       {editor ? (
         <View style={[styles.planCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <View style={styles.planTop}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>{editor.isNew ? 'Ny tidsplan' : 'Rediger tidsplan'}</Text>
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>{editor.isNew ? 'Ny tidsplan' : 'Rediger tidsplan'}</Text>
             {canEdit ? (
               <TouchableOpacity onPress={fillFromPercent} accessibilityRole="button">
                 <Text style={{ color: colors.brand }}>{`Fra bedriftsstandard (${STANDARD_DAY_HOURS} t, ${employee?.company?.workPercent || 100} %)`}</Text>
@@ -491,7 +515,7 @@ function ScheduleSection({ employee, colors, canEdit, onSave, onNote, onError })
         return (
           <View key={scheduleIdentity(plan)} style={[styles.planCard, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID={`employee-schedule-${plan.from}`}>
             <View style={styles.planTop}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>Tidsplan</Text>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>Tidsplan</Text>
               {canEdit ? (
                 <TouchableOpacity onPress={() => openEditor(plan, false)} accessibilityRole="button" accessibilityLabel={`Rediger tidsplan fra ${formatScheduleDate(plan.from)}`}>
                   <Text style={{ color: colors.brand, fontWeight: '600' }}>Rediger</Text>
@@ -526,7 +550,7 @@ function DayGrid({ colors, days, editing = false, onPatch, onEditDay }) {
         return (
           <View key={day.id} style={[styles.day, { borderColor: off ? '#fecaca' : colors.line, backgroundColor: colors.card }]}>
             <View style={[styles.dayHead, { backgroundColor: off ? '#fee2e2' : (colors.sunken || '#f8fafc') }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 13 }}>{day.label}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>{day.label}</Text>
               {onEditDay ? (
                 <TouchableOpacity onPress={onEditDay} accessibilityRole="button" accessibilityLabel={`Rediger ${day.label}`}>
                   <Ionicons name="create-outline" size={16} color={colors.brand} />
@@ -565,7 +589,7 @@ function DayGrid({ colors, days, editing = false, onPatch, onEditDay }) {
               </View>
             ) : (
               <View style={{ gap: 4, padding: 8 }}>
-                <Text style={{ color: colors.ink, fontSize: 22, fontWeight: '700', textAlign: 'center' }}>{hoursLabel}</Text>
+                <Text style={{ color: colors.ink, fontSize: 22, fontWeight: '600', textAlign: 'center' }}>{hoursLabel}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>Kommer: {formatHours(slot.arrival || 0)}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>Går: {departureOf(slot)}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>Fratrekk/tillegg: {formatHours(slot.adjustment || 0)}</Text>
@@ -580,14 +604,17 @@ function DayGrid({ colors, days, editing = false, onPatch, onEditDay }) {
 
 const styles = StyleSheet.create({
   wrap: { padding: 16, gap: 10, paddingBottom: 40 },
-  title: { fontSize: 20, fontWeight: '700' },
+  title: { fontSize: 20, fontWeight: '600' },
   checks: { gap: 10, maxWidth: 560 },
+  payForm: { gap: 6 },
+  payChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  payChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   check: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   box: { width: 18, height: 18, borderWidth: 1, borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, minWidth: 88 },
   btn: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
-  btnText: { color: '#fff', fontWeight: '700' },
+  btnText: { color: '#fff', fontWeight: '600' },
   secondary: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
   scheduleHead: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' },
   planCard: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 12 },

@@ -46,7 +46,8 @@ assert.equal(newlyClosedMonthEnd('2026-12-20', '2027-01-04'), '2026-12-31');
 // Innstilling på den ansatte
 assert.equal(canRequestPayout(employee('a', 'A')), false);
 assert.equal(canRequestPayout(employee('a', 'A', { bankPayout: true })), true);
-assert.equal(canRequestPayout(employee('a', 'A', { bankPayout: true, overtimeInSalary: true })), false, 'fastlønn med overtid inkludert');
+assert.equal(canRequestPayout(employee('a', 'A', { bankPayout: true }, { compensationType: 'Fastlønn' })), false, 'fastlønn: overtid inngår som standard');
+assert.equal(canRequestPayout(employee('a', 'A', { bankPayout: true, overtimeInSalary: false }, { compensationType: 'Fastlønn' })), true, 'fastlønn med krav på overtid');
 
 // Uttak: saldoen går ned, ikke over det som finnes, én rad per måned
 {
@@ -96,7 +97,7 @@ assert.equal(canRequestPayout(employee('a', 'A', { bankPayout: true, overtimeInS
 // Lønnsgrunnlaget
 {
   const employees = [
-    employee('anders', 'Anders', { overtimeInSalary: true }),
+    employee('anders', 'Anders', {}, { compensationType: 'Fastlønn' }),
     employee('jan', 'Jan Erik', { bankPayout: true }),
     employee('ekstern', 'Ekstern', {}, { employmentType: 'Innleid via byrå' }),
     employee('sluttet', 'Sluttet', {}, { periodTo: '2026-09-30', status: 'former' }),

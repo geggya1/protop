@@ -1,6 +1,6 @@
 /**
  * Kjeden fra timer til faktura: Timer → Godkjenn → Til fakturering → Faktura.
- * Vises øverst på Timeliste og Godkjenninger, og i «Godkjenn utvalg» på Til fakturering,
+ * Vises øverst på Godkjenninger, og i «Godkjenn utvalg» på Til fakturering,
  * så brukeren ser hvor arbeidet står og hvor det skal videre. Faktura-siden har den ikke.
  * Ren logikk, så node-testene kan lese den.
  */

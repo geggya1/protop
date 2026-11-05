@@ -293,7 +293,7 @@ await check('2.8 Sykt barn går til egenmeldingen', async () => {
   await expectText(phone, 'Meld sykefravær');
   await expectText(phone, 'Omsorgsdager');
   await phone.shot('sykt-barn');
-  await phone.page.getByRole('button', { name: 'Lukk' }).first().click().catch(() => {});
+  await phone.click('Avbryt');
   await phone.page.waitForTimeout(600);
 });
 await check('2.9 Eldre fravær uten skjema: «Mangler fraværsskjema» → skjema, typen byttes', async () => {

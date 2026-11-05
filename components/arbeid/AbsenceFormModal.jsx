@@ -402,7 +402,7 @@ function AbsenceForm({
             {fields.includes('whoFor') ? (
               <View style={styles.field}>
                 <Text style={[styles.label, { color: colors.muted }]}>Hvem gjelder timen?</Text>
-                <OptionPicker options={WHO_FOR} value={details.whoFor || ''} onChange={(id) => set('whoFor')(id || '')} title="Hvem gjelder timen?" placeholder="Velg" clearable={false} />
+                <OptionPicker options={WHO_FOR} value={details.whoFor || ''} onChange={(id) => set('whoFor')(id || '')} title="Hvem gjelder timen?" placeholder="Velg" clearable={false} chipLimit={8} />
               </View>
             ) : null}
             {fields.includes('whoFor') && details.whoFor === 'barn' ? (
@@ -436,7 +436,7 @@ function AbsenceForm({
             {fields.includes('provider') ? (
               <View style={styles.field}>
                 <Text style={[styles.label, { color: colors.muted }]}>Type time</Text>
-                <OptionPicker options={PROVIDERS} value={details.provider || ''} onChange={(id) => set('provider')(id || '')} title="Type time" placeholder="Velg" clearable={false} />
+                <OptionPicker options={PROVIDERS} value={details.provider || ''} onChange={(id) => set('provider')(id || '')} title="Type time" placeholder="Velg" clearable={false} chipLimit={8} />
               </View>
             ) : null}
             {fields.includes('ordered') ? (
@@ -454,7 +454,7 @@ function AbsenceForm({
             {fields.includes('occasion') ? (
               <View style={styles.field}>
                 <Text style={[styles.label, { color: colors.muted }]}>Anledning</Text>
-                <OptionPicker options={OCCASIONS} value={details.occasion || ''} onChange={(id) => set('occasion')(id || '')} title="Anledning" placeholder="Velg anledning" clearable={false} />
+                <OptionPicker options={OCCASIONS} value={details.occasion || ''} onChange={(id) => set('occasion')(id || '')} title="Anledning" placeholder="Velg anledning" clearable={false} chipLimit={8} />
               </View>
             ) : null}
 
@@ -468,6 +468,7 @@ function AbsenceForm({
                   title="Relasjon"
                   placeholder="Velg relasjon"
                   clearable={false}
+                  chipLimit={8}
                 />
                 {cat?.id === 'naerstaende' && details.relation === 'barn' ? (
                   <Text style={[styles.caption, { color: colors.muted }]}>Gjelder funksjonshemmet eller kronisk sykt barn over 18 år.</Text>

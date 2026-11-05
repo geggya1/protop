@@ -25,6 +25,7 @@ export default function TimesheetGrid({
   onPickMonth,
   projectHeader = null,
   monthCorner = null,
+  monthActions = null,
   projects,
   hiddenProjects = [],
   absenceRows = [],
@@ -125,6 +126,7 @@ export default function TimesheetGrid({
                 </TouchableOpacity>
               ) : null}
             </View>
+            {monthActions ? <View style={styles.monthActions}>{monthActions}</View> : null}
           </View>
           <View
             style={[
@@ -267,24 +269,6 @@ export default function TimesheetGrid({
         totalW={totalW}
       />
 
-      {absenceRows.map((row) => (
-        <HourRow
-          key={row.id}
-          colors={colors}
-          days={days}
-          title={row.label}
-          subtitle="Fravær"
-          hoursFor={row.hoursFor}
-          cellBg={cellBg}
-          locked={dayLocked}
-          selectedDay={selectedDay}
-          onPressDay={(day) => onOpenAbsence?.(row, day)}
-          tint={colors.starSoft || '#fffbeb'}
-          labelW={labelW}
-          dayW={dayW}
-          totalW={totalW}
-        />
-      ))}
 
       {projects.map((row) => (
         <HourRow
@@ -301,6 +285,27 @@ export default function TimesheetGrid({
           starred={row.starred}
           onStar={() => onToggleStar?.(row.member?.id)}
           onHide={() => onHideProject?.(row.project.id)}
+          labelW={labelW}
+          dayW={dayW}
+          totalW={totalW}
+        />
+      ))}
+
+      {/* Fravær ligger fast nederst, under prosjektene. */}
+      {absenceRows.map((row) => (
+        <HourRow
+          key={row.id}
+          colors={colors}
+          days={days}
+          title={row.label}
+          subtitle={row.subtitle || 'Fravær'}
+          hoursFor={row.hoursFor}
+          cellBg={cellBg}
+          locked={dayLocked}
+          selectedDay={selectedDay}
+          onPressDay={(day) => onOpenAbsence?.(row, day)}
+          rowId={`timesheet-absence-row-${row.id}`}
+          tint={colors.starSoft || '#fffbeb'}
           labelW={labelW}
           dayW={dayW}
           totalW={totalW}
@@ -324,7 +329,7 @@ export default function TimesheetGrid({
         </View>
       ) : null}
 
-      {!projects.length && !absenceRows.length ? (
+      {!projects.length ? (
         <View style={{ padding: 24, width: Math.max(labelW + 200, gridWidth) }}>
           <Text style={{ color: colors.muted }}>
             Ingen prosjekt i listen. Prosjekt uten timer de siste to månedene skjules, med mindre de er stjernemerket.
@@ -391,11 +396,11 @@ function SummaryRow({
 
 function HourRow({
   colors, days, title, subtitle, hoursFor, cellBg, locked, selectedDay, onPressDay, starred, onStar, onHide, tint,
-  labelW, dayW, totalW,
+  labelW, dayW, totalW, rowId,
 }) {
   let monthSum = 0;
   return (
-    <View style={[styles.row, tint ? { backgroundColor: tint } : null]}>
+    <View style={[styles.row, tint ? { backgroundColor: tint } : null]} nativeID={rowId}>
       <View style={[styles.labelCell, styles.projectLabel, { width: labelW, borderColor: colors.line }]}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }} numberOfLines={1} dataSet={{ ts: 'title' }}>{title}</Text>
@@ -480,7 +485,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderRightWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 4,
     justifyContent: 'center',
   },
   projectLabel: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -496,6 +501,9 @@ const styles = StyleSheet.create({
     borderRightWidth: StyleSheet.hairlineWidth,
   },
   monthNav: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  monthActions: {
+    position: 'absolute', right: 8, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 6,
+  },
   monthArrow: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   monthPill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1 },
   labelCellSlot: { paddingVertical: 6, paddingHorizontal: 8 },
@@ -512,10 +520,10 @@ const styles = StyleSheet.create({
     borderRightWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 34,
+    minHeight: 28,
     position: 'relative',
   },
-  cellText: { fontSize: 12, fontVariant: ['tabular-nums'] },
+  cellText: { fontSize: 13, fontVariant: ['tabular-nums'] },
   bankCaption: { fontSize: 10, marginTop: 2 },
   bankFigure: { fontSize: 12, fontVariant: ['tabular-nums'], fontWeight: '600' },
   bankOut: { paddingVertical: 4 },

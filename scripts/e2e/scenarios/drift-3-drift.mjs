@@ -94,10 +94,6 @@ try {
   });
 
   await guard(R, '3.03', 'Ferie fram i tid', async () => {
-    await A.click('Legg til fravær / ferie');
-    await A.click('Ferie');
-    await A.click('Legg til fravær / ferie', { nth: 2 }).catch(() => {});
-    await sleep(1500);
     // Neste måned i rutenettet.
     await A.page.evaluate(() => {
       const mid = document.querySelector('[aria-label="Velg måned og år"]');
@@ -106,8 +102,12 @@ try {
     });
     await A.page.locator('[data-drift-next]').click();
     await sleep(2500);
-    await openTimesheetCell(A, 'Ferie', Number(ferieDate.slice(8, 10)));
-    await A.click('Lagre');
+    // Linjen «Fravær» nederst: trykk dagen, velg «Ferie» og lagre.
+    await A.page.locator('[id="timesheet-absence-row-fravaer"] > [role=button]').nth(Number(ferieDate.slice(8, 10)) - 1).click();
+    await sleep(800);
+    await A.page.locator('[id="fravaer-valg-ferie"]').first().click();
+    await sleep(600);
+    await A.page.locator('[id="fravaersskjema-send"]').first().click();
     await sleep(3000);
     const ab = (await listDocs(`families/${C}/absences`)).filter((x) => x.employeeId === 'emp-ansatt');
     R.check('3.03', `Ansatt registrerer ferie ${ferieDate} (venter på godkjenning)`, ab.some((x) => x.date === ferieDate && x.type === 'ferie' && x.status === 'registrert'), {

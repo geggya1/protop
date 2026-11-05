@@ -94,12 +94,13 @@ import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 import MonthJump from '../../components/arbeid/MonthJump';
 import TimesheetGrid from '../../components/arbeid/TimesheetGrid';
 import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
-import AbsenceTypeModal from '../../components/arbeid/AbsenceTypeModal';
 import SickNoteModal from '../../components/arbeid/SickNoteModal';
 import AbsenceNoticeModal from '../../components/arbeid/AbsenceNoticeModal';
 import AbsenceFormModal, { AbsenceFormPrompt } from '../../components/arbeid/AbsenceFormModal';
 import { formatNbDate } from '../../src/arbeid/absenceDashboard.js';
-import { absenceFormFromRows, applyAbsenceForm, formSummary, missingAbsenceForms, needsAbsenceForm } from '../../src/arbeid/absenceForm.js';
+import {
+  absenceFormFromRows, applyAbsenceForm, applyPlainAbsence, dayAbsenceSummary, formSummary, missingAbsenceForms, needsAbsenceForm,
+} from '../../src/arbeid/absenceForm.js';
 import { SICK_KIND_LABEL, addDays, addMonths, missingSickNotes, sickCaseId, sickKind, todayIso, validateSickNote } from '../../src/arbeid/sickLeave.js';
 import { applySickCaseToState } from '../../src/arbeid/sickApply.js';
 import { useSickLeave } from '../../src/arbeid/useSickLeave.js';
@@ -109,7 +110,7 @@ import BillingChainLine from '../economy/billing/BillingChainLine';
 import Breadcrumb from '../../components/Breadcrumb';
 import DateInput from '../../components/DateInput';
 import { agreedHoursForDate, redDayMap, resolveRedDays } from '../../src/arbeid/holidays.js';
-import { NOTICE_TYPE_ID, hiredAbsenceTypes, resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
+import { NOTICE_TYPE_ID, resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
 import { employmentRange, monthTimebank, payrollHoursOnDate } from '../../src/arbeid/balance.js';
 import { loadTimeEntries, readCachedTimeEntries } from '../../src/economy/timeEntryStorage.js';
@@ -221,7 +222,6 @@ export default function ArbeidScreen({
   const [absenceForm, setAbsenceForm] = useState({ id: '', type: 'ferie', hours: '7:30', description: '', date: '' });
   const [absenceBlock, setAbsenceBlock] = useState('');
   const [monthJump, setMonthJump] = useState(false);
-  const [typePicker, setTypePicker] = useState(false);
   const [sideForm, setSideForm] = useState(null);
   const [carriedHours, setCarriedHours] = useState({ key: '', entries: [], absences: [], failed: false });
   // Stjerner, skjulte prosjekter og faste fraværstyper er personlige og lagres på den ansatte.
@@ -564,7 +564,6 @@ export default function ArbeidScreen({
   const hiddenIds = ownPrefs.hidden;
   const shownProjects = myProjects.filter((row) => !hiddenIds.has(row.project.id));
   const hiddenProjects = myProjects.filter((row) => hiddenIds.has(row.project.id));
-  const pinnedTypes = hiredSubject ? [NOTICE_TYPE_ID] : ownPrefs.pins;
 
   const payrollByDay = useMemo(() => {
     const map = new Map();
@@ -639,6 +638,20 @@ export default function ArbeidScreen({
     }).catch(() => {});
     return () => { live = false; };
   }, [workspaceId, employeeId, sickFrom]);
+  // Fraværet i skyen (siste 13 måneder og fram i tid) inn i timelisten, så linjen «Fravær»,
+  // lønnsgrunnlaget og skjemaet ser det som er ført fra andre enheter eller tidligere økter.
+  // Merket som lastet: det lagres ikke tilbake.
+  useEffect(() => {
+    if (!ready || !employeeId || !sickHistory.key.startsWith(`${employeeId}:`)) return;
+    const rows = sickHistory.rows.filter((row) => row?.employeeId === employeeId && row.id);
+    if (!rows.length) return;
+    setState((current) => {
+      const have = new Set((current.absences || []).map((row) => row.id));
+      const extra = rows.filter((row) => !have.has(row.id));
+      if (!extra.length) return current;
+      return markLoaded({ ...current, absences: [...(current.absences || []), ...extra] }, current);
+    });
+  }, [ready, sickHistory, employeeId]); // eslint-disable-line react-hooks/exhaustive-deps
   const sickAbsences = useMemo(() => {
     const byId = new Map();
     for (const row of sickHistory.rows) if (row?.employeeId === employeeId) byId.set(row.id, row);
@@ -670,8 +683,43 @@ export default function ArbeidScreen({
     setAbsenceFormInitial(linked || { type: initial?.type, fromDate: initial?.fromDate, toDate: initial?.toDate || initial?.fromDate });
   }
 
+  /** Fraværet til valgt medarbeider på én dag (alle typer). */
+  function absencesOn(dayKey) {
+    return (state.absences || []).filter((row) => row.employeeId === employeeId && row.date === dayKey && Number(row.hours) > 0);
+  }
+
+  /** Linjen «Fravær» i timelisten: dagens fravær, eller rett til «Hva gjelder fraværet?». */
+  function openAbsenceWizard(dayKey) {
+    if (readOnly || !employeeId) return;
+    const date = dayKey || selectedDay || todayKey;
+    if (hiredSubject) {
+      setNoticeForm({ fromDate: date, toDate: date });
+      return;
+    }
+    setAbsenceOpen(false);
+    setFormPrompt(null);
+    setAbsenceFormError('');
+    setAbsenceFormInitial({ fromDate: date, toDate: date, listDay: true });
+  }
+
   function submitAbsenceForm(input) {
     if (readOnly || !selectedEmployee) return;
+    if (input.plain) {
+      const plainResult = applyPlainAbsence(state, {
+        ...input,
+        employeeId,
+        employeeName: selectedName,
+      }, { hoursForDate: agreedForDate, createdByUid: uid });
+      if (!plainResult.ok) {
+        setAbsenceFormError(plainResult.error);
+        return;
+      }
+      if (applyResult(plainResult, `${absenceTypeById(input.type, absenceTypes).label} registrert.`)) {
+        setAbsenceFormInitial(null);
+        if (plainResult.error) setError(`Noen dager ble ikke ført: ${plainResult.error}`);
+      }
+      return;
+    }
     const result = applyAbsenceForm(state, {
       ...input,
       employeeId,
@@ -1135,12 +1183,6 @@ export default function ArbeidScreen({
     savePrefs(timesheetPrefsPatch('hidden', projectId, hidden));
   }
 
-  function savePins(typeIds) {
-    if (readOnly) return;
-    const wanted = [...new Set((typeIds || []).map((item) => String(item || '').trim()).filter(Boolean))];
-    if (savePrefs({ absencePins: wanted }, 'Fraværskategorier oppdatert.')) setTypePicker(false);
-  }
-
   function saveSide(payload) {
     if (readOnly) return;
     if (!sideForm) return;
@@ -1410,22 +1452,49 @@ export default function ArbeidScreen({
       </TouchableOpacity>
       )}
       <TouchableOpacity
-        onPress={() => setTypePicker(true)}
+        onPress={() => openAbsenceWizard(selectedDay || todayKey)}
         style={[styles.cta, { backgroundColor: colors.brand }, isPhone && styles.ctaPhone]}
         accessibilityRole="button"
+        nativeID="registrer-fravaer"
       >
         <Ionicons name="add" size={18} color="#fff" />
-        <Text style={styles.ctaText}>Legg til fravær / ferie</Text>
+        <Text style={styles.ctaText}>Registrer fravær</Text>
       </TouchableOpacity>
-      {assignedOnly || (personal && familyId !== workspaceId) ? null : (
-      <TouchableOpacity
-        onPress={() => requestShellTab?.('projects')}
-        style={[styles.ctaGhost, { borderColor: colors.line }, isPhone && styles.ctaPhone]}
-        accessibilityRole="button"
-      >
-        <Text style={{ color: colors.ink }}>Åpne prosjekt</Text>
-      </TouchableOpacity>
+    </View>
+  );
+
+  // PC: knappene står i månedslinjen over tabellen, til høyre ved tannhjulet.
+  const gridActions = readOnly ? null : (
+    <>
+      {assignedOnly ? null : (
+        <TouchableOpacity
+          onPress={() => setAddProjectOpen(true)}
+          style={[styles.gridAction, { borderColor: colors.brand, backgroundColor: colors.brand }]}
+          accessibilityRole="button"
+          nativeID="timesheet-add-project"
+        >
+          <Ionicons name="add" size={15} color="#fff" />
+          <Text style={[styles.gridActionText, { color: '#fff' }]}>Legg til prosjekt</Text>
+        </TouchableOpacity>
       )}
+      <TouchableOpacity
+        onPress={() => openAbsenceWizard(selectedDay || todayKey)}
+        style={[styles.gridAction, { borderColor: colors.brand, backgroundColor: colors.brand }]}
+        accessibilityRole="button"
+        nativeID="registrer-fravaer"
+      >
+        <Ionicons name="add" size={15} color="#fff" />
+        <Text style={[styles.gridActionText, { color: '#fff' }]}>Registrer fravær</Text>
+      </TouchableOpacity>
+    </>
+  );
+
+  // PC: «Legg til prosjekt», «Registrer fravær» og tannhjulet til høyre over tabellen, alltid synlige
+  // (tabellen kan rulle sidelengs på smale skjermer).
+  const desktopTools = isPhone ? null : (
+    <View style={[styles.topActions, embedded && styles.topActionsEmbedded]} nativeID="timesheet-tools">
+      {gridActions}
+      {reportGear(0, 28)}
     </View>
   );
 
@@ -1481,23 +1550,6 @@ export default function ArbeidScreen({
     .filter((c) => c.employeeId === employeeId && (c.status === 'dokumentasjon'
       || (c.status === 'avvist' && String(c.handledAt || '').slice(0, 10) >= addMonths(todayIso(), -1))))
     .slice(0, 2);
-
-  // Sykefravær/fravær meldes fra «Legg til fravær / ferie», ikke som egen knapp over tabellen.
-  const reportAbsence = readOnly || !employeeId ? null : (hiredSubject
-    ? {
-      label: 'Meld fravær',
-      detail: 'Gi beskjed til oppdragsgiver om dager du er borte.',
-      icon: 'calendar-clear-outline',
-      nativeID: 'meld-fravaer',
-      onPress: () => setNoticeForm({ fromDate: selectedDay || todayKey, toDate: selectedDay || todayKey }),
-    }
-    : {
-      label: 'Meld sykefravær',
-      detail: 'Egenmelding eller sykt barn. Går til HR.',
-      icon: 'medkit-outline',
-      nativeID: 'meld-sykefravaer',
-      onPress: () => openSickForm({ kind: 'self', fromDate: selectedDay || todayKey, toDate: selectedDay || todayKey }),
-    });
 
   // Leder: hvor timene står i kjeden mot faktura (Timer → Godkjenn → Til fakturering → Faktura).
   const chainLine = !personal && !lockedId && !embedded && manager ? (
@@ -1616,7 +1668,7 @@ export default function ArbeidScreen({
           </TouchableOpacity>
           {reportGear(embedded ? 'auto' : 4)}
         </View>
-        ) : null}
+        ) : desktopTools}
       </View>
       )}
       <MonthJump
@@ -1788,24 +1840,6 @@ export default function ArbeidScreen({
             onNextDay={() => shiftSelected(1)}
             emptyText="Ingen prosjekt i listen. Legg til prosjekt du er deltaker på, eller be en leder legge deg inn på prosjektet."
             rows={[
-              ...pinnedTypes.map((typeId) => {
-                const type = absenceTypeById(typeId);
-                const hours = (state.absences || []).reduce((sum, row) => (
-                  row.employeeId === employeeId && row.date === activeKey && (row.type || 'ferie') === typeId
-                    ? sum + parseHours(row.hours)
-                    : sum
-                ), 0);
-                const day = markedDays.find((item) => item.key === activeKey) || activeDay;
-                return {
-                  id: `abs-${typeId}`,
-                  name: type.label,
-                  customer: 'Fravær',
-                  role: '',
-                  hours,
-                  onPress: () => openAbsenceCell({ id: typeId, label: type.label }, day),
-                  testID: `timesheet-absence-${typeId}`,
-                };
-              }),
               ...shownProjects.map(({ project, member }) => {
                 const cell = entriesByCell.get(entryKey(project.id, activeKey));
                 const hours = cell ? parseHours(cell.hours) : 0;
@@ -1822,6 +1856,20 @@ export default function ArbeidScreen({
                   testID: `timesheet-row-${project.number || project.id}`,
                 };
               }),
+              // Fast linje nederst: alt fravær den dagen, og «Registrer fravær» ved trykk.
+              (() => {
+                const rows = absencesOn(activeKey);
+                const hours = rows.reduce((sum, row) => sum + parseHours(row.hours), 0);
+                return {
+                  id: 'fravaer',
+                  name: 'Fravær',
+                  customer: dayAbsenceSummary(rows, absenceTypes) || 'Trykk for å registrere fravær',
+                  role: '',
+                  hours,
+                  onPress: () => openAbsenceWizard(activeKey),
+                  testID: 'timesheet-absence',
+                };
+              })(),
             ]}
           />
           {actions}
@@ -1829,6 +1877,8 @@ export default function ArbeidScreen({
       ) : null}
       {!isPhone ? (
         <View style={styles.gridBleed}>
+          {/* Inne i ansattkortet har skallet navnet, så knappene står over tabellen. */}
+          {embedded ? desktopTools : null}
           <TimesheetGrid
             colors={colors}
             days={markedDays}
@@ -1838,7 +1888,7 @@ export default function ArbeidScreen({
             onNextMonth={() => monthNav(1)}
             onPickMonth={() => setMonthJump(true)}
             projectHeader={projectSearch}
-            monthCorner={reportGear(0, 28)}
+            monthCorner={null}
             projects={shownProjects.map(({ project, member, starred }) => ({
               project,
               member,
@@ -1849,15 +1899,12 @@ export default function ArbeidScreen({
               },
             }))}
             hiddenProjects={hiddenProjects}
-            absenceRows={pinnedTypes.map((typeId) => ({
-              id: typeId,
-              label: absenceTypeById(typeId).label,
-              hoursFor: (day) => (state.absences || []).reduce((sum, row) => (
-                row.employeeId === employeeId && row.date === day.key && (row.type || 'ferie') === typeId
-                  ? sum + parseHours(row.hours)
-                  : sum
-              ), 0),
-            }))}
+            absenceRows={[{
+              id: 'fravaer',
+              label: 'Fravær',
+              subtitle: 'Trykk på en dag for å registrere',
+              hoursFor: (day) => absencesOn(day.key).reduce((sum, row) => sum + parseHours(row.hours), 0),
+            }]}
             agreedByDay={agreedByDay}
             balanceCells={balanceCells}
             incomingBalance={timebank.incoming}
@@ -1871,7 +1918,7 @@ export default function ArbeidScreen({
             onSelectDay={setSelectedDay}
             onToggleLock={toggleLock}
             onOpenProject={openCell}
-            onOpenAbsence={openAbsenceCell}
+            onOpenAbsence={(row, day) => openAbsenceWizard(day.key)}
             onToggleStar={starProject}
             onHideProject={(projectId) => hideProject(projectId, true)}
             onShowProject={(projectId) => hideProject(projectId, false)}
@@ -1879,7 +1926,7 @@ export default function ArbeidScreen({
         </View>
       ) : null}
 
-      {isPhone ? null : actions}
+      {isPhone || !readOnly ? null : actions}
 
       <TimeEntryModal
         visible={!!editor}
@@ -1908,15 +1955,6 @@ export default function ArbeidScreen({
         date={sideForm?.date || ''}
         onClose={() => setSideForm(null)}
         onSave={saveSide}
-      />
-      <AbsenceTypeModal
-        visible={typePicker}
-        colors={colors}
-        selected={pinnedTypes}
-        types={hiredSubject ? hiredAbsenceTypes() : absenceTypes}
-        reportAction={reportAbsence}
-        onClose={() => setTypePicker(false)}
-        onSave={savePins}
       />
 
       {/* Ansattvelger for leder (bytte etter steg 1) */}
@@ -2015,6 +2053,17 @@ export default function ArbeidScreen({
           openSickForm({ kind: 'child', fromDate, toDate, replaceType: absenceFormInitial?.originType || absenceFormInitial?.type || '' });
         }}
         initial={absenceFormInitial}
+        dayRows={absenceFormInitial?.listDay ? absencesOn(absenceFormInitial.fromDate) : []}
+        onSick={(kind, { fromDate, toDate }) => {
+          setAbsenceFormInitial(null);
+          openSickForm({ kind, fromDate, toDate, replaceType: absenceFormInitial?.originType || absenceFormInitial?.type || '' });
+        }}
+        onEditRow={(row) => {
+          setAbsenceFormInitial(null);
+          const day = markedDays.find((item) => item.key === row.date) || { key: row.date };
+          if (row.formId) openAbsenceForm({ type: row.type, fromDate: row.date, formId: row.formId });
+          else openAbsenceCell({ id: row.type || 'ferie' }, day);
+        }}
         onBehalf={!!selectedEmployee && selectedEmployee.personUid !== uid}
         error={absenceFormError}
         onClose={() => setAbsenceFormInitial(null)}
@@ -2156,6 +2205,12 @@ const styles = StyleSheet.create({
   searchWrapPhone: { maxWidth: '100%', alignSelf: 'stretch' },
   // I «Prosjekt»-cellen i tabellhodet.
   searchWrapGrid: { maxWidth: '100%', alignSelf: 'stretch', marginBottom: 0, paddingVertical: Platform.OS === 'web' ? 6 : 4, paddingHorizontal: 10 },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-end' },
+  topActionsEmbedded: { marginBottom: 6 },
+  gridAction: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1,
+  },
+  gridActionText: { fontSize: 13 },
   gearBtn: {
     width: 40,
     height: 40,

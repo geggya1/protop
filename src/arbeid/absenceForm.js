@@ -470,7 +470,13 @@ export function applyAbsenceForm(state, form, { hoursForDate, createdByUid = '',
     const origin = text(form.originType);
     const existing = mine.find((a) => text(a.date) === day && text(a.formId) === id && text(a.type) === type)
       || mine.find((a) => text(a.date) === day && !text(a.formId) && (text(a.type) === type || (origin && text(a.type) === origin)));
-    const hours = existing ? Number(existing.hours) : hoursOf(day);
+    // Timer per dag fra skjemaet (f.eks. legetime 2 t), ellers timene som står, ellers arbeidsplanen.
+    // Dager uten arbeidstid (helg, fridag) føres ikke.
+    const planned = hoursOf(day);
+    const fixed = Number(form.hoursPerDay);
+    const hours = fixed > 0
+      ? (planned > 0 || existing ? Math.min(fixed, planned > 0 ? planned : fixed) : 0)
+      : (existing ? Number(existing.hours) : planned);
     if (!(hours > 0)) continue;
     const result = addAbsence(next, {
       id: existing?.id || '',
@@ -499,6 +505,101 @@ export function applyAbsenceForm(state, form, { hoursForDate, createdByUid = '',
     return { ok: false, state, error: failed[0] || 'Ingen arbeidsdager i perioden.', absenceIds: [] };
   }
   return { ok: true, state: next, error: failed.join(' '), absenceIds: ids, formId: id };
+}
+
+/**
+ * Fravær uten skjema (ferie, avspasering, interntid o.l.): én rad per arbeidsdag i perioden.
+ * Står samme type allerede på dagen, endres timene på den raden.
+ */
+export function applyPlainAbsence(state, input, { hoursForDate, createdByUid = '' } = {}) {
+  const employeeId = text(input.employeeId);
+  const type = text(input.type);
+  const fromDate = text(input.fromDate);
+  const toDate = text(input.toDate) || fromDate;
+  if (!employeeId) return { ok: false, state, error: 'Velg medarbeider.', absenceIds: [] };
+  if (!type) return { ok: false, state, error: 'Velg fraværstype.', absenceIds: [] };
+  if (!isIsoDate(fromDate) || !isIsoDate(toDate) || toDate < fromDate) {
+    return { ok: false, state, error: 'Velg gyldig periode.', absenceIds: [] };
+  }
+  if (calendarDays(fromDate, toDate) > ABSENCE_FORM_MAX_DAYS) return { ok: false, state, error: 'Perioden kan være høyst ett år.', absenceIds: [] };
+  const hoursOf = typeof hoursForDate === 'function' ? hoursForDate : () => 0;
+  const fixed = Number(input.hoursPerDay);
+  let next = state;
+  const ids = [];
+  const failed = [];
+  for (let day = fromDate; day && day <= toDate; day = addDays(day, 1)) {
+    const planned = hoursOf(day);
+    if (!(planned > 0)) continue;
+    const hours = fixed > 0 ? Math.min(fixed, planned) : planned;
+    const existing = (next.absences || []).find((a) => text(a.employeeId) === employeeId && text(a.date) === day && text(a.type) === type);
+    const result = addAbsence(next, {
+      id: existing?.id || '',
+      employeeId,
+      employeeName: text(input.employeeName) || existing?.employeeName,
+      date: day,
+      hours,
+      type,
+      description: text(input.note) || existing?.description || '',
+      createdByUid: existing?.createdByUid || createdByUid,
+    });
+    if (!result.ok) {
+      failed.push(`${day}: ${result.error}`);
+      continue;
+    }
+    next = result.state;
+    const saved = (next.absences || []).find((a) => text(a.employeeId) === employeeId && text(a.date) === day && text(a.type) === type);
+    if (saved) ids.push(saved.id);
+  }
+  if (!ids.length) return { ok: false, state, error: failed[0] || 'Ingen arbeidsdager i perioden.', absenceIds: [] };
+  return { ok: true, state: next, error: failed.join(' '), absenceIds: ids };
+}
+
+/**
+ * Valgene i «Registrer fravær», i den rekkefølgen en ansatt tenker: hva skjedde?
+ * kind: 'sick' (egenmeldingsskjemaet), 'plain' (bare timer), 'form' (fraværsskjema med
+ * grunnlag) eller 'pick' (velg blant undervalgene / bedriftens øvrige typer).
+ */
+export const WIZARD_GROUPS = [
+  { id: 'syk', icon: 'medkit-outline', label: 'Syk selv', help: 'Egenmelding eller sykmelding. Går til leder og HR.', kind: 'sick', sick: 'self' },
+  { id: 'sykt_barn', icon: 'happy-outline', label: 'Sykt barn', help: 'Barnet eller barnepasseren er syk. Omsorgsdager med lønn (ftrl. § 9-5).', kind: 'sick', sick: 'child' },
+  { id: 'ferie', icon: 'sunny-outline', label: 'Ferie', help: 'Ferie fra feriesaldoen.', kind: 'plain', type: 'ferie' },
+  { id: 'avspasering', icon: 'swap-horizontal-outline', label: 'Avspasering', help: 'Fri som trekkes fra timebanken.', kind: 'plain', type: 'avspasering' },
+  { id: 'lege', icon: 'medical-outline', label: 'Lege, tannlege eller spesialist', help: 'Egen time eller med barnet. Lønn etter bedriftens avtale.', kind: 'form', category: 'lege' },
+  {
+    id: 'familie',
+    icon: 'people-outline',
+    label: 'Graviditet, fødsel og småbarn',
+    help: 'Svangerskapskontroll, foreldrepermisjon, ammefri og pleie av sykt barn.',
+    kind: 'pick',
+    options: ['svangerskapskontroll', 'foreldre', 'omsorg_fodsel', 'ammefri', 'pleie_barn'],
+  },
+  {
+    id: 'permisjon',
+    icon: 'briefcase-outline',
+    label: 'Permisjon og velferd',
+    help: 'Begravelse, flytting, omsorg for familie, religiøs høytid, verv, militærtjeneste, utdanning.',
+    kind: 'pick',
+    options: ['velferd', 'naerstaende', 'livets_sluttfase', 'religios', 'verv', 'militaer', 'utdanning'],
+  },
+  { id: 'kurs', icon: 'school-outline', label: 'Kurs eller seminar', help: 'Pålagt kurs er arbeidstid. Kurs etter eget ønske etter avtale.', kind: 'form', category: 'kurs' },
+  { id: 'annet', icon: 'ellipsis-horizontal-circle-outline', label: 'Annet', help: 'Interntid, reisetid, permittering og bedriftens egne fraværstyper.', kind: 'pick', options: 'types' },
+];
+
+const WIZARD_TYPES_SKIP = new Set(['ferie', 'avspasering', 'foreldre', 'lege_med', 'lege_uten', 'seminar_med', 'seminar_uten', NOTICE_TYPE_ID]);
+
+/** Bedriftens øvrige fraværstyper under «Annet» (ikke sykdom og ikke typer som har egne valg over). */
+export function wizardOtherTypes(catalog) {
+  return (Array.isArray(catalog) ? catalog : [])
+    .filter((row) => row && !row.legacy && !WIZARD_TYPES_SKIP.has(text(row.id)) && !sickKind(row.id, catalog) && row.category !== 'Ferie')
+    .map((row) => ({ id: text(row.id), label: text(row.label) || text(row.id), needsForm: needsAbsenceForm(row.id, catalog) }));
+}
+
+/** Kort linje om fraværet på én dag (for linjen «Fravær» i timelisten). */
+export function dayAbsenceSummary(rows, catalog) {
+  const list = (Array.isArray(rows) ? rows : []).filter((row) => Number(row?.hours) > 0);
+  if (!list.length) return '';
+  const names = [...new Set(list.map((row) => absenceTypeById(row.type, catalog).label))];
+  return names.join(', ');
 }
 
 /** Skjemaet slik det står på dagene i timelisten (for å åpne og endre det). */

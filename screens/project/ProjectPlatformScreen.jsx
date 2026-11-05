@@ -13,7 +13,7 @@ import { mergeCompanyProfile } from '../../src/project/companyLogo';
 import { companyAddressLabel, companyAddressParts } from '../../src/mileage/flow';
 import { companyContextLabel } from '../../src/project/companyOffer';
 import CompanyLogoSettings from '../../components/CompanyLogoSettings';
-import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
+import LinkedCompaniesSettings from '../../components/intercompany/LinkedCompaniesSettings';
 import CompanyAccessSettings, { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import CompanyModuleSettings from '../../components/project/CompanyModuleSettings';
 import ModuleActivationSettings from '../../components/ModuleActivationSettings';
@@ -34,6 +34,7 @@ const SETTINGS_THREE_COLS = 1720;
 function initialCompanyPage(startPage) {
   if (startPage === 'tilgang') return 'tilgang';
   if (startPage === 'moduler') return 'moduler';
+  if (startPage === 'tilknyttede') return 'tilknyttede';
   return 'innstillinger';
 }
 
@@ -91,6 +92,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   const owner = isSuperAdmin(family, uid);
   const canEdit = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.canAdmin('companyProfile'));
   const canOpenSettings = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.canView('companyProfile'));
+  const canOpenLinked = (owner && !access.previewLocks('units')) || (access.ready && access.canView('units'));
   // Endre andres tilgang: Begrenset redigering på Tilgangsstyring (Øverste leder har det som standard).
   // Endre selve nivåene: Admin. Taket (ikke seg selv, ikke over eget nivå) ligger i accessCeiling.
   const canEditAccess = (owner && !access.previewLocks('accessControl'))
@@ -253,24 +255,14 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
       hint="Tilknyttede selskaper, underenheter og avdelinger"
       colors={colors}
     >
-      <CompanyStructureSettings
-        company={company}
-        familyId={familyId}
-        families={families || []}
-        canEdit={canEdit}
-        colors={colors}
-        busy={busy}
-        setBusy={setBusy}
-        setError={setError}
-        userProfile={userProfile}
-        onSaved={async (next) => {
-          await savePatch(familyId, { company: next });
-        }}
-        onOpenCompany={(id) => {
-          selectFamily?.(id);
-          requestShellTab?.('selskap');
-        }}
-      />
+      <TouchableOpacity
+        onPress={() => requestShellTab?.('selskap', 'tilknyttede')}
+        accessibilityRole="button"
+        accessibilityLabel="Tilknyttede selskaper"
+        style={[styles.btn, { backgroundColor: colors.sunken }]}
+      >
+        <Text style={[styles.btnText, { color: colors.ink }]}>Tilknyttede selskaper og avtaler</Text>
+      </TouchableOpacity>
       <TouchableOpacity
         onPress={() => requestShellTab?.('selskap', 'underenheter')}
         accessibilityRole="button"
@@ -388,7 +380,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   return (
     <View nativeID="company-page" id="company-page" dataSet={{ companyPage: '1' }} style={styles.fill}>
     <ScrollView
-      contentContainerStyle={[styles.body, page === 'tilgang' || page === 'moduler' || settingsCols > 1 ? styles.bodyAccess : null]}
+      contentContainerStyle={[styles.body, page === 'tilgang' || page === 'moduler' || page === 'tilknyttede' || settingsCols > 1 ? styles.bodyAccess : null]}
       keyboardShouldPersistTaps="handled"
       onLayout={(event) => setBodyWidth(Math.round(event.nativeEvent.layout.width))}
     >
@@ -397,7 +389,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
           <Text style={{ color: colors.brand, fontWeight: '600' }}>‹ {returnTo.label || 'Tilbake'}</Text>
         </TouchableOpacity>
       ) : null}
-      {page === 'tilgang' || page === 'moduler' ? (
+      {page === 'tilgang' || page === 'moduler' || page === 'tilknyttede' ? (
         <TouchableOpacity onPress={() => requestShellTab?.('selskap', 'innstillinger')} accessibilityRole="button">
           <Text style={{ color: colors.brand, fontWeight: '400' }}>Tilbake til selskapsinnstillinger</Text>
         </TouchableOpacity>
@@ -483,6 +475,23 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
             >
               <ModuleActivationSettings showCategories={false} scope="company" canEdit={companyModules.canManage} />
             </SettingsSection>
+          </>
+        ) : (
+          <CompanyAccessDenied colors={colors} />
+        )
+      ) : null}
+
+      {page === 'tilknyttede' ? (
+        !access.ready && !owner ? (
+          <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
+        ) : canOpenLinked ? (
+          <>
+            <UnlessShellTitle title="Tilknyttede selskaper">
+              <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
+                Tilknyttede selskaper
+              </Text>
+            </UnlessShellTitle>
+            <LinkedCompaniesSettings colors={colors} />
           </>
         ) : (
           <CompanyAccessDenied colors={colors} />

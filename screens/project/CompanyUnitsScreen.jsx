@@ -1,58 +1,48 @@
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { isSuperAdmin, updateGroupCompany } from '../../src/utils/groups';
+import { isSuperAdmin } from '../../src/utils/groups';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useLayout } from '../../src/theme';
 import { ShellPageHeroContext } from '../../components/ShellHeader';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useShellPageHero } from '../../src/hooks/useShellPageHero';
-import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
-import IntercompanyPanel from '../../components/intercompany/IntercompanyPanel';
 import CompanyGroupChart, { GroupYearButton } from '../../components/project/CompanyGroupChart';
-import {
-  OWNERSHIP_LEVELS,
-  normalizeGroupChartSettings,
-} from '../../src/project/groupChart';
+import { normalizeGroupChartSettings } from '../../src/project/groupChart';
 import { digitsOrgnr } from '../../src/project/companyRegistry';
 import { findOwnedOrganization, underenheterOf } from '../../src/project/companyUnits';
 import { aliasFamilyIds } from '../../src/utils/platformSwitch';
-import { isSameCompany } from '../../src/intercompany/model';
 
-function GearButton({ open, colors, onPress }) {
+function GearButton({ colors, onPress }) {
   return (
     <Pressable
       nativeID="company-units-gear"
       accessibilityRole="button"
-      accessibilityLabel="Innstillinger for underenheter"
-      accessibilityState={{ expanded: open }}
+      accessibilityLabel="Innstillinger for tilknyttede selskaper"
       onPress={onPress}
-      style={[styles.gear, {
-        borderColor: open ? colors.brand : colors.line,
-        backgroundColor: open ? colors.brandSoft : colors.card,
-      }]}
+      style={[styles.gear, { borderColor: colors.line, backgroundColor: colors.card }]}
     >
-      <Ionicons name="settings-outline" size={18} color={open ? colors.brand : colors.ink} />
+      <Ionicons name="settings-outline" size={18} color={colors.ink} />
     </Pressable>
   );
 }
 
-function HeadingActions({ yearControl, open, colors, onPress }) {
+function HeadingActions({ yearControl, colors, onPress }) {
   return (
     <View style={styles.headingActions}>
       {yearControl}
-      {onPress ? <GearButton open={open} colors={colors} onPress={onPress} /> : null}
+      {onPress ? <GearButton colors={colors} onPress={onPress} /> : null}
     </View>
   );
 }
 
-function PageHeading({ name, colors, open, onPress, yearControl, wide }) {
+function PageHeading({ name, colors, onPress, yearControl, wide }) {
   const actions = (
-    <HeadingActions yearControl={yearControl} open={open} colors={colors} onPress={onPress} />
+    <HeadingActions yearControl={yearControl} colors={colors} onPress={onPress} />
   );
   return (
     <View nativeID="company-units-heading" style={styles.heading}>
@@ -80,28 +70,17 @@ export default function CompanyUnitsScreen() {
   const hosted = useModuleHeroHosted();
   const inChrome = !isDesktop && !!heroCtx?.claim && !hosted;
   const {
-    family, familyId, families, applyFamilyPatch, requestShellTab, uid, userProfile, selectFamily,
+    family, familyId, families, requestShellTab, uid, selectFamily,
   } = useApp();
   const company = family?.company?.navn ? family.company : null;
   const access = useCompanyAccess();
-  // Innstillingene (tannhjulet) er bare for Admin på underenheter.
+  // Tannhjulet (Bedriftsinnstillinger → Tilknyttede selskaper) er bare for Admin på underenheter.
   const canEdit = (isSuperAdmin(family, uid) && !access.previewLocks('units')) || (access.ready && access.canAdmin('units'));
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settings, setSettings] = useState(() => normalizeGroupChartSettings(company?.groupChart));
+  const settings = useMemo(() => normalizeGroupChartSettings(company?.groupChart), [company?.groupChart]);
   const [year, setYear] = useState(null);
   const [yearOpen, setYearOpen] = useState(false);
   const [years, setYears] = useState([]);
-  const scrollRef = useRef(null);
-  const settingsKey = `${company?.groupChart?.minOwnership ?? ''}:${company?.groupChart?.showUnits ?? ''}`;
-
   useEffect(() => {
-    setSettings(normalizeGroupChartSettings(company?.groupChart));
-  }, [settingsKey, familyId]);
-
-  useEffect(() => {
-    setSettingsOpen(false);
     setYear(null);
     setYearOpen(false);
   }, [familyId]);
@@ -110,37 +89,7 @@ export default function CompanyUnitsScreen() {
     setYears(Array.isArray(next) ? next : []);
   }, []);
 
-  const toggleSettings = useCallback(() => {
-    setSettingsOpen((open) => {
-      if (!open) scrollRef.current?.scrollTo?.({ y: 0, animated: true });
-      return !open;
-    });
-  }, []);
-
-  // Selskaper koblet med den gamle koblingen (uten godkjenning). Panelet tilbyr å bekrefte dem.
-  // Selskapet selv (samme org.nr., eller underenhet og hovedenhet med samme navn) er aldri med.
-  const legacyLinks = useMemo(() => {
-    const hidden = new Set(aliasFamilyIds({ id: familyId, name: company?.navn, company }, families || []));
-    const own = { ...(family || {}), id: familyId };
-    const ownName = String(company?.navn || family?.name || '').trim().toLocaleLowerCase('nb');
-    const known = (id) => (families || []).find((row) => row?.id === id) || null;
-    const rows = [];
-    if (family?.parentCompanyId && !family?.parentLinkId && !hidden.has(family.parentCompanyId)) {
-      const name = family.parentCompanyName || 'Morselskap';
-      const other = known(family.parentCompanyId);
-      const self = other
-        ? isSameCompany(own, other)
-        : !!ownName && String(name).trim().toLocaleLowerCase('nb') === ownName;
-      if (!self) rows.push({ ...(other || {}), companyId: family.parentCompanyId, name, role: 'parent' });
-    }
-    for (const unit of underenheterOf(company?.subUnits)) {
-      if (!unit.companyId || hidden.has(unit.companyId)) continue;
-      const other = known(unit.companyId) || { orgnr: unit.organisasjonsnummer, name: unit.name };
-      if (isSameCompany(own, other)) continue;
-      rows.push({ ...other, companyId: unit.companyId, name: unit.name, role: 'child' });
-    }
-    return rows;
-  }, [family, familyId, company, families]);
+  const openSettings = useCallback(() => requestShellTab?.('selskap', 'tilknyttede'), [requestShellTab]);
 
   const yearControl = (
     <GroupYearButton
@@ -160,36 +109,12 @@ export default function CompanyUnitsScreen() {
     <PageHeading
       name={company?.navn || ''}
       colors={colors}
-      open={settingsOpen}
-      onPress={canEdit ? toggleSettings : null}
+      onPress={canEdit ? openSettings : null}
       wide={isDesktop}
       yearControl={yearControl}
     />
-  ), [company?.navn, colors, settingsOpen, toggleSettings, canEdit, years, year, yearOpen, isDesktop]);
+  ), [company?.navn, colors, openSettings, canEdit, years, year, yearOpen, isDesktop]);
   useShellPageHero(inChrome ? heading : null, { active: inChrome });
-
-  async function saveCompany(next) {
-    if (!familyId) return;
-    // Felt for felt, så en eldre kopi ikke stiller tilgangsmatrisen tilbake.
-    await updateGroupCompany(familyId, company, next);
-    applyFamilyPatch?.(familyId, { company: next });
-  }
-
-  async function saveView(next) {
-    const prefs = normalizeGroupChartSettings(next);
-    setSettings(prefs);
-    if (!canEdit || !company) return;
-    setBusy(true);
-    setError('');
-    try {
-      await saveCompany({ ...company, groupChart: prefs });
-    } catch (err) {
-      setSettings(normalizeGroupChartSettings(company.groupChart));
-      setError(err?.message || 'Kunne ikke lagre visningen.');
-    } finally {
-      setBusy(false);
-    }
-  }
 
   const hidden = useMemo(
     () => new Set(aliasFamilyIds({ id: familyId, name: company?.navn, company }, families || [])),
@@ -215,7 +140,6 @@ export default function CompanyUnitsScreen() {
 
   return (
     <ScrollView
-      ref={scrollRef}
       nativeID="company-units-page"
       id="company-units-page"
       contentContainerStyle={styles.inner}
@@ -226,70 +150,11 @@ export default function CompanyUnitsScreen() {
           <View style={{ flex: 1 }} />
           <HeadingActions
             yearControl={yearControl}
-            open={settingsOpen}
             colors={colors}
-            onPress={canEdit ? toggleSettings : null}
+            onPress={canEdit ? openSettings : null}
           />
         </View>
       ) : (inChrome ? null : heading)}
-      {!!error && <Text style={{ color: colors.danger, fontWeight: '400' }}>{error}</Text>}
-      {settingsOpen && canEdit ? (
-        <View nativeID="company-units-settings" style={styles.settings}>
-          <Text style={[styles.section, { color: colors.ink }]}>Visning</Text>
-          <Text style={[styles.hint, { color: colors.muted }]}>
-            Terskelen gjelder eierandeler i Aksjonærregisteret.
-          </Text>
-          <View style={styles.choices}>
-            {OWNERSHIP_LEVELS.map((level) => {
-              const active = settings.minOwnership === level.id;
-              return (
-                <Pressable
-                  key={level.id}
-                  nativeID={`group-ownership-${level.id}`}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  disabled={busy}
-                  onPress={() => saveView({ ...settings, minOwnership: level.id })}
-                  style={[styles.choice, {
-                    borderColor: active ? colors.brand : colors.line,
-                    backgroundColor: active ? colors.brandSoft : colors.card,
-                  }]}
-                >
-                  <Text style={{ color: active ? colors.brand : colors.ink, fontWeight: '600', fontSize: 13 }}>{level.label}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>{level.hint}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <Text style={[styles.section, { color: colors.ink }]}>Knytt selskaper i ProTop</Text>
-          <CompanyStructureSettings
-            company={{ ...company, groupChart: settings }}
-            familyId={familyId}
-            families={families || []}
-            canEdit={canEdit}
-            colors={colors}
-            busy={busy}
-            setBusy={setBusy}
-            setError={setError}
-            userProfile={userProfile}
-            onSaved={saveCompany}
-            onOpenCompany={(id) => {
-              selectFamily?.(id);
-              requestShellTab?.('selskap');
-            }}
-          />
-        </View>
-      ) : null}
-      <Text style={[styles.section, { color: colors.ink }]}>Tilknyttede selskaper</Text>
-      <IntercompanyPanel
-        familyId={familyId}
-        family={family}
-        colors={colors}
-        canEdit={canEdit}
-        actorName={userProfile?.name || ''}
-        legacy={legacyLinks}
-      />
       <CompanyGroupChart
         company={company}
         settings={settings}
@@ -323,18 +188,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  settings: { gap: 10, maxWidth: 920 },
-  section: { fontSize: 16, fontWeight: '600', marginTop: 4 },
-  hint: { fontSize: 13, lineHeight: 18 },
-  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  choice: {
-    flexGrow: 1,
-    flexBasis: 140,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 2,
   },
 });

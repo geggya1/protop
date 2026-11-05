@@ -140,9 +140,11 @@ function idsIn(sections) {
   assert.equal(settings.action.subView, 'innstillinger');
   assert.deepEqual(
     settings.children.map((i) => i.label),
-    ['Modulinnstillinger', 'Tilgangsstyring'],
+    ['Modulinnstillinger', 'Tilgangsstyring', 'Tilknyttede selskaper'],
   );
   assert.equal(settings.children[1].action.subView, 'tilgang');
+  assert.equal(settings.children[2].action.subView, 'tilknyttede');
+  assert.ok(settings.activeSubViews.includes('tilknyttede'));
   // Bedrift › Ansatt: egne sider, låst til innlogget bruker.
   const own = (id) => companyItems.find((i) => i.id === id).action;
   assert.deepEqual(own('ansatt-minside'), { type: 'tab', tab: 'ansatte', subView: 'min-side' });
@@ -354,7 +356,7 @@ assert.match(orgScreen, /width: 320/);
 
 const company = readFileSync(new URL('../../screens/project/ProjectPlatformScreen.jsx', import.meta.url), 'utf8');
 assert.equal(/fontWeight:\s*'[7-9]00'/.test(company), false);
-assert.match(company, /CompanyStructureSettings/);
+assert.match(company, /LinkedCompaniesSettings/);
 assert.match(company, /dataSet=\{\{ heading: '1' \}\}/);
 assert.match(company, /alignSelf: 'flex-start'/);
 assert.match(company, /requestShellTab\?\.\('selskap', 'underenheter'\)/);
@@ -412,7 +414,8 @@ assert.match(economyWelcome, /nativeID="economy-accounts"/);
 
 const unitsScreen = readFileSync(new URL('../../screens/project/CompanyUnitsScreen.jsx', import.meta.url), 'utf8');
 assert.match(unitsScreen, /Underenheter/);
-assert.match(unitsScreen, /CompanyStructureSettings/);
+assert.doesNotMatch(unitsScreen, /CompanyStructureSettings/);
+assert.match(readFileSync(new URL('../../components/intercompany/LinkedCompaniesSettings.jsx', import.meta.url), 'utf8'), /CompanyStructureSettings/);
 
 const appSrc = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8');
 assert.match(appSrc, /StackShellChrome title="Velg organisasjon"/);
@@ -748,7 +751,7 @@ function collectPresented(items, acc = []) {
   assert.equal(companySettings.children, undefined);
   assert.deepEqual(
     companySettings.pages.map((item) => item.id),
-    ['selskapsinnstillinger-moduler', 'selskapsinnstillinger-tilgang'],
+    ['selskapsinnstillinger-moduler', 'selskapsinnstillinger-tilgang', 'selskapsinnstillinger-tilknyttede'],
   );
   const tenders = presented.find((item) => item.id === 'company-tenders');
   assert.equal(customers.children.some((item) => item.id === 'anbud'), false);

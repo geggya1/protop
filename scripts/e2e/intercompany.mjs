@@ -153,8 +153,8 @@ async function writeState(companyId, mutate) {
 const mor = await login(MOR.email, 'desktop', 'mor');
 const datter = await login(DATTER.email, 'desktop', 'datter');
 
-await step('Mor: Underenheter viser Tilknyttede selskaper', async () => {
-  await open(mor.page, 'selskap', 'underenheter');
+await step('Mor: Bedriftsinnstillinger viser Tilknyttede selskaper', async () => {
+  await open(mor.page, 'selskap', 'tilknyttede');
   await seeText(mor.page, 'Tilknyttede selskaper');
   return shot(mor.page, 'mor-underenheter');
 });
@@ -179,7 +179,7 @@ await step('Mor: ber Datter om tilknytning som datterselskap', async () => {
 });
 
 await step('Datter: ser forespørselen og godtar', async () => {
-  await open(datter.page, 'selskap', 'underenheter');
+  await open(datter.page, 'selskap', 'tilknyttede');
   await seeText(datter.page, 'Svar trengs', 60000);
   await shot(datter.page, 'datter-innkommende');
   await clickId(datter.page, `[id^="ic-accept-"]`);
@@ -195,7 +195,7 @@ await step('Datter: ser forespørselen og godtar', async () => {
 });
 
 await step('Mor: avtalen vises som aktiv', async () => {
-  await open(mor.page, 'selskap', 'underenheter');
+  await open(mor.page, 'selskap', 'tilknyttede');
   await seeText(mor.page, 'Datter Elektro AS', 30000);
   await seeText(mor.page, 'Foreslå nye priser', 30000);
   return shot(mor.page, 'mor-aktiv');
@@ -361,7 +361,7 @@ await step('Mor og Datter: prosjektlisten merker felles prosjekter', async () =>
 });
 
 await step('Mor: knytter til en samarbeidspartner (ikke konsern), partneren godtar', async () => {
-  await open(mor.page, 'selskap', 'underenheter');
+  await open(mor.page, 'selskap', 'tilknyttede');
   await clickId(mor.page, '#ic-new');
   await fillId(mor.page, '#ic-orgnr', PARTNER.orgnr);
   await seeText(mor.page, 'Partner Rør AS finnes i ProTop', 30000);
@@ -370,7 +370,7 @@ await step('Mor: knytter til en samarbeidspartner (ikke konsern), partneren godt
   await clickId(mor.page, '#ic-send');
   await seeText(mor.page, 'Forespørselen er sendt', 60000);
   const partner = await login(PARTNER.email, 'desktop', 'partner');
-  await open(partner.page, 'selskap', 'underenheter');
+  await open(partner.page, 'selskap', 'tilknyttede');
   await seeText(partner.page, 'som samarbeidspartner', 60000);
   await shot(partner.page, 'partner-innkommende');
   await clickId(partner.page, '[id^="ic-accept-"]');
@@ -386,7 +386,7 @@ await step('Mor: knytter til en samarbeidspartner (ikke konsern), partneren godt
 });
 
 await step('Mor: fordeler nummerserier i konsernet (ikke til partneren)', async () => {
-  await open(mor.page, 'selskap', 'underenheter');
+  await open(mor.page, 'selskap', 'tilknyttede');
   await seeText(mor.page, 'Nummerserier i konsernet', 60000);
   await clickId(mor.page, '#ic-series-edit');
   await clickId(mor.page, '#ic-series-suggest');
@@ -422,7 +422,7 @@ await step('Datter: ser nummerserien fra morselskapet', async () => {
   await datter.page.reload({ waitUntil: 'domcontentloaded' });
   await datter.page.waitForFunction(() => !!window.__protopBot, null, { timeout: 240000 });
   await datter.page.waitForTimeout(2500);
-  await open(datter.page, 'selskap', 'underenheter');
+  await open(datter.page, 'selskap', 'tilknyttede');
   await seeText(datter.page, 'Nummerserie i konsernet', 60000);
   await seeText(datter.page, '20000–29999', 30000);
   return shot(datter.page, 'datter-nummerserie');
@@ -431,9 +431,9 @@ await step('Datter: ser nummerserien fra morselskapet', async () => {
 await mor.browser.close();
 await datter.browser.close();
 
-await step('Mobil: Underenheter og Team hos Mor', async () => {
+await step('Mobil: Tilknyttede selskaper og Team hos Mor', async () => {
   const phone = await login(MOR.email, 'phone', 'mor-mobil');
-  await open(phone.page, 'selskap', 'underenheter');
+  await open(phone.page, 'selskap', 'tilknyttede');
   await seeText(phone.page, 'Tilknyttede selskaper', 60000);
   await shot(phone.page, 'mobil-underenheter');
   await phone.page.evaluate(() => window.scrollBy(0, 400));

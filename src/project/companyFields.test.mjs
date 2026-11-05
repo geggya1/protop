@@ -21,7 +21,7 @@ assert.deepEqual(companyFieldChanges(null, { navn: 'A' }), { set: { navn: 'A' },
 const read = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8');
 const platform = read('../../screens/project/ProjectPlatformScreen.jsx');
 assert.match(platform, /if \(nextCompany\) await updateGroupCompany\(id, company, nextCompany, rest\);/);
-assert.match(read('../../screens/project/CompanyUnitsScreen.jsx'), /await updateGroupCompany\(familyId, company, next\);/);
+assert.match(read('../../components/intercompany/LinkedCompaniesSettings.jsx'), /await updateGroupCompany\(familyId, company, next\);/);
 assert.match(read('../../screens/project/CompanyDesktopLanding.jsx'), /await updateGroupCompany\(familyId, stored, company\);/);
 assert.match(read('../utils/groups.js'), /patch\[`company\.\$\{key\}`\] = deleteField\(\);/);
 

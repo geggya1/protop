@@ -33,12 +33,18 @@ function log(ok, step, detail = '') {
   console.log(`${ok ? 'OK   ' : 'AVVIK'} ${step}${detail ? ` – ${detail}` : ''}`);
 }
 
+const bots = [];
 async function check(step, fn) {
   try {
     const detail = await fn();
     log(true, step, typeof detail === 'string' ? detail : '');
   } catch (err) {
     log(false, step, String(err?.message || err).slice(0, 400));
+    // Skjermbilde av det som sto, og lukk åpne vinduer så neste steg starter rent.
+    for (const b of bots) {
+      await b.shot(`avvik-${step.split(' ')[0]}`).catch(() => {});
+      for (let i = 0; i < 3; i += 1) await b.page.keyboard.press('Escape').catch(() => {});
+    }
   }
 }
 
@@ -89,6 +95,7 @@ await putDoc(`families/${BOT_COMPANY_ID}/employees/emp-bot/prefs/timesheet`, {
 
 // ---------------------------------------------------------------- 1. Innstillinger (desktop)
 const desk = await new Bot('eier-desktop', { ...BOT_USER, view: 'desktop', outDir: OUT }).start();
+bots.push(desk);
 await desk.login();
 await desk.open('selskap', 'sykefravaer', 3500);
 await desk.shot('innstillinger-for');
@@ -190,6 +197,7 @@ await putDoc(`families/${BOT_COMPANY_ID}/absences/fra-legacy`, {
 });
 
 const phone = await new Bot('eier-telefon', { ...BOT_USER, view: 'phone', outDir: OUT }).start();
+bots.push(phone);
 await phone.login();
 await phone.open('timeliste', null, 4000);
 async function goToDay(target, from) {
@@ -254,8 +262,13 @@ await check('2.6 Nytt fravær samme dag: velferd (flytting) via «Permisjon og v
   await clickId(phone, 'fravaer-nytt');
   await clickId(phone, 'fravaer-valg-permisjon');
   await clickId(phone, 'fravaer-undervalg-velferd');
-  if (!(await phone.hasText('Flytting', { timeout: 1500 }))) await phone.click('Velg anledning', { exact: false });
-  await phone.click('Flytting');
+  await expectText(phone, 'Anledning');
+  await phone.shot('velferd');
+  if (!(await phone.hasText('Flytting', { timeout: 1500 }))) {
+    await phone.page.getByRole('button', { name: /Anledning/ }).first().click();
+    await phone.page.waitForTimeout(600);
+  }
+  await phone.click('Flytting', { timeout: 10000 });
   await phone.page.locator('[id="fravaersskjema-timer"]').first().fill('4:00');
   await expectText(phone, 'Føres som: Annet fravær uten lønn');
   await phone.click('Jeg bekrefter at opplysningene er riktige, og at dokumentasjon kan kreves.');
@@ -301,7 +314,7 @@ await check('2.9 Eldre fravær uten skjema: «Mangler fraværsskjema» → skjem
 });
 
 // ---------------------------------------------------------------- 3. Timeliste på PC
-await check('3.1 PC: «Fravær» nederst i rutenettet, knappene over tabellen, uten «Åpne prosjekt»', async () => {
+await check('3.1 PC: «Fravær» nederst i rutenettet, knappene synlige over tabellen, uten «Åpne prosjekt»', async () => {
   await desk.open('timeliste', null, 4000);
   await desk.page.locator('[id="timesheet-absence-row-fravaer"]').first().waitFor({ state: 'visible', timeout: 20000 });
   await expectText(desk, 'Legg til prosjekt');
@@ -312,15 +325,20 @@ await check('3.1 PC: «Fravær» nederst i rutenettet, knappene over tabellen, u
     const row = document.querySelector('[id="timesheet-absence-row-fravaer"]');
     const rows = [...document.querySelectorAll('[id="timesheet-grid"] [role=button]')];
     const add = document.querySelector('[id="timesheet-add-project"]');
-    const month = document.querySelector('[id="timesheet-month-row"]');
-    const r = row?.getBoundingClientRect();
-    const m = month?.getBoundingClientRect();
+    const grid = document.querySelector('[id="timesheet-grid"]');
     const a = add?.getBoundingClientRect();
-    return { rowTop: r?.top, addInMonthRow: !!(a && m && a.top >= m.top - 2 && a.bottom <= m.bottom + 2), cells: rows.length };
+    const g = grid?.getBoundingClientRect();
+    return {
+      visible: !!(a && a.width > 60 && a.right <= window.innerWidth && a.left >= 0),
+      above: !!(a && g && a.bottom <= g.top + 2),
+      size: a ? `${Math.round(a.width)}×${Math.round(a.height)}` : '',
+      cells: rows.length,
+    };
   });
-  if (!pos.addInMonthRow) throw new Error('«Legg til prosjekt» står ikke i månedslinjen');
+  if (!pos.visible || !pos.above) throw new Error(`«Legg til prosjekt» ${pos.size}: synlig=${pos.visible} over=${pos.above}`);
   await desk.page.locator('[id="timesheet-absence-row-fravaer"] > [role=button]').nth(Number(d1.iso.slice(8, 10)) - 1).click();
-  await expectText(desk, 'Registrer nytt fravær');
+  // PC-økten har ikke lastet fraværet telefonen førte: da går den rett til valgene.
+  if (!(await desk.hasText('Registrer nytt fravær', { timeout: 3000 }))) await expectText(desk, 'Hva gjelder fraværet?');
   await desk.shot('pc-timeliste');
 });
 

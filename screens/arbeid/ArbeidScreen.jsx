@@ -1475,6 +1475,15 @@ export default function ArbeidScreen({
     </>
   );
 
+  // PC: «Legg til prosjekt», «Registrer fravær» og tannhjulet til høyre over tabellen, alltid synlige
+  // (tabellen kan rulle sidelengs på smale skjermer).
+  const desktopTools = isPhone ? null : (
+    <View style={[styles.topActions, embedded && styles.topActionsEmbedded]} nativeID="timesheet-tools">
+      {gridActions}
+      {reportGear(0, 28)}
+    </View>
+  );
+
   const companyLabel = companyDisplayName(policySource);
   const crumb = timesheetCrumb({ personal, locked: !!lockedId, companyLabel });
   // Bedriftens timeliste: brødsmule fra menyen. Personlig: «Timeliste · bedrift».
@@ -1645,7 +1654,7 @@ export default function ArbeidScreen({
           </TouchableOpacity>
           {reportGear(embedded ? 'auto' : 4)}
         </View>
-        ) : null}
+        ) : desktopTools}
       </View>
       )}
       <MonthJump
@@ -1854,6 +1863,8 @@ export default function ArbeidScreen({
       ) : null}
       {!isPhone ? (
         <View style={styles.gridBleed}>
+          {/* Inne i ansattkortet har skallet navnet, så knappene står over tabellen. */}
+          {embedded ? desktopTools : null}
           <TimesheetGrid
             colors={colors}
             days={markedDays}
@@ -1863,8 +1874,7 @@ export default function ArbeidScreen({
             onNextMonth={() => monthNav(1)}
             onPickMonth={() => setMonthJump(true)}
             projectHeader={projectSearch}
-            monthCorner={reportGear(0, 28)}
-            monthActions={gridActions}
+            monthCorner={null}
             projects={shownProjects.map(({ project, member, starred }) => ({
               project,
               member,
@@ -2181,6 +2191,8 @@ const styles = StyleSheet.create({
   searchWrapPhone: { maxWidth: '100%', alignSelf: 'stretch' },
   // I «Prosjekt»-cellen i tabellhodet.
   searchWrapGrid: { maxWidth: '100%', alignSelf: 'stretch', marginBottom: 0, paddingVertical: Platform.OS === 'web' ? 6 : 4, paddingHorizontal: 10 },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-end' },
+  topActionsEmbedded: { marginBottom: 6 },
   gridAction: {
     flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1,
   },

@@ -638,6 +638,20 @@ export default function ArbeidScreen({
     }).catch(() => {});
     return () => { live = false; };
   }, [workspaceId, employeeId, sickFrom]);
+  // Fraværet i skyen (siste 13 måneder og fram i tid) inn i timelisten, så linjen «Fravær»,
+  // lønnsgrunnlaget og skjemaet ser det som er ført fra andre enheter eller tidligere økter.
+  // Merket som lastet: det lagres ikke tilbake.
+  useEffect(() => {
+    if (!ready || !employeeId || !sickHistory.key.startsWith(`${employeeId}:`)) return;
+    const rows = sickHistory.rows.filter((row) => row?.employeeId === employeeId && row.id);
+    if (!rows.length) return;
+    setState((current) => {
+      const have = new Set((current.absences || []).map((row) => row.id));
+      const extra = rows.filter((row) => !have.has(row.id));
+      if (!extra.length) return current;
+      return markLoaded({ ...current, absences: [...(current.absences || []), ...extra] }, current);
+    });
+  }, [ready, sickHistory, employeeId]); // eslint-disable-line react-hooks/exhaustive-deps
   const sickAbsences = useMemo(() => {
     const byId = new Map();
     for (const row of sickHistory.rows) if (row?.employeeId === employeeId) byId.set(row.id, row);

@@ -37,8 +37,9 @@ export const COMPANY_MODULES = [
     label: 'Ansatte',
     icon: 'id-card',
     hint: 'Ansattregister og egen profil.',
-    navIds: ['ansatte'],
-    routes: [['ansatte', null]],
+    navIds: ['ansatt-minside', 'ansatt-gjoremal', 'ansatt-fravaer', 'ansatt-utlegg'],
+    // Registeret ligger som side i HR (hr/ansatte), egen side under Bedrift › Ansatt (ansatte/min-side …).
+    routes: [['ansatte', null], ['hr', ['ansatte']]],
   },
   {
     id: 'hr',

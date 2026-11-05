@@ -11,6 +11,8 @@
 
 export const GROUP_PALETTE = {
   personal: { bg: '#E5F6FE', bg2: '#f7fbff', accent: '#075985', soft: '#dbeafe' },
+  // Bedrift › Ansatt: det som er ditt. Samme farge som Personlig.
+  'company-me': { bg: '#E5F6FE', bg2: '#f7fbff', accent: '#075985', soft: '#dbeafe' },
   'company-org': { bg: '#e8eef6', bg2: '#f7f9fc', accent: '#07274C', soft: '#e2e8f0' },
   'company-people': { bg: '#eef0fd', bg2: '#f8f9ff', accent: '#4338ca', soft: '#e0e7ff' },
   'company-hired': { bg: '#fdf3e4', bg2: '#fffaf3', accent: '#92400e', soft: '#fef3c7' },

@@ -330,7 +330,8 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
 {
   const innleie = standardGrants('innleie_ekstern');
   const visible = filterCompanyNav(companyNavItems(), innleie).map((item) => item.id);
-  assert.deepEqual(visible, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'projects', 'produkt', 'utstyr', 'okonomi']);
+  // Innleide har ingen ansattpost her: av Bedrift › Ansatt ser de bare egen timeliste.
+  assert.deepEqual(visible, ['selskap', 'ansatt-timeliste', 'fravaer', 'arbeid', 'produktivitet', 'projects', 'produkt', 'utstyr', 'okonomi']);
   assert.equal(visible.includes('kjorebok'), false);
   assert.equal(visible.includes('selskapsinnstillinger'), false);
   const innleieOkonomi = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'okonomi');
@@ -351,7 +352,12 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
 
   const ansattNav = filterCompanyNav(companyNavItems(), standardGrants('ansatt')).map((item) => item.id);
   assert.ok(ansattNav.includes('selskap'));
-  assert.ok(ansattNav.includes('ansatte'));
+  // Vanlig ansatt: Bedrift › Ansatt med egne sider. Ansattregisteret ligger i HR, som krever HR-tilgang.
+  for (const id of ['ansatt-minside', 'ansatt-gjoremal', 'ansatt-timeliste', 'ansatt-fravaer', 'ansatt-utlegg']) {
+    assert.ok(ansattNav.includes(id), id);
+  }
+  assert.equal(ansattNav.includes('ansatte'), false);
+  assert.equal(ansattNav.includes('hr'), false);
   assert.ok(ansattNav.includes('fravaer'));
   assert.equal(ansattNav.includes('selskapsinnstillinger'), false);
 
@@ -392,19 +398,19 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
   const expectations = {
     regnskap_ekstern: {
       show: ['selskap', 'okonomi', 'kjorebok'],
-      hide: ['ansatte', 'hr', 'anbud', 'projects', 'selskapsinnstillinger', 'fravaer-innstillinger'],
+      hide: ['ansatt-minside', 'hr', 'anbud', 'projects', 'selskapsinnstillinger', 'fravaer-innstillinger'],
       edit: [],
       admin: [],
     },
     innleie_ekstern: {
       show: ['selskap', 'arbeid', 'fravaer', 'produktivitet', 'utstyr'],
-      hide: ['ansatte', 'hr', 'anbud', 'kjorebok', 'selskapsinnstillinger'],
+      hide: ['ansatt-minside', 'hr', 'anbud', 'kjorebok', 'selskapsinnstillinger'],
       edit: ['hours', 'absence'],
       admin: [],
     },
     ansatt: {
-      show: ['selskap', 'ansatte', 'arbeid', 'fravaer', 'projects', 'iso'],
-      hide: ['hr', 'anbud', 'kjorebok', 'selskapsinnstillinger'],
+      show: ['selskap', 'ansatt-minside', 'ansatt-timeliste', 'ansatt-fravaer', 'arbeid', 'fravaer', 'projects', 'iso'],
+      hide: ['hr', 'hr-ansatte', 'anbud', 'kjorebok', 'selskapsinnstillinger'],
       edit: ['hours', 'forms', 'ownProfile'],
       admin: [],
     },
@@ -415,13 +421,13 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
       admin: [],
     },
     ansatt_andre_avdelinger: {
-      show: ['underenheter', 'ansatte', 'arbeid', 'projects'],
+      show: ['underenheter', 'ansatt-minside', 'arbeid', 'projects'],
       hide: ['anbud', 'hr', 'kjorebok'],
       edit: ['hours', 'forms'],
       admin: [],
     },
     avdelingsleder: {
-      show: ['hr', 'ansatte', 'projects', 'kunder', 'selskapsinnstillinger'],
+      show: ['hr', 'hr-ansatte', 'projects', 'kunder', 'selskapsinnstillinger'],
       hide: ['kjorebok'],
       edit: ['employees', 'projects', 'customers', 'hoursOthers'],
       admin: [],
@@ -459,7 +465,7 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
       admin: [],
     },
     hr_ansvarlig: {
-      show: ['hr', 'ansatte', 'fravaer', 'iso'],
+      show: ['hr', 'hr-ansatte', 'fravaer', 'iso'],
       hide: ['okonomi', 'anbud', 'selskapsinnstillinger', 'projects', 'kjorebok'],
       edit: ['absence'],
       admin: ['hr', 'hrPeople', 'hrPayroll', 'employees', 'absenceSettings'],

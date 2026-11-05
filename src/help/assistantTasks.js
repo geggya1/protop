@@ -536,7 +536,7 @@ export const ASSISTANT_TASKS = [
     ask: tx(['invitere', 'invitasjon', 'inviter brukere', 'invitere bruker', 'invitere ansatt', 'velkomstmal', 'gi innlogging', 'sende innlogging'], ['invite', 'invitation', 'invite users', 'welcome email']),
     intro: tx('Ansatte får innlogging via en invitasjon på e-post.', 'Employees get a login through an email invitation.'),
     steps: [
-      s(tx('Inviter brukere', 'Invite users'), 'Gå til Ansatte → «Ny ansatt» → «Inviter brukere», og velg dem som skal få invitasjon.', 'Go to Employees → “New employee” → “Invite users”, and pick who should be invited.', gate('ansatte', 1)),
+      s(tx('Inviter brukere', 'Invite users'), 'Gå til HR → Ansatte → «Ny ansatt» → «Inviter brukere», og velg dem som skal få invitasjon.', 'Go to HR → Employees → “New employee” → “Invite users”, and pick who should be invited.', gate('ansatte', 1)),
       s(tx('Eller én person', 'Or one person'), 'Åpne personen, sjekk e-posten og huk av «Send velkomstmal».', 'Open the person, check the email and tick “Send welcome template”.', gate('ansatte', 1)),
     ],
     after: tx('Personen får e-post med lenke til å sette passord. Kommer den ikke, sjekk søppelpost og at e-postadressen er riktig.', 'The person gets an email with a link to set a password. If it doesn’t arrive, check spam and that the address is right.'),
@@ -725,7 +725,7 @@ export const ASSISTANT_TASKS = [
     steps: [
       s(tx('Glemt passord', 'Forgot password'), 'På innloggingen: skriv e-postadressen og trykk «Glemt passord».', 'On the sign-in page: enter your email and tap “Forgot password”.'),
       s(tx('Endre når du er innlogget', 'Change while signed in'), 'Innstillinger → «Rediger profil» → «Send lenke for å endre passord».', 'Settings → “Edit profile” → “Send a link to change password”.'),
-      s(tx('For en ansatt', 'For an employee'), 'Administrator: Ansatte → personen → Innstillinger → «Endre passord» → «Send passordlenke».', 'Administrator: Employees → the person → Settings → “Change password” → “Send password link”.', gate('ansatte', 0)),
+      s(tx('For en ansatt', 'For an employee'), 'Administrator: HR → Ansatte → personen → Innstillinger → «Endre passord» → «Send passordlenke».', 'Administrator: HR → Employees → the person → Settings → “Change password” → “Send password link”.', gate('ansatte', 0)),
     ],
     after: tx('Kommer ikke e-posten, sjekk søppelpost og at adressen er riktig.', 'If the email doesn’t arrive, check spam and that the address is right.'),
     show: [at('settings', 0)],

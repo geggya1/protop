@@ -1,5 +1,5 @@
 /**
- * Pårørende fylles inn av den ansatte selv på profilen (Ansatte › Min side › Pårørende).
+ * Pårørende fylles inn av den ansatte selv på profilen (Ansatt › Min side › Pårørende).
  * Det finnes ikke eget skjema. Mangler det, får den ansatte en oppgave i oppgavemodulen
  * med varsel, og en påminnelse når fristen er passert.
  *
@@ -43,7 +43,7 @@ export function kinTask(employee, { uid = '', now = new Date(), previous = null 
   const today = dateKey(now);
   return {
     title: KIN_TASK_TITLE,
-    description: 'Gå til Ansatte › Min side › Pårørende og fyll inn navn og telefon til nærmeste pårørende. Det vises bare for deg og administrator. Oppgaven lukkes når det er lagret.',
+    description: 'Gå til Ansatt › Min side › Pårørende og fyll inn navn og telefon til nærmeste pårørende. Det vises bare for deg og administrator. Oppgaven lukkes når det er lagret.',
     deadline: addDays(today, KIN_DUE_DAYS),
     deadlineTime: null,
     participants: [],

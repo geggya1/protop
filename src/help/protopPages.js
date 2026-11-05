@@ -669,8 +669,8 @@ export const PROTOP_PAGES = {
   ansatte: page({
     section: 'company-people',
     label: tx('Ansatte', 'Employees'),
-    path: tx('Bedrift → Ansatte og arbeidstid → Ansatte', 'Company → Employees and working hours → Employees'),
-    nav: { tab: 'ansatte' },
+    path: tx('Bedrift → Ansatte og arbeidstid → HR → Ansatte', 'Company → Employees and working hours → HR → Employees'),
+    nav: { tab: 'hr', subView: 'ansatte' },
     icon: 'id-card',
     process: 'ny-ansatt',
     kicker: tx('Register, CV og invitasjon', 'Register, CV and invites'),
@@ -707,7 +707,7 @@ export const PROTOP_PAGES = {
       },
       {
         q: tx('Hvor legger den ansatte inn pårørende?', 'Where do employees add their next of kin?'),
-        a: tx('Ansatte → «Min side» → Pårørende, og trykk Lagre. Mangler det, får den ansatte en oppgave med varsel. Oppgaven lukkes når pårørende er lagret.', 'Employees → “My page” → Next of kin, then Save. If it is missing, the employee gets a task with a notification. The task closes once the next of kin is saved.'),
+        a: tx('Ansatt → «Min side» → Pårørende, og trykk Lagre. Mangler det, får den ansatte en oppgave med varsel. Oppgaven lukkes når pårørende er lagret.', 'Employee → “My page” → Next of kin, then Save. If it is missing, the employee gets a task with a notification. The task closes once the next of kin is saved.'),
       },
     ],
   }),
@@ -1166,7 +1166,7 @@ export const PROTOP_PAGES = {
         'Under “Version and approval”: write what changed and send it for approval. The approver approves, and only then does the handbook get a new version number. The document header and revision log are filled in by the system.',
         { find: ['Versjon og godkjenning'] }),
       step(tx('Lesebekreftelser', 'Read receipts'),
-        '«Bekreftet lest» viser hvem som har bekreftet gjeldende versjon. Den ansatte leser og bekrefter under Ansatte › Min side.',
+        '«Bekreftet lest» viser hvem som har bekreftet gjeldende versjon. Den ansatte leser og bekrefter under Ansatt › Min side.',
         '“Confirmed read” shows who has confirmed the current version. Employees read and confirm under Employees › My page.',
         { find: ['Bekreftet lest'], pending: tx('Vises når håndboken er godkjent.', 'Shows once the handbook is approved.') }),
       step(tx('Merknader', 'Comments'),
@@ -2675,6 +2675,12 @@ export const PROTOP_PAGES = {
 
 /** Sider som deler innhold med en annen side-id. */
 export const PAGE_ALIASES = {
+  // Ansattregisteret ligger i HR (HR › Ansatte). Egne sider under Bedrift › Ansatt bruker samme hjelp.
+  'hr.ansatte': 'ansatte',
+  'ansatte.min-side': 'ansatte',
+  'ansatte.mine-gjoremal': 'ansatte',
+  'ansatte.mitt-fravaer': 'ansatte',
+  'ansatte.mine-utlegg': 'ansatte',
   'selskap.fridager': 'selskap.fravaerstyper',
   'arbeid.fravaer-innstillinger': 'selskap.fravaerstyper',
   'selskap.regnskapskontoer': 'selskap.kontoplan',

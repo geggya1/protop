@@ -41,6 +41,13 @@ export const SHELL_DETAILS = {
   finding: { tab: 'iso', subView: 'avvik', list: 'Avvik og forbedring', thing: 'saken' },
 };
 
+/**
+ * Egne sider under Bedrift › Ansatt (shellModules ANSATT_SELF_VIEWS): /hjem/ansatte/min-side osv.
+ * De er undersider, ikke id-er, selv om Ansatte ellers har id-en i neste ledd.
+ */
+export const ANSATTE_OWN_PAGES = ['min-side', 'mine-gjoremal', 'mitt-fravaer', 'mine-utlegg'];
+const ownPage = (tab, sub) => tab === 'ansatte' && ANSATTE_OWN_PAGES.includes(sub);
+
 /** Detaljsiden som hører til fanen og undersiden, eller null. */
 export function shellDetailKind(tab, subView = null) {
   const sub = clean(subView) || null;
@@ -63,6 +70,7 @@ export function shellPathFor(tab, subView = null, detail = null) {
   if (!t || t === 'home' || !KNOWN_TABS.has(t)) return SHELL_ROOT;
   const root = `${SHELL_ROOT}/${TAB_SLUGS[t] || t}`;
   const id = clean(detail);
+  if (ownPage(t, clean(subView))) return `${root}/${clean(subView)}`;
   if (shellDetailKind(t, null)) return id ? `${root}/${encodeURIComponent(id)}` : root;
   const sub = clean(subView);
   if (!sub) return root;
@@ -105,6 +113,7 @@ export function parseShellPath(path) {
   // Prosjekt og Ansatte: /hjem/prosjekt/:id
   if (shellDetailKind(tab, null)) {
     if (third) return null;
+    if (ownPage(tab, sub)) return { tab, subView: sub };
     return sub ? { tab, subView: null, detail: sub } : { tab, subView: null };
   }
   // Familiesidene (/hjem/apper/spill …) finnes ikke i ProTop-bygget (L-35).

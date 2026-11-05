@@ -40,13 +40,13 @@ export function endLinkAgreement({ companyId, linkId }) {
   return call('icEndLink', { companyId, linkId }, 'Kunne ikke avslutte avtalen.');
 }
 
-/** Nye priser: i en aktiv avtale blir det et forslag som det andre selskapet må godta. */
+/** Endring i avtalen: i en aktiv avtale blir det et forslag som det andre selskapet må godta. */
 export function saveLinkSettings({ companyId, linkId, settings }) {
-  return call('icUpdateLinkSettings', { companyId, linkId, settings }, 'Kunne ikke lagre prisene.');
+  return call('icUpdateLinkSettings', { companyId, linkId, settings }, 'Kunne ikke lagre endringen.');
 }
 
 export function answerLinkSettings({ companyId, linkId, accept }) {
-  return call('icAnswerLinkSettings', { companyId, linkId, accept: !!accept }, 'Kunne ikke svare på prisforslaget.');
+  return call('icAnswerLinkSettings', { companyId, linkId, accept: !!accept }, 'Kunne ikke svare på forslaget.');
 }
 
 /** Morselskapet fordeler nummerserier i konsernet: assignments = { companyId: { project, customer } }. */

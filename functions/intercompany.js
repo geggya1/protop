@@ -27,6 +27,7 @@ import {
   endLink,
   ensurePartnerCustomer,
   externalEmployeeId,
+  isSameCompany,
   externalEmployeeRecord,
   lendableEmployees,
   linkIdFor,
@@ -174,6 +175,9 @@ export const icRequestLink = onCall(CALL, async (req) => {
   if (!targetId) {
     const orgnr = digits(req.data?.orgnr);
     if (orgnr.length !== 9) throw new HttpsError('invalid-argument', 'Oppgi et organisasjonsnummer med ni siffer.');
+    if (isSameCompany({ id: companyId, ...ownData }, { orgnr })) {
+      throw new HttpsError('invalid-argument', 'Et selskap kan ikke knyttes til seg selv.');
+    }
     const owner = await resolveOrgnrOwner(db, orgnr, { uid });
     if (!owner?.id) {
       return { ok: false, error: 'not-in-protop', message: 'Selskapet er ikke registrert i ProTop ennå. Det må opprettes før det kan knyttes til.' };
@@ -182,6 +186,10 @@ export const icRequestLink = onCall(CALL, async (req) => {
   }
   if (targetId === companyId) throw new HttpsError('invalid-argument', 'Et selskap kan ikke knyttes til seg selv.');
   const targetData = await companyDoc(targetId);
+  // Samme org.nr., eller underenhet og hovedenhet: det er samme selskap, ikke to.
+  if (isSameCompany({ ...ownData, id: companyId }, { ...targetData, id: targetId })) {
+    throw new HttpsError('invalid-argument', 'Et selskap kan ikke knyttes til seg selv.');
+  }
 
   const existing = openLinkBetween(await openLinksFor(companyId), companyId, targetId);
   if (existing) return { ok: true, already: true, link: existing };
@@ -233,7 +241,7 @@ export const icRespondLink = onCall(CALL, async (req) => {
     const ref = linkRef(safeDocId(req.data?.linkId));
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError('not-found', 'Avtalen finnes ikke.');
-    // Prisene godtas slik de står. Vil den inviterte endre dem, foreslår den nye priser etterpå.
+    // Avtalen godtas slik den står. Vil den inviterte endre den, foreslår den en endring etterpå.
     const answered = respondToLink(normalizeLink(snap.data(), snap.id), { companyId, accept, uid, name: actorName(req), at });
     if (!answered.ok) throw new HttpsError('failed-precondition', answered.error);
     tx.set(ref, stored(answered.link), { merge: true });
@@ -278,7 +286,8 @@ export const icEndLink = onCall(CALL, async (req) => {
   const { link, uid, companyId } = await changeLink(req, (row, ctx) => endLink(row, ctx));
   await syncParentField(link);
   const view = linkView(link, companyId);
-  await notifyCompany(view.partner.id, {
+  // En kobling til selskapet selv har ingen andre å varsle.
+  if (!view.self) await notifyCompany(view.partner.id, {
     title: 'Tilknytning avsluttet',
     body: `«${view.parent.id === companyId ? view.parent.name : view.child.name}» avsluttet avtalen. Nye tildelinger stopper; timer som allerede er ført, følger med til godkjenning.`,
     exclude: [uid],
@@ -286,7 +295,7 @@ export const icEndLink = onCall(CALL, async (req) => {
   return { ok: true, link };
 });
 
-/** Nye priser: forslag til den andre parten (aktiv avtale), eller justering før svar (egen forespørsel). */
+/** Endring i avtalen: forslag til den andre parten (aktiv avtale), eller justering før svar (egen forespørsel). */
 export const icUpdateLinkSettings = onCall(CALL, async (req) => {
   let proposed = false;
   const { link, uid, companyId } = await changeLink(req, (row, ctx) => {
@@ -297,8 +306,8 @@ export const icUpdateLinkSettings = onCall(CALL, async (req) => {
   const view = linkView(link, companyId);
   if (proposed) {
     await notifyCompany(view.partner.id, {
-      title: 'Forslag om nye priser',
-      body: `«${companyId === link.parent.id ? link.parent.name : link.child.name}» foreslår nye priser i avtalen. Godta eller avslå under Bedrift → Underenheter.`,
+      title: 'Forslag om endring i avtalen',
+      body: `«${companyId === link.parent.id ? link.parent.name : link.child.name}» foreslår en endring i avtalen. Godta eller avslå under Bedrift → Underenheter.`,
       exclude: [uid],
     });
   }
@@ -306,16 +315,16 @@ export const icUpdateLinkSettings = onCall(CALL, async (req) => {
 });
 
 /**
- * Svar på forslag om nye standardpriser. De gjelder prosjekter som tildeles etterpå; pris og
- * betingelser på prosjekter som finnes, settes på prosjektet som vanlig.
+ * Svar på forslag om endring i avtalen (hva den omfatter, fakturaforsendelse). Pris og
+ * betingelser settes på prosjektet som vanlig.
  */
 export const icAnswerLinkSettings = onCall(CALL, async (req) => {
   const accept = req.data?.accept === true;
   const { link, uid, companyId } = await changeLink(req, (row, ctx) => answerLinkSettings(row, { ...ctx, accept }));
   const view = linkView(link, companyId);
   await notifyCompany(view.partner.id, {
-    title: accept ? 'Nye priser godtatt' : 'Prisforslaget er avslått',
-    body: `Prisene for tilknytningen mellom «${link.parent.name}» og «${link.child.name}» ${accept ? 'er oppdatert' : 'står som før'}.`,
+    title: accept ? 'Endringen i avtalen er godtatt' : 'Endringen i avtalen er avslått',
+    body: `Avtalen mellom «${link.parent.name}» og «${link.child.name}» ${accept ? 'er oppdatert' : 'står som før'}.`,
     exclude: [uid],
   });
   return { ok: true, link };
@@ -341,6 +350,7 @@ async function activeLinkFor(linkId, companyId) {
   const view = linkView(link, companyId);
   if (!view) throw new HttpsError('permission-denied', 'Selskapet er ikke part i avtalen.');
   if (link.status !== LINK_STATUS.active) throw new HttpsError('failed-precondition', 'Avtalen er ikke aktiv.');
+  if (view.self) throw new HttpsError('failed-precondition', 'Koblingen går til selskapet selv. Fjern den under Bedrift → Underenheter.');
   return { link, view };
 }
 

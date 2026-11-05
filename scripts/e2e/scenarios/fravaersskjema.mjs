@@ -19,8 +19,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Bot, closeBrowser } from '../lib/bot.mjs';
-import { ROOT, getDoc, listDocs, putDoc } from '../lib/emu.mjs';
-import { BOT_COMPANY_ID, BOT_USER } from '../../help-bot/seed.mjs';
+import { ROOT, createAuthUser, getDoc, listDocs, putDoc } from '../lib/emu.mjs';
+import { BOT_COMPANY_ID, BOT_USER, toValue } from '../../help-bot/seed.mjs';
 
 const OUT = join(ROOT, 'e2e-out', 'fravaersskjema');
 mkdirSync(OUT, { recursive: true });
@@ -162,26 +162,25 @@ await check('1.8 Ansattkortet har «Barn og omsorgsdager»', async () => {
   await desk.page.waitForTimeout(1500);
   await expectText(desk, 'Barn og omsorgsdager');
 });
-await check('1.9 Registrer 3 barn og alene om omsorgen: 30 omsorgsdager, lagret på ansatt', async () => {
-  await desk.page.getByRole('button', { name: 'Rediger Barn og omsorgsdager' }).first().click();
-  await desk.page.waitForTimeout(800);
-  const box = desk.page.locator('[id="employee-inline-section-childCare"]');
-  await box.waitFor({ state: 'visible', timeout: 8000 });
-  const inputs = box.locator('input');
-  await inputs.nth(0).fill('3');
-  await inputs.nth(1).fill('0');
-  await box.getByText('Alene om omsorgen', { exact: true }).first().click();
-  await desk.page.getByText('Lagre', { exact: true }).last().click();
-  await desk.page.waitForTimeout(2000);
-  await expectText(desk, '30 dager');
-  const deadline = Date.now() + 15000;
-  let care = null;
-  while (Date.now() < deadline) {
-    care = (await getDoc(`families/${BOT_COMPANY_ID}/employees/emp-ola`))?.extras?.childCare;
-    if (care?.alone === true) break;
-    await desk.page.waitForTimeout(800);
-  }
-  if (String(care?.children) !== '3' || care?.alone !== true) throw new Error(`extras.childCare = ${JSON.stringify(care)}`);
+await check('1.9 Administrator registrerer to barn (ett med utvidet rett) og alene om omsorgen: 40 dager', async () => {
+  await expectText(desk, 'Hvorfor vi spør');
+  await clickId(desk, 'child-care-edit');
+  await clickId(desk, 'child-care-add');
+  await clickId(desk, 'child-care-add');
+  await desk.page.getByLabel('Fødselsdato barn 1').fill('15.03.2018');
+  await desk.page.getByLabel('Fornavn barn 1').fill('Ida');
+  await desk.page.getByLabel('Fødselsdato barn 2').fill('02.09.2010');
+  await desk.page.locator('[id="child-care-kid-1"]').getByText('Utvidet rett fra NAV', { exact: false }).click();
+  await desk.click('Jeg er alene om omsorgen');
+  await clickId(desk, 'child-care-save');
+  await expectText(desk, 'Barna er lagret.');
+  await expectText(desk, `Omsorgsdager ${new Date().getFullYear()}: 40 dager`);
+  const priv = await getDoc(`families/${BOT_COMPANY_ID}/employeesPrivate/emp-ola`);
+  const kids = priv?.childCare?.kids || [];
+  if (kids.length !== 2 || kids[1].birthDate !== '2018-03-15' || kids[1].name !== 'Ida' || kids[0].chronic !== true) throw new Error(`skjermet: ${JSON.stringify(priv?.childCare)}`);
+  const post = (await getDoc(`families/${BOT_COMPANY_ID}/employees/emp-ola`))?.extras?.childCare;
+  if (JSON.stringify(post?.birthYears) !== '[2010,2018]' || post?.alone !== true) throw new Error(`på posten: ${JSON.stringify(post)}`);
+  if (JSON.stringify(post).includes('Ida') || JSON.stringify(post).includes('2018-03-15')) throw new Error('navn eller dato står på ansattposten');
   await desk.shot('ansatt-barn');
 });
 
@@ -342,15 +341,78 @@ await check('3.1 PC: «Fravær» nederst i rutenettet, knappene synlige over tab
   await desk.shot('pc-timeliste');
 });
 
+// ---------------------------------------------------------------- 5. Den ansatte registrerer egne barn
+const EVA = { email: `eva-${Date.now().toString(36)}@protop.test`, password: 'Eva-Barn-2026!', name: 'Eva Egen' };
+const evaUid = await createAuthUser({ email: EVA.email, password: EVA.password, name: EVA.name });
+{
+  const stamp = new Date().toISOString();
+  const consents = { version: '2.0.0', termsAt: stamp, privacyAt: stamp, gdprAt: stamp, dataAt: stamp, copyrightAt: stamp, language: 'nb', marketingOptIn: false };
+  await putDoc(`users/${evaUid}`, {
+    uid: evaUid, email: EVA.email, name: EVA.name, displayName: EVA.name, profileComplete: true, homeSetupComplete: true, consents, language: 'nb',
+    familyId: BOT_COMPANY_ID, familyIds: [BOT_COMPANY_ID], activeFamilyId: BOT_COMPANY_ID,
+  });
+  await putDoc(`parents/${evaUid}`, { uid: evaUid, name: EVA.name, email: EVA.email, familyId: BOT_COMPANY_ID, familyIds: [BOT_COMPANY_ID], admin: false });
+  await putDoc(`families/${BOT_COMPANY_ID}/parents/${evaUid}`, { uid: evaUid, name: EVA.name, email: EVA.email, admin: false, active: true, role: 'member' });
+  const fam = await getDoc(`families/${BOT_COMPANY_ID}`);
+  const members = [...new Set([...(fam?.members || []), evaUid])];
+  const res = await fetch(`http://127.0.0.1:8085/v1/projects/protop-c189c/databases/(default)/documents/families/${BOT_COMPANY_ID}?updateMask.fieldPaths=members`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
+    body: JSON.stringify({ fields: { members: toValue(members) } }),
+  });
+  if (!res.ok) throw new Error(`members: ${res.status}`);
+  await putDoc(`families/${BOT_COMPANY_ID}/employees/emp-eva`, {
+    id: 'emp-eva', version: 1, createdAt: stamp, updatedAt: stamp, personUid: evaUid,
+    person: { firstName: 'Eva', lastName: 'Egen', email: EVA.email, language: 'Norsk bokmål' },
+    company: { personnelKind: 'staff', status: 'active', external: false, canLogin: true, workPercent: '100', email: EVA.email, title: 'Tømrer', accessLevel: 'ansatt' },
+  });
+}
+const eva = await new Bot('eva-telefon', { ...EVA, view: 'phone', outDir: OUT }).start();
+bots.push(eva);
+await eva.login();
+await check('5.1 Den ansatte ser «Barn og omsorgsdager» med begrunnelse på sitt eget ansattkort', async () => {
+  await eva.open('ansatte', null, 4000);
+  if (!(await eva.hasText('Hvorfor vi spør', { timeout: 4000 }))) {
+    await eva.click('Eva Egen', { exact: false, timeout: 10000 });
+    await eva.page.waitForTimeout(1500);
+  }
+  await expectText(eva, 'Barn og omsorgsdager');
+  await expectText(eva, 'Hvorfor vi spør');
+  await expectText(eva, 'Registrer barna dine');
+  await eva.shot('eva-barn-for');
+});
+await check('5.2 Den ansatte registrerer barnet selv: 10 omsorgsdager, lagret skjermet', async () => {
+  await clickId(eva, 'child-care-edit');
+  await clickId(eva, 'child-care-add');
+  await eva.page.getByLabel('Fødselsdato barn 1').fill('01.06.2020');
+  await clickId(eva, 'child-care-save');
+  await expectText(eva, 'Barna er lagret.');
+  await expectText(eva, `Omsorgsdager ${new Date().getFullYear()}: 10 dager`);
+  const priv = await getDoc(`families/${BOT_COMPANY_ID}/employeesPrivate/emp-eva`);
+  if (priv?.childCare?.kids?.[0]?.birthDate !== '2020-06-01' || priv?.childCare?.updatedBy !== evaUid) throw new Error(JSON.stringify(priv?.childCare));
+  const post = (await getDoc(`families/${BOT_COMPANY_ID}/employees/emp-eva`))?.extras?.childCare;
+  if (JSON.stringify(post?.birthYears) !== '[2020]') throw new Error(JSON.stringify(post));
+  await eva.shot('eva-barn-lagret');
+});
+await check('5.3 Sykt barn: egenmeldingen viser omsorgsdagene fra barna hun registrerte', async () => {
+  await eva.open('timeliste', null, 4000);
+  await clickId(eva, 'timesheet-absence', 20000);
+  if (await eva.hasText('Registrer nytt fravær', { timeout: 1500 })) await clickId(eva, 'fravaer-nytt');
+  await clickId(eva, 'fravaer-valg-sykt_barn');
+  await expectText(eva, 'av 10 dager brukt');
+  await eva.click('Avbryt');
+});
+
 // Emulatoren laster bare konsernfunksjonene: CORS-feil fra andre funksjoner ved innlogging er miljøstøy.
-const errors = [...desk.errors, ...phone.errors].filter((e) => !/blocked by CORS policy|net::ERR_FAILED/.test(e.message));
-const calls = [...desk.failedCalls, ...phone.failedCalls];
+const errors = [...desk.errors, ...phone.errors, ...eva.errors].filter((e) => !/blocked by CORS policy|net::ERR_FAILED/.test(e.message));
+const calls = [...desk.failedCalls, ...phone.failedCalls, ...eva.failedCalls];
 log(!errors.length, '4.1 Ingen JS-feil', errors.map((e) => `${e.at}: ${e.message}`).join(' | ').slice(0, 600));
 log(!calls.length, '4.2 Ingen funksjonskall feilet', calls.map((c) => `${c.at}: ${c.url} ${c.status}`).join(' | ').slice(0, 600));
 
 writeFileSync(join(OUT, 'result.json'), JSON.stringify({ failed, results, errors, calls }, null, 2));
 await desk.stop();
 await phone.stop();
+await eva.stop();
 await closeBrowser();
 console.log(failed ? `\n${failed} avvik` : '\nAlle steg OK');
 process.exit(failed ? 1 : 0);

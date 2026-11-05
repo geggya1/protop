@@ -2177,6 +2177,8 @@ export default function EmployeesScreen({ subView = null } = {}) {
 
           {view === 'detail' && detailEmployee ? (
             <EmployeeDetailView
+              companyId={familyId}
+              currentUid={uid}
               employee={detailEmployee}
               colors={colors}
               companyName={companyName}

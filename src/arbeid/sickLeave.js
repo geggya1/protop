@@ -525,12 +525,18 @@ export function workdaysBetween(fromIso, toIso) {
 
 /** Omsorgsdager etter ftrl § 9-6, ut fra opplysningene som er lagt inn på den ansatte. */
 export function childCareQuota(care = {}, { absences = [], employeeId = '', year, catalog } = {}) {
-  const children = count(care?.children, 0, 20);
-  const chronic = Math.min(children, count(care?.chronic, 0, 20));
-  const alone = bool(care?.alone);
   const y = Number(year) || new Date().getFullYear();
+  // Barn registrert med fødselsår (av den ansatte): teller til og med året barnet fyller 12,
+  // med utvidet rett til og med året det fyller 18. Ellers antallet HR har lagt inn.
+  const years = Array.isArray(care?.birthYears) ? care.birthYears.map(Number).filter((n) => n > 1900 && n <= y) : null;
+  const chronicYears = Array.isArray(care?.chronicBirthYears) ? care.chronicBirthYears.map(Number).filter((n) => n > 1900 && n <= y) : [];
+  const children = years ? years.filter((n) => y - n <= 12).length : count(care?.children, 0, 20);
+  const chronic = years
+    ? chronicYears.filter((n) => y - n <= 18).length
+    : Math.min(children, count(care?.chronic, 0, 20));
+  const alone = bool(care?.alone);
   let total = 0;
-  if (children > 0) {
+  if (children > 0 || chronic > 0) {
     total = children > 2 ? 15 : 10;
     let extra = chronic * 10;
     if (alone) {
@@ -549,10 +555,11 @@ export function childCareQuota(care = {}, { absences = [], employeeId = '', year
     alone,
     total,
     used,
-    remaining: children > 0 ? Math.max(0, total - used) : null,
+    remaining: children > 0 || chronic > 0 ? Math.max(0, total - used) : null,
     // Arbeidsgiver kan kreve refusjon fra trygden for dager ut over 10 (ftrl § 9-8).
     refundDays: Math.max(0, used - 10),
-    unknown: children === 0,
+    unknown: children === 0 && chronic === 0,
+    registered: !!years,
   };
 }
 

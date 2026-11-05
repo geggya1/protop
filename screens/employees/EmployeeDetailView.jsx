@@ -26,7 +26,7 @@ import {
   FORM_SECTIONS, OWNER_LABEL,
 } from '../../src/employees/schema';
 import EmployeeFields, { EmployeeField } from './EmployeeFields';
-import { childCareQuota } from '../../src/arbeid/sickLeave.js';
+import ChildCareCard from '../../components/employees/ChildCareCard';
 import { useLayout } from '../../src/theme';
 import {
   emptyProjectState,
@@ -322,6 +322,9 @@ export default function EmployeeDetailView({
   canEndEmployment = true,
   isAdmin = false,
   isSelf = false,
+  // Bedriften og innlogget bruker (barna lagres skjermet per bedrift).
+  companyId = '',
+  currentUid = '',
   confirmDelete = false,
   busy = false,
   onCv,
@@ -362,7 +365,7 @@ export default function EmployeeDetailView({
     custom: true,
     gaps: true,
     projects: true,
-    childCare: false,
+    childCare: true,
   });
 
   useEffect(() => {
@@ -377,7 +380,7 @@ export default function EmployeeDetailView({
       custom: true,
       gaps: true,
       projects: true,
-      childCare: false,
+      childCare: true,
     });
   }, [employee?.id]);
 
@@ -834,35 +837,22 @@ export default function EmployeeDetailView({
             </SectionCard>
           ) : null}
 
-          {!limited && showAdminCards && isAdmin && section === 'home' ? (
+          {!limited && (isAdmin || isSelf) && section === 'home' && companyId ? (
             <SectionCard
               title="Barn og omsorgsdager"
               icon="happy-outline"
               colors={colors}
               open={openSections.childCare}
               onToggle={() => toggle('childCare')}
-              onEdit={canEdit ? () => startSection('childCare') : undefined}
             >
-              {editingSection === 'childCare' ? sectionEditor('childCare') : (() => {
-                const care = childCareQuota(employee.extras?.childCare, { year: new Date().getFullYear() });
-                const rows = [
-                  { key: 'children', label: 'Antall barn under 12 år', value: care.children ? String(care.children) : '' },
-                  { key: 'chronic', label: 'Barn med utvidet rett fra NAV', value: care.chronic ? String(care.chronic) : '' },
-                  { key: 'alone', label: 'Alene om omsorgen', value: care.alone ? 'Ja' : '' },
-                  { key: 'total', label: `Omsorgsdager ${care.year}`, value: care.unknown ? '' : `${care.total} dager` },
-                ];
-                return rows.map((row, i) => (
-                  <FactRow
-                    key={row.key}
-                    label={row.label}
-                    value={row.value}
-                    colors={colors}
-                    last={i === rows.length - 1}
-                    emptyLabel={row.key === 'total' ? 'Antall barn er ikke registrert' : 'Ikke satt'}
-                    onEdit={canEdit ? () => startSection('childCare') : undefined}
-                  />
-                ));
-              })()}
+              <ChildCareCard
+                companyId={companyId}
+                employee={employee}
+                colors={colors}
+                canEdit={!!canEdit}
+                self={!!isSelf}
+                by={currentUid}
+              />
             </SectionCard>
           ) : null}
 

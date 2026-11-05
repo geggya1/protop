@@ -428,10 +428,10 @@ function Quotas({ ctx }) {
                   {`Egenmelding: ${status.occasionsUsed} ganger, ${status.daysUsed} dager${status.daysLeft != null ? `, ${status.daysLeft} igjen` : ''}${status.eligible === false ? ` · kan brukes fra ${formatNbDate(status.eligibleFrom)}` : ''}${status.denied ? ' · fratatt' : ''}`}
                 </Text>
                 <Text style={[styles.line, { color: colors.muted }]}>
-                  {care.unknown ? 'Omsorgsdager: antall barn er ikke registrert' : `Omsorgsdager ${year}: ${care.used} av ${care.total}${care.refundDays ? ` · ${care.refundDays} kan refunderes` : ''}`}
+                  {care.unknown ? (care.registered ? `Omsorgsdager ${year}: ingen barn under 12 år` : 'Omsorgsdager: antall barn er ikke registrert') : `Omsorgsdager ${year}: ${care.used} av ${care.total}${care.refundDays ? ` · ${care.refundDays} kan refunderes` : ''}${care.registered ? ' · registrert av den ansatte' : ''}`}
                 </Text>
               </View>
-              {canWrite && !editing ? (
+              {canWrite && !editing && !care.registered ? (
                 <HrButton colors={colors} label="Omsorgsdager" onPress={() => setEdit({ id: emp.id, children: String(care.children || ''), chronic: String(care.chronic || ''), alone: !!care.alone })} />
               ) : null}
               {editing ? (

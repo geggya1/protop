@@ -139,6 +139,7 @@ export const FILES = [
   'src/mileage/routeSuggest.test.mjs',
   'src/arbeid/timesheetScreenFilter.test.cjs',
   'src/arbeid/absenceForm.test.mjs',
+  'src/employees/childCare.test.mjs',
   'src/arbeid/employeeTimesheetLayout.test.cjs',
   'src/shell/shellErrorBoundary.test.mjs',
   'src/shell/shellHeaderSwitchLock.test.cjs',

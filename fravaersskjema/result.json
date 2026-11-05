@@ -1,0 +1,112 @@
+{
+  "failed": 5,
+  "results": [
+    {
+      "ok": true,
+      "step": "1.1 Fanen «Egenmelding og lønn» åpnes fra Bedrift → Fravær → Innstillinger",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.2 Lovpålagt dekning vises låst",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.3 Alt som ikke er lovpålagt, er av som standard",
+      "detail": "7 valg, alle av"
+    },
+    {
+      "ok": true,
+      "step": "1.4 Velg IA-ordning, drøftet og egen legetime, lagre",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.5 hr/sickLeave er lagret riktig",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.6 Etter ny innlasting står IA-ordning og «Gjelder nå: 8 kalenderdager»",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.7 HR → Sykefravær viser reglene og peker til innstillingene",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.8 Ansattkortet har «Barn og omsorgsdager»",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "1.9 Registrer 3 barn og alene om omsorgen: 30 omsorgsdager, lagret på ansatt",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.1 Linjen «Fravær» står nederst og åpner «Registrer fravær»",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.2 Lege: felt, lønn etter avtale og timer per dag",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.3 Sende uten bekreftelse gir feil",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "2.4 Send: legetime 2:00 med skjema i skyen",
+      "detail": "2026-11-05 lege_med 2"
+    },
+    {
+      "ok": true,
+      "step": "2.5 Linjen viser dagens fravær, og trykk viser det først",
+      "detail": ""
+    },
+    {
+      "ok": false,
+      "step": "2.6 Nytt fravær samme dag: velferd (flytting) via «Permisjon og velferd»",
+      "detail": "Fant ikke «Flytting» på skjermen (timeliste)"
+    },
+    {
+      "ok": false,
+      "step": "2.7 Ferie neste arbeidsdag: lagres uten skjema, hel dag",
+      "detail": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: 'Neste dag' }).first()\n    - locator resolved to <button role=\"button\" type=\"button\" aria-label=\"Neste dag\" class=\"css-g5y9jx r-1i6wzkk r-lrvibr r-1loqt21 r-1otgn73 r-1awozwy r-1777fci r-ero68b r-vkv6oe\">…</button>\n  - attempting click action\n    2 × waiting for element to be visible, enabled and stable\n"
+    },
+    {
+      "ok": false,
+      "step": "2.8 Sykt barn går til egenmeldingen",
+      "detail": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: 'Neste dag' }).first()\n    - locator resolved to <button role=\"button\" type=\"button\" aria-label=\"Neste dag\" class=\"css-g5y9jx r-1i6wzkk r-lrvibr r-1loqt21 r-1otgn73 r-1awozwy r-1777fci r-ero68b r-vkv6oe\">…</button>\n  - attempting click action\n    2 × waiting for element to be visible, enabled and stable\n"
+    },
+    {
+      "ok": false,
+      "step": "2.9 Eldre fravær uten skjema: «Mangler fraværsskjema» → skjema, typen byttes",
+      "detail": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('[id=\"husk-fravaersskjema\"]').first()\n    - locator resolved to <button role=\"button\" type=\"button\" id=\"husk-fravaersskjema\" class=\"css-g5y9jx r-1i6wzkk r-lrvibr r-1loqt21 r-1otgn73 r-1awozwy r-1q9bdsx r-rs99b7 r-18u37iz r-16y2uox r-1cmwbt1 r-peo1c r-11f147o r-3o4zer\">…</button>\n  - attempting click action\n    2 × waiting f"
+    },
+    {
+      "ok": false,
+      "step": "3.1 PC: «Fravær» nederst i rutenettet, knappene over tabellen, uten «Åpne prosjekt»",
+      "detail": "Fant ikke «Registrer nytt fravær»"
+    },
+    {
+      "ok": true,
+      "step": "4.1 Ingen JS-feil",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "step": "4.2 Ingen funksjonskall feilet",
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "calls": []
+}

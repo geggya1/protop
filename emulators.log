@@ -1,0 +1,210 @@
+[33m[1m⚠  emulators:[22m[39m You are not currently authenticated so some features may not work correctly. Please run [1mfirebase login[22m to authenticate the CLI.
+[36m[1mi  emulators:[22m[39m Starting emulators: auth, functions, firestore
+[33m[1m⚠  functions:[22m[39m The following emulators are not running, calls to these services from the Functions emulator will affect production: [1mapphosting, database, hosting, pubsub, storage, dataconnect[22m
+[33m[1m⚠  functions:[22m[39m Unable to fetch project Admin SDK configuration, Admin SDK behavior in Cloud Functions emulator may be incorrect.
+[33m[1m⚠ [22m[39m It appears you are running in a CI environment. You can avoid downloading the Firestore Emulator repeatedly by caching the /home/runner/.cache/firebase/emulators directory.
+[36m[1mi  firestore:[22m[39m downloading cloud-firestore-emulator-v1.22.0.jar...
+
+[36m[1mi  firestore:[22m[39m Firestore Emulator logging to [1mfirestore-debug.log[22m
+[32m[1m✔  firestore:[22m[39m Firestore Emulator was started in standard edition.
+[32m[1m✔  firestore:[22m[39m Firestore Emulator UI websocket is running on 9150.
+[33m[1m⚠  emulators:[22m[39m The Emulator UI is not starting because none of the running emulators have a UI component.
+[36m[1mi  functions:[22m[39m Watching "/home/runner/work/protop/protop/.helpbot-fn" for Cloud Functions...
+[33m[1m⚠ [22m[39m [1m[33mfunctions: [39m[22mpackage.json indicates an outdated version of firebase-functions. Please upgrade using [1mnpm install --save firebase-functions@latest[22m in your functions directory.
+[33m[1m⚠ [22m[39m [1m[33mfunctions: [39m[22mPlease note that there will be breaking changes when you upgrade.
+[32m[1m✔  functions:[22m[39m Using node@22 from host.
+Serving at port 8144
+
+(node:2967) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/runner/work/protop/protop/src/intercompany/model.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/runner/work/protop/protop/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[32m[1m✔  functions:[22m[39m Loaded functions definitions from source: claimCompanyOrgnr, findCompanyByOrgnr, icAllocateMembers, icAnswerLinkSettings, icEndLink, icListPartnerEmployees, icRemoveMember, icRequestLink, icRespondLink, icSetNumberSeries, icUpdateLinkSettings, icWithdrawLink, onIcInvoiceWritten, onIcProjectExpenseWritten, onIcProjectStateWritten, onIcTimeEntryWritten, requestCompanyJoin.
+[32m[1m✔  functions[europe-west1-claimCompanyOrgnr]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5001/protop-c189c/europe-west1/claimCompanyOrgnr).
+[32m[1m✔  functions[europe-west1-findCompanyByOrgnr]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5001/protop-c189c/europe-west1/findCompanyByOrgnr).
+[32m[1m✔  functions[europe-west1-icAllocateMembers]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5001/protop-c189c/europe-west1/icAllocateMembers).
+[32m[1m✔  functions[europe-west1-icAnswerLinkSettings]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5001/protop-c189c/europe-west1/icAnswerLinkSettings).
+[32m[1m✔  functions[europe-west1-icEndLink]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5001/protop-c189c/europe-west1/icEndLink).
+[32m[1m✔  functions[europe-west1-icListPartnerEmployees]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5001/protop-c189c/europe-west1/icListPartnerEmployees).
+[32m[1m✔  functions[europe-west1-icRemoveMember]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5001/protop-c189c/europe-west1/icRemoveMember).
+[32m[1m✔  functions[europe-west1-icRequestLink]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5001/protop-c189c/europe-west1/icRequestLink).
+[32m[1m✔  functions[europe-west1-icRespondLink]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5001/protop-c189c/europe-west1/icRespondLink).
+[32m[1m✔  functions[europe-west1-icSetNumberSeries]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5001/protop-c189c/europe-west1/icSetNumberSeries).
+[32m[1m✔  functions[europe-west1-icUpdateLinkSettings]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5001/protop-c189c/europe-west1/icUpdateLinkSettings).
+[32m[1m✔  functions[europe-west1-icWithdrawLink]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5001/protop-c189c/europe-west1/icWithdrawLink).
+[32m[1m✔  functions[europe-west1-onIcInvoiceWritten]:[22m[39m [1mfirestore[22m function initialized.
+[32m[1m✔  functions[europe-west1-onIcProjectExpenseWritten]:[22m[39m [1mfirestore[22m function initialized.
+[32m[1m✔  functions[europe-west1-onIcProjectStateWritten]:[22m[39m [1mfirestore[22m function initialized.
+[32m[1m✔  functions[europe-west1-onIcTimeEntryWritten]:[22m[39m [1mfirestore[22m function initialized.
+[32m[1m✔  functions[europe-west1-requestCompanyJoin]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5001/protop-c189c/europe-west1/requestCompanyJoin).
+
+┌─────────────────────────────────────────────────────────────┐
+│ [32m✔[39m  [1mAll emulators ready! It is now safe to connect your app.[22m │
+└─────────────────────────────────────────────────────────────┘
+
+┌────────────────┬────────────────┐
+│ Emulator       │ Host:Port      │
+├────────────────┼────────────────┤
+│ Authentication │ 127.0.0.1:9099 │
+├────────────────┼────────────────┤
+│ Functions      │ 127.0.0.1:5001 │
+├────────────────┼────────────────┤
+│ Firestore      │ 127.0.0.1:8085 │
+└────────────────┴────────────────┘
+[90m  Emulator Hub host: 127.0.0.1 port: 4400[39m
+[90m  Other reserved ports:[39m 4500, 9150
+
+Issues? Report them at [4m[1mhttps://github.com/firebase/firebase-tools/issues[22m[24m and attach the *-debug.log files.
+ 
+frødd hjelpebot { uid: '2dotvCCOIl2gLTGcpj4QeVFyPnXe', companyId: 'helpbot-bygg' }
+frødd konsern {
+  morUid: 'rj7SWKxk4vv0FkmH5aJerOskWBdH',
+  datterUid: '1r9BsOpt3S1Sa6mOZr9S6VeoJWvG',
+  partnerUid: 'dpEIyBzN96aXeMWf7MFI3KSBKhpv'
+}
+[33m[1m⚠ [22m[39m The Cloud Functions emulator requires the module "firebase-admin" to be installed as a dependency. To fix this, run "npm install --save firebase-admin" in your functions directory.
+[36m[1mi  functions:[22m[39m Your functions could not be parsed due to an issue with your node_modules (see above)
+[90m> [39m (node:2995) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/runner/work/protop/protop/src/intercompany/model.js is not specified and it doesn't parse as CommonJS.
+[90m> [39m Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+[90m> [39m To eliminate this warning, add "type": "module" to /home/runner/work/protop/protop/package.json.
+[90m> [39m (Use `node --trace-warnings ...` to show where the warning was created)
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcProjectStateWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcProjectStateWritten" in 6.870191ms
+[33m[1m⚠ [22m[39m The Cloud Functions emulator requires the module "firebase-admin" to be installed as a dependency. To fix this, run "npm install --save firebase-admin" in your functions directory.
+[36m[1mi  functions:[22m[39m Your functions could not be parsed due to an issue with your node_modules (see above)
+[90m> [39m (node:3004) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/runner/work/protop/protop/src/intercompany/model.js is not specified and it doesn't parse as CommonJS.
+[90m> [39m Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+[90m> [39m To eliminate this warning, add "type": "module" to /home/runner/work/protop/protop/package.json.
+[90m> [39m (Use `node --trace-warnings ...` to show where the warning was created)
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcInvoiceWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcInvoiceWritten" in 5.716357ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcProjectStateWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcProjectStateWritten" in 4.457761ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcProjectStateWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcProjectStateWritten" in 2.029927ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcProjectStateWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcProjectStateWritten" in 1.792919ms
+[33m[1m⚠ [22m[39m The Cloud Functions emulator requires the module "firebase-admin" to be installed as a dependency. To fix this, run "npm install --save firebase-admin" in your functions directory.
+[36m[1mi  functions:[22m[39m Your functions could not be parsed due to an issue with your node_modules (see above)
+[90m> [39m (node:3276) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/runner/work/protop/protop/src/intercompany/model.js is not specified and it doesn't parse as CommonJS.
+[90m> [39m Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+[90m> [39m To eliminate this warning, add "type": "module" to /home/runner/work/protop/protop/package.json.
+[90m> [39m (Use `node --trace-warnings ...` to show where the warning was created)
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-findCompanyByOrgnr"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-findCompanyByOrgnr" in 2.503012ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-findCompanyByOrgnr"
+[90m> [39m {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+[36m[1mi  functions:[22m[39m Finished "europe-west1-findCompanyByOrgnr" in 155.769617ms
+[33m[1m⚠ [22m[39m The Cloud Functions emulator requires the module "firebase-admin" to be installed as a dependency. To fix this, run "npm install --save firebase-admin" in your functions directory.
+[36m[1mi  functions:[22m[39m Your functions could not be parsed due to an issue with your node_modules (see above)
+[90m> [39m (node:3284) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/runner/work/protop/protop/src/intercompany/model.js is not specified and it doesn't parse as CommonJS.
+[90m> [39m Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+[90m> [39m To eliminate this warning, add "type": "module" to /home/runner/work/protop/protop/package.json.
+[90m> [39m (Use `node --trace-warnings ...` to show where the warning was created)
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icRequestLink"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icRequestLink" in 2.397663ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icRequestLink"
+[90m> [39m {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icRequestLink" in 251.388056ms
+[33m[1m⚠ [22m[39m The Cloud Functions emulator requires the module "firebase-admin" to be installed as a dependency. To fix this, run "npm install --save firebase-admin" in your functions directory.
+[36m[1mi  functions:[22m[39m Your functions could not be parsed due to an issue with your node_modules (see above)
+[90m> [39m (node:3298) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/runner/work/protop/protop/src/intercompany/model.js is not specified and it doesn't parse as CommonJS.
+[90m> [39m Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+[90m> [39m To eliminate this warning, add "type": "module" to /home/runner/work/protop/protop/package.json.
+[90m> [39m (Use `node --trace-warnings ...` to show where the warning was created)
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icRespondLink"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icRespondLink" in 7.340256ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icRespondLink"
+[90m> [39m {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icRespondLink" in 626.566284ms
+[33m[1m⚠ [22m[39m The Cloud Functions emulator requires the module "firebase-admin" to be installed as a dependency. To fix this, run "npm install --save firebase-admin" in your functions directory.
+[36m[1mi  functions:[22m[39m Your functions could not be parsed due to an issue with your node_modules (see above)
+[90m> [39m (node:3323) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/runner/work/protop/protop/src/intercompany/model.js is not specified and it doesn't parse as CommonJS.
+[90m> [39m Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+[90m> [39m To eliminate this warning, add "type": "module" to /home/runner/work/protop/protop/package.json.
+[90m> [39m (Use `node --trace-warnings ...` to show where the warning was created)
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icListPartnerEmployees"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icListPartnerEmployees" in 3.099255ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icListPartnerEmployees"
+[90m> [39m {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icListPartnerEmployees" in 100.484499ms
+[33m[1m⚠ [22m[39m The Cloud Functions emulator requires the module "firebase-admin" to be installed as a dependency. To fix this, run "npm install --save firebase-admin" in your functions directory.
+[36m[1mi  functions:[22m[39m Your functions could not be parsed due to an issue with your node_modules (see above)
+[90m> [39m (node:3331) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/runner/work/protop/protop/src/intercompany/model.js is not specified and it doesn't parse as CommonJS.
+[90m> [39m Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+[90m> [39m To eliminate this warning, add "type": "module" to /home/runner/work/protop/protop/package.json.
+[90m> [39m (Use `node --trace-warnings ...` to show where the warning was created)
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icAllocateMembers"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icAllocateMembers" in 7.117702ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icAllocateMembers"
+[90m> [39m {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcProjectStateWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcProjectStateWritten" in 7.008542ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcProjectStateWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcProjectStateWritten" in 6.247661ms
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icAllocateMembers" in 306.189204ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcProjectStateWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcProjectStateWritten" in 14.034821ms
+[33m[1m⚠ [22m[39m The Cloud Functions emulator requires the module "firebase-admin" to be installed as a dependency. To fix this, run "npm install --save firebase-admin" in your functions directory.
+[36m[1mi  functions:[22m[39m Your functions could not be parsed due to an issue with your node_modules (see above)
+[90m> [39m (node:3380) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/runner/work/protop/protop/src/intercompany/model.js is not specified and it doesn't parse as CommonJS.
+[90m> [39m Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+[90m> [39m To eliminate this warning, add "type": "module" to /home/runner/work/protop/protop/package.json.
+[90m> [39m (Use `node --trace-warnings ...` to show where the warning was created)
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcTimeEntryWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcTimeEntryWritten" in 119.833596ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcTimeEntryWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcTimeEntryWritten" in 2.621972ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcTimeEntryWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcTimeEntryWritten" in 29.452273ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcTimeEntryWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcTimeEntryWritten" in 5.17353ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcInvoiceWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcInvoiceWritten" in 121.0036ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcTimeEntryWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcTimeEntryWritten" in 28.936524ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcTimeEntryWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcTimeEntryWritten" in 2.66637ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcTimeEntryWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcTimeEntryWritten" in 2.259604ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcInvoiceWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcInvoiceWritten" in 45.315167ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcTimeEntryWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcTimeEntryWritten" in 2.456613ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcProjectStateWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcProjectStateWritten" in 104.166908ms
+[33m[1m⚠ [22m[39m The Cloud Functions emulator requires the module "firebase-admin" to be installed as a dependency. To fix this, run "npm install --save firebase-admin" in your functions directory.
+[36m[1mi  functions:[22m[39m Your functions could not be parsed due to an issue with your node_modules (see above)
+[90m> [39m (node:3391) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/runner/work/protop/protop/src/intercompany/model.js is not specified and it doesn't parse as CommonJS.
+[90m> [39m Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+[90m> [39m To eliminate this warning, add "type": "module" to /home/runner/work/protop/protop/package.json.
+[90m> [39m (Use `node --trace-warnings ...` to show where the warning was created)
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-onIcProjectExpenseWritten"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-onIcProjectExpenseWritten" in 6.23379ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-findCompanyByOrgnr"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-findCompanyByOrgnr" in 2.14404ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-findCompanyByOrgnr"
+[90m> [39m {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+[36m[1mi  functions:[22m[39m Finished "europe-west1-findCompanyByOrgnr" in 25.663143ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icRequestLink"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icRequestLink" in 1.783985ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icRequestLink"
+[90m> [39m {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icRequestLink" in 120.267908ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icRespondLink"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icRespondLink" in 3.522182ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icRespondLink"
+[90m> [39m {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icRespondLink" in 123.240315ms
+[33m[1m⚠ [22m[39m The Cloud Functions emulator requires the module "firebase-admin" to be installed as a dependency. To fix this, run "npm install --save firebase-admin" in your functions directory.
+[36m[1mi  functions:[22m[39m Your functions could not be parsed due to an issue with your node_modules (see above)
+[90m> [39m (node:3567) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/runner/work/protop/protop/src/intercompany/model.js is not specified and it doesn't parse as CommonJS.
+[90m> [39m Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+[90m> [39m To eliminate this warning, add "type": "module" to /home/runner/work/protop/protop/package.json.
+[90m> [39m (Use `node --trace-warnings ...` to show where the warning was created)
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icSetNumberSeries"
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icSetNumberSeries" in 1.816936ms
+[36m[1mi  functions:[22m[39m Beginning execution of "europe-west1-icSetNumberSeries"
+[90m> [39m {"verifications":{"app":"MISSING","auth":"VALID"},"logging.googleapis.com/labels":{"firebase-log-type":"callable-request-verification"},"severity":"DEBUG","message":"Callable request verification passed"}
+[36m[1mi  functions:[22m[39m Finished "europe-west1-icSetNumberSeries" in 194.375716ms

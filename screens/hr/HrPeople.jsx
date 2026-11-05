@@ -5,6 +5,7 @@ import {
 } from '../../src/employees/model';
 import { hrControlCells, hrKindBucket } from '../../src/hr/directory';
 import {
+  filterHrEmployees,
   formatNbDate,
   upcomingPeopleEvents,
   yearsBetween,
@@ -15,8 +16,12 @@ import HrContracts from './HrContracts';
 import HrSalary from './HrSalary';
 import HrFollowUp from './HrFollowUp';
 import HrCompliance from './HrCompliance';
+import HrHmsCards from './HrHmsCards';
+import HrPayGap from './HrPayGap';
+import HrAccessLog from './HrAccessLog';
+import ControlMeasuresCard from './ControlMeasuresCard';
 
-// Lønn vises bare fra HR → Lønn, ikke som fane i personellmappen.
+// Lønn åpnes fra kolonnen i listen, ikke som fane i personellmappen.
 const SHEETS = [
   { id: 'oversikt', label: 'Oversikt' },
   { id: 'avtale', label: 'Avtale' },
@@ -25,25 +30,48 @@ const SHEETS = [
 ];
 const SHEET_IDS = [...SHEETS.map((item) => item.id), 'lonn'];
 
-// «sheet» er fanen som åpnes når man trykker i kolonnen.
+// Personell er kontrollsiden: avtale, lønn, lovpålagt og oppfølging for hver ansatt på én rad.
+// «sheet» er fanen som åpnes når man trykker i kolonnen. «see» er rettigheten kolonnen krever.
 // Rødt betyr at noe mangler. Hver kolonne sier selv hva, så «Mangler» gjentas ikke på tvers.
-// Listen har bare egne ansatte. Innleide og eksterne ligger under HR → Innleid personell (HrHired).
-
+// Listen har bare egne ansatte. Innleide og eksterne ligger under Innleie › Personell.
 const COLUMNS = [
   { key: 'name', label: 'Navn', width: 190, value: (row) => displayName(row.employee) },
-  { key: 'check', label: 'Lovpålagt', width: 200, sheet: 'compliance', value: (row) => row.cells.checklist, warn: (row) => row.cells.checklistMissing > 0 },
-  { key: 'contract', label: 'Ansettelsesavtale', width: 150, sheet: 'avtale', value: (row) => (row.cells.contract === 'Mangler' ? 'Ingen avtale' : row.cells.contract), warn: (row) => row.cells.contract === 'Mangler' },
-  { key: 'review', label: 'Medarbeidersamtale', width: 160, sheet: 'oppfolging', value: (row) => (row.cells.review === 'Mangler' ? 'Ingen samtale' : row.cells.review), warn: (row) => row.cells.review === 'Mangler' },
-  { key: 'util', label: 'Fakturerbarhet', width: 130, value: (row) => row.cells.utilization },
-  { key: 'cases', label: 'Åpne saker', width: 110, sheet: 'oppfolging', value: (row) => row.cells.openCases, warn: (row) => Number(row.cells.openCases) > 0 },
+  {
+    key: 'contract', label: 'Avtale', width: 150, sheet: 'avtale', see: 'agreements',
+    value: (row) => (row.cells.contract === 'Mangler' ? 'Ingen avtale' : row.cells.contract),
+    warn: (row) => row.cells.contract === 'Mangler',
+  },
+  {
+    key: 'salary', label: 'Lønn', width: 150, sheet: 'lonn', see: 'payroll',
+    value: (row) => (row.cells.salary === 'Mangler' ? 'Ikke satt' : row.cells.salary),
+    warn: (row) => row.cells.salary === 'Mangler',
+  },
+  { key: 'check', label: 'Lovpålagt', width: 200, sheet: 'compliance', see: 'compliance', value: (row) => row.cells.checklist, warn: (row) => row.cells.checklistMissing > 0 },
+  { key: 'review', label: 'Medarbeidersamtale', width: 160, sheet: 'oppfolging', see: 'people', value: (row) => (row.cells.review === 'Mangler' ? 'Ingen samtale' : row.cells.review), warn: (row) => row.cells.review === 'Mangler' },
+  { key: 'cases', label: 'Åpne saker', width: 110, sheet: 'oppfolging', see: 'people', value: (row) => row.cells.openCases, warn: (row) => Number(row.cells.openCases) > 0 },
 ];
+
+const ALL_PARTS = { people: true, agreements: true, payroll: true, compliance: true };
+
+/** Kolonnene den innloggede har rettighet til. Avtale og Lovpålagt fulgte også Personell før. */
+export function controlColumns(parts = ALL_PARTS) {
+  const see = {
+    people: !!parts.people,
+    agreements: !!(parts.agreements || parts.people),
+    payroll: !!parts.payroll,
+    compliance: !!(parts.compliance || parts.people),
+  };
+  return COLUMNS.filter((col) => !col.see || see[col.see]);
+}
 
 export default function HrPeople({
   colors, employees, hr, entries, selectedId, onSelect, canWrite, onPatch, onSheet,
   sheet = 'oversikt', familyId, onSaveSalaries,
   focusCaseId, assigneeUid, assigneeName, onOpenTask, onCreateFollowUpTask,
-  isoCompetence, onOpenIso, listPreset = null, onBackToSalary, onOpenLibraryTemplate, formKit = null,
+  isoCompetence, onOpenIso, listPreset = null, onOpenLibraryTemplate, formKit = null,
+  parts = ALL_PARTS, company = null, canWriteCompliance = false, onPatchCompliance, canSeeAccessLog = false,
 }) {
+  const columns = useMemo(() => controlColumns(parts), [parts]);
   const dir = useHrDirectory(employees, { lockedKind: 'internal', preset: listPreset });
   const rows = useMemo(
     () => dir.rows.map((employee) => ({
@@ -53,7 +81,7 @@ export default function HrPeople({
     [dir.rows, hr, entries],
   );
   const selected = (employees || []).find((row) => row.id === selectedId && hrKindBucket(row) !== 'external') || null;
-  const activeSheet = SHEET_IDS.includes(sheet) ? sheet : 'oversikt';
+  const activeSheet = SHEET_IDS.includes(sheet) && (sheet !== 'lonn' || parts.payroll) ? sheet : 'oversikt';
 
   if (!selected) {
     return (
@@ -62,7 +90,7 @@ export default function HrPeople({
           <HrSectionTitle
             colors={colors}
             title="Personell"
-            subtitle="Egne ansatte. Velg en ansatt. Rødt er det som mangler. Trykk i en kolonne for å gå rett til avtale, oppfølging eller lovpålagt. Innleide og eksterne følges opp under Innleid personell."
+            subtitle={`Avtale, lønn, lovpålagt og oppfølging for egne ansatte i én liste. Rødt er det som mangler. ${parts.people ? 'Trykk i en kolonne for å gå rett dit. ' : ''}Innleide og eksterne følges opp under Innleie. ${rows.length} i listen.`}
           />
           <HrFilterBar
             colors={colors}
@@ -77,16 +105,23 @@ export default function HrPeople({
           />
           <HrTable
             colors={colors}
-            columns={COLUMNS}
+            columns={columns}
             rows={rows}
             rowKey={(row) => row.employee.id}
             emptyText="Ingen treff i personaloversikten."
-            onPressRow={(row, col) => {
+            onPressRow={parts.people ? (row, col) => {
               onSelect?.(row.employee.id);
               onSheet?.(col?.sheet || 'oversikt');
-            }}
+            } : undefined}
           />
         </HrCard>
+        {parts.payroll ? <HrPayGap colors={colors} employees={rows.map((row) => row.employee)} hr={hr} /> : null}
+        {parts.compliance ? (
+          // HMS-kort gjelder alle som arbeider på byggeplassen, også innleide og eksterne.
+          <HrHmsCards colors={colors} employees={filterHrEmployees(employees, 'all')} hr={hr} entries={entries} company={company} canWrite={canWriteCompliance} onPatch={onPatchCompliance || onPatch} />
+        ) : null}
+        {parts.compliance && familyId ? <ControlMeasuresCard colors={colors} familyId={familyId} canWrite={canWriteCompliance} /> : null}
+        {canSeeAccessLog && familyId ? <HrAccessLog colors={colors} familyId={familyId} /> : null}
       </View>
     );
   }
@@ -97,20 +132,16 @@ export default function HrPeople({
   const personMemos = (hr.memos || []).filter((row) => row.employeeId === selected.id);
   const nextEvents = upcomingPeopleEvents([selected], { withinDays: 366 }).slice(0, 2);
 
-  // Åpnet fra HR → Lønn: bare lønnen, og tilbake dit.
-  if (activeSheet === 'lonn') {
+  // Åpnet fra Lønn-kolonnen: bare lønnen, og tilbake til listen. Krever lønnsrettigheten.
+  if (activeSheet === 'lonn' && parts.payroll) {
     return (
       <View style={styles.page} nativeID="hr-employee-sheet">
         <HrCard colors={colors}>
           <HrButton
             colors={colors}
-            label="Til lønn"
+            label="Til personellisten"
             icon="arrow-back-outline"
             onPress={() => {
-              if (onBackToSalary) {
-                onBackToSalary();
-                return;
-              }
               onSelect?.('');
               onSheet?.('oversikt');
             }}

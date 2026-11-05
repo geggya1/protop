@@ -774,6 +774,16 @@ export function canAdminResource(grants, resource) {
   return allows(grants, resource, 'write');
 }
 
+/**
+ * Personell samler Personell, Avtaler, Lønn og Lovpålagt. Siden åpnes med én av de fire,
+ * og hver kolonne og del vises bare med sin egen rettighet.
+ */
+export const HR_CONTROL_RESOURCES = ['hrPeople', 'hrAgreements', 'hrPayroll', 'hrCompliance'];
+
+export function hrControlAllowed(grants) {
+  return HR_CONTROL_RESOURCES.some((resource) => seeResource(grants, resource));
+}
+
 export function hrResourceForSubView(subView) {
   const map = {
     oversikt: 'hr',
@@ -1191,10 +1201,7 @@ const NAV_RESOURCE = {
   innleie: 'hrPeople',
   'innleie-oversikt': 'hrPeople',
   'innleie-personell': 'hrPeople',
-  'hr-avtaler': 'hrAgreements',
-  'hr-lonn': 'hrPayroll',
   'hr-oppfolging': 'hrFollowup',
-  'hr-compliance': 'hrCompliance',
   // Sykefravær er helseopplysninger, og undersøkelsen er oppfølging av arbeidsmiljøet: som Samtaler og saker.
   'hr-sykefravaer': 'hrFollowup',
   'hr-undersokelse': 'hrFollowup',
@@ -1331,6 +1338,7 @@ export function companyTabAllowed(tab, subView, grants) {
       || adminResource(grants, 'economySettings');
   }
   if (tab === 'hr') {
+    if (subView === 'personell') return hrControlAllowed(grants);
     return seeResource(grants, hrResourceForSubView(subView || 'oversikt'));
   }
   if (tab === 'anbud') {
@@ -1392,6 +1400,7 @@ function navItemAllowed(id, grants) {
   if (id === 'hr') {
     return allowsHr(grants, 'see');
   }
+  if (id === 'hr-personell') return hrControlAllowed(grants);
   // Bedrift › Ansatt: egen ansattpost (tab ansatte) og fanen på den.
   if (id === 'ansatt-fravaer') return seeResource(grants, 'employees') && seeResource(grants, 'absence');
   if (id === 'ansatt-utlegg') return seeResource(grants, 'employees') && seeResource(grants, 'economyProjectExpenses');

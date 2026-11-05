@@ -59,7 +59,7 @@ assert.equal(isModuleStartPage('okonomi', 'fakturagrunnlag'), false);
 assert.equal(isModuleStartPage('arbeid', 'fravaer'), true, 'Fravær åpner fraværsoversikten');
 assert.equal(isModuleStartPage('arbeid', 'planlagt'), false);
 assert.equal(isModuleStartPage('hr', 'oversikt'), true);
-assert.equal(isModuleStartPage('hr', 'lonn'), false);
+assert.equal(isModuleStartPage('hr', 'personell'), false);
 assert.equal(isModuleStartPage('iso', 'avvik'), false);
 assert.equal(isModuleStartPage('kunder'), true);
 assert.equal(isModuleStartPage('selskap'), true);

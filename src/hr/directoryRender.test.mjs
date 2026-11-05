@@ -241,12 +241,12 @@ let followHtml = '';
     sheet: 'oversikt',
   }));
   const html = peopleHtml;
+  // Kontrollsiden: avtale, lønn, lovpålagt og oppfølging i én liste.
   assert.match(html, /Lovpålagt/);
   assert.equal(html.includes('Sjekkliste'), false);
-  assert.equal(html.includes('Lønn'), false);
-  assert.match(html, /Ansettelsesavtale/);
+  assert.match(html, />Lønn</);
+  assert.match(html, />Avtale</);
   assert.match(html, /Medarbeidersamtale/);
-  assert.match(html, /Fakturerbarhet/);
   assert.match(html, /Ada Nordmann/);
   assert.match(html, /Aktive · 1/);
   assert.match(html, /Deaktiverte · 0/);
@@ -285,16 +285,34 @@ let followHtml = '';
   assert.equal(overview.includes('Lønn'), false);
   assert.match(overview, /Lovpålagt/);
 
-  // Åpnet fra HR → Lønn: bare lønnen, og tilbake til Lønn.
+  // Åpnet fra Lønn-kolonnen: bare lønnen, og tilbake til listen.
   const salary = renderToStaticMarkup(React.createElement(HrPeople, {
     ...peopleProps,
     selectedId: 'e1',
     sheet: 'lonn',
-    onBackToSalary: () => {},
   }));
-  assert.match(salary, /Til lønn/);
+  assert.match(salary, /Til personellisten/);
   assert.equal(salary.includes('hr-sheet-avtale'), false);
-  assert.equal(salary.includes('Til personellisten'), false);
+
+  // Uten lønnsrettighet: ingen lønnskolonne, og lønnsfanen åpnes ikke.
+  const noPayroll = { people: true, agreements: true, payroll: false, compliance: true };
+  const listNoPay = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps, selectedId: '', sheet: 'oversikt', parts: noPayroll,
+  }));
+  assert.equal(listNoPay.includes('>Lønn<'), false);
+  const sheetNoPay = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps, selectedId: 'e1', sheet: 'lonn', parts: noPayroll,
+  }));
+  assert.match(sheetNoPay, /id="hr-sheet-compliance"/);
+
+  // Bare lønn (uten Personell): bare navn og lønn.
+  const payOnly = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps, selectedId: '', sheet: 'oversikt',
+    parts: { people: false, agreements: false, payroll: true, compliance: false },
+  }));
+  assert.match(payOnly, />Lønn</);
+  assert.equal(payOnly.includes('Medarbeidersamtale'), false);
+  assert.equal(payOnly.includes('>Avtale<'), false);
 }
 
 {
@@ -431,114 +449,68 @@ let followHtml = '';
 }
 
 {
-  controlHtml = renderToStaticMarkup(React.createElement(HrControl, {
-    colors,
-    page: 'lonn',
-    employees: [
-      ...employees,
-      {
-        id: 'e3',
-        person: { firstName: 'Aina', lastName: 'Jespersen' },
-        company: { status: 'active', personnelKind: 'external', title: 'Regnskap' },
-      },
-    ],
-    hr,
-    entries: [],
-    onOpenEmployee: () => {},
+  // Personell er kontrollsiden: lønn, avtale og lovpålagt i samme liste, med delene under.
+  const withHired = [
+    ...employees,
+    {
+      id: 'e3',
+      person: { firstName: 'Aina', lastName: 'Jespersen' },
+      company: { status: 'active', personnelKind: 'external', title: 'Regnskap' },
+    },
+  ];
+  controlHtml = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps, employees: withHired, selectedId: '', sheet: 'oversikt', company: { name: 'Test AS', orgnr: '' },
   }));
+  avtalerHtml = controlHtml;
+  complianceHtml = controlHtml;
   const html = controlHtml;
-  assert.match(html, /Gjeldende lønn/);
-  // Lønnskartlegging fordelt på kjønn (ARP) under lønnslisten.
+  assert.match(html, /id="hr-people"/);
+  assert.match(html, />Lønn</);
+  assert.match(html, />Avtale</);
+  assert.match(html, /Ingen avtale/);
+  assert.match(html, /Ikke satt/);
+  // Lønnskartlegging fordelt på kjønn (ARP) under listen.
   assert.match(html, /id="hr-pay-gap"/);
   assert.match(html, /Lønnskartlegging fordelt på kjønn/);
   assert.match(html, /Ingen ansatte har både registrert lønn og kjønn ennå/);
-
-  const staff = ['K1', 'K2', 'K3', 'M1', 'M2', 'M3'].map((id) => ({
-    id,
-    person: { firstName: id, lastName: 'Test', gender: id.startsWith('K') ? 'Kvinne' : 'Mann' },
-    company: { status: 'active', personnelKind: 'staff', title: 'Ingeniør' },
-  }));
-  const pay = renderToStaticMarkup(React.createElement(HrControl, {
-    colors,
-    page: 'lonn',
-    employees: staff,
-    hr: {
-      ...hr,
-      salaries: staff.map((row, i) => ({ id: `s${i}`, employeeId: row.id, kind: 'actual', effectiveDate: '2026-01-01', annualAmount: row.id.startsWith('K') ? 630000 : 700000 })),
-    },
-    entries: [],
-    onOpenEmployee: () => {},
-  }));
-  assert.match(pay, /Kvinners lønn av menns/);
-  assert.match(pay, /Ingeniør/);
-  assert.match(pay, /90 %/);
+  // HMS-kort og oversiktsliste for byggeplass.
+  assert.match(html, /id="hr-hms-cards"/);
+  assert.match(html, /HMS-kort og oversiktsliste/);
+  assert.match(html, /Last ned oversiktsliste \(CSV\)/);
   assert.match(html, /Ada Nordmann/);
-  assert.match(html, /Mangler/);
   assert.match(html, /Aktive/);
   assert.match(html, /Deaktiverte/);
   assert.equal(html.includes('Intern ·'), false);
   assert.equal(html.includes('Ekstern ·'), false);
   assert.equal(html.includes('Aina Jespersen'), false);
   assert.equal(html.includes('Bo Ekstern'), false);
-}
 
-{
-  avtalerHtml = renderToStaticMarkup(React.createElement(HrControl, {
-    colors,
-    page: 'avtaler',
-    employees: [
-      ...employees,
-      {
-        id: 'e3',
-        person: { firstName: 'Aina', lastName: 'Jespersen' },
-        company: { status: 'active', personnelKind: 'external', title: 'Regnskap' },
-      },
-    ],
-    hr,
-    entries: [],
-    onOpenEmployee: () => {},
+  const staff = ['K1', 'K2', 'K3', 'M1', 'M2', 'M3'].map((id) => ({
+    id,
+    person: { firstName: id, lastName: 'Test', gender: id.startsWith('K') ? 'Kvinne' : 'Mann' },
+    company: { status: 'active', personnelKind: 'staff', title: 'Ingeniør' },
   }));
-  const html = avtalerHtml;
-  assert.match(html, /Ansettelsesavtaler/);
-  assert.match(html, /Ada Nordmann/);
-  assert.match(html, /Aktive/);
-  assert.match(html, /Deaktiverte/);
-  assert.equal(html.includes('Intern ·'), false);
-  assert.equal(html.includes('Ekstern ·'), false);
-  assert.equal(html.includes('Aina Jespersen'), false);
-}
+  const pay = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    selectedId: '',
+    sheet: 'oversikt',
+    employees: staff,
+    hr: {
+      ...hr,
+      salaries: staff.map((row, i) => ({ id: `s${i}`, employeeId: row.id, kind: 'actual', effectiveDate: '2026-01-01', annualAmount: row.id.startsWith('K') ? 630000 : 700000 })),
+    },
+  }));
+  assert.match(pay, /Kvinners lønn av menns/);
+  assert.match(pay, /Ingeniør/);
+  assert.match(pay, /90 %/);
 
-{
-  complianceHtml = renderToStaticMarkup(React.createElement(HrControl, {
-    colors,
-    page: 'compliance',
-    employees: [
-      ...employees,
-      {
-        id: 'e3',
-        person: { firstName: 'Aina', lastName: 'Jespersen' },
-        company: { status: 'active', personnelKind: 'external', title: 'Regnskap' },
-      },
-    ],
-    hr,
-    entries: [],
-    onOpenEmployee: () => {},
+  // Uten lønns- og lovpålagt-rettighet: ingen lønnskartlegging og ingen HMS-kort.
+  const peopleOnly = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps, selectedId: '', sheet: 'oversikt',
+    parts: { people: true, agreements: false, payroll: false, compliance: false },
   }));
-  const html = complianceHtml;
-  assert.match(html, /Sjekkliste for egne ansatte/);
-  assert.match(html, /Ada Nordmann/);
-  assert.match(html, /Skriftlig arbeidsavtale/);
-  // HMS-kort og oversiktsliste for byggeplass under sjekklisten.
-  assert.match(html, /id="hr-hms-cards"/);
-  assert.match(html, /HMS-kort og oversiktsliste/);
-  assert.match(html, /Ingen HMS-kort er utløpt/);
-  assert.match(html, /Last ned oversiktsliste \(CSV\)/);
-  assert.match(html, /Åpne sjekkliste/);
-  assert.match(html, /Aktive/);
-  assert.match(html, /Deaktiverte/);
-  assert.equal(html.includes('Intern ·'), false);
-  assert.equal(html.includes('Ekstern ·'), false);
-  assert.equal(html.includes('Aina Jespersen'), false);
+  assert.equal(peopleOnly.includes('id="hr-pay-gap"'), false);
+  assert.equal(peopleOnly.includes('id="hr-hms-cards"'), false);
 }
 
 {
@@ -813,8 +785,9 @@ let phoneSheetHtml = '';
   for (const label of sectionLabels) assert.match(phoneNavHtml, new RegExp(label));
   assert.match(phoneNavHtml, /id="module-tab-del-ansatte"/);
   // Ansattregisteret (HR › Ansatte) er første side i delen.
-  assert.match(phoneNavHtml, /Ansatte \(5 sider\)/);
-  for (const id of ['personell', 'avtaler', 'lonn', 'compliance']) {
+  // Avtaler, Lønn og Lovpålagt er samlet i Personell.
+  assert.match(phoneNavHtml, /Ansatte \(2 sider\)/);
+  for (const id of ['ansatte', 'personell']) {
     assert.match(phoneNavHtml, new RegExp(`id="module-tab-hr-${id}"`));
   }
   // Sidene i de andre delene står ikke i andre rad.
@@ -843,12 +816,10 @@ if (fs.existsSync(previewDir)) {
 </style></head><body><main>${body}</main></body></html>`;
   fs.writeFileSync(path.join(previewDir, 'hr-personell.html'), page('Personell', peopleHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-avtale.html'), page('Avtale', sheetHtml));
-  fs.writeFileSync(path.join(previewDir, 'hr-lonn-kontroll.html'), page('Lønn', controlHtml));
+  fs.writeFileSync(path.join(previewDir, 'hr-personell-kontroll.html'), page('Personell', controlHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-oversikt.html'), page('HR-oversikt', dashboardHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-oppfolging-sak.html'), page('Oppfølgingssak', linkedHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-sak-detalj.html'), page('Sak', caseHtml));
-  fs.writeFileSync(path.join(previewDir, 'hr-avtaler.html'), page('Ansettelsesavtaler', avtalerHtml));
-  fs.writeFileSync(path.join(previewDir, 'hr-lovpalagt.html'), page('Lovpålagt', complianceHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-oppfolging.html'), page('Oppfølging', followHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-innleid.html'), page('Innleid personell', hiredHtml));
   fs.writeFileSync(path.join(previewDir, 'innleie-oversikt.html'), page('Innleie', innleieDashHtml));

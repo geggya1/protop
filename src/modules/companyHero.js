@@ -79,10 +79,10 @@ export const COMPANY_HERO = {
     wideArt: true,
     name: 'Personell',
     kicker: t('HR', 'HR'),
-    title: t('Personaloversikt', 'People overview'),
+    title: t('Personalkontroll', 'People control'),
     pitch: t(
-      'Ansatt dato, jubileum, fødselsdato og kontrakter.',
-      'Hire date, anniversary, birthday and contracts.',
+      'Avtale, lønn, lovpålagt og oppfølging for hver ansatt i én liste.',
+      'Contract, pay, statutory items and follow-up for each employee in one list.',
     ),
   },
   'innleie-oversikt': {
@@ -135,16 +135,6 @@ export const COMPANY_HERO = {
       'Wellbeing along the way, evaluation of the job and a checklist when the person leaves.',
     ),
   },
-  'hr-avtaler': {
-    wideArt: true,
-    name: 'Avtaler',
-    kicker: t('HR', 'HR'),
-    title: t('Ansettelsesavtaler', 'Employment contracts'),
-    pitch: t(
-      'Last opp, OCR-skann og lagre nøkkeldata på personen.',
-      'Upload, OCR-scan and store key fields on the person.',
-    ),
-  },
   'arbeid-produktivitet': {
     wideArt: true,
     name: 'Produktivitet',
@@ -165,16 +155,6 @@ export const COMPANY_HERO = {
       'Planned period from project and agreement, and the weeks with logged hours.',
     ),
   },
-  'hr-lonn': {
-    wideArt: true,
-    name: 'Lønn',
-    kicker: t('HR', 'HR'),
-    title: t('Lønn og justeringer', 'Pay and adjustments'),
-    pitch: t(
-      'Historikk, graf og plan for fremtidige justeringer.',
-      'History, chart and planned future adjustments.',
-    ),
-  },
   'hr-oppfolging': {
     wideArt: true,
     name: 'Samtaler og saker',
@@ -183,16 +163,6 @@ export const COMPANY_HERO = {
     pitch: t(
       'Medarbeidersamtaler, memo og tildelte gjøremål.',
       'Reviews, memos and assigned to-dos.',
-    ),
-  },
-  'hr-compliance': {
-    wideArt: true,
-    name: 'Lovpålagt',
-    kicker: t('HR', 'HR'),
-    title: t('Lovpålagt per ansatt', 'Statutory per employee'),
-    pitch: t(
-      'Arbeidsavtale, HMS-kort, verneutstyr og personvern per ansatt.',
-      'Employment agreement, HSE card, protective equipment and privacy per employee.',
     ),
   },
   'hr-sykefravaer': {

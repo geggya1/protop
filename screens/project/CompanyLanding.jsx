@@ -78,12 +78,12 @@ const styles = StyleSheet.create({
   },
   startCard: { marginBottom: 16 },
   emptyBody: { flexGrow: 1, gap: 16, paddingBottom: 28 },
-  emptyLead: { fontSize: 15, lineHeight: 22, fontWeight: '400' },
+  emptyLead: { fontSize: 14, lineHeight: 20, fontWeight: '400' },
   emptyBtn: {
     alignSelf: 'flex-start',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  emptyBtnText: { color: '#fff', fontWeight: '400', fontSize: 15 },
+  emptyBtnText: { color: '#fff', fontWeight: '400', fontSize: 14 },
 });

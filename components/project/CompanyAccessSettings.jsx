@@ -323,7 +323,7 @@ function Matrix({ grants, base, colors, canEdit, onToggle, compact = false, limi
       >
         {info ? (
           <View nativeID="access-info-sheet" style={styles.infoSheet}>
-            <Text style={{ color: colors.ink, fontSize: 15, lineHeight: 22 }}>{accessHelp(info.resourceId, info.actionId)}</Text>
+            <Text style={{ color: colors.ink, fontSize: 14, lineHeight: 20 }}>{accessHelp(info.resourceId, info.actionId)}</Text>
             <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{ACTION_MEANING[info.actionId]}</Text>
           </View>
         ) : null}
@@ -1419,7 +1419,7 @@ const styles = StyleSheet.create({
   section: { gap: 10, width: '100%' },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginTop: 8 },
   title: { fontSize: 22, fontWeight: '600' },
-  lead: { fontSize: 15, lineHeight: 21 },
+  lead: { fontSize: 14, lineHeight: 20 },
   error: { fontSize: 14 },
   note: { fontSize: 14 },
   modeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -1437,7 +1437,7 @@ const styles = StyleSheet.create({
   popupCard: { width: '100%', maxWidth: 560, maxHeight: '100%', borderWidth: 1, borderRadius: 16, padding: 16, gap: 10, zIndex: 2 },
   popupHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   kind: { fontSize: 13, lineHeight: 18 },
-  summary: { fontSize: 15, lineHeight: 21 },
+  summary: { fontSize: 14, lineHeight: 20 },
   matrix: { width: '100%', gap: 8, paddingBottom: 4 },
   groupLabel: { fontSize: 15, fontWeight: '600' },
   matrixDrawer: { borderWidth: 1, borderRadius: 12, width: '100%', overflow: 'hidden' },
@@ -1526,5 +1526,5 @@ const styles = StyleSheet.create({
   avatarDot: { position: 'absolute', right: -1, bottom: -1, width: 8, height: 8, borderRadius: 4, borderWidth: 1 },
   moveBox: { gap: 6, width: '100%' },
   moveBtn: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
 });

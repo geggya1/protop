@@ -615,7 +615,7 @@ const styles = StyleSheet.create({
   author: { fontSize: 14, fontWeight: '400' },
   when: { fontSize: 12 },
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  // Samme størrelse som seksjonsoverskriftene på Tjenester; brødteksten (NewsBody) er 15/22 som der.
+  // Samme størrelse som seksjonsoverskriftene på Tjenester; brødteksten (NewsBody) er standard 14.
   postTitle: { fontSize: 20, fontWeight: '600', lineHeight: 26, letterSpacing: -0.3 },
   image: { width: '100%', aspectRatio: 16 / 9, maxHeight: 360, borderRadius: 10 },
   list: { gap: 8 },
@@ -631,7 +631,7 @@ const styles = StyleSheet.create({
   reactBtn: { alignSelf: 'flex-start', paddingVertical: 2 },
   reactTxt: { fontSize: 13 },
   empty: { borderRadius: 12, padding: 14, gap: 4 },
-  emptyTitle: { fontSize: 15, fontWeight: '400' },
+  emptyTitle: { fontSize: 14, fontWeight: '400' },
   emptySub: { fontSize: 13, lineHeight: 18 },
   cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP },
   newsCard: {
@@ -658,7 +658,7 @@ const styles = StyleSheet.create({
   categories: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 8 },
   categoryChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   linkInput: {
-    borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, marginTop: 8,
+    borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginTop: 8,
   },
   previewRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
   preview: { width: 120, height: 72, borderRadius: 8 },

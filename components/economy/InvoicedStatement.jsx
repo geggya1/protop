@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import { useColors } from '../../src/context/ThemeContext';
+import { EconomyGrid, EconomyTile, useEconomyTileHalf } from './EconomyGrid';
 import {
   buildInvoicedStatement,
   chartCanvasHeight,
@@ -180,9 +181,10 @@ function MonthChart({
 }) {
   const colors = useColors();
   const months = statement?.months?.length === 12 ? statement.months : STATEMENT_MONTHS;
+  const half = useEconomyTileHalf();
   const [measureRef, width, onLayout] = useMeasuredWidth();
   const [tip, setTip] = useState(null);
-  const canvas = chartCanvasWidth(width, 12, 56);
+  const canvas = chartCanvasWidth(width, 12, half ? 44 : 56);
   const height = chartCanvasHeight(canvas);
   const layout = layoutMonthChart({
     years,
@@ -549,7 +551,11 @@ function YearTable({ statement, onDownload }) {
   );
 }
 
-export default function InvoicedStatement({ familyId }) {
+/**
+ * Utfakturert omsetning. Panelene legges i økonomirutenettet sammen med
+ * kortene som sendes inn som children.
+ */
+export default function InvoicedStatement({ familyId, children }) {
   const colors = useColors();
   const [statement, setStatement] = useState(null);
   const [phase, setPhase] = useState('loading');
@@ -582,7 +588,7 @@ export default function InvoicedStatement({ familyId }) {
     };
   }, [familyId]);
 
-  if (!familyId) return null;
+  if (!familyId) return <EconomyGrid nativeID="economy-grid">{children}</EconomyGrid>;
 
   const hasFigures = (statement?.invoiceCount > 0)
     || (statement?.yearly || []).some((row) => row && row.amount != null);
@@ -605,37 +611,46 @@ export default function InvoicedStatement({ familyId }) {
           </View>
         </View>
       ) : null}
-      {!empty ? (
-        <>
-          <MonthPanel
-            title="Utfakturert per måned"
-            subtitle="Eks. mva, basert på fakturadato"
-            nativeID="economy-invoiced-monthly"
-            statement={statement}
-            series={statement.monthly}
-            mode="bars"
-            section="monthly"
-            filename="utfakturert-per-maned.xls"
-          />
-          <MonthPanel
-            title="Utfakturert gjennom året"
-            subtitle="Måned for måned akkumulert"
-            nativeID="economy-invoiced-cumulative"
-            statement={statement}
-            series={statement.cumulative}
-            mode="lines"
-            section="cumulative"
-            filename="utfakturert-gjennom-aret.xls"
-          />
-          <Panel title="Omsetning per år" subtitle="Eks. mva, basert på fakturadato" nativeID="economy-invoiced-yearly">
-            <YearChart statement={statement} />
-            <YearTable
-              statement={statement}
-              onDownload={() => downloadWorkbook(statement, 'yearly', 'omsetning-per-ar.xls')}
-            />
-          </Panel>
-        </>
-      ) : null}
+      <EconomyGrid nativeID="economy-grid">
+        {!empty ? (
+          <>
+            <EconomyTile label="Utfakturert per måned">
+              <MonthPanel
+                title="Utfakturert per måned"
+                subtitle="Eks. mva, basert på fakturadato"
+                nativeID="economy-invoiced-monthly"
+                statement={statement}
+                series={statement.monthly}
+                mode="bars"
+                section="monthly"
+                filename="utfakturert-per-maned.xls"
+              />
+            </EconomyTile>
+            <EconomyTile label="Utfakturert gjennom året">
+              <MonthPanel
+                title="Utfakturert gjennom året"
+                subtitle="Måned for måned akkumulert"
+                nativeID="economy-invoiced-cumulative"
+                statement={statement}
+                series={statement.cumulative}
+                mode="lines"
+                section="cumulative"
+                filename="utfakturert-gjennom-aret.xls"
+              />
+            </EconomyTile>
+            <EconomyTile label="Omsetning per år">
+              <Panel title="Omsetning per år" subtitle="Eks. mva, basert på fakturadato" nativeID="economy-invoiced-yearly">
+                <YearChart statement={statement} />
+                <YearTable
+                  statement={statement}
+                  onDownload={() => downloadWorkbook(statement, 'yearly', 'omsetning-per-ar.xls')}
+                />
+              </Panel>
+            </EconomyTile>
+          </>
+        ) : null}
+        {children}
+      </EconomyGrid>
     </View>
   );
 }
@@ -652,8 +667,8 @@ const cellText = { fontSize: 12, lineHeight: 16, textAlign: 'right', paddingVert
 const styles = StyleSheet.create({
   page: { gap: 14 },
   lead: { fontSize: 13, lineHeight: 18 },
-  panel: { borderWidth: 1, borderRadius: 12, overflow: 'hidden', ...webShadow },
-  panelHead: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1 },
+  panel: { flexGrow: 1, borderWidth: 1, borderRadius: 12, overflow: 'hidden', ...webShadow },
+  panelHead: { paddingLeft: 14, paddingRight: 44, paddingVertical: 10, borderBottomWidth: 1 },
   panelTitle: { fontSize: 15, fontWeight: '600' },
   panelBody: { padding: 12, gap: 10 },
   sub: { fontSize: 13, lineHeight: 18 },

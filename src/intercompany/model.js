@@ -83,6 +83,56 @@ export function pathId(value) {
   return text(value).replace(/\//g, '');
 }
 
+function nameKey(value) {
+  return text(value).toLocaleLowerCase('nb').replace(/\s+/g, ' ');
+}
+
+/**
+ * Org.nr., navn og Brreg-koblinger for et selskap. Tar et familie-dokument (company.*),
+ * en avtalepart ({ id, name, orgnr }) eller en rad med companyId.
+ */
+function companyIdentity(raw = {}) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const company = src.company && typeof src.company === 'object' ? src.company : {};
+  const org = digits(src.orgnr || company.organisasjonsnummer || company.orgnr);
+  return {
+    id: text(src.id || src.companyId),
+    orgnr: org.length === 9 ? org : '',
+    name: nameKey(company.navn || src.name),
+    over: digits(company.overordnetEnhet || src.overordnetEnhet),
+    aliases: (Array.isArray(company.aliasOrganisasjonsnummer) ? company.aliasOrganisasjonsnummer : [])
+      .map(digits).filter((value) => value.length === 9),
+    units: (Array.isArray(company.subUnits) ? company.subUnits : [])
+      .map((unit) => digits(unit?.organisasjonsnummer || unit?.orgnr)).filter((value) => value.length === 9),
+  };
+}
+
+/**
+ * Er a og b samme selskap? Samme dokument, samme org.nr., en underenhet og hovedenheten den
+ * hører til (Brreg), eller et alias-nummer. Et selskap kan ikke knyttes til seg selv.
+ * Datterselskaper har eget org.nr. og annet navn (Sør, Øst), og er aldri samme selskap.
+ */
+export function isSameCompany(a, b) {
+  const x = companyIdentity(a);
+  const y = companyIdentity(b);
+  if (x.id && x.id === y.id) return true;
+  if (x.orgnr && x.orgnr === y.orgnr) return true;
+  if (x.orgnr && y.over === x.orgnr) return true;
+  if (y.orgnr && x.over === y.orgnr) return true;
+  if (x.orgnr && y.aliases.includes(x.orgnr)) return true;
+  if (y.orgnr && x.aliases.includes(y.orgnr)) return true;
+  const sameName = !!x.name && x.name === y.name;
+  if (sameName && x.orgnr && y.units.includes(x.orgnr)) return true;
+  if (sameName && y.orgnr && x.units.includes(y.orgnr)) return true;
+  return false;
+}
+
+/** Avtale der begge parter er samme selskap (laget før sperren kom). Den skal avsluttes, ikke brukes. */
+export function isSelfLink(link) {
+  const row = normalizeLink(link, link?.id);
+  return isSameCompany(row.parent, row.child);
+}
+
 export function linkIdFor(requesterId, targetId, at = Date.now()) {
   const pair = [safeId(requesterId), safeId(targetId)].sort().join('-');
   return `icl-${pair}-${Number(at).toString(36)}`.slice(0, 140);
@@ -122,11 +172,8 @@ export function normalizeLinkSettings(raw = {}) {
   };
 }
 
-export function settingsError(settings) {
-  const s = normalizeLinkSettings(settings);
-  if (s.hours.enabled && s.hours.mode === 'fixed' && !(s.hours.fixedRate > 0)) {
-    return 'Fyll inn den faste timeprisen.';
-  }
+/** Avtalen har ingen priser å fylle inn (prisen settes på prosjektet), så det er ingenting å avvise. */
+export function settingsError() {
   return '';
 }
 
@@ -180,8 +227,11 @@ export function normalizeLink(raw = {}, id = '') {
   };
 }
 
-/** Avtalen fra ett selskaps side: hvem partneren er, og om vi er mor eller datter. */
-export function linkView(link, companyId) {
+/**
+ * Avtalen fra ett selskaps side: hvem partneren er, og om vi er mor eller datter.
+ * own: selskapets eget dokument (valgfritt). Da kjennes også en underenhet av oss igjen som oss selv.
+ */
+export function linkView(link, companyId, own = null) {
   const row = normalizeLink(link, link?.id);
   const id = text(companyId);
   const weAreParent = row.parent.id === id;
@@ -200,6 +250,7 @@ export function linkView(link, companyId) {
     outgoing: row.status === LINK_STATUS.pending && row.requestedByCompanyId === id,
     active: row.status === LINK_STATUS.active,
     statusLabel: LINK_STATUS_LABELS[row.status] || row.status,
+    self: isSameCompany(row.parent, row.child) || (!!own && isSameCompany({ ...own, id: id }, partner)),
     settingsToAnswer: !!row.pendingSettings && row.pendingSettings.proposedByCompanyId !== id,
     settingsProposedByUs: !!row.pendingSettings && row.pendingSettings.proposedByCompanyId === id,
   };
@@ -211,10 +262,14 @@ export function partnerIdOf(link, companyId) {
 }
 
 /** Avtalene for selskapet, delt i innkommende, utgående, aktive og avsluttede. */
-export function groupLinks(links = [], companyId = '') {
-  const views = (links || []).map((row) => linkView(row, companyId)).filter(Boolean);
+export function groupLinks(links = [], companyId = '', own = null) {
+  const all = (links || []).map((row) => linkView(row, companyId, own)).filter(Boolean);
+  const open = (row) => row.status === LINK_STATUS.pending || row.status === LINK_STATUS.active;
+  // Koblinger til selskapet selv vises for seg, så de kan fjernes. De er aldri en avtale.
+  const views = all.filter((row) => !row.self);
   const byName = (a, b) => a.partner.name.localeCompare(b.partner.name, 'nb');
   return {
+    self: all.filter((row) => row.self && open(row)),
     incoming: views.filter((row) => row.incoming).sort(byName),
     outgoing: views.filter((row) => row.outgoing).sort(byName),
     active: views.filter((row) => row.active).sort(byName),
@@ -231,10 +286,10 @@ export function roleSentence(view) {
 }
 
 /** Selskapene i konsernet sett fra morselskapet: aktive konsernavtaler der vi er mor. */
-export function konsernChildren(links = [], companyId = '') {
+export function konsernChildren(links = [], companyId = '', own = null) {
   return (links || [])
-    .map((row) => linkView(row, companyId))
-    .filter((row) => row && row.active && row.relation === 'konsern' && row.ourRole === 'parent')
+    .map((row) => linkView(row, companyId, own))
+    .filter((row) => row && row.active && !row.self && row.relation === 'konsern' && row.ourRole === 'parent')
     .map((row) => row.partner);
 }
 
@@ -257,7 +312,7 @@ export function buildLinkRequest({
   const req = party(requester);
   const tgt = party(target);
   if (!req.id || !tgt.id) return { ok: false, error: 'Selskapet mangler.' };
-  if (req.id === tgt.id) return { ok: false, error: 'Et selskap kan ikke knyttes til seg selv.' };
+  if (isSameCompany(req, tgt)) return { ok: false, error: 'Et selskap kan ikke knyttes til seg selv.' };
   const partnerLink = role === 'partner';
   const targetIsChild = role !== 'parent';
   const stamp = text(at) || new Date().toISOString();
@@ -290,6 +345,7 @@ export function respondToLink(link, { companyId, accept, uid = '', name = '', at
   if (row.requestedByCompanyId === text(companyId)) {
     return { ok: false, error: 'Det andre selskapet må godkjenne forespørselen.' };
   }
+  if (accept && isSelfLink(row)) return { ok: false, error: 'Et selskap kan ikke knyttes til seg selv.' };
   const stamp = text(at) || new Date().toISOString();
   return {
     ok: true,
@@ -321,8 +377,8 @@ export function endLink(link, { companyId, at = '' }) {
 }
 
 /**
- * Nye priser i en aktiv avtale er et forslag til den andre parten godtar det (prisene er avtalt
- * mellom to selskaper, og den ene kan ikke endre dem alene). Ventende forespørsler kan justeres
+ * En endring i en aktiv avtale er et forslag til den andre parten godtar det (avtalen er inngått
+ * mellom to selskaper, og den ene kan ikke endre den alene). Ventende forespørsler kan justeres
  * av den som spurte, før den andre har svart.
  */
 export function proposeLinkSettings(link, { companyId, settings, uid = '', at = '' }) {
@@ -353,7 +409,7 @@ export function answerLinkSettings(link, { companyId, accept, uid = '', at = '' 
   const row = normalizeLink(link, link?.id);
   const id = text(companyId);
   const pending = row.pendingSettings;
-  if (!pending) return { ok: false, error: 'Det er ingen nye priser å svare på.' };
+  if (!pending) return { ok: false, error: 'Det er ingen endring å svare på.' };
   if (!row.companyIds.includes(id)) return { ok: false, error: 'Selskapet er ikke part i avtalen.' };
   const stamp = text(at) || new Date().toISOString();
   if (accept) {
@@ -395,17 +451,13 @@ export function updateLinkSettings(link, { companyId, settings, uid = '', at = '
   };
 }
 
-/** Kort tekst om prisen, til lister og prosjektmerket. */
+/** Hva avtalen omfatter, til lister: «Timer · Produkter · Utleie». Prisen settes på prosjektet. */
 export function settingsSummary(settings) {
   const s = normalizeLinkSettings(settings);
   const parts = [];
-  if (s.hours.enabled) {
-    parts.push(s.hours.mode === 'fixed'
-      ? `Timer: fast ${s.hours.fixedRate ?? 0} kr/t`
-      : (s.hours.discountPercent ? `Timer: ${s.hours.discountPercent} % rabatt` : 'Timer: ordinær pris'));
-  }
-  if (s.products.enabled) parts.push(s.products.discountPercent ? `Produkter: ${s.products.discountPercent} % rabatt` : 'Produkter: ordinær pris');
-  if (s.rental.enabled) parts.push(s.rental.discountPercent ? `Utleie: ${s.rental.discountPercent} % rabatt` : 'Utleie: ordinær pris');
+  if (s.hours.enabled) parts.push('Timer');
+  if (s.products.enabled) parts.push('Produkter');
+  if (s.rental.enabled) parts.push('Utleie');
   return parts.join(' · ') || 'Ingen områder valgt';
 }
 
@@ -443,29 +495,24 @@ export function ownerHourlyRate(project) {
   return rate == null || rate <= 0 ? null : rate;
 }
 
-/** Rabatt på ordinær pris krever at eierens prosjekt har timepris. Ellers må avtalen ha fast pris. */
+/** Kopien får eierens timepris som utgangspunkt. Mangler den, setter leverandøren pris på kopien. */
 export function cloneRateMissing({ settings, ownerProject }) {
   const s = normalizeLinkSettings(settings);
-  return s.hours.enabled && s.hours.mode !== 'fixed' && ownerHourlyRate(ownerProject) == null;
+  return s.hours.enabled && ownerHourlyRate(ownerProject) == null;
 }
 
 /**
- * Prisen leverandøren fakturerer eieren: fast timepris, eller eierens ordinære timepris med
- * avtalt rabatt. Rabatt på produkter og utleie legges på kopiens fakturainnstillinger.
+ * Prisen leverandøren fakturerer eieren settes på prosjektnivå, på kopien som på ethvert
+ * prosjekt. Kopien starter med timeprisen på eierens prosjekt, uten rabatter. Avtalen har
+ * ingen priser; den sier bare hva som er med (timer, produkter, utleie) og hvordan fakturaen sendes.
  */
 export function clonePricing({ settings, ownerProject }) {
   const s = normalizeLinkSettings(settings);
-  const ordinary = ownerHourlyRate(ownerProject);
-  const fixed = s.hours.mode === 'fixed';
-  const hourlyRate = !s.hours.enabled ? null : (fixed ? s.hours.fixedRate : ordinary);
   return {
     pricingModel: s.hours.enabled ? 'hourly' : 'not_billable',
-    pricingSettings: { hourlyRate },
-    invoiceSettings: {
-      discountHours: s.hours.enabled && !fixed && s.hours.discountPercent ? s.hours.discountPercent : null,
-      discountProducts: s.products.discountPercent || null,
-    },
-    rentalDiscountPercent: s.rental.discountPercent,
+    pricingSettings: { hourlyRate: s.hours.enabled ? ownerHourlyRate(ownerProject) : null },
+    invoiceSettings: {},
+    rentalDiscountPercent: 0,
   };
 }
 
@@ -509,8 +556,8 @@ export function buildCloneProject({ link, owner, ownerProject, customer = null, 
     end: text(base.end) || text(ownerProject.end),
     place: text(base.place) || text(ownerProject.place),
     description: text(base.description) || `Underleveranse til ${text(owner.name)}, prosjekt ${text(ownerProject.number)}.`,
-    // Pris og betingelser settes på kopien som på ethvert prosjekt. Avtalens priser er bare
-    // utgangspunktet når kopien lages; en kopi som finnes, beholder sine egne.
+    // Pris og betingelser settes på kopien som på ethvert prosjekt (prosjektnivå). Eierens
+    // timepris er bare utgangspunktet når kopien lages; en kopi som finnes, beholder sine egne.
     pricingModel: existing ? base.pricingModel : pricing.pricingModel,
     pricingSettings: existing ? (base.pricingSettings || {}) : pricing.pricingSettings,
     invoiceSettings: existing ? (base.invoiceSettings || {}) : pricing.invoiceSettings,

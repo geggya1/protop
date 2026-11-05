@@ -827,7 +827,10 @@ function AppShellInner() {
     }
     // Kunder → Kundeundersøkelse (/hjem/kunder/undersokelse).
     if (tab === 'kunder') return moreSubView === 'undersokelse' ? <CustomerSurveyScreen /> : <CustomersScreen />;
-    if (tab === 'ansatte') return <EmployeesScreen />;
+    // Egen side (Bedrift › Ansatt) eller registeret. Ny montering per side, så egen side ikke arver listen.
+    if (tab === 'ansatte') return <EmployeesScreen key={moreSubView || 'register'} subView={moreSubView} />;
+    // HR › Ansatte: samme ansattregister, som egen side i HR.
+    if (tab === 'hr' && moreSubView === 'ansatte') return <EmployeesScreen key="hr-ansatte" />;
     if (tab === 'hr' && moreSubView === 'innleid') return <InnleieScreen subView="personell" />;
     if (tab === 'hr') return <HrScreen subView={moreSubView || defaultHrSubView(null)} />;
     // Timer for innleide er samme timeliste som under Ansatte, med eksterne først.
@@ -851,7 +854,7 @@ function AppShellInner() {
     if (tab === 'selskap' && moreSubView === 'moduler') return <ProjectPlatformScreen startPage="moduler" />;
     if (tab === 'selskap' && moreSubView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && moreSubView === 'innstillinger') return <ProjectPlatformScreen />;
-    if (tab === 'selskap' && (moreSubView === 'fravaerstyper' || moreSubView === 'fridager')) {
+    if (tab === 'selskap' && (moreSubView === 'fravaerstyper' || moreSubView === 'fridager' || moreSubView === 'sykefravaer')) {
       return <AbsenceSettingsScreen startTab={moreSubView} />;
     }
     if (tab === 'selskap' && (moreSubView === 'kontoplan' || moreSubView === 'regnskapskontoer')) {
@@ -1087,11 +1090,13 @@ function AppShellInner() {
   // ISO og HR har tipsfeltet på alle undersider unntatt oversikten, og bare når vinduet har
   // plass til både feltet og innholdet. Modulen ligger i samme oppsett på desktop også uten
   // feltet, så innholdet ikke flytter seg mellom oversikten og undersidene.
-  const subDesk = !!SUBPAGE_ASIDE[tab] && isDesktop && !kitchenMode;
+  // HR › Ansatte er registeret, som har hele bredden slik det hadde under Ansatte.
+  const hrRegister = tab === 'hr' && moreSubView === 'ansatte';
+  const subDesk = !!SUBPAGE_ASIDE[tab] && isDesktop && !kitchenMode && !hrRegister;
   const subAside = subDesk && width >= SUBPAGE_ASIDE_MIN_WIDTH && SUBPAGE_ASIDE[tab](moreSubView) !== 'oversikt';
   const showDeskAside = isDesktop && !kitchenMode && (subDesk || (
     tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud' && tab !== 'kunder' && tab !== 'kontrakt' && tab !== 'skjema' && tab !== 'okonomi' && tab !== 'selskap' && tab !== 'underenheter'
-    && tab !== 'projects' && tab !== 'arbeid' && tab !== 'timeliste' && tab !== 'ansatte' && tab !== 'moter'));
+    && tab !== 'projects' && tab !== 'arbeid' && tab !== 'timeliste' && tab !== 'ansatte' && tab !== 'moter' && !hrRegister));
 
   // Bottom nav owns home-indicator padding; keep shell flush to the viewport bottom.
   // Use object edges: on web, omitting a side from an array still applies additive inset

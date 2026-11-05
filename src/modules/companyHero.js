@@ -4,6 +4,7 @@
  * Telefon: båndet ligger i skall-chrome. Nettbrett og nettleser: bånd over innholdet.
  */
 import {
+  ansattSelfView,
   defaultAnbudSubView,
   defaultArbeidSubView,
   defaultHrSubView,
@@ -42,6 +43,28 @@ export const COMPANY_HERO = {
       'Directory, CV and access for your own employees. Hired-in and external staff are under Hired-in and external.',
     ),
   },
+  // HR › Ansatte: samme register og bånd som Ansatte hadde i bedriftsmenyen.
+  'hr-ansatte': {
+    wideArt: true,
+    name: 'Ansatte',
+    kicker: t('Ansatte', 'Employees'),
+    title: t('Folkene i bedriften', 'The people in the company'),
+    pitch: t(
+      'Register, CV og tilgang for egne ansatte. Innleide og eksterne står under Innleie og eksterne.',
+      'Directory, CV and access for your own employees. Hired-in and external staff are under Hired-in and external.',
+    ),
+  },
+  // Bedrift › Ansatt: egen side (Min side, Gjøremål, Fravær, Utlegg). Tittelen er ikke sidens navn (én tittel per side).
+  ansatt: {
+    wideArt: true,
+    name: 'Ansatt',
+    kicker: t('Ansatt', 'Employee'),
+    title: t('Ditt i bedriften', 'Yours at the company'),
+    pitch: t(
+      'Din egen side: profil, gjøremål, fravær og utlegg. Andre ansatte ser den ikke.',
+      'Your own page: profile, tasks, absence and expenses. Other employees do not see it.',
+    ),
+  },
   'hr-oversikt': {
     wideArt: true,
     name: 'HR',
@@ -56,10 +79,10 @@ export const COMPANY_HERO = {
     wideArt: true,
     name: 'Personell',
     kicker: t('HR', 'HR'),
-    title: t('Personaloversikt', 'People overview'),
+    title: t('Personalkontroll', 'People control'),
     pitch: t(
-      'Ansatt dato, jubileum, fødselsdato og kontrakter.',
-      'Hire date, anniversary, birthday and contracts.',
+      'Avtale, lønn, lovpålagt og oppfølging for hver ansatt i én liste.',
+      'Contract, pay, statutory items and follow-up for each employee in one list.',
     ),
   },
   'innleie-oversikt': {
@@ -112,16 +135,6 @@ export const COMPANY_HERO = {
       'Wellbeing along the way, evaluation of the job and a checklist when the person leaves.',
     ),
   },
-  'hr-avtaler': {
-    wideArt: true,
-    name: 'Avtaler',
-    kicker: t('HR', 'HR'),
-    title: t('Ansettelsesavtaler', 'Employment contracts'),
-    pitch: t(
-      'Last opp, OCR-skann og lagre nøkkeldata på personen.',
-      'Upload, OCR-scan and store key fields on the person.',
-    ),
-  },
   'arbeid-produktivitet': {
     wideArt: true,
     name: 'Produktivitet',
@@ -142,16 +155,6 @@ export const COMPANY_HERO = {
       'Planned period from project and agreement, and the weeks with logged hours.',
     ),
   },
-  'hr-lonn': {
-    wideArt: true,
-    name: 'Lønn',
-    kicker: t('HR', 'HR'),
-    title: t('Lønn og justeringer', 'Pay and adjustments'),
-    pitch: t(
-      'Historikk, graf og plan for fremtidige justeringer.',
-      'History, chart and planned future adjustments.',
-    ),
-  },
   'hr-oppfolging': {
     wideArt: true,
     name: 'Samtaler og saker',
@@ -160,16 +163,6 @@ export const COMPANY_HERO = {
     pitch: t(
       'Medarbeidersamtaler, memo og tildelte gjøremål.',
       'Reviews, memos and assigned to-dos.',
-    ),
-  },
-  'hr-compliance': {
-    wideArt: true,
-    name: 'Lovpålagt',
-    kicker: t('HR', 'HR'),
-    title: t('Lovpålagt per ansatt', 'Statutory per employee'),
-    pitch: t(
-      'Arbeidsavtale, HMS-kort, verneutstyr og personvern per ansatt.',
-      'Employment agreement, HSE card, protective equipment and privacy per employee.',
     ),
   },
   'hr-sykefravaer': {
@@ -617,7 +610,7 @@ export const COMPANY_HERO = {
 
 export function companyHeroId(tab, moreSubView = null) {
   if (tab === 'projects') return 'projects';
-  if (tab === 'ansatte') return 'ansatte';
+  if (tab === 'ansatte') return ansattSelfView(moreSubView) ? 'ansatt' : 'ansatte';
   if (tab === 'hr') return `hr-${defaultHrSubView(moreSubView)}`;
   if (tab === 'kunder') return moreSubView === 'undersokelse' ? 'kunder-undersokelse' : 'kunder';
   if (tab === 'kontrakt') return 'kontrakt';
@@ -646,6 +639,7 @@ const ROUTE_PREFIXES = ['hr', 'anbud', 'arbeid', 'okonomi', 'selskap', 'moter', 
 /** Fane og underside for en bånd-id (motsatt vei av companyHeroId). */
 export function companyHeroRoute(id) {
   const key = String(id || '');
+  if (key === 'ansatt') return { tab: 'ansatte', subView: 'min-side' };
   if (key === 'underenheter') return { tab: 'selskap', subView: 'underenheter' };
   // ISO har ett bånd for alle undersidene; oversikten er startsiden.
   if (key === 'iso') return { tab: 'iso', subView: 'oversikt' };
@@ -663,6 +657,8 @@ export function companyHeroRoute(id) {
 export function companyHeroGroup(id) {
   if (!COMPANY_HERO[id]) return '';
   if (id === 'timeliste') return 'personal';
+  // Registeret uten underside (gamle lenker og varsler) hører til HR, der registeret ligger.
+  if (id === 'ansatte') return 'company-people';
   const { tab, subView } = companyHeroRoute(id);
   return companyNavGroupId(tab, subView) || companyNavGroupId(tab, null);
 }

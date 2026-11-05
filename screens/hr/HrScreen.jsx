@@ -84,8 +84,18 @@ export default function HrScreen({ subView = 'oversikt' }) {
     handbok: 'hr',
     skjema: 'hrPeople',
   })[page] || 'hr';
-  const canSee = access.canView(hrResource);
+  // Personell samler Personell, Avtaler, Lønn og Lovpålagt. Hver del vises med sin egen rettighet.
+  const parts = useMemo(() => ({
+    people: access.canView('hrPeople'),
+    agreements: access.canView('hrAgreements'),
+    payroll: access.canView('hrPayroll'),
+    compliance: access.canView('hrCompliance'),
+  }), [access]);
+  const canSee = page === 'personell'
+    ? (parts.people || parts.agreements || parts.payroll || parts.compliance)
+    : access.canView(hrResource);
   const canWrite = access.canEdit(hrResource);
+  const canWriteCompliance = access.canEdit('hrCompliance');
 
   const [employees, setEmployees] = useState([]);
   const [hr, setHr] = useState(emptyHrState());
@@ -285,10 +295,11 @@ export default function HrScreen({ subView = 'oversikt' }) {
     if (!ready || !familyId || !canSee) return;
     if (page === 'personell' && selectedEmployeeId) {
       logSensitiveAccess({ familyId, kind: employeeSheet === 'lonn' ? 'salary' : 'hrFolder', employeeId: selectedEmployeeId });
-    } else if (page === 'lonn') {
+    } else if (page === 'personell' && parts.payroll) {
+      // Listen viser lønnen til alle i Lønn-kolonnen.
       logSensitiveAccess({ familyId, kind: 'salary' });
     }
-  }, [ready, familyId, canSee, page, selectedEmployeeId, employeeSheet]);
+  }, [ready, familyId, canSee, page, selectedEmployeeId, employeeSheet, parts.payroll]);
 
   // Ny ansatt eller ny fane starter øverst, ikke midt i den forrige listen.
   const scrollRef = useRef(null);
@@ -438,14 +449,14 @@ export default function HrScreen({ subView = 'oversikt' }) {
           onOpenLibraryTemplate={(key) => requestShellTab?.('skjema', null, { type: 'openLibraryTemplate', key })}
           formKit={formKit}
           listPreset={peopleFilter}
-          onBackToSalary={() => {
-            setSelectedEmployeeId('');
-            go('lonn');
-          }}
+          parts={parts}
+          company={ownCompany}
+          canWriteCompliance={canWriteCompliance}
+          canSeeAccessLog={access.ready && access.canAdmin('hr')}
         />
       );
     }
-    if (page === 'avtaler' || page === 'lonn' || page === 'oppfolging' || page === 'compliance') {
+    if (page === 'oppfolging') {
       return (
         <HrControl
           colors={colors}
@@ -454,11 +465,6 @@ export default function HrScreen({ subView = 'oversikt' }) {
           hr={hrView}
           entries={entries}
           onOpenEmployee={openEmployee}
-          company={ownCompany}
-          familyId={familyId}
-          canSeeAccessLog={access.ready && access.canAdmin('hr')}
-          canWrite={canWrite}
-          onPatch={onPatch}
         />
       );
     }
@@ -586,8 +592,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
         onOpenJob={(jobId) => go('rekruttering', { type: 'hrRecruitment', jobId })}
         onNewJob={() => go('rekruttering', { type: 'hrRecruitment', newJob: true })}
         onOpenProductivity={() => go('produktivitet')}
-        onOpenCompliance={() => go('compliance')}
-        onOpenContracts={() => go('avtaler')}
+        onOpenCompliance={() => go('personell')}
+        onOpenContracts={() => go('personell')}
         kin={kin}
       />
     );
@@ -596,7 +602,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
     focusCaseId, canWrite, onPatch, go, familyId, uid, assigneeName,
     openEmployee, openCase, openLinkedTask, createTask, saveSalaries, forms.actor, forms.company, forms.logo, kin,
     isoCompetence, canSeeIso, openIsoCompetence, peopleFilter, recruitFocus, ownCompany, retention, access,
-    deadlines, requestShellTab, formKit, isoWheel,
+    deadlines, requestShellTab, formKit, isoWheel, parts, canWriteCompliance,
   ]);
 
   if (access.active && access.ready && !canSee) {

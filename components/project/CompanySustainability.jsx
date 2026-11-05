@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
   side: { gap: space.sm, minWidth: 0 },
   sideWide: { flex: 0.8, maxWidth: 380 },
   toolbar: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.xs },
-  lead: { fontSize: type.body.fontSize + 1, lineHeight: 22 },
+  lead: { fontSize: type.body.fontSize, lineHeight: 21 },
   line: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs },
   badge: { width: 32, height: 32, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1, minWidth: 0, gap: 2 },

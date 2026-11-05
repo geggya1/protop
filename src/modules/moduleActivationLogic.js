@@ -65,6 +65,8 @@ export const ILLUSTRATION_FILES = {
   hospitality: 'utleie--module-activation-illustration.png',
   projects: 'prosjekt--module-activation-illustration.png',
   ansatte: 'ansatte--module-activation-illustration.png',
+  'hr-ansatte': 'ansatte--module-activation-illustration.png',
+  ansatt: 'ansatte--module-activation-illustration.png',
   kunder: 'kunder--module-activation-illustration.png',
   'anbud-varsling': 'anbud-varsling--module-activation-illustration.png',
   'anbud-vurdering': 'anbud-vurdering--module-activation-illustration.png',

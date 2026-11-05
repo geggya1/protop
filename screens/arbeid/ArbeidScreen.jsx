@@ -32,6 +32,7 @@ import {
   projectsForEmployee,
   upsertTimeEntry,
   deleteAbsence,
+  deleteAbsences,
   deleteTimeEntry,
 } from '../../src/project/engine';
 import {
@@ -93,10 +94,14 @@ import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 import MonthJump from '../../components/arbeid/MonthJump';
 import TimesheetGrid from '../../components/arbeid/TimesheetGrid';
 import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
-import AbsenceTypeModal from '../../components/arbeid/AbsenceTypeModal';
 import SickNoteModal from '../../components/arbeid/SickNoteModal';
 import OvertimePayoutModal from '../../components/arbeid/OvertimePayoutModal';
 import AbsenceNoticeModal from '../../components/arbeid/AbsenceNoticeModal';
+import AbsenceFormModal, { AbsenceFormPrompt } from '../../components/arbeid/AbsenceFormModal';
+import { formatNbDate } from '../../src/arbeid/absenceDashboard.js';
+import {
+  absenceFormFromRows, applyAbsenceForm, applyPlainAbsence, dayAbsenceSummary, formSummary, missingAbsenceForms, needsAbsenceForm,
+} from '../../src/arbeid/absenceForm.js';
 import { SICK_KIND_LABEL, addDays, addMonths, missingSickNotes, sickCaseId, sickKind, todayIso, validateSickNote } from '../../src/arbeid/sickLeave.js';
 import { applySickCaseToState } from '../../src/arbeid/sickApply.js';
 import { useSickLeave } from '../../src/arbeid/useSickLeave.js';
@@ -106,7 +111,7 @@ import BillingChainLine from '../economy/billing/BillingChainLine';
 import Breadcrumb from '../../components/Breadcrumb';
 import DateInput from '../../components/DateInput';
 import { agreedHoursForDate, redDayMap, resolveRedDays } from '../../src/arbeid/holidays.js';
-import { NOTICE_TYPE_ID, hiredAbsenceTypes, resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
+import { NOTICE_TYPE_ID, resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
 import { employmentRange, monthTimebank, payrollHoursOnDate } from '../../src/arbeid/balance.js';
 import {
@@ -192,14 +197,22 @@ export default function ArbeidScreen({
   // reserve, og felles data (lås, deltakelse, utlegg) endres ikke herfra.
   const [loadFailed, setLoadFailed] = useState(false);
   const [busyLock, setBusyLock] = useState(false);
-  const skipSave = useRef(true);
+  // Versjoner som kom fra skyen og ikke skal lagres tilbake. Før var dette et flagg som ble satt
+  // ved hver lasting. Endret lastingen ingenting (samme objekt, ingen ny render), ble flagget
+  // stående, og brukerens neste endring (f.eks. fravær) ble ikke lagret i skyen. Nå hoppes bare
+  // akkurat de lastede versjonene over, og startversjonen.
+  const loadedStates = useRef(null);
+  if (!loadedStates.current) loadedStates.current = new WeakSet([state]);
+  const markLoaded = (next, current = undefined) => {
+    if (next && typeof next === 'object' && next !== current) loadedStates.current.add(next);
+    return next;
+  };
 
   function applyLoadedState(loaded) {
     setState((current) => {
       const next = adoptLoadedHours(current, loaded, workspaceId);
       const keptLocalEdit = memberSignature(next.members) !== memberSignature(loaded?.members);
-      if (!keptLocalEdit) skipSave.current = true;
-      return next;
+      return keptLocalEdit ? next : markLoaded(next, current);
     });
   }
 
@@ -220,7 +233,6 @@ export default function ArbeidScreen({
   const [absenceForm, setAbsenceForm] = useState({ id: '', type: 'ferie', hours: '7:30', description: '', date: '' });
   const [absenceBlock, setAbsenceBlock] = useState('');
   const [monthJump, setMonthJump] = useState(false);
-  const [typePicker, setTypePicker] = useState(false);
   const [sideForm, setSideForm] = useState(null);
   const [carriedHours, setCarriedHours] = useState({ key: '', entries: [], absences: [], failed: false });
   // Stjerner, skjulte prosjekter og faste fraværstyper er personlige og lagres på den ansatte.
@@ -231,9 +243,8 @@ export default function ArbeidScreen({
     let live = true;
     const warm = peekProjectState(workspaceId);
     if (warm) {
-      setState(warm);
+      setState(markLoaded(warm));
       setReady(true);
-      skipSave.current = true;
     }
     loadProjectState(workspaceId, { hours: false }).then((loaded) => {
       if (!live) return;
@@ -242,7 +253,8 @@ export default function ArbeidScreen({
       setReady(true);
     }).catch(() => {
       if (!live) return;
-      skipSave.current = true;
+      // Ingenting nytt å lagre: det som står, er reserven, ikke en endring.
+      setState((current) => { loadedStates.current.add(current); return current; });
       setLoadFailed(true);
       setReady(true);
       setError('Kunne ikke laste timeføring.');
@@ -285,9 +297,8 @@ export default function ArbeidScreen({
       if (!live) return;
       const rows = groups.flat().filter(Boolean);
       if (!rows.length) return;
-      skipSave.current = true;
       startTransition(() => {
-        setState((current) => adoptLoadedHours(current, { ...current, timeEntries: rows }, workspaceId));
+        setState((current) => markLoaded(adoptLoadedHours(current, { ...current, timeEntries: rows }, workspaceId), current));
       });
     }).catch(() => {});
     (async () => {
@@ -334,14 +345,17 @@ export default function ArbeidScreen({
 
   useEffect(() => {
     if (!ready) return;
-    putProjectState(state, workspaceId);
-    if (skipSave.current) {
-      skipSave.current = false;
+    if (loadedStates.current.has(state)) {
+      putProjectState(state, workspaceId);
       return;
     }
     // Timer og fravær går til egne samlinger. Prosjektdokumentet får bare radene som faktisk
     // er endret (lås, medlemskap, utlegg fra sideskjemaet), aldri hele listen fra denne kopien.
+    // saveProjectState leser grunnlaget (forrige versjon i minnet) før første await, så
+    // minnet oppdateres etterpå. Ellers så den nye raden ut som lagret, og første fravær
+    // i en økt ble aldri skrevet til skyen.
     saveProjectState(state, workspaceId).catch((cause) => setError(timesheetSaveErrorText(cause)));
+    putProjectState(state, workspaceId);
   }, [state, ready, workspaceId]);
 
   const linked = useMemo(() => {
@@ -561,7 +575,6 @@ export default function ArbeidScreen({
   const hiddenIds = ownPrefs.hidden;
   const shownProjects = myProjects.filter((row) => !hiddenIds.has(row.project.id));
   const hiddenProjects = myProjects.filter((row) => hiddenIds.has(row.project.id));
-  const pinnedTypes = hiredSubject ? [NOTICE_TYPE_ID] : ownPrefs.pins;
 
   const payrollByDay = useMemo(() => {
     const map = new Map();
@@ -711,6 +724,20 @@ export default function ArbeidScreen({
     }).catch(() => {});
     return () => { live = false; };
   }, [workspaceId, employeeId, sickFrom]);
+  // Fraværet i skyen (siste 13 måneder og fram i tid) inn i timelisten, så linjen «Fravær»,
+  // lønnsgrunnlaget og skjemaet ser det som er ført fra andre enheter eller tidligere økter.
+  // Merket som lastet: det lagres ikke tilbake.
+  useEffect(() => {
+    if (!ready || !employeeId || !sickHistory.key.startsWith(`${employeeId}:`)) return;
+    const rows = sickHistory.rows.filter((row) => row?.employeeId === employeeId && row.id);
+    if (!rows.length) return;
+    setState((current) => {
+      const have = new Set((current.absences || []).map((row) => row.id));
+      const extra = rows.filter((row) => !have.has(row.id));
+      if (!extra.length) return current;
+      return markLoaded({ ...current, absences: [...(current.absences || []), ...extra] }, current);
+    });
+  }, [ready, sickHistory, employeeId]); // eslint-disable-line react-hooks/exhaustive-deps
   const sickAbsences = useMemo(() => {
     const byId = new Map();
     for (const row of sickHistory.rows) if (row?.employeeId === employeeId) byId.set(row.id, row);
@@ -721,6 +748,78 @@ export default function ArbeidScreen({
     () => (employeeId && !hiredSubject ? missingSickNotes(sickAbsences, sick.cases, employeeId, { catalog: absenceTypes, rules: sick.rules }) : []),
     [sickAbsences, sick.cases, employeeId, absenceTypes, sick.rules, hiredSubject],
   );
+
+  // Fraværsskjema (permisjon, annet fravær, legebesøk o.l.): spørsmål etter lagring, påminnelse
+  // når fravær står uten skjema.
+  const [formPrompt, setFormPrompt] = useState(null);
+  const [absenceFormInitial, setAbsenceFormInitial] = useState(null);
+  const [absenceFormError, setAbsenceFormError] = useState('');
+  const missingForms = useMemo(
+    () => (employeeId && !hiredSubject ? missingAbsenceForms(sickAbsences, employeeId, { catalog: absenceTypes }) : []),
+    [sickAbsences, employeeId, absenceTypes, hiredSubject],
+  );
+
+  function openAbsenceForm(initial) {
+    if (readOnly || hiredSubject) return;
+    setAbsenceOpen(false);
+    setFormPrompt(null);
+    setAbsenceFormError('');
+    // Fravær med skjema fra før: åpne skjemaet slik det står, ellers et nytt for perioden.
+    const linked = initial?.formId ? absenceFormFromRows(sickAbsences, initial.formId) : null;
+    setAbsenceFormInitial(linked || { type: initial?.type, fromDate: initial?.fromDate, toDate: initial?.toDate || initial?.fromDate });
+  }
+
+  /** Fraværet til valgt medarbeider på én dag (alle typer). */
+  function absencesOn(dayKey) {
+    return (state.absences || []).filter((row) => row.employeeId === employeeId && row.date === dayKey && Number(row.hours) > 0);
+  }
+
+  /** Linjen «Fravær» i timelisten: dagens fravær, eller rett til «Hva gjelder fraværet?». */
+  function openAbsenceWizard(dayKey) {
+    if (readOnly || !employeeId) return;
+    const date = dayKey || selectedDay || todayKey;
+    if (hiredSubject) {
+      setNoticeForm({ fromDate: date, toDate: date });
+      return;
+    }
+    setAbsenceOpen(false);
+    setFormPrompt(null);
+    setAbsenceFormError('');
+    setAbsenceFormInitial({ fromDate: date, toDate: date, listDay: true });
+  }
+
+  function submitAbsenceForm(input) {
+    if (readOnly || !selectedEmployee) return;
+    if (input.plain) {
+      const plainResult = applyPlainAbsence(state, {
+        ...input,
+        employeeId,
+        employeeName: selectedName,
+      }, { hoursForDate: agreedForDate, createdByUid: uid });
+      if (!plainResult.ok) {
+        setAbsenceFormError(plainResult.error);
+        return;
+      }
+      if (applyResult(plainResult, `${absenceTypeById(input.type, absenceTypes).label} registrert.`)) {
+        setAbsenceFormInitial(null);
+        if (plainResult.error) setError(`Noen dager ble ikke ført: ${plainResult.error}`);
+      }
+      return;
+    }
+    const result = applyAbsenceForm(state, {
+      ...input,
+      employeeId,
+      employeeName: selectedName,
+    }, { hoursForDate: agreedForDate, createdByUid: uid });
+    if (!result.ok) {
+      setAbsenceFormError(result.error);
+      return;
+    }
+    if (applyResult(result, 'Fraværsskjema sendt til leder.')) {
+      setAbsenceFormInitial(null);
+      if (result.error) setError(`Noen dager ble ikke ført: ${result.error}`);
+    }
+  }
 
   // Fraværsbeskjed fra innleide: én rad per arbeidsdag i perioden, uten lønn eller timebank.
   const [noticeForm, setNoticeForm] = useState(null);
@@ -778,7 +877,18 @@ export default function ArbeidScreen({
       };
       // Dagene føres først, så saken lagres med koblingen til fraværet (absenceIds).
       // Kan ingen dager føres (f.eks. låst timeliste), lagres meldingen likevel og feilen vises.
-      const result = applySickCaseToState(state, draft, { hoursForDate: agreedForDate, catalog: absenceTypes, createdByUid: uid });
+      // Åpnet fra fraværsskjemaet (følge sykt barn til lege): fjern legetimen uten skjema i perioden.
+      let base = state;
+      const replaceType = sickForm?.replaceType || '';
+      if (replaceType) {
+        const ids = (state.absences || [])
+          .filter((row) => row.employeeId === selectedEmployee.id && row.type === replaceType && !row.formId
+            && row.date >= draft.fromDate && row.date <= (draft.toDate || draft.fromDate))
+          .map((row) => row.id);
+        const removed = ids.length ? deleteAbsences(state, ids) : null;
+        if (removed?.ok) base = removed.state;
+      }
+      const result = applySickCaseToState(base, draft, { hoursForDate: agreedForDate, catalog: absenceTypes, createdByUid: uid });
       const saved = await sick.save({ ...draft, absenceIds: result.ok ? result.absenceIds : (sick.cases.find((row) => row.id === draft.id)?.absenceIds || []) }, {
         actor: user?.displayName || user?.email || '',
         action: input.id ? 'Endret melding' : (own ? 'Meldt av ansatt' : 'Meldt av leder'),
@@ -927,8 +1037,7 @@ export default function ArbeidScreen({
 
   /** Fakturert siden timelisten ble åpnet: vis status og si fra, i stedet for å feile stille. */
   function refuseInvoiced(base, fresh, message) {
-    skipSave.current = true;
-    setState(mergeFreshTimesheet(base, { entries: fresh }));
+    setState(markLoaded(mergeFreshTimesheet(base, { entries: fresh })));
     setEditor(null);
     setError(message);
     showSaveError(message);
@@ -1115,8 +1224,7 @@ export default function ArbeidScreen({
     // i stedet for å tolke trykket som «Lås opp».
     const wantedUnlock = lockThroughDate(state.timesheetLocks, employeeId) === dateKey;
     if (!wantedUnlock && lockThroughDate(working.timesheetLocks, employeeId) === dateKey) {
-      skipSave.current = true;
-      setState(working);
+      setState(markLoaded(working));
       setError('');
       setNote(`Timelisten er allerede låst til ${dateKey}.`);
       return;
@@ -1130,8 +1238,7 @@ export default function ArbeidScreen({
     });
     if (!result.ok) {
       // Vis den ferske statusen (f.eks. «godkjent») selv om endringen ble stoppet.
-      skipSave.current = true;
-      setState(working);
+      setState(markLoaded(working));
       setError(result.error);
       showSaveError(result.error);
       return;
@@ -1162,12 +1269,6 @@ export default function ArbeidScreen({
   function hideProject(projectId, hidden) {
     if (readOnly) return;
     savePrefs(timesheetPrefsPatch('hidden', projectId, hidden));
-  }
-
-  function savePins(typeIds) {
-    if (readOnly) return;
-    const wanted = [...new Set((typeIds || []).map((item) => String(item || '').trim()).filter(Boolean))];
-    if (savePrefs({ absencePins: wanted }, 'Fraværskategorier oppdatert.')) setTypePicker(false);
   }
 
   function saveSide(payload) {
@@ -1316,6 +1417,7 @@ export default function ArbeidScreen({
       }
     }
     setAbsenceBlock('');
+    const before = absenceForm.id ? (state.absences || []).find((row) => row.id === absenceForm.id) : null;
     const result = addAbsence(state, {
       id: absenceForm.id,
       employeeId,
@@ -1326,7 +1428,13 @@ export default function ArbeidScreen({
       description: absenceForm.description,
       createdByUid: uid,
     });
-    if (applyResult(result, 'Fravær registrert.')) setAbsenceOpen(false);
+    if (applyResult(result, 'Fravær registrert.')) {
+      setAbsenceOpen(false);
+      // Typer som skal ha fraværsskjema: spør om det skal fylles ut nå.
+      if (!hiredSubject && hours > 0 && !before?.formId && needsAbsenceForm(absenceForm.type, absenceTypes)) {
+        setFormPrompt({ type: absenceForm.type, fromDate: date, toDate: date });
+      }
+    }
   }
 
   function printSelection() {
@@ -1450,23 +1558,60 @@ export default function ArbeidScreen({
       </TouchableOpacity>
       )}
       <TouchableOpacity
-        onPress={() => setTypePicker(true)}
+        onPress={() => openAbsenceWizard(selectedDay || todayKey)}
         style={[styles.cta, { backgroundColor: colors.brand }, isPhone && styles.ctaPhone]}
         accessibilityRole="button"
+        nativeID="registrer-fravaer"
       >
         <Ionicons name="add" size={18} color="#fff" />
-        <Text style={styles.ctaText}>Legg til fravær / ferie</Text>
+        <Text style={styles.ctaText}>Registrer fravær</Text>
       </TouchableOpacity>
       {payoutButton}
-      {assignedOnly || (personal && familyId !== workspaceId) ? null : (
-      <TouchableOpacity
-        onPress={() => requestShellTab?.('projects')}
-        style={[styles.ctaGhost, { borderColor: colors.line }, isPhone && styles.ctaPhone]}
-        accessibilityRole="button"
-      >
-        <Text style={{ color: colors.ink }}>Åpne prosjekt</Text>
-      </TouchableOpacity>
+    </View>
+  );
+
+  // PC: knappene står i månedslinjen over tabellen, til høyre ved tannhjulet.
+  const gridActions = readOnly ? null : (
+    <>
+      {assignedOnly ? null : (
+        <TouchableOpacity
+          onPress={() => setAddProjectOpen(true)}
+          style={[styles.gridAction, { borderColor: colors.brand, backgroundColor: colors.brand }]}
+          accessibilityRole="button"
+          nativeID="timesheet-add-project"
+        >
+          <Ionicons name="add" size={15} color="#fff" />
+          <Text style={[styles.gridActionText, { color: '#fff' }]}>Legg til prosjekt</Text>
+        </TouchableOpacity>
       )}
+      <TouchableOpacity
+        onPress={() => openAbsenceWizard(selectedDay || todayKey)}
+        style={[styles.gridAction, { borderColor: colors.brand, backgroundColor: colors.brand }]}
+        accessibilityRole="button"
+        nativeID="registrer-fravaer"
+      >
+        <Ionicons name="add" size={15} color="#fff" />
+        <Text style={[styles.gridActionText, { color: '#fff' }]}>Registrer fravær</Text>
+      </TouchableOpacity>
+      {payoutButton ? (
+        <TouchableOpacity
+          onPress={payoutButton.props.onPress}
+          style={[styles.gridAction, { borderColor: colors.line }]}
+          accessibilityRole="button"
+          nativeID="timesheet-mertid-utbetaling"
+        >
+          <Text style={[styles.gridActionText, { color: colors.ink }]}>Mertid til utbetaling</Text>
+        </TouchableOpacity>
+      ) : null}
+    </>
+  );
+
+  // PC: «Legg til prosjekt», «Registrer fravær» og tannhjulet til høyre over tabellen, alltid synlige
+  // (tabellen kan rulle sidelengs på smale skjermer).
+  const desktopTools = isPhone ? null : (
+    <View style={[styles.topActions, embedded && styles.topActionsEmbedded]} nativeID="timesheet-tools">
+      {gridActions}
+      {reportGear(0, 28)}
     </View>
   );
 
@@ -1522,23 +1667,6 @@ export default function ArbeidScreen({
     .filter((c) => c.employeeId === employeeId && (c.status === 'dokumentasjon'
       || (c.status === 'avvist' && String(c.handledAt || '').slice(0, 10) >= addMonths(todayIso(), -1))))
     .slice(0, 2);
-
-  // Sykefravær/fravær meldes fra «Legg til fravær / ferie», ikke som egen knapp over tabellen.
-  const reportAbsence = readOnly || !employeeId ? null : (hiredSubject
-    ? {
-      label: 'Meld fravær',
-      detail: 'Gi beskjed til oppdragsgiver om dager du er borte.',
-      icon: 'calendar-clear-outline',
-      nativeID: 'meld-fravaer',
-      onPress: () => setNoticeForm({ fromDate: selectedDay || todayKey, toDate: selectedDay || todayKey }),
-    }
-    : {
-      label: 'Meld sykefravær',
-      detail: 'Egenmelding eller sykt barn. Går til HR.',
-      icon: 'medkit-outline',
-      nativeID: 'meld-sykefravaer',
-      onPress: () => openSickForm({ kind: 'self', fromDate: selectedDay || todayKey, toDate: selectedDay || todayKey }),
-    });
 
   // Leder: hvor timene står i kjeden mot faktura (Timer → Godkjenn → Til fakturering → Faktura).
   const chainLine = !personal && !lockedId && !embedded && manager ? (
@@ -1657,7 +1785,7 @@ export default function ArbeidScreen({
           </TouchableOpacity>
           {reportGear(embedded ? 'auto' : 4)}
         </View>
-        ) : null}
+        ) : desktopTools}
       </View>
       )}
       <MonthJump
@@ -1753,8 +1881,26 @@ export default function ArbeidScreen({
       {error && !(loadFailed && error === PROJECTS_NOT_LOADED) ? (
         <Text style={{ color: colors.dangerInk || colors.danger, marginBottom: 6 }}>{error}</Text>
       ) : null}
-      {!readOnly && employeeId && !hiredSubject && (missingNotes.length || sickReplies.length) ? (
+      {!readOnly && employeeId && !hiredSubject && (missingNotes.length || sickReplies.length || missingForms.length) ? (
         <View style={styles.sickRow}>
+          {missingForms.slice(0, 2).map((row) => (
+            <TouchableOpacity
+              key={`skjema:${row.type}:${row.fromDate}`}
+              onPress={() => openAbsenceForm(row)}
+              style={[styles.sickBanner, { borderColor: colors.warn, backgroundColor: colors.card }]}
+              accessibilityRole="button"
+              nativeID="husk-fravaersskjema"
+            >
+              <Ionicons name="alert-circle-outline" size={18} color={colors.warnInk} />
+              <Text style={{ color: colors.warnInk, flex: 1 }}>
+                {`Mangler fraværsskjema: ${absenceTypeById(row.type, absenceTypes).label} ${row.fromDate === row.toDate ? formatNbDate(row.fromDate) : `${formatNbDate(row.fromDate)} – ${formatNbDate(row.toDate)}`}.`}
+              </Text>
+              <Text style={{ color: colors.warnInk, fontWeight: '700' }}>Fyll ut</Text>
+            </TouchableOpacity>
+          ))}
+          {missingForms.length > 2 ? (
+            <Text style={{ color: colors.warnInk }}>{`+ ${missingForms.length - 2} til uten fraværsskjema`}</Text>
+          ) : null}
           {missingNotes.slice(0, 2).map((row) => (
             <TouchableOpacity
               key={`${row.kind}:${row.fromDate}`}
@@ -1811,24 +1957,6 @@ export default function ArbeidScreen({
             onNextDay={() => shiftSelected(1)}
             emptyText="Ingen prosjekt i listen. Legg til prosjekt du er deltaker på, eller be en leder legge deg inn på prosjektet."
             rows={[
-              ...pinnedTypes.map((typeId) => {
-                const type = absenceTypeById(typeId);
-                const hours = (state.absences || []).reduce((sum, row) => (
-                  row.employeeId === employeeId && row.date === activeKey && (row.type || 'ferie') === typeId
-                    ? sum + parseHours(row.hours)
-                    : sum
-                ), 0);
-                const day = markedDays.find((item) => item.key === activeKey) || activeDay;
-                return {
-                  id: `abs-${typeId}`,
-                  name: type.label,
-                  customer: 'Fravær',
-                  role: '',
-                  hours,
-                  onPress: () => openAbsenceCell({ id: typeId, label: type.label }, day),
-                  testID: `timesheet-absence-${typeId}`,
-                };
-              }),
               ...shownProjects.map(({ project, member }) => {
                 const cell = entriesByCell.get(entryKey(project.id, activeKey));
                 const hours = cell ? parseHours(cell.hours) : 0;
@@ -1845,6 +1973,20 @@ export default function ArbeidScreen({
                   testID: `timesheet-row-${project.number || project.id}`,
                 };
               }),
+              // Fast linje nederst: alt fravær den dagen, og «Registrer fravær» ved trykk.
+              (() => {
+                const rows = absencesOn(activeKey);
+                const hours = rows.reduce((sum, row) => sum + parseHours(row.hours), 0);
+                return {
+                  id: 'fravaer',
+                  name: 'Fravær',
+                  customer: dayAbsenceSummary(rows, absenceTypes) || 'Trykk for å registrere fravær',
+                  role: '',
+                  hours,
+                  onPress: () => openAbsenceWizard(activeKey),
+                  testID: 'timesheet-absence',
+                };
+              })(),
             ]}
           />
           {actions}
@@ -1852,6 +1994,8 @@ export default function ArbeidScreen({
       ) : null}
       {!isPhone ? (
         <View style={styles.gridBleed}>
+          {/* Inne i ansattkortet har skallet navnet, så knappene står over tabellen. */}
+          {embedded ? desktopTools : null}
           <TimesheetGrid
             colors={colors}
             days={markedDays}
@@ -1861,7 +2005,7 @@ export default function ArbeidScreen({
             onNextMonth={() => monthNav(1)}
             onPickMonth={() => setMonthJump(true)}
             projectHeader={projectSearch}
-            monthCorner={reportGear(0, 28)}
+            monthCorner={null}
             projects={shownProjects.map(({ project, member, starred }) => ({
               project,
               member,
@@ -1872,15 +2016,12 @@ export default function ArbeidScreen({
               },
             }))}
             hiddenProjects={hiddenProjects}
-            absenceRows={pinnedTypes.map((typeId) => ({
-              id: typeId,
-              label: absenceTypeById(typeId).label,
-              hoursFor: (day) => (state.absences || []).reduce((sum, row) => (
-                row.employeeId === employeeId && row.date === day.key && (row.type || 'ferie') === typeId
-                  ? sum + parseHours(row.hours)
-                  : sum
-              ), 0),
-            }))}
+            absenceRows={[{
+              id: 'fravaer',
+              label: 'Fravær',
+              subtitle: 'Trykk på en dag for å registrere',
+              hoursFor: (day) => absencesOn(day.key).reduce((sum, row) => sum + parseHours(row.hours), 0),
+            }]}
             agreedByDay={agreedByDay}
             balanceCells={balanceCells}
             incomingBalance={timebank.incoming}
@@ -1894,7 +2035,7 @@ export default function ArbeidScreen({
             onSelectDay={setSelectedDay}
             onToggleLock={toggleLock}
             onOpenProject={openCell}
-            onOpenAbsence={openAbsenceCell}
+            onOpenAbsence={(row, day) => openAbsenceWizard(day.key)}
             onToggleStar={starProject}
             onHideProject={(projectId) => hideProject(projectId, true)}
             onShowProject={(projectId) => hideProject(projectId, false)}
@@ -1902,7 +2043,7 @@ export default function ArbeidScreen({
         </View>
       ) : null}
 
-      {isPhone ? null : actions}
+      {isPhone || !readOnly ? null : actions}
 
       <TimeEntryModal
         visible={!!editor}
@@ -1931,15 +2072,6 @@ export default function ArbeidScreen({
         date={sideForm?.date || ''}
         onClose={() => setSideForm(null)}
         onSave={saveSide}
-      />
-      <AbsenceTypeModal
-        visible={typePicker}
-        colors={colors}
-        selected={pinnedTypes}
-        types={hiredSubject ? hiredAbsenceTypes() : absenceTypes}
-        reportAction={reportAbsence}
-        onClose={() => setTypePicker(false)}
-        onSave={savePins}
       />
 
       {/* Ansattvelger for leder (bytte etter steg 1) */}
@@ -2022,6 +2154,47 @@ export default function ArbeidScreen({
         onSubmit={submitPayout}
         onCancelExisting={payoutOffer?.existing?.status === 'approved' ? null : cancelPayout}
       />
+      <AbsenceFormPrompt
+        visible={!!formPrompt}
+        colors={colors}
+        typeLabel={formPrompt ? absenceTypeById(formPrompt.type, absenceTypes).label : ''}
+        onLater={() => {
+          setFormPrompt(null);
+          showSaveToast('Fraværet mangler skjema. Du får en påminnelse i timelisten.');
+        }}
+        onOpen={() => openAbsenceForm(formPrompt)}
+      />
+      <AbsenceFormModal
+        visible={!!absenceFormInitial && !hiredSubject}
+        colors={colors}
+        catalog={absenceTypes}
+        employeeId={employeeId}
+        employeeName={selectedName}
+        absences={sickAbsences}
+        hoursForDate={agreedForDate}
+        rules={sick.rules}
+        onSickChild={({ fromDate, toDate }) => {
+          setAbsenceFormInitial(null);
+          // Legetimen var et sykt barn: dagene som sto som legetime uten skjema, erstattes av sykt barn.
+          openSickForm({ kind: 'child', fromDate, toDate, replaceType: absenceFormInitial?.originType || absenceFormInitial?.type || '' });
+        }}
+        initial={absenceFormInitial}
+        dayRows={absenceFormInitial?.listDay ? absencesOn(absenceFormInitial.fromDate) : []}
+        onSick={(kind, { fromDate, toDate }) => {
+          setAbsenceFormInitial(null);
+          openSickForm({ kind, fromDate, toDate, replaceType: absenceFormInitial?.originType || absenceFormInitial?.type || '' });
+        }}
+        onEditRow={(row) => {
+          setAbsenceFormInitial(null);
+          const day = markedDays.find((item) => item.key === row.date) || { key: row.date };
+          if (row.formId) openAbsenceForm({ type: row.type, fromDate: row.date, formId: row.formId });
+          else openAbsenceCell({ id: row.type || 'ferie' }, day);
+        }}
+        onBehalf={!!selectedEmployee && selectedEmployee.personUid !== uid}
+        error={absenceFormError}
+        onClose={() => setAbsenceFormInitial(null)}
+        onSubmit={submitAbsenceForm}
+      />
       <SickNoteModal
         visible={!!sickForm && !hiredSubject}
         colors={colors}
@@ -2068,6 +2241,24 @@ export default function ArbeidScreen({
             {isHealthAbsence(absenceForm.type) ? (
               <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>{HEALTH_FREE_TEXT_NOTICE}</Text>
             ) : null}
+            {absenceForm.id && !hiredSubject && needsAbsenceForm(absenceForm.type, absenceTypes) ? (() => {
+              const row = (state.absences || []).find((item) => item.id === absenceForm.id);
+              const done = !!row?.formId;
+              return (
+                <TouchableOpacity
+                  onPress={() => openAbsenceForm({ type: absenceForm.type, fromDate: absenceForm.date, formId: row?.formId })}
+                  style={[styles.blockBox, { borderColor: done ? colors.line : colors.warn }]}
+                  accessibilityRole="button"
+                  nativeID="fravaer-skjema-status"
+                >
+                  <Ionicons name={done ? 'document-text-outline' : 'alert-circle-outline'} size={18} color={done ? colors.brand : colors.warnInk} />
+                  <Text style={{ flex: 1, color: done ? colors.ink : colors.warnInk, fontSize: 13, lineHeight: 18 }}>
+                    {done ? `Fraværsskjema levert: ${formSummary(row) || 'uten begrunnelse'}` : 'Fraværsskjema mangler.'}
+                  </Text>
+                  <Text style={{ color: done ? colors.brand : colors.warnInk, fontWeight: '700' }}>{done ? 'Endre' : 'Fyll ut'}</Text>
+                </TouchableOpacity>
+              );
+            })() : null}
             {absenceBlock ? (
               <View nativeID="fravaer-sperret" accessibilityRole="alert" style={[styles.blockBox, { borderColor: colors.dangerInk || colors.danger }]}>
                 <Ionicons name="alert-circle" size={18} color={colors.dangerInk || colors.danger} />
@@ -2140,6 +2331,12 @@ const styles = StyleSheet.create({
   searchWrapPhone: { maxWidth: '100%', alignSelf: 'stretch' },
   // I «Prosjekt»-cellen i tabellhodet.
   searchWrapGrid: { maxWidth: '100%', alignSelf: 'stretch', marginBottom: 0, paddingVertical: Platform.OS === 'web' ? 6 : 4, paddingHorizontal: 10 },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-end' },
+  topActionsEmbedded: { marginBottom: 6 },
+  gridAction: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1,
+  },
+  gridActionText: { fontSize: 13 },
   gearBtn: {
     width: 40,
     height: 40,

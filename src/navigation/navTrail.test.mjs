@@ -35,7 +35,11 @@ assert.equal(companyNavGroupId('okonomi', 'inntjening'), 'company-productivity')
 assert.equal(companyNavGroupId('kunder'), 'company-customers');
 assert.equal(companyNavGroupId('iso', 'avvik'), 'company-quality');
 assert.equal(companyNavGroupId('home'), '', 'personlige sider er ikke i bedriftsmenyen');
-assert.equal(companyNavTrail('timeliste'), null);
+// Egen timeliste ligger under Bedrift › Ansatt.
+assert.equal(companyNavGroupId('timeliste'), 'company-me');
+assert.equal(companyNavGroupId('ansatte', 'min-side'), 'company-me');
+// Ansattregisteret ligger i HR.
+assert.equal(companyNavGroupId('hr', 'ansatte'), 'company-people');
 
 // Et ledd med samme navn som forrige tas ikke med to ganger.
 const customers = navTrailSegments(companyNavTrail('kunder'));
@@ -55,7 +59,7 @@ assert.equal(isModuleStartPage('okonomi', 'fakturagrunnlag'), false);
 assert.equal(isModuleStartPage('arbeid', 'fravaer'), true, 'Fravær åpner fraværsoversikten');
 assert.equal(isModuleStartPage('arbeid', 'planlagt'), false);
 assert.equal(isModuleStartPage('hr', 'oversikt'), true);
-assert.equal(isModuleStartPage('hr', 'lonn'), false);
+assert.equal(isModuleStartPage('hr', 'personell'), false);
 assert.equal(isModuleStartPage('iso', 'avvik'), false);
 assert.equal(isModuleStartPage('kunder'), true);
 assert.equal(isModuleStartPage('selskap'), true);

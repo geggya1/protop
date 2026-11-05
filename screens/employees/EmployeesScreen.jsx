@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
@@ -12,7 +13,6 @@ import {
   employeeMatchEmails,
   inviteDeliveryError,
   inviteLevelFor,
-  inviteOverview,
   inviteStatusLabel,
   matchEmployeeByEmail,
   placedAccessLevel,
@@ -97,6 +97,7 @@ import {
 import EmployeeCvView from './EmployeeCvView';
 import EmployeeDetailView from './EmployeeDetailView';
 import { useShellDetail } from '../../src/navigation/shellDetail';
+import { ansattSelfView } from '../../src/navigation/shellModules';
 import { DetailMissing } from '../../src/ui/BackLink';
 import EmployeePersonChrome from './EmployeePersonChrome';
 import ArbeidScreen from '../arbeid/ArbeidScreen';
@@ -144,7 +145,9 @@ const EDITOR_PERSON_VIEWS = new Set(['detail', 'overview', 'hours', 'report', 'a
 // Egen profil med begrenset redigering: holde egen profil oppdatert. Inntjening og Innstillinger krever Admin.
 const SELF_EDITOR_VIEWS = new Set(['detail', 'hours', 'report', 'saldo', 'absence', 'overview', 'files', 'expenses', 'cv']);
 
-export default function EmployeesScreen() {
+export default function EmployeesScreen({ subView = null } = {}) {
+  // Bedrift › Ansatt: egen side (Min side, Gjøremål, Fravær, Utlegg). Null = ansattregisteret.
+  const selfRoute = ansattSelfView(subView);
   const colors = useColors();
   const { isDesktop, isPhone } = useLayout();
   const { familyId, family, members, uid, user, userProfile, requestShellTab, shellIntent, clearShellIntent } = useApp();
@@ -190,7 +193,8 @@ export default function EmployeesScreen() {
   const [directoryReady, setDirectoryReady] = useState(false);
   const [profile, setProfile] = useState(null);
   const [projectState, setProjectState] = useState(() => emptyProjectState());
-  const [view, setView] = useState('list');
+  // Egen side venter på registeret før personen åpnes, så listen ikke blinker forbi.
+  const [view, setView] = useState(selfRoute ? 'self-pending' : 'list');
   const [selectedId, setSelectedId] = useState('');
   const [draft, setDraft] = useState(null);
   const [focusSection, setFocusSection] = useState('');
@@ -409,7 +413,6 @@ export default function EmployeesScreen() {
   );
   // Innleide og eksterne: pårørende og medarbeiderundersøkelsen gjelder egne ansatte.
   const mineIsHired = !!mineTodoEmployee && hrKindBucket(mineTodoEmployee) === 'external';
-  const inviteCounts = useMemo(() => inviteOverview(rows), [rows]);
   // Avsluttede ansettelser der personen fortsatt står som medlem: deaktivert før tilgangen ble
   // stengt på serveren, eller sluttdatoen har passert. Administrator rydder med ett trykk.
   const lingering = useMemo(() => {
@@ -1005,6 +1008,22 @@ export default function EmployeesScreen() {
     const [first] = allowedTabViews(selected, tabId);
     if (first) openPersonView(first);
   }
+
+  // Bedrift › Ansatt: åpne egen ansattpost på riktig fane. Uten ansattpost: Min side-skjemaet.
+  const pendingSelf = useRef(!!selfRoute);
+  useEffect(() => {
+    if (!pendingSelf.current || !selfRoute) return;
+    const person = mineTodoEmployee || linked || mine;
+    if (person) {
+      pendingSelf.current = false;
+      if (selfRoute === 'detail') openDetail(person);
+      else openWork(person, selfRoute);
+      return;
+    }
+    if (!directoryReady) return;
+    pendingSelf.current = false;
+    openMine();
+  }, [rows, directoryReady, linked, mine, mineTodoEmployee]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!pendingMyAbsence.current) return;
@@ -1713,6 +1732,14 @@ export default function EmployeesScreen() {
     }
   }, [familyId, view, selected?.id, loggedNationalId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (view === 'self-pending') {
+    return (
+      <View nativeID="employees-page" style={[styles.screen, styles.selfPending, { backgroundColor: colors.bg }]}>
+        <ActivityIndicator color={colors.brand} />
+      </View>
+    );
+  }
+
   // Lenke til en person som ikke finnes i registeret her (annen bedrift, slettet eller uten tilgang).
   if (PERSON_VIEWS.has(view) && selectedId && !selected && directoryReady) {
     return (
@@ -1733,6 +1760,7 @@ export default function EmployeesScreen() {
           companyName={companyName}
           siblings={visible}
           people={rows}
+          own={!!selfRoute && selfSelected}
           tabs={EMPLOYEE_DETAIL_TABS.filter((tab) => allowedTabViews(selected, tab.id).length > 0)}
           activeTab={employeeViewToTab(view)}
           onBack={openList}
@@ -1842,7 +1870,8 @@ export default function EmployeesScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      {view !== 'list' && !PERSON_VIEWS.has(view) ? (
+      {/* Én tittel per side: på Bedrift › Ansatt › Min side viser skallet allerede «Min side». */}
+      {view !== 'list' && !PERSON_VIEWS.has(view) && !(selfRoute && view === 'mine') ? (
         <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
           {view === 'mine' ? 'Min side'
             : view === 'import' ? 'Kontroller import'
@@ -1917,31 +1946,6 @@ export default function EmployeesScreen() {
               </TouchableOpacity>
             </View>
           ) : null}
-          {canInvite && inviteCounts.none + inviteCounts.missingEmail > 0 ? (
-            <View nativeID="employees-invite-overview" style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>
-                {inviteCounts.none + inviteCounts.missingEmail === 1
-                  ? '1 person er ikke invitert'
-                  : `${inviteCounts.none + inviteCounts.missingEmail} personer er ikke invitert`}
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                {[
-                  'De ligger i listen, men har ikke fått invitasjon. Du velger selv hvem som skal inviteres og når.',
-                  inviteCounts.missingEmail ? `${inviteCounts.missingEmail} mangler e-post.` : '',
-                  inviteCounts.sent ? `${inviteCounts.sent} venter på svar.` : '',
-                ].filter(Boolean).join(' ')}
-              </Text>
-              <TouchableOpacity
-                nativeID="employees-invite-open"
-                onPress={openInvite}
-                disabled={busy}
-                accessibilityRole="button"
-                style={[styles.primary, { marginTop: 6, backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
-              >
-                <Text style={styles.primaryText}>Velg hvem som skal inviteres</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
           {!rows.length ? (
             <EmptyState
               nativeID="employees-empty"
@@ -1998,14 +2002,16 @@ export default function EmployeesScreen() {
                     </View>
                   )}
                   <View style={styles.grow}>
-                    <Text style={[styles.personName, { color: colors.ink }]}>{displayName(row)}</Text>
+                    <View style={styles.nameRow}>
+                      <Text style={[styles.personName, styles.nameText, { color: colors.ink }]} numberOfLines={1}>{displayName(row)}</Text>
+                      {canInvite ? <InviteMark employee={row} colors={colors} /> : null}
+                    </View>
                     {!!contactLine(row) && <Text style={[styles.personMeta, { color: colors.muted }]}>{contactLine(row)}</Text>}
                     <Text style={[styles.personMeta, { color: colors.muted }]}>{cardSubtitle(row, companyName)}</Text>
                     <View style={styles.chips}>
                       {mine?.id === row.id ? (
                         <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Din profil</Text>
                       ) : null}
-                      {canInvite ? <InviteChip employee={row} colors={colors} /> : null}
                       {departmentLabels(row, departments).map((name) => (
                         <Text key={name} style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>{name}</Text>
                       ))}
@@ -2035,7 +2041,7 @@ export default function EmployeesScreen() {
         </>
       ) : null}
 
-      {view !== 'list' && !PERSON_VIEWS.has(view) ? (
+      {view !== 'list' && !PERSON_VIEWS.has(view) && !selfRoute ? (
         <View style={styles.row}>
           <TouchableOpacity onPress={openList} accessibilityRole="button" style={[styles.secondary, { borderColor: colors.line }]}>
             <Text style={{ color: colors.ink }}>Til oversikten</Text>
@@ -2147,6 +2153,8 @@ export default function EmployeesScreen() {
 
           {view === 'detail' && detailEmployee ? (
             <EmployeeDetailView
+              companyId={familyId}
+              currentUid={uid}
               employee={detailEmployee}
               colors={colors}
               companyName={companyName}
@@ -2574,7 +2582,6 @@ function withInviteFields(draft, saved) {
   };
 }
 
-const INVITE_CHIP_KEYS = new Set(['none', 'missingEmail', 'queued', 'sent', 'declined']);
 
 /** Lagremelding etter aktivering eller deaktivering på Brukerkonto. */
 function classificationNote(employee, patch) {
@@ -2599,15 +2606,42 @@ function membershipNote(employee, membership) {
   return '';
 }
 
-/** Invitasjonsstatus på personen i listen (bare for den som kan invitere). */
-function InviteChip({ employee, colors }) {
+// Symbolet bak navnet i listen. Teksten står i verktøytipset og for skjermleser.
+const INVITE_MARKS = {
+  accepted: { icon: 'checkmark-circle', tone: 'ok' },
+  member: { icon: 'checkmark-circle', tone: 'ok' },
+  sent: { icon: 'paper-plane-outline', tone: 'muted' },
+  queued: { icon: 'time-outline', tone: 'muted' },
+  none: { icon: 'mail-unread-outline', tone: 'warn' },
+  missingEmail: { icon: 'alert-circle-outline', tone: 'danger' },
+  declined: { icon: 'close-circle-outline', tone: 'danger' },
+};
+
+const INVITE_MARK_LABELS = {
+  accepted: 'Har tilgang',
+  member: 'Har tilgang',
+};
+
+/** Invitasjonsstatus som symbol bak navnet (bare for den som kan invitere). */
+function InviteMark({ employee, colors }) {
   const state = employeeInviteState(employee);
-  if (!INVITE_CHIP_KEYS.has(state.key)) return null;
-  const alert = state.key === 'declined' || state.key === 'missingEmail';
+  const mark = INVITE_MARKS[state.key];
+  if (!mark) return null;
+  const label = INVITE_MARK_LABELS[state.key] || state.label;
+  const color = mark.tone === 'ok' ? colors.success
+    : mark.tone === 'warn' ? colors.warn
+      : mark.tone === 'danger' ? (colors.danger || '#b42318')
+        : colors.muted;
   return (
-    <Text style={[styles.dept, { color: alert ? (colors.danger || '#b42318') : colors.muted, backgroundColor: colors.sunken }]}>
-      {state.label}
-    </Text>
+    <View
+      nativeID={`employee-invite-mark-${employee.id}`}
+      accessible
+      accessibilityLabel={label}
+      {...(Platform.OS === 'web' ? { title: label } : {})}
+      style={styles.inviteMark}
+    >
+      <Ionicons name={mark.icon} size={15} color={color} />
+    </View>
   );
 }
 
@@ -2640,6 +2674,7 @@ function summaryNote(labels) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', alignSelf: 'stretch' },
+  selfPending: { alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
   screenScroll: { flex: 1, minWidth: 0, alignSelf: 'stretch' },
   // Fanene står kant i kant rett under båndet, som modulmenyen i HR. Polstringen ligger i EmployeePersonChrome.
   personChrome: {
@@ -2681,6 +2716,9 @@ const styles = StyleSheet.create({
   identity: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },
   personName: { fontSize: 14, fontWeight: '700' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  nameText: { flexShrink: 1 },
+  inviteMark: { flexShrink: 0 },
   personMeta: { fontSize: 14, fontWeight: '400' },
   hiredLink: { alignSelf: 'flex-start', minHeight: 36, justifyContent: 'center', paddingHorizontal: 4 },
   grow: { flex: 1, gap: 1 },

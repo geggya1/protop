@@ -26,6 +26,7 @@ import {
   FORM_SECTIONS, OWNER_LABEL,
 } from '../../src/employees/schema';
 import EmployeeFields, { EmployeeField } from './EmployeeFields';
+import ChildCareCard from '../../components/employees/ChildCareCard';
 import { useLayout } from '../../src/theme';
 import {
   emptyProjectState,
@@ -321,6 +322,9 @@ export default function EmployeeDetailView({
   canEndEmployment = true,
   isAdmin = false,
   isSelf = false,
+  // Bedriften og innlogget bruker (barna lagres skjermet per bedrift).
+  companyId = '',
+  currentUid = '',
   confirmDelete = false,
   busy = false,
   onCv,
@@ -361,6 +365,7 @@ export default function EmployeeDetailView({
     custom: true,
     gaps: true,
     projects: true,
+    childCare: true,
   });
 
   useEffect(() => {
@@ -375,6 +380,7 @@ export default function EmployeeDetailView({
       custom: true,
       gaps: true,
       projects: true,
+      childCare: true,
     });
   }, [employee?.id]);
 
@@ -828,6 +834,25 @@ export default function EmployeeDetailView({
                   </View>
                 </View>
               )}
+            </SectionCard>
+          ) : null}
+
+          {!limited && (isAdmin || isSelf) && section === 'home' && companyId ? (
+            <SectionCard
+              title="Barn og omsorgsdager"
+              icon="happy-outline"
+              colors={colors}
+              open={openSections.childCare}
+              onToggle={() => toggle('childCare')}
+            >
+              <ChildCareCard
+                companyId={companyId}
+                employee={employee}
+                colors={colors}
+                canEdit={!!canEdit}
+                self={!!isSelf}
+                by={currentUid}
+              />
             </SectionCard>
           ) : null}
 

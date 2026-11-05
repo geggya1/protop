@@ -107,9 +107,9 @@ export default function ArticleText({ text, colors, compact = false }) {
 
 const styles = StyleSheet.create({
   wrap: { gap: space.sm },
-  // Samme brødtekst som Tjenester og nyhetene (15/22), så fanene på bedriftssiden leses likt.
-  body: { fontSize: type.body.fontSize + 1, lineHeight: 22 },
-  bodyCompact: { fontSize: type.body.fontSize, lineHeight: 22 },
+  // Standard brødtekst (14), lik resten av appen. Tjenester og nyhetene bruker samme størrelse.
+  body: { fontSize: type.body.fontSize, lineHeight: 21 },
+  bodyCompact: { fontSize: type.body.fontSize, lineHeight: 21 },
   bold: { fontWeight: '600' },
   italic: { fontStyle: 'italic' },
   headingGap: { marginTop: space.xs },

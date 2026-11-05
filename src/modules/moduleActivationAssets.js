@@ -49,6 +49,8 @@ const BUNDLED = {
   hospitality: require('../../assets/module-activation/utleie--module-activation-illustration.png'),
   projects: require('../../assets/module-activation/prosjekt--module-activation-illustration.png'),
   ansatte: require('../../assets/module-activation/ansatte--module-activation-illustration.png'),
+  'hr-ansatte': require('../../assets/module-activation/ansatte--module-activation-illustration.png'),
+  ansatt: require('../../assets/module-activation/ansatte--module-activation-illustration.png'),
   kunder: require('../../assets/module-activation/kunder--module-activation-illustration.png'),
   'anbud-varsling': require('../../assets/module-activation/anbud-varsling--module-activation-illustration.png'),
   'anbud-vurdering': require('../../assets/module-activation/anbud-vurdering--module-activation-illustration.png'),

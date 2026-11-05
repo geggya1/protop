@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
-  SHELL_DETAILS, companyLandingTab, detailSyncStep, getShellLocation, homePathForLinking, isCompanyOnlyTab, isShellPath, parseShellPath,
+  ANSATTE_OWN_PAGES, SHELL_DETAILS, companyLandingTab, detailSyncStep, getShellLocation, homePathForLinking, isCompanyOnlyTab, isShellPath, parseShellPath,
   rememberEntryShellPath, setHomeRouteKey, setShellLocation, shellDetailKind, shellLinkState, shellPathAfterSwitch, shellPathFor,
   shellSearchFor, takeEntryShellPath,
 } from './shellPaths.js';
+import { ANSATT_SELF_VIEWS } from './shellModules.js';
 
 test('skallsti: fane og underside i adressen', () => {
   assert.equal(shellPathFor('home'), '/hjem');
@@ -68,6 +69,15 @@ test('detaljadresse (UX-20): prosjekt, faktura, ansatt og ISO-avvik', () => {
   assert.equal(shellPathFor('iso', null, 'x'), '/hjem/iso');
   assert.equal(shellDetailKind('okonomi', 'oversikt'), null);
   assert.equal(parseShellPath('/hjem/prosjekt/prj-1/mer'), null);
+});
+
+test('Bedrift › Ansatt: egne sider har egen adresse, ikke en ansatt-id', () => {
+  for (const sub of ANSATTE_OWN_PAGES) {
+    assert.equal(shellPathFor('ansatte', sub), `/hjem/ansatte/${sub}`);
+    assert.deepEqual(parseShellPath(`/hjem/ansatte/${sub}`), { tab: 'ansatte', subView: sub });
+  }
+  assert.deepEqual([...ANSATTE_OWN_PAGES].sort(), Object.keys(ANSATT_SELF_VIEWS).sort(), 'samme sider som menyen');
+  assert.deepEqual(parseShellPath('/hjem/ansatte/emp-kari'), { tab: 'ansatte', subView: null, detail: 'emp-kari' });
 });
 
 test('detaljadresse: gamle adresser virker som før', () => {

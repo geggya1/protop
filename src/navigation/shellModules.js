@@ -54,7 +54,7 @@ export function selskapMenuTitle(subView) {
   if (subView === 'moduler') return 'Modulinnstillinger';
   if (subView === 'tilgang') return 'Tilgangsstyring';
   if (subView === 'innstillinger') return 'Bedriftsinnstillinger';
-  if (subView === 'fravaerstyper' || subView === 'fridager') return 'Fraværsinnstillinger';
+  if (subView === 'fravaerstyper' || subView === 'fridager' || subView === 'sykefravaer') return 'Fraværsinnstillinger';
   if (subView === 'kontoplan' || subView === 'regnskapskontoer') return 'Økonomiinnstillinger';
   // «Bedrift» i alt brukeren ser; «selskap» bare i juridisk sammenheng (UX-10).
   return 'Bedriften';
@@ -200,10 +200,10 @@ export const HR_GROUPS = [
 
 export const HR_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt', group: 'oversikt' },
+  // Ansattregisteret (samme side som tidligere Ansatte i bedriftsmenyen). Egen side ligger under Ansatt › Min side.
+  { id: 'ansatte', icon: 'id-card', label: 'Ansatte', group: 'ansatte' },
+  // Personell er kontrollsiden for egne ansatte: avtale, lønn, lovpålagt og oppfølging i én liste.
   { id: 'personell', icon: 'people', label: 'Personell', group: 'ansatte' },
-  { id: 'avtaler', icon: 'document-text', label: 'Avtaler', group: 'ansatte' },
-  { id: 'lonn', icon: 'cash', label: 'Lønn', group: 'ansatte' },
-  { id: 'compliance', icon: 'shield-checkmark', label: 'Lovpålagt', group: 'ansatte' },
   { id: 'oppfolging', icon: 'flag', label: 'Samtaler og saker', group: 'oppfolging' },
   { id: 'sykefravaer', icon: 'medkit', label: 'Sykefravær', group: 'oppfolging' },
   { id: 'undersokelse', icon: 'stats-chart', label: 'Medarbeiderundersøkelse', group: 'oppfolging' },
@@ -215,7 +215,12 @@ export const HR_MENU = [
 
 export const HR_SUBVIEW_IDS = HR_MENU.map((item) => item.id);
 
+// Avtaler, Lønn og Lovpålagt var egne sider. Nå er de kolonner og deler av Personell,
+// så gamle lenker (årshjul, hjelp, oversikten) lander der.
+export const HR_SUBVIEW_ALIASES = { avtaler: 'personell', lonn: 'personell', compliance: 'personell' };
+
 export function defaultHrSubView(subView) {
+  if (HR_SUBVIEW_ALIASES[subView]) return HR_SUBVIEW_ALIASES[subView];
   return HR_SUBVIEW_IDS.includes(subView) ? subView : 'oversikt';
 }
 
@@ -422,6 +427,35 @@ function fravaerNavItem() {
   };
 }
 
+/**
+ * Ansatt: det hver ansatt har for seg selv i bedriften. Alt er låst til innlogget bruker.
+ * Min side, Gjøremål, Fravær og Utlegg er egen personside (tab ansatte), med siden som subView.
+ * Timeliste er den personlige timelisten.
+ */
+export const ANSATT_SELF_VIEWS = {
+  'min-side': 'detail',
+  'mine-gjoremal': 'todo',
+  'mitt-fravaer': 'absence',
+  'mine-utlegg': 'expenses',
+};
+
+export const ANSATT_MENU = [
+  { id: 'ansatt-minside', icon: 'person-circle', label: 'Min side', action: { type: 'tab', tab: 'ansatte', subView: 'min-side' } },
+  { id: 'ansatt-gjoremal', icon: 'checkbox-outline', label: 'Gjøremål', action: { type: 'tab', tab: 'ansatte', subView: 'mine-gjoremal' } },
+  { id: 'ansatt-timeliste', icon: 'time', label: 'Timeliste', action: { type: 'tab', tab: 'timeliste' } },
+  { id: 'ansatt-fravaer', icon: 'sunny', label: 'Fravær', action: { type: 'tab', tab: 'ansatte', subView: 'mitt-fravaer' } },
+  { id: 'ansatt-utlegg', icon: 'card', label: 'Utlegg', action: { type: 'tab', tab: 'ansatte', subView: 'mine-utlegg' } },
+];
+
+export function ansattSelfView(subView) {
+  return ANSATT_SELF_VIEWS[subView] || null;
+}
+
+export function ansatteMenuTitle(subView) {
+  const row = ANSATT_MENU.find((item) => item.action.tab === 'ansatte' && item.action.subView === subView);
+  return row?.label || 'Ansatte';
+}
+
 /** Synlig i bedriftsmenyen når selskapet har registrert underenheter/avdelinger. */
 export function companyHasRegisteredUnits(company) {
   return normalizeSubUnits(company?.subUnits).length > 0;
@@ -470,7 +504,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
         },
       ],
     },
-    { id: 'ansatte', icon: 'id-card', label: 'Ansatte', action: { type: 'tab', tab: 'ansatte' } },
+    ...ANSATT_MENU.map((item) => ({ ...item, action: { ...item.action } })),
     hrNavItem(),
     innleieNavItem(),
     fravaerNavItem(),
@@ -609,6 +643,13 @@ export function drawerSubmenuOpen(item, activeTab, overrides = {}, activeSubView
  */
 export const COMPANY_DRAWER_GROUPS = [
   {
+    // Det hver ansatt ser for seg selv. Står først, så vanlige ansatte har sitt øverst.
+    id: 'company-me',
+    label: 'Ansatt',
+    icon: 'person',
+    itemIds: ANSATT_MENU.map((item) => item.id),
+  },
+  {
     id: 'company-org',
     label: 'Bedrift og organisasjon',
     icon: 'business',
@@ -618,7 +659,8 @@ export const COMPANY_DRAWER_GROUPS = [
     id: 'company-people',
     label: 'Ansatte og arbeidstid',
     icon: 'people',
-    itemIds: ['ansatte', 'hr', 'fravaer', 'arbeid'],
+    // Ansattregisteret ligger under HR (HR › Ansatte).
+    itemIds: ['hr', 'fravaer', 'arbeid'],
   },
   {
     // Innleide og eksterne har en annen arbeidsgiver. Egen gruppe, atskilt fra egne ansatte.
@@ -888,8 +930,8 @@ export function buildShellModules({
   mainItems.push(
     { id: 'notes', icon: 'document-text', label: t('tabs.notes'), action: { type: 'tab', tab: 'notes' } },
   );
-  // Egen timeliste under Personlig. Bedriftens Timeliste under Arbeid er uendret.
-  if (!asChild) {
+  // Egen timeliste under Personlig. I en bedrift ligger den under Bedrift › Ansatt i stedet.
+  if (!asChild && !isOrganizationType(family?.type)) {
     mainItems.push({
       id: 'timeliste',
       icon: 'time',

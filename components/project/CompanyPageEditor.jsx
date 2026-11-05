@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   section: { fontSize: 15, fontWeight: '600', marginTop: 8 },
   field: { gap: 4, flexGrow: 1 },
   label: { fontSize: 12 },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15 },
+  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14 },
   inputMulti: { minHeight: 84, textAlignVertical: 'top' },
   moduleRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

@@ -8,6 +8,7 @@ import { isSuperAdmin } from '../../src/utils/groups';
 import AbsenceTypeSettings from '../../components/company/AbsenceTypeSettings';
 import HolidaySettings from '../../components/company/HolidaySettings';
 import VacationPlanPanel from '../../components/arbeid/VacationPlanPanel';
+import SickRulesSettings from '../../components/arbeid/SickRulesSettings';
 import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import { employeeDisplayName } from '../../src/arbeid/roles.js';
 import { employeeActivityTab } from '../../src/employees/model.js';
@@ -25,11 +26,13 @@ const TABS = [
   { id: 'fravaerstyper', label: 'Fraværstyper', icon: 'sunny-outline', hint: 'Betalt fravær, timebalanse og fakturerbart arbeid' },
   { id: 'fridager', label: 'Fridager', icon: 'calendar-outline', hint: 'Helligdager og egne fridager i timelisten' },
   { id: 'ferieplan', label: 'Ferieplan', icon: 'airplane-outline', hint: 'Inngående feriedagssaldo for aktive interne ansatte' },
+  { id: 'sykefravaer', label: 'Egenmelding og lønn', icon: 'medkit-outline', hint: 'Egenmeldingsordning og hvilket fravær bedriften dekker' },
 ];
 
 function initialTab(startTab) {
   if (startTab === 'fridager') return 'fridager';
   if (startTab === 'ferieplan') return 'ferieplan';
+  if (startTab === 'sykefravaer') return 'sykefravaer';
   return 'fravaerstyper';
 }
 
@@ -141,7 +144,7 @@ function VacationPlanSettings({ colors, canEdit }) {
 }
 
 /**
- * Fravær → Innstillinger: fraværstyper, fridager og ferieplan.
+ * Fravær → Innstillinger: fraværstyper, fridager, ferieplan og egenmeldingsordning.
  * Gjenbruker eksisterende komponenter og lagring.
  */
 export default function AbsenceSettingsScreen({ startTab = 'fravaerstyper' } = {}) {
@@ -226,6 +229,9 @@ export default function AbsenceSettingsScreen({ startTab = 'fravaerstyper' } = {
       ) : null}
       {tab === 'ferieplan' ? (
         <VacationPlanSettings colors={colors} canEdit={canEdit} />
+      ) : null}
+      {tab === 'sykefravaer' ? (
+        <SickRulesSettings familyId={familyId} colors={colors} canEdit={canEdit} />
       ) : null}
     </ScrollView>
   );

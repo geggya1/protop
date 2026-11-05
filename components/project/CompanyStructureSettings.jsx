@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
   lead: { fontSize: 14, lineHeight: 20, fontWeight: '400' },
   field: { gap: 4 },
   label: { fontSize: 12, fontWeight: '400' },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, fontWeight: '400' },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontWeight: '400' },
   btn: {
     alignSelf: 'flex-start',
     borderRadius: 12,

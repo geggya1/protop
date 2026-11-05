@@ -23,16 +23,17 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-assert.equal(defaultHrSubView('lonn'), 'lonn');
+// Avtaler, Lønn og Lovpålagt er samlet i Personell. Gamle lenker lander der.
+assert.equal(defaultHrSubView('lonn'), 'personell');
 assert.equal(defaultHrSubView('nope'), 'oversikt');
 assert.equal(hrMenuTitle('rekruttering'), 'Rekruttering');
-assert.equal(HR_MENU.length, 12);
-assert.ok(HR_MENU.some((item) => item.id === 'avtaler'));
-assert.ok(HR_MENU.some((item) => item.id === 'compliance'));
-assert.equal(defaultHrSubView('avtaler'), 'avtaler');
-assert.equal(defaultHrSubView('compliance'), 'compliance');
-assert.equal(hrMenuTitle('avtaler'), 'Avtaler');
-assert.equal(hrMenuTitle('compliance'), 'Lovpålagt');
+assert.equal(HR_MENU.length, 10);
+assert.equal(HR_MENU[1].id, 'ansatte', 'ansattregisteret er en side i HR');
+assert.equal(HR_MENU.some((item) => item.id === 'avtaler'), false);
+assert.equal(HR_MENU.some((item) => item.id === 'compliance'), false);
+assert.equal(defaultHrSubView('avtaler'), 'personell');
+assert.equal(defaultHrSubView('compliance'), 'personell');
+assert.equal(hrMenuTitle('personell'), 'Personell');
 
 for (const item of HR_MENU) {
   assert.equal(companyHeroId('hr', item.id), `hr-${item.id}`);
@@ -43,17 +44,26 @@ for (const item of HR_MENU) {
   const hr = adminNav.find((item) => item.id === 'hr');
   const selskap = adminNav.find((item) => item.id === 'selskap');
   assert.ok(hr);
-  assert.equal(hr.children.length, 12);
+  assert.equal(hr.children.length, 10);
   assert.equal(hr.action.tab, 'hr');
   assert.equal(selskap.children, undefined);
   assert.ok(adminNav.some((item) => item.id === 'hr'));
-  assert.ok(adminNav.some((item) => item.id === 'ansatte'));
+  // Ansattregisteret er en side i HR. Egen side står under Bedrift › Ansatt.
+  assert.ok(hr.children.some((item) => item.id === 'hr-ansatte'));
+  assert.ok(adminNav.some((item) => item.id === 'ansatt-minside'));
   assert.ok(adminNav.some((item) => item.id === 'selskapsinnstillinger'));
 }
 
 {
   assert.equal(companyTabAllowed('hr', 'rekruttering', standardGrants('ansatt')), false);
+  assert.equal(companyTabAllowed('hr', 'ansatte', standardGrants('ansatt')), true, 'registeret følger Ansatte-tilgangen');
+  assert.equal(companyTabAllowed('ansatte', 'min-side', standardGrants('ansatt')), true);
+  assert.equal(companyTabAllowed('ansatte', 'min-side', standardGrants('innleie_ekstern')), false);
   assert.equal(companyTabAllowed('hr', 'lonn', standardGrants('leder')), true);
+  // Personell åpnes med hvilken som helst av de fire delene, for eksempel bare Lovpålagt.
+  const complianceOnly = { ...standardGrants('ansatt'), hrCompliance: 'see' };
+  assert.equal(companyTabAllowed('hr', 'personell', complianceOnly), true);
+  assert.equal(companyTabAllowed('hr', 'personell', standardGrants('ansatt')), false);
   assert.equal(companyTabAllowed('hr', 'oversikt', standardGrants('avdelingsleder')), true);
   assert.equal(standardGrants('ansatt').hr, 'none');
   assert.equal(standardGrants('tilbud').hr, 'none');

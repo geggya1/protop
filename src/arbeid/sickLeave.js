@@ -56,7 +56,31 @@ export const SICK_LEAVE_DEFAULTS = {
   requireForm: true,
   frequentOccasions: 3,
   denied: [],
+  agreement: 'none',
+  paidLeave: {},
 };
+
+/**
+ * Fravær der arbeidsmiljøloven ikke gir rett til lønn, men tariffavtale, personalhåndbok eller
+ * arbeidsavtale ofte gjør det. Bedriften krysser av det avtalen gir lønn for (absenceForm.js).
+ */
+export const PAID_LEAVE_OPTIONS = [
+  { id: 'lege', label: 'Egen lege-, tannlege- eller spesialisttime' },
+  { id: 'legeBarn', label: 'Følge barn til lege eller kontroll (når barnet ikke er sykt)' },
+  { id: 'begravelse', label: 'Begravelse i nær familie' },
+  { id: 'velferd', label: 'Annen velferdspermisjon (flytting, bryllup, barnehagestart o.l.)' },
+  { id: 'omsorgFodsel', label: 'Omsorgspermisjon ved fødsel eller adopsjon (aml. § 12-3)' },
+  { id: 'militaer', label: 'Militærtjeneste / repetisjonsøvelse' },
+  { id: 'kurs', label: 'Kurs og seminar etter eget ønske' },
+];
+
+export const AGREEMENT_OPTIONS = [
+  { id: 'none', label: 'Ingen tariffavtale' },
+  { id: 'fob', label: 'Fellesoverenskomsten for byggfag' },
+  { id: 'industri', label: 'Industrioverenskomsten / annen LO–NHO-overenskomst' },
+  { id: 'other', label: 'Annen tariffavtale' },
+  { id: 'handbook', label: 'Personalhåndbok / arbeidsavtale' },
+];
 
 /**
  * ProTop lanseres 01.01.2027. Sykedager før det krever ikke egenmelding i appen:
@@ -160,6 +184,8 @@ export function normalizeSickRules(raw = {}) {
     childCertDays: d.childCertDays,
     childMinEmploymentDays: d.childMinEmploymentDays,
     requireForm: src.requireForm !== false,
+    agreement: AGREEMENT_OPTIONS.some((row) => row.id === src.agreement) ? src.agreement : 'none',
+    paidLeave: Object.fromEntries(PAID_LEAVE_OPTIONS.map((row) => [row.id, src.paidLeave?.[row.id] === true])),
     frequentOccasions: Math.max(2, count(src.frequentOccasions, d.frequentOccasions, 12)),
     denied: denied
       .map((row) => ({
@@ -170,6 +196,20 @@ export function normalizeSickRules(raw = {}) {
       }))
       .filter((row) => row.employeeId && isIsoDate(row.from)),
   };
+}
+
+/**
+ * Ordningen fra IA-avtalen (før 2019): egenmelding i inntil 8 kalenderdager om gangen og
+ * 24 kalenderdager per 12 måneder. Mange virksomheter har videreført den. Etter ftrl § 8-24
+ * er det arbeidsgivers valg innenfor arbeidsgiverperioden, etter drøfting med tillitsvalgte.
+ */
+export const IA_SELF_CERT = { extendedSelfCert: true, extendedDays: 8, annualCapDays: 24 };
+
+/** 'law' (tre dager), 'ia' (8 / 24) eller 'custom' (egen utvidelse eller tak). */
+export function selfCertScheme(rules) {
+  const r = normalizeSickRules(rules);
+  if (!r.extendedSelfCert) return r.annualCapDays ? 'custom' : 'law';
+  return r.extendedDays === IA_SELF_CERT.extendedDays && r.annualCapDays === IA_SELF_CERT.annualCapDays ? 'ia' : 'custom';
 }
 
 /** Lengste egenmelding om gangen. Utvidelse krever drøfting med tillitsvalgte. */
@@ -423,7 +463,12 @@ export function validateSickNote({
           : 'Fraværet må dokumenteres med sykmelding fra lege.'));
     }
     if (status.daysLeft != null && days > status.daysLeft) {
-      warnings.push(`Firmaet har satt et tak på ${status.annualCapDays} egenmeldingsdager per 12 måneder. ${status.daysLeft} dager er igjen.`);
+      // Taket er bedriftens egenmeldingsordning (for eksempel IA: 24 dager): dager ut over krever sykmelding.
+      limitExceeded = true;
+      errors.push(`Bedriften har et tak på ${status.annualCapDays} egenmeldingsdager per 12 måneder, og ${status.daysLeft} ${status.daysLeft === 1 ? 'dag' : 'dager'} er igjen. `
+        + (status.daysLeft > 0
+          ? `Fra og med ${nbDate(addDays(from, status.daysLeft))} må fraværet dokumenteres med sykmelding fra lege.`
+          : 'Fraværet må dokumenteres med sykmelding fra lege.'));
     }
     if (status.occasionsUsed + 1 >= r.revokeTriggerOccasions) {
       warnings.push(`Dette blir egenmelding nummer ${status.occasionsUsed + 1} de siste 12 månedene. Leder kan ta kontakt for en samtale.`);
@@ -480,12 +525,18 @@ export function workdaysBetween(fromIso, toIso) {
 
 /** Omsorgsdager etter ftrl § 9-6, ut fra opplysningene som er lagt inn på den ansatte. */
 export function childCareQuota(care = {}, { absences = [], employeeId = '', year, catalog } = {}) {
-  const children = count(care?.children, 0, 20);
-  const chronic = Math.min(children, count(care?.chronic, 0, 20));
-  const alone = bool(care?.alone);
   const y = Number(year) || new Date().getFullYear();
+  // Barn registrert med fødselsår (av den ansatte): teller til og med året barnet fyller 12,
+  // med utvidet rett til og med året det fyller 18. Ellers antallet HR har lagt inn.
+  const years = Array.isArray(care?.birthYears) ? care.birthYears.map(Number).filter((n) => n > 1900 && n <= y) : null;
+  const chronicYears = Array.isArray(care?.chronicBirthYears) ? care.chronicBirthYears.map(Number).filter((n) => n > 1900 && n <= y) : [];
+  const children = years ? years.filter((n) => y - n <= 12).length : count(care?.children, 0, 20);
+  const chronic = years
+    ? chronicYears.filter((n) => y - n <= 18).length
+    : Math.min(children, count(care?.chronic, 0, 20));
+  const alone = bool(care?.alone);
   let total = 0;
-  if (children > 0) {
+  if (children > 0 || chronic > 0) {
     total = children > 2 ? 15 : 10;
     let extra = chronic * 10;
     if (alone) {
@@ -504,10 +555,11 @@ export function childCareQuota(care = {}, { absences = [], employeeId = '', year
     alone,
     total,
     used,
-    remaining: children > 0 ? Math.max(0, total - used) : null,
+    remaining: children > 0 || chronic > 0 ? Math.max(0, total - used) : null,
     // Arbeidsgiver kan kreve refusjon fra trygden for dager ut over 10 (ftrl § 9-8).
     refundDays: Math.max(0, used - 10),
-    unknown: children === 0,
+    unknown: children === 0 && chronic === 0,
+    registered: !!years,
   };
 }
 

@@ -956,7 +956,7 @@ const styles = StyleSheet.create({
   jobsBtn: { alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   jobsBtnText: { color: '#fff', fontSize: 13 },
   stack: { gap: 12 },
-  lead: { fontSize: 15, lineHeight: 22 },
+  lead: { fontSize: 14, lineHeight: 21 },
   factColumns: { flexDirection: 'row', gap: 32, alignItems: 'flex-start' },
   factColumnsStacked: { flexDirection: 'column', gap: 16 },
   factColumn: { flex: 1, minWidth: 0, gap: 16, alignSelf: 'stretch' },

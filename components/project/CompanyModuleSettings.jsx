@@ -218,7 +218,7 @@ export function CompanyModuleLocked({ module, contactNote, canManage, onOpenSett
 
 const styles = StyleSheet.create({
   page: { alignSelf: 'stretch', width: '100%', maxWidth: 860, gap: 10 },
-  lead: { fontSize: 15, lineHeight: 21 },
+  lead: { fontSize: 14, lineHeight: 20 },
   summary: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 12, padding: 14 },
   summaryIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   summaryText: { flex: 1, minWidth: 0, gap: 2 },

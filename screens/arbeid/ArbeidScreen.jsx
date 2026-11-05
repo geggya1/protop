@@ -106,7 +106,6 @@ import { applySickCaseToState } from '../../src/arbeid/sickApply.js';
 import { useSickLeave } from '../../src/arbeid/useSickLeave.js';
 import TimesheetSideForm from '../../components/arbeid/TimesheetSideForm';
 import ScrollSheet from '../../components/ScrollSheet';
-import BillingChainLine from '../economy/billing/BillingChainLine';
 import Breadcrumb from '../../components/Breadcrumb';
 import DateInput from '../../components/DateInput';
 import { agreedHoursForDate, redDayMap, resolveRedDays } from '../../src/arbeid/holidays.js';
@@ -1551,24 +1550,12 @@ export default function ArbeidScreen({
       || (c.status === 'avvist' && String(c.handledAt || '').slice(0, 10) >= addMonths(todayIso(), -1))))
     .slice(0, 2);
 
-  // Leder: hvor timene står i kjeden mot faktura (Timer → Godkjenn → Til fakturering → Faktura).
-  const chainLine = !personal && !lockedId && !embedded && manager ? (
-    <View style={[styles.chainLine, isPhone && styles.chainLinePhone]}>
-      <BillingChainLine
-        current="timer"
-        locks={state.timesheetLocks || []}
-        employees={employees.filter(isActiveEmployee)}
-      />
-    </View>
-  ) : null;
-
   if (needsPersonStep) {
     return (
       <View
         style={[styles.screen, { backgroundColor: colors.bg, position: 'relative' }]}
         nativeID="arbeid-screen"
       >
-        {chainLine}
         {/* Mobil: fanen over viser allerede «Timeliste», så brødsmulen tas bort. */}
         {embedded || isPhone ? null : (
           <View style={{ marginBottom: 8 }}>{crumbNode}</View>
@@ -1600,7 +1587,6 @@ export default function ArbeidScreen({
 
   return (
     <View style={[styles.screen, personal && styles.screenPersonal, embedded && isPhone && styles.screenEmbeddedPhone, { backgroundColor: colors.bg, position: 'relative' }]} nativeID={personal ? 'personal-timeliste-screen' : 'arbeid-screen'}>
-      {chainLine}
       {/* Inne i ansattprofilen på PC viser skallet allerede navnet: ingen egen topplinje. */}
       {embedded && !isPhone ? null : (
       <View style={[styles.topBar, (personal || isPhone) && styles.topBarPersonal, isPhone && styles.topBarPhone]}>
@@ -2155,8 +2141,6 @@ export default function ArbeidScreen({
 }
 
 const styles = StyleSheet.create({
-  chainLine: { marginBottom: 10 },
-  chainLinePhone: { marginBottom: 8 },
   screen: { flex: 1, padding: 16, minHeight: 0 },
   screenPersonal: { paddingTop: 8 },
   // Inne i ansattprofilen på mobil: ingen tom navnekolonne, månedsvelgeren fyller linjen.

@@ -24,11 +24,17 @@ assert.match(screen, /GroupYearButton/);
 assert.match(screen, /headingActions/);
 assert.match(screen, /yearControl/);
 assert.match(screen, /company-units-gear/);
-// Tannhjulet og innstillingene er bare for Admin på underenheter.
+// Tannhjulet er bare for Admin på underenheter, og åpner Bedriftsinnstillinger → Tilknyttede selskaper.
 assert.match(screen, /canEdit = [\s\S]{0,120}canAdmin\('units'\)/);
 assert.equal(/canEdit\('units'\)/.test(screen), false);
-assert.match(screen, /onPress=\{canEdit \? toggleSettings : null\}/);
-assert.match(screen, /settingsOpen && canEdit \?/);
+assert.match(screen, /onPress=\{canEdit \? openSettings : null\}/);
+assert.match(screen, /requestShellTab\?\.\('selskap', 'tilknyttede'\)/);
+// Avtaler og koblinger hører til i Bedriftsinnstillinger, ikke på Underenheter.
+assert.doesNotMatch(screen, /IntercompanyPanel|CompanyStructureSettings|OWNERSHIP_LEVELS/);
+const linked = readFileSync(join(root, 'components/intercompany/LinkedCompaniesSettings.jsx'), 'utf8');
+assert.match(linked, /<IntercompanyPanel/);
+assert.match(linked, /<CompanyStructureSettings/);
+assert.match(linked, /canEdit = [\s\S]{0,120}canAdmin\('units'\)/);
 assert.doesNotMatch(screen, /group-show-units/);
 assert.doesNotMatch(screen, /Vis underenheter fra Enhetsregisteret/);
 

@@ -35,6 +35,7 @@ const SHORT = {
   'fravaer-planlagt': 'Planlagt',
   'selskapsinnstillinger-moduler': 'Moduler',
   'selskapsinnstillinger-tilgang': 'Tilgang',
+  'selskapsinnstillinger-tilknyttede': 'Tilknyttede',
   'iso-lovkrav': 'Lovkrav',
   'iso-organisasjon': 'Roller',
   'iso-ledelse': 'Ledelse',

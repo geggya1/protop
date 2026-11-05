@@ -242,6 +242,7 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'iso') return <IsoScreen subView={route.params?.subView} />;
     if (tab === 'selskap' && route.params?.subView === 'moduler') return <ProjectPlatformScreen startPage="moduler" />;
     if (tab === 'selskap' && route.params?.subView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
+    if (tab === 'selskap' && route.params?.subView === 'tilknyttede') return <ProjectPlatformScreen startPage="tilknyttede" />;
     if (tab === 'selskap' && route.params?.subView === 'innstillinger') return <ProjectPlatformScreen />;
     if (tab === 'selskap' && (route.params?.subView === 'fravaerstyper' || route.params?.subView === 'fridager' || route.params?.subView === 'sykefravaer')) {
       return <AbsenceSettingsScreen startTab={route.params.subView} />;

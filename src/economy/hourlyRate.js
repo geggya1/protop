@@ -1,15 +1,17 @@
 /**
  * Timepris i én rekkefølge (DS-12): prisversjon i avtalen, så prosjektets timepris,
- * så den ansattes timepris, så selskapets standard. Svaret sier hvor satsen kom fra,
- * så grensesnittet kan vise det.
+ * så kundens timepris (kundekortet), så den ansattes timepris, så selskapets standard.
+ * Svaret sier hvor satsen kom fra, så grensesnittet kan vise det.
  *
- * Til fakturering bruker i dag de to første trinnene (billingReady.hourlyRateFor).
+ * Til fakturering bruker i dag de tre første trinnene (billingReady.hourlyRateFor).
  */
 import { rateOnDate } from '../indeksregulering/cases.js';
+import { customerPrices } from '../customers/customerPrices.js';
 
 export const RATE_SOURCES = [
   { id: 'contract', label: 'fra avtalen' },
   { id: 'project', label: 'fra prosjektet' },
+  { id: 'customer', label: 'fra kunden' },
   { id: 'employee', label: 'fra den ansatte' },
   { id: 'company', label: 'selskapets standard' },
 ];
@@ -50,18 +52,24 @@ export function employeeHourlyRate(employee, earnings = null) {
   return id ? positive(earnings?.employees?.[id]?.billableRate) : null;
 }
 
+/** Timeprisen på kundekortet. */
+export function customerHourlyRate(customer) {
+  return customerPrices(customer).hourlyRate;
+}
+
 export function companyHourlyRate(earnings = null) {
   return positive(earnings?.variables?.defaultBillableRate);
 }
 
 /**
  * { rate, source }. rate er null når ingen trinn har en sats.
- * steps begrenser hvilke trinn som brukes (standard: alle fire).
+ * steps begrenser hvilke trinn som brukes (standard: alle fem).
  */
 export function resolveHourlyRate({
   project = null,
   contracts = [],
   date = '',
+  customer = null,
   employee = null,
   earnings = null,
   steps = null,
@@ -74,6 +82,10 @@ export function resolveHourlyRate({
   if (allowed('project')) {
     const rate = projectHourlyRate(project);
     if (rate != null) return { rate, source: 'project' };
+  }
+  if (allowed('customer')) {
+    const rate = customerHourlyRate(customer);
+    if (rate != null) return { rate, source: 'customer' };
   }
   if (allowed('employee')) {
     const rate = employeeHourlyRate(employee, earnings);

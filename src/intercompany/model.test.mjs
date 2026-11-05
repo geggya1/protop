@@ -20,6 +20,7 @@ import {
   mirrorId,
   mirrorSale,
   mirrorTimeEntry,
+  normalizeLink,
   normalizeLinkSettings,
   openLinkBetween,
   parseCloneProjectId,
@@ -325,4 +326,42 @@ test('kort merke på speilede rader', async () => {
   );
   assert.equal(mirrorTag({ icMirror: true, intercompany: { mirror: true, sourceCompanyName: 'Datter AS', supplierApproved: true } }).label, 'Datter AS · godkjent');
   assert.equal(mirrorTag({ icMirror: true, intercompany: { mirror: true, sourceCompanyName: 'Datter AS', supplierApproved: true, supplierInvoice: { id: 'i', number: '20001' } } }).label, 'Datter AS · faktura 20001');
+});
+
+test('samme selskap: kan ikke knyttes til seg selv', async () => {
+  const { isSameCompany, isSelfLink } = await import('./model.js');
+  // Samme org.nr. i to arbeidsområder (to dokumenter).
+  const twin = { id: 'famTwin', name: 'Mor AS', orgnr: MOR.orgnr };
+  assert.equal(isSameCompany(MOR, twin), true);
+  const made = buildLinkRequest({ id: 'icl-self', requester: MOR, target: twin, role: 'parent', uid: 'u1' });
+  assert.equal(made.ok, false);
+  assert.match(made.error, /seg selv/);
+
+  // Underenhet (Brreg) av hovedenheten er samme selskap, også med eget org.nr.
+  const unit = { id: 'famUnit', company: { navn: 'Mor AS avd. Bergen', organisasjonsnummer: '933333333', overordnetEnhet: MOR.orgnr } };
+  assert.equal(isSameCompany(unit, MOR), true);
+  assert.equal(isSameCompany(MOR, unit), true);
+
+  // Datterselskap med eget org.nr. og annet navn er et eget selskap.
+  const sor = { id: 'famSor', company: { navn: 'Mor Sør AS', organisasjonsnummer: '944444444' } };
+  assert.equal(isSameCompany(MOR, sor), false);
+  assert.equal(isSameCompany(MOR, DATTER), false);
+
+  // En kobling som ble laget før sperren, vises for seg og kan ikke godtas.
+  const old = normalizeLink({
+    id: 'icl-old', status: 'pending', relation: 'konsern', parent: twin, child: MOR, requestedByCompanyId: twin.id,
+  }, 'icl-old');
+  assert.equal(isSelfLink(old), true);
+  assert.equal(respondToLink(old, { companyId: MOR.id, accept: true }).ok, false);
+  assert.equal(respondToLink(old, { companyId: MOR.id, accept: false }).ok, true);
+  const groups = groupLinks([{ ...old, status: 'active' }], MOR.id);
+  assert.equal(groups.self.length, 1);
+  assert.equal(groups.active.length, 0);
+
+  // Partneren er en underenhet av oss: kjennes igjen når vårt eget dokument er med.
+  const viaUnit = normalizeLink({
+    id: 'icl-unit', status: 'active', relation: 'konsern', parent: { id: 'famMorDoc', name: 'Mor AS', orgnr: MOR.orgnr }, child: { id: 'famUnit', name: 'Mor AS avd. Bergen', orgnr: '933333333' },
+  }, 'icl-unit');
+  assert.equal(groupLinks([viaUnit], 'famUnit').self.length, 0);
+  assert.equal(groupLinks([viaUnit], 'famUnit', unit).self.length, 1);
 });

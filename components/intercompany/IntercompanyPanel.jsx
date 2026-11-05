@@ -8,7 +8,9 @@ import { useIntercompanyLinks } from '../../src/intercompany/useIntercompanyLink
 import {
   answerLinkSettings, endLinkAgreement, requestLink, respondLink, saveLinkSettings, withdrawLinkRequest,
 } from '../../src/intercompany/client';
-import { konsernChildren, normalizeLinkSettings, roleSentence, settingsSummary } from '../../src/intercompany/model';
+import {
+  isSameCompany, konsernChildren, normalizeLinkSettings, roleSentence, settingsSummary,
+} from '../../src/intercompany/model';
 import NumberSeriesPanel from './NumberSeriesPanel';
 import { digitsOrgnr } from '../../src/project/companyRegistry';
 import { findCompanyByOrgnr } from '../../src/project/companyLookupClient';
@@ -84,7 +86,10 @@ function LinkRow({ link, colors, children, badge }) {
       </View>
       <View style={[styles.summary, { backgroundColor: colors.sunken }]}>
         <Ionicons name="pricetags-outline" size={14} color={colors.muted} />
-        <Text style={{ color: colors.ink, fontSize: 13, flex: 1 }}>{`Standardpriser: ${settingsSummary(link.settings)}`}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.ink, fontSize: 13 }}>{`Standardpriser: ${settingsSummary(link.settings)}`}</Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Priser på kundekortet gjelder foran.</Text>
+        </View>
       </View>
       {link.message ? <Text style={{ color: colors.ink, fontSize: 13, fontStyle: 'italic' }}>«{link.message}»</Text> : null}
       {children}
@@ -98,9 +103,10 @@ function LinkRow({ link, colors, children, badge }) {
  * legacy: selskaper som er koblet med den gamle koblingen uten godkjenning (parentCompanyId/subUnits).
  */
 export default function IntercompanyPanel({ familyId, family = null, colors, canEdit, actorName = '', legacy = [] }) {
-  const { links, groups, ready, error: loadError } = useIntercompanyLinks(familyId);
+  const { links, groups, ready, error: loadError } = useIntercompanyLinks(familyId, family);
+  const own = useMemo(() => ({ ...(family || {}), id: familyId }), [family, familyId]);
   const konsern = useMemo(() => {
-    const children = konsernChildren(links, familyId);
+    const children = konsernChildren(links, familyId, family);
     if (!children.length) return [];
     return [{ id: familyId, name: family?.company?.navn || family?.name || 'Vårt selskap' }, ...children];
   }, [links, familyId, family]);
@@ -133,7 +139,11 @@ export default function IntercompanyPanel({ familyId, family = null, colors, can
   const linkedIds = useMemo(() => new Set([
     ...groups.active, ...groups.incoming, ...groups.outgoing,
   ].map((row) => row.partner.id)), [groups]);
-  const unconfirmed = (legacy || []).filter((row) => row?.companyId && row.companyId !== familyId && !linkedIds.has(row.companyId));
+  // Selskapet selv (samme org.nr. eller en underenhet av oss) skal aldri bli bedt om å knyttes til.
+  const unconfirmed = (legacy || []).filter((row) => (
+    row?.companyId && !isSameCompany(own, row) && !linkedIds.has(row.companyId)
+  ));
+  const foundIsUs = !!found && isSameCompany(own, { orgnr: found.orgnr, name: found.name });
 
   async function run(id, job, done = '') {
     setBusyId(id);
@@ -157,6 +167,10 @@ export default function IntercompanyPanel({ familyId, family = null, colors, can
       setError('Oppgi organisasjonsnummeret med ni siffer.');
       return;
     }
+    if (isSameCompany(own, { orgnr: number })) {
+      setError('Det er organisasjonsnummeret til dette selskapet. Et selskap kan ikke knyttes til seg selv.');
+      return;
+    }
     const out = await run('new', () => requestLink({ companyId: familyId, orgnr: number, role, settings: draft, message, actorName }), (res) => (
       res?.already
         ? 'Det finnes allerede en tilknytning eller forespørsel med dette selskapet.'
@@ -176,7 +190,16 @@ export default function IntercompanyPanel({ familyId, family = null, colors, can
     }), (res) => (res?.autoAccepted ? 'Tilknytningen er bekreftet.' : 'Forespørselen er sendt til det andre selskapet.'));
   }
 
-  const nothing = ready && !groups.incoming.length && !groups.outgoing.length && !groups.active.length && !unconfirmed.length;
+  function removeSelfLink(link) {
+    const job = link.status === 'active'
+      ? () => endLinkAgreement({ companyId: familyId, linkId: link.id })
+      : link.outgoing
+        ? () => withdrawLinkRequest({ companyId: familyId, linkId: link.id })
+        : () => respondLink({ companyId: familyId, linkId: link.id, accept: false, actorName });
+    return run(link.id, job, 'Koblingen er fjernet.');
+  }
+
+  const nothing = ready && !groups.self.length && !groups.incoming.length && !groups.outgoing.length && !groups.active.length && !unconfirmed.length;
 
   return (
     <View style={styles.block} nativeID="intercompany-panel">
@@ -191,6 +214,28 @@ export default function IntercompanyPanel({ familyId, family = null, colors, can
       {loadError ? <Text style={{ color: colors.danger }}>{loadError}</Text> : null}
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
       {note ? <Text style={{ color: colors.brand }}>{note}</Text> : null}
+
+      {groups.self.map((link) => (
+        <View key={link.id} nativeID={`ic-self-${link.id}`} style={[styles.row, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <View style={styles.rowHead}>
+            <Ionicons name="alert-circle-outline" size={18} color={colors.warnInk} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>{link.partner.name}</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {[link.partner.orgnr ? `Org.nr. ${link.partner.orgnr}` : '', 'Samme selskap som dere'].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
+          </View>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            Dette er dere selv, så det er ingen avtale å ha. Fjern koblingen.
+          </Text>
+          {canEdit ? (
+            <View style={styles.actions}>
+              <Button nativeID={`ic-self-remove-${link.id}`} danger label="Fjern koblingen" colors={colors} disabled={!!busyId} onPress={() => removeSelfLink(link)} />
+            </View>
+          ) : null}
+        </View>
+      ))}
 
       {groups.incoming.map((link) => (
         <LinkRow key={link.id} link={link} colors={colors} badge="Svar trengs">
@@ -299,7 +344,12 @@ export default function IntercompanyPanel({ familyId, family = null, colors, can
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
-          {found?.name ? (
+          {foundIsUs ? (
+            <View style={styles.found} nativeID="ic-found-self">
+              <Ionicons name="alert-circle-outline" size={16} color={colors.warnInk} />
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Det er dette selskapet. Et selskap kan ikke knyttes til seg selv.</Text>
+            </View>
+          ) : found?.name ? (
             <View style={styles.found} nativeID="ic-found">
               <Ionicons name="checkmark-circle" size={16} color={colors.success} />
               <Text style={{ color: colors.ink, fontSize: 13 }}>{`${found.name} finnes i ProTop`}</Text>
@@ -339,7 +389,7 @@ export default function IntercompanyPanel({ familyId, family = null, colors, can
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
           <View style={styles.actions}>
-            <Button nativeID="ic-send" primary icon="paper-plane-outline" label={busyId === 'new' ? 'Sender…' : 'Send forespørsel'} colors={colors} disabled={!!busyId || !!found?.missing} onPress={send} />
+            <Button nativeID="ic-send" primary icon="paper-plane-outline" label={busyId === 'new' ? 'Sender…' : 'Send forespørsel'} colors={colors} disabled={!!busyId || !!found?.missing || foundIsUs} onPress={send} />
             <Button label="Avbryt" colors={colors} disabled={!!busyId} onPress={() => setComposing(false)} />
           </View>
         </View>

@@ -80,6 +80,7 @@ import IndexLetterTable from '../../components/economy/IndexLetterTable';
 import { lettersForCustomer } from '../../src/indeksregulering/groups';
 import CustomerPhoneRow from './CustomerPhoneRow';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
+import { CUSTOMER_PRICE_FIELDS, customerPriceSummary } from '../../src/customers/customerPrices';
 
 // Tabellen tegner en side om gangen. Tusenvis av rader på én gang låser nettleseren.
 const PAGE_SIZE = 100;
@@ -136,6 +137,10 @@ const EMPTY = {
   creditDays: '',
   invoiceLanguage: '',
   invoiceDelivery: '',
+  hourlyRate: '',
+  discountHours: '',
+  discountProducts: '',
+  discountRental: '',
 };
 
 // Faktureringsvalg på kunden. Tomt eller «Standard» betyr selskapets fakturastandard.
@@ -1047,6 +1052,29 @@ export default function CustomersScreen() {
               ))}
             </View>
           ) : null}
+          <View style={{ gap: 8 }} nativeID="customer-price-fields">
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>Priser</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Gjelder alle prosjekter for kunden. Et prosjekt kan ha egne priser; da gjelder de.
+            </Text>
+            <View style={styles.row}>
+              {CUSTOMER_PRICE_FIELDS.map(({ key, label, suffix, hint }) => (
+                <View key={key} style={{ gap: 4, minWidth: 150, flexGrow: 1, flexBasis: 150 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>{`${label} (${suffix})`}</Text>
+                  <TextInput
+                    value={String(form[key] ?? '')}
+                    onChangeText={(value) => patch({ [key]: value.replace(/[^\d,.\s]/g, '') })}
+                    placeholder={key === 'hourlyRate' ? 'Prosjektets' : 'Standard'}
+                    placeholderTextColor={colors.placeholder}
+                    keyboardType="decimal-pad"
+                    nativeID={`customer-${key}`}
+                    accessibilityHint={hint}
+                    style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+                  />
+                </View>
+              ))}
+            </View>
+          </View>
           <View style={{ gap: 8 }} nativeID="customer-invoice-fields">
             <Text style={{ color: colors.ink, fontWeight: '600' }}>Fakturering</Text>
             {INVOICE_TEXT_FIELDS.map(([key, label, hint]) => (
@@ -1150,6 +1178,11 @@ export default function CustomersScreen() {
             {selected.contactName ? <Text style={{ color: colors.ink }}>Kontakt {selected.contactName}</Text> : null}
             {selected.email ? <Text style={{ color: colors.ink }}>{selected.email}</Text> : null}
             {selected.phone ? <Text style={{ color: colors.ink }}>{selected.phone}</Text> : null}
+            {customerPriceSummary(selected) ? (
+              <Text style={{ color: colors.ink }} nativeID="customer-price-summary">
+                {`Priser: ${customerPriceSummary(selected)}`}
+              </Text>
+            ) : null}
             {customerInvoiceSummary(selected).length ? (
               <Text style={{ color: colors.ink }} nativeID="customer-invoice-summary">
                 {`Fakturering: ${customerInvoiceSummary(selected).join(' · ')}`}

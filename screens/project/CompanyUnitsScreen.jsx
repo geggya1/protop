@@ -21,6 +21,7 @@ import {
 import { digitsOrgnr } from '../../src/project/companyRegistry';
 import { findOwnedOrganization, underenheterOf } from '../../src/project/companyUnits';
 import { aliasFamilyIds } from '../../src/utils/platformSwitch';
+import { isSameCompany } from '../../src/intercompany/model';
 
 function GearButton({ open, colors, onPress }) {
   return (
@@ -117,14 +118,26 @@ export default function CompanyUnitsScreen() {
   }, []);
 
   // Selskaper koblet med den gamle koblingen (uten godkjenning). Panelet tilbyr å bekrefte dem.
+  // Selskapet selv (samme org.nr., eller underenhet og hovedenhet med samme navn) er aldri med.
   const legacyLinks = useMemo(() => {
     const hidden = new Set(aliasFamilyIds({ id: familyId, name: company?.navn, company }, families || []));
+    const own = { ...(family || {}), id: familyId };
+    const ownName = String(company?.navn || family?.name || '').trim().toLocaleLowerCase('nb');
+    const known = (id) => (families || []).find((row) => row?.id === id) || null;
     const rows = [];
-    if (family?.parentCompanyId && !family?.parentLinkId) {
-      rows.push({ companyId: family.parentCompanyId, name: family.parentCompanyName || 'Morselskap', role: 'parent' });
+    if (family?.parentCompanyId && !family?.parentLinkId && !hidden.has(family.parentCompanyId)) {
+      const name = family.parentCompanyName || 'Morselskap';
+      const other = known(family.parentCompanyId);
+      const self = other
+        ? isSameCompany(own, other)
+        : !!ownName && String(name).trim().toLocaleLowerCase('nb') === ownName;
+      if (!self) rows.push({ ...(other || {}), companyId: family.parentCompanyId, name, role: 'parent' });
     }
     for (const unit of underenheterOf(company?.subUnits)) {
-      if (unit.companyId && !hidden.has(unit.companyId)) rows.push({ companyId: unit.companyId, name: unit.name, role: 'child' });
+      if (!unit.companyId || hidden.has(unit.companyId)) continue;
+      const other = known(unit.companyId) || { orgnr: unit.organisasjonsnummer, name: unit.name };
+      if (isSameCompany(own, other)) continue;
+      rows.push({ ...other, companyId: unit.companyId, name: unit.name, role: 'child' });
     }
     return rows;
   }, [family, familyId, company, families]);

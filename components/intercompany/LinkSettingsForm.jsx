@@ -78,7 +78,8 @@ export default function LinkSettingsForm({ value, onChange, colors, disabled = f
   return (
     <View style={styles.block}>
       <Text style={{ color: colors.muted, fontSize: 13 }}>
-        Standardpriser for nye felles prosjekter. Pris og betingelser kan settes på hvert prosjekt som vanlig etterpå.
+        Priser settes for det meste på kundekortet. Har dere satt pris eller rabatt på kundekortet til det andre
+        selskapet, gjelder den. Standardprisene her brukes for det kundekortet ikke har.
       </Text>
       <Area
         title="Timer"

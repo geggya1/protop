@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from '../OptionPicker';
 import DateField from '../DateField';
 import { parseHours } from '../../src/arbeid/hours.js';
-import { TIME_TYPES } from '../../src/arbeid/overtime.js';
+import { TIME_TYPES, isOvertime } from '../../src/arbeid/overtime.js';
 import { timeEntryHistoryLines } from '../../src/arbeid/timeEntryHistory.js';
 import { hoursInputText } from '../../src/format/nb.js';
 import { dateKey as toDateKey } from '../../src/utils/dates';
@@ -60,6 +60,8 @@ export default function TimeEntryModal({
   readOnly = false,
   // Uten Admin: endre, men ikke slette.
   canDelete = true,
+  // Fastlønn der overtid inngår: overtid vises ikke som timeart (en eldre føring beholder sin).
+  hideOvertime = false,
   onSave,
   onDelete,
   onClose,
@@ -276,7 +278,9 @@ export default function TimeEntryModal({
                     ) : null}
                     {showTimeType ? (
                       <OptionPicker
-                        options={TIME_TYPES.map((row) => ({ id: row.id, label: row.label }))}
+                        options={TIME_TYPES
+                          .filter((row) => !hideOvertime || !isOvertime(row.id) || row.id === block.timeType)
+                          .map((row) => ({ id: row.id, label: row.label }))}
                         value={block.timeType}
                         onChange={(id) => { if (id) patchBlock(block.key, { timeType: id }); }}
                         disabled={readOnly}

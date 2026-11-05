@@ -18,6 +18,7 @@ import HrFollowUp from './HrFollowUp';
 import HrCompliance from './HrCompliance';
 import HrHmsCards from './HrHmsCards';
 import HrPayGap from './HrPayGap';
+import HrPayrollSummary from './HrPayrollSummary';
 import HrAccessLog from './HrAccessLog';
 import ControlMeasuresCard from './ControlMeasuresCard';
 
@@ -115,6 +116,8 @@ export default function HrPeople({
             } : undefined}
           />
         </HrCard>
+        {/* Månedens lønnsgrunnlag (overtid, mertid fra timebanken, sykdom, kjøring) til regnskapsfører. */}
+        {parts.payroll && familyId ? <HrPayrollSummary colors={colors} familyId={familyId} canWrite={canWrite} /> : null}
         {parts.payroll ? <HrPayGap colors={colors} employees={rows.map((row) => row.employee)} hr={hr} /> : null}
         {parts.compliance ? (
           // HMS-kort gjelder alle som arbeider på byggeplassen, også innleide og eksterne.

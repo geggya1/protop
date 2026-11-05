@@ -22,7 +22,8 @@ export function kinIsMissing(employee) {
 /**
  * docs: rader fra documentsForEmployee. hms: { required, notApplicable, card }.
  * hrTasks: oppgaver HR har delt (slice.tasks). Gir punkter med åpne først.
- *   { id, kind, title, text, done, urgent, target }
+ *   { id, kind, title, text, done, urgent, target, due }
+ * due: frist (YYYY-MM-DD) når punktet har en: utløpsdato på HMS-kortet, frist på HR-oppgaven.
  * target sier hvor punktet gjøres: 'documents', 'hms', 'kin' eller 'hr'.
  */
 export function employeeTodos({ employee = null, docs = [], hms = null, hrTasks = [], today = '' } = {}) {
@@ -73,6 +74,7 @@ export function employeeTodos({ employee = null, docs = [], hms = null, hrTasks 
       done: state.id === 'valid',
       urgent: state.id === 'expired' || state.id === 'expiring',
       target: 'hms',
+      due: hms.card?.validTo || '',
     });
   }
   for (const task of hrTasks || []) {
@@ -85,9 +87,13 @@ export function employeeTodos({ employee = null, docs = [], hms = null, hrTasks 
       done: task.status === 'done',
       urgent: false,
       target: 'hr',
+      due: task.dueDate || '',
     });
   }
-  return out.sort((a, b) => Number(a.done) - Number(b.done) || Number(b.urgent) - Number(a.urgent));
+  // Åpne først, så det som haster, så nærmeste frist.
+  return out.sort((a, b) => Number(a.done) - Number(b.done)
+    || Number(b.urgent) - Number(a.urgent)
+    || String(a.due || '9999').localeCompare(String(b.due || '9999')));
 }
 
 /** Antall punkter som krever oppmerksomhet. */

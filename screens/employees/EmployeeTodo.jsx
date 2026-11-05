@@ -6,7 +6,8 @@
  * lagres i den ansattes skjermede del (hmsSelf.js), så HR ser det i Lovpålagt.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { documentsForEmployee } from '../../src/doccontrol/model';
 import { loadFilledDocs } from '../../src/forms/filledStore';
 import { hmsCardRequirement, mergeHmsCards } from '../../src/hr/hmsCard';
@@ -30,6 +31,8 @@ function personName(employee) {
 export default function EmployeeTodo({
   colors, companyId, employee, self = true, naeringskode = '', canEdit = true,
   compact = false, always = false, onOpenTodo = null, onOpenMine = null,
+  // 'side': huskeliste i margen til høyre på hovedsiden (frister, rødt når fristen er passert).
+  variant = '',
 }) {
   const dc = useDocControl();
   const employeeId = employee?.id || '';
@@ -77,6 +80,61 @@ export default function EmployeeTodo({
     const saved = await saveOwnHmsCard(companyId, employeeId, next);
     setOwnCard(saved);
     showSaveToast?.('HMS-kortet er lagret');
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  if (variant === 'side') {
+    return (
+      <View nativeID="employee-todo-side" style={[styles.side, { borderColor: colors.line }]}>
+        <View style={styles.sideHead}>
+          <Text style={[styles.sideTitle, { color: colors.muted }]}>Gjøremål</Text>
+          {slice && open.length ? (
+            <View style={[styles.badge, { backgroundColor: open.some((row) => row.urgent || (row.due && row.due < today)) ? (colors.danger || '#b42318') : colors.brand }]}>
+              <Text style={styles.badgeText}>{open.length}</Text>
+            </View>
+          ) : null}
+        </View>
+        {!slice ? <Text style={[styles.sideMeta, { color: colors.muted }]}>Henter …</Text> : null}
+        {slice && !open.length ? (
+          <View style={styles.sideRow}>
+            <Ionicons name="checkmark-circle" size={16} color="#2f8f5b" />
+            <Text style={[styles.sideText, { color: colors.muted }]}>Alt er på plass.</Text>
+          </View>
+        ) : null}
+        {open.map((row) => {
+          const late = !!row.due && row.due < today;
+          const red = late || row.urgent;
+          return (
+            <Pressable
+              key={row.id}
+              nativeID={`employee-todo-side-${row.id.replace(/[^A-Za-z0-9_-]/g, '-')}`}
+              onPress={() => onOpenTodo?.()}
+              accessibilityRole="button"
+              accessibilityLabel={`${row.title}${row.due ? `, frist ${row.due}` : ''}`}
+              style={({ hovered }) => [styles.sideRow, hovered && { backgroundColor: colors.bg }]}
+            >
+              <Ionicons name="ellipse-outline" size={14} color={red ? (colors.danger || '#b42318') : colors.muted} style={{ marginTop: 2 }} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.sideText, { color: red ? (colors.danger || '#b42318') : colors.ink }]} numberOfLines={2}>{row.title}</Text>
+                {row.due ? (
+                  <Text style={[styles.sideMeta, { color: red ? (colors.danger || '#b42318') : colors.muted }]}>
+                    {`${late ? 'Frist passert' : 'Frist'} ${row.due.split('-').reverse().join('.')}`}
+                  </Text>
+                ) : null}
+              </View>
+            </Pressable>
+          );
+        })}
+        {done.length ? (
+          <Text style={[styles.sideMeta, { color: colors.muted }]}>{`${done.length} fullført`}</Text>
+        ) : null}
+        {onOpenTodo ? (
+          <Pressable onPress={onOpenTodo} accessibilityRole="button" nativeID="employee-todo-side-open">
+            <Text style={[styles.sideLink, { color: colors.brand }]}>Åpne gjøremål</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
   }
 
   const attention = (
@@ -167,6 +225,15 @@ const styles = StyleSheet.create({
   stack: { gap: 8 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   doneRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, gap: 2 },
-  doneTitle: { fontSize: 14, fontWeight: '600' },
+  doneTitle: { fontSize: 14 },
+  side: { gap: 6 },
+  sideHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  sideTitle: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 },
+  badge: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { color: '#fff', fontSize: 11, lineHeight: 14 },
+  sideRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 6 },
+  sideText: { fontSize: 13, lineHeight: 18 },
+  sideMeta: { fontSize: 12, lineHeight: 16 },
+  sideLink: { fontSize: 13, marginTop: 4 },
   doneText: { fontSize: 12, lineHeight: 17 },
 });

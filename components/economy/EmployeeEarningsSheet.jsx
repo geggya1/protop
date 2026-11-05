@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
+  StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
 import { displayName, personnelKind } from '../../src/employees/model';
 import { formatDate, formatMoney } from '../../src/economy/invoices';
@@ -58,9 +58,64 @@ function AmountInput({ value, onCommit, colors, editable, nativeID, suffix = '' 
 function Fact({ label, value, colors }) {
   if (!value) return null;
   return (
-    <Text style={{ color: colors.muted, fontSize: 13 }}>
-      {label}: <Text style={{ color: colors.ink }}>{value}</Text>
-    </Text>
+    <View style={styles.fact}>
+      <Text style={[styles.factLabel, { color: colors.muted }]}>{label}</Text>
+      <Text style={[styles.factValue, { color: colors.ink }]}>{value}</Text>
+    </View>
+  );
+}
+
+/** Nøkkeltall som flis: tydelig tall, liten etikett, ingen fet brødtekst. */
+function Kpi({ label, value, hint, tone, colors, nativeID }) {
+  return (
+    <View nativeID={nativeID} style={[styles.kpi, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <Text style={[styles.kpiLabel, { color: colors.muted }]}>{label}</Text>
+      <Text style={[styles.kpiValue, { color: tone || colors.ink }]} numberOfLines={1}>{value}</Text>
+      {hint ? <Text style={[styles.kpiHint, { color: colors.muted }]} numberOfLines={1}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+/**
+ * Honorar mot kostnad som to liggende stolper: kostnaden delt i direkte, indirekte og
+ * felleskostnader. Lengden er relativ til den største av de to.
+ */
+function CostBar({ result, colors }) {
+  const revenue = Math.max(0, Number(result.revenue) || 0);
+  const parts = [
+    { id: 'direct', label: 'Direkte', value: Math.max(0, Number(result.direct) || 0), color: colors.brand },
+    { id: 'indirect', label: 'Indirekte', value: Math.max(0, Number(result.indirect) || 0), color: '#7c9cbf' },
+    { id: 'overhead', label: 'Felles', value: Math.max(0, Number(result.overhead) || 0), color: '#c4cfdb' },
+  ];
+  const cost = parts.reduce((sum, row) => sum + row.value, 0);
+  const max = Math.max(revenue, cost);
+  if (!max) return null;
+  const width = (value) => `${Math.max(0, Math.min(100, (value / max) * 100))}%`;
+  return (
+    <View nativeID="earnings-chart" style={styles.chart} accessibilityLabel={`Honorar ${formatMoney(revenue)}, kostnad ${formatMoney(cost)}`}>
+      <View style={styles.chartRow}>
+        <Text style={[styles.chartLabel, { color: colors.muted }]}>Honorar</Text>
+        <View style={[styles.track, { backgroundColor: colors.bg }]}>
+          <View style={{ width: width(revenue), backgroundColor: '#3fa66b', height: '100%', borderRadius: 4 }} />
+        </View>
+      </View>
+      <View style={styles.chartRow}>
+        <Text style={[styles.chartLabel, { color: colors.muted }]}>Kostnad</Text>
+        <View style={[styles.track, styles.trackRow, { backgroundColor: colors.bg }]}>
+          {parts.map((row) => (row.value ? (
+            <View key={row.id} style={{ width: width(row.value), backgroundColor: row.color, height: '100%' }} />
+          ) : null))}
+        </View>
+      </View>
+      <View style={styles.legend}>
+        {parts.map((row) => (
+          <View key={row.id} style={styles.legendItem}>
+            <View style={[styles.dot, { backgroundColor: row.color }]} />
+            <Text style={[styles.legendText, { color: colors.muted }]}>{`${row.label} ${formatMoney(row.value)}`}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -73,7 +128,12 @@ export default function EmployeeEarningsSheet({
   canEdit = false,
   colors,
   capacity: capacityProp,
+  // Inne på personen står navnet allerede i toppfeltet. Bare oversikten i Økonomi viser det her.
+  showTitle = true,
 }) {
+  const { width: screenWidth } = useWindowDimensions();
+  // Bred skjerm: fakta om personen i en marg til høyre, tallene får hovedplassen.
+  const wide = screenWidth >= 1100;
   const owned = useEarningsSettings(settingsProp ? '' : companyId);
   const settings = settingsProp || owned.settings;
   const change = onChange || owned.update;
@@ -142,13 +202,28 @@ export default function EmployeeEarningsSheet({
   }
 
   return (
-    <View nativeID="employee-earnings-sheet" style={styles.wrap}>
-      <Text style={[styles.title, { color: colors.ink }]}>{displayName(employee)}</Text>
-      <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
-        {hired
-          ? 'Innleid personell kjøpes til avtalt timehonorar. Lønn, arbeidsgiveravgift og pensjon brukes ikke.'
-          : 'Lønn og stilling hentes fra personen. Feriepenger, avgift og pensjon regnes ut fra lønnen.'}
-      </Text>
+    <View nativeID="employee-earnings-sheet" style={[styles.wrap, wide && styles.wrapWide]}>
+      <View style={[styles.main, wide && styles.mainWide]}>
+        {showTitle ? <Text style={[styles.title, { color: colors.ink }]}>{displayName(employee)}</Text> : null}
+        <View style={styles.kpis} nativeID="earnings-kpis">
+          <Kpi colors={colors} nativeID="earnings-kpi-revenue" label="Forventet honorar" value={formatMoney(result.revenue)} hint={`${formatPlain(result.billableHours)} fakturerbare timer`} />
+          <Kpi colors={colors} nativeID="earnings-kpi-cost" label="Kostnad" value={formatMoney(result.totalCost)} />
+          <Kpi
+            colors={colors}
+            nativeID="earnings-kpi-profit"
+            label="Fortjeneste"
+            value={formatMoney(result.profit)}
+            hint={result.margin != null ? `Margin ${pct(result.margin)}` : ''}
+            tone={result.profit < 0 ? (colors.danger || '#b42318') : undefined}
+          />
+          {hired ? null : (
+            <Kpi colors={colors} nativeID="earnings-kpi-breakeven" label="Nullpunkt, timepris" value={result.breakEvenRate == null ? '—' : formatMoney(result.breakEvenRate)} />
+          )}
+        </View>
+        {hired ? null : <CostBar result={result} colors={colors} />}
+      </View>
+      <View style={[styles.side, wide && styles.sideWide, { borderColor: colors.line }]} nativeID="earnings-facts">
+      <Text style={[styles.sideTitle, { color: colors.muted }]}>Om personen</Text>
       <View style={styles.facts}>
         <Fact label="Stilling" value={company.title} colors={colors} />
         <Fact label="Stillingsprosent" value={position} colors={colors} />
@@ -165,9 +240,22 @@ export default function EmployeeEarningsSheet({
           />
         )}
       </View>
+      <Text style={[styles.sideNote, { color: colors.muted }]}>
+        {hired
+          ? 'Innleid personell kjøpes til avtalt timehonorar. Lønn, arbeidsgiveravgift og pensjon brukes ikke.'
+          : 'Lønn og stilling hentes fra personen. Feriepenger, avgift og pensjon regnes ut fra lønnen.'}
+      </Text>
+      <Text style={[styles.sideNote, { color: colors.muted }]}>
+        {capacity
+          ? `Disponible timer ${capacity.year}: ${formatPlain(capacity.gross)} t, minus ${formatPlain(capacity.vacationDays)} feriedager (${formatPlain(capacity.vacationHours)} t) = ${formatPlain(capacity.hours)} t.`
+          : `Timer ${formatPlain(result.hours)}.`}
+        {result.hoursSource === 'override' ? ` Avtalt timetall ${formatPlain(result.hours)} t brukes.` : ''}
+      </Text>
+      </View>
 
+      <View style={[styles.main, wide && styles.mainWide]}>
       <View nativeID="earnings-income" style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-        <Text style={[styles.groupTitle, { color: colors.ink }]}>{hired ? 'Avtalt honorar' : 'Forventet inntjening'}</Text>
+        <Text style={[styles.groupTitle, { color: colors.ink }]}>{hired ? 'Avtalt honorar' : 'Grunnlag'}</Text>
         {hired ? (
           <View style={styles.line}>
             <View style={styles.lineLabel}>
@@ -240,35 +328,6 @@ export default function EmployeeEarningsSheet({
             </TouchableOpacity>
           ) : null}
         </View>
-        <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
-          {capacity
-            ? `Disponible timer ${capacity.year}: ${formatPlain(capacity.gross)} timer, minus ${formatPlain(capacity.vacationDays)} feriedager (${formatPlain(capacity.vacationHours)} t) = ${formatPlain(capacity.hours)} t.`
-            : `Timer ${formatPlain(result.hours)}.`}
-          {result.hoursSource === 'override' ? ` Avtalt timetall ${formatPlain(result.hours)} t brukes.` : ''}
-          {` Fakturerbare ${formatPlain(result.billableHours)}.`}
-        </Text>
-        <View style={styles.sumRow}>
-          <Text style={{ color: colors.ink }}>Forventet honorar</Text>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>{formatMoney(result.revenue)}</Text>
-        </View>
-        <View style={styles.sumRow}>
-          <Text style={{ color: colors.ink }}>Kostnad</Text>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>{formatMoney(result.totalCost)}</Text>
-        </View>
-        <View style={styles.sumRow}>
-          <Text style={{ color: colors.ink }}>Fortjeneste</Text>
-          <Text style={{ color: result.profit < 0 ? (colors.danger || '#b42318') : colors.ink, fontWeight: '700' }}>
-            {formatMoney(result.profit)}{result.margin != null ? ` · ${pct(result.margin)}` : ''}
-          </Text>
-        </View>
-        {hired ? null : (
-          <View style={styles.sumRow}>
-            <Text style={{ color: colors.ink }}>Nullpunkt, timepris</Text>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>
-              {result.breakEvenRate == null ? '—' : formatMoney(result.breakEvenRate)}
-            </Text>
-          </View>
-        )}
       </View>
 
       {hired ? null : EARNINGS_GROUPS.map((group) => {
@@ -286,7 +345,7 @@ export default function EmployeeEarningsSheet({
               style={styles.sumRow}
             >
               <Text style={[styles.groupTitle, { color: colors.ink }]}>{expanded ? '▾' : '▸'} {group.label}</Text>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>
+              <Text style={[styles.amountText, { color: colors.ink }]}>
                 {formatMoney(sum)}{ratio != null ? ` · ${pct(ratio)}` : ''}
               </Text>
             </TouchableOpacity>
@@ -402,16 +461,42 @@ export default function EmployeeEarningsSheet({
           </TouchableOpacity>
         </View>
       ) : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: 12, width: '100%' },
-  title: { fontSize: 22, fontWeight: '700' },
-  facts: { gap: 2 },
+  // Bred: tall og felt til venstre, margen med fakta om personen til høyre.
+  wrapWide: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', columnGap: 24, rowGap: 12 },
+  main: { gap: 12, width: '100%' },
+  mainWide: { width: 'auto', flexBasis: 560, flexGrow: 1, maxWidth: 900 },
+  side: { gap: 8, borderWidth: 1, borderRadius: 12, padding: 12 },
+  sideWide: { width: 260, borderWidth: 0, borderLeftWidth: 1, borderRadius: 0, paddingVertical: 4, paddingLeft: 16 },
+  sideTitle: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 },
+  sideNote: { fontSize: 12, lineHeight: 17 },
+  title: { fontSize: 18, fontWeight: '600' },
+  facts: { gap: 6 },
+  fact: { gap: 0 },
+  factLabel: { fontSize: 12, lineHeight: 16 },
+  factValue: { fontSize: 14, lineHeight: 19 },
+  kpis: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  kpi: { flexGrow: 1, flexBasis: 150, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 2 },
+  kpiLabel: { fontSize: 12, lineHeight: 16 },
+  kpiValue: { fontSize: 20, lineHeight: 26, fontWeight: '500', fontVariant: ['tabular-nums'] },
+  kpiHint: { fontSize: 12, lineHeight: 16 },
+  chart: { gap: 6 },
+  chartRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  chartLabel: { width: 64, fontSize: 12 },
+  track: { flex: 1, height: 12, borderRadius: 4, overflow: 'hidden' },
+  trackRow: { flexDirection: 'row' },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, paddingLeft: 74 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontSize: 12 },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
-  groupTitle: { fontSize: 16, fontWeight: '700' },
+  groupTitle: { fontSize: 15, fontWeight: '600' },
   line: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, flexWrap: 'wrap' },
   lineLabel: { flexGrow: 1, flexShrink: 1, minWidth: 160, gap: 2 },
   amountWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -422,5 +507,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   primary: { alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  primaryText: { color: '#fff', fontWeight: '700' },
+  primaryText: { color: '#fff', fontWeight: '600' },
 });

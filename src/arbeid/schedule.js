@@ -215,6 +215,11 @@ export function scheduledHours(employee, date, fullDayHours = STANDARD_DAY_HOURS
   return roundHours((Number(fullDayHours) || STANDARD_DAY_HOURS) * ratio);
 }
 
+/** Lønnsform «Fastlønn» på ansattkortet (Type lønnskompensasjon). */
+export function isFixedSalary(employee) {
+  return /^fast/i.test(String(employee?.company?.compensationType || '').trim());
+}
+
 export function timeSettingsOf(employee) {
   const raw = employee?.extras?.timeSettings && typeof employee.extras.timeSettings === 'object'
     ? employee.extras.timeSettings
@@ -230,6 +235,12 @@ export function timeSettingsOf(employee) {
     mustLockTimesheet: raw.mustLockTimesheet === true,
     requireClockTimes: raw.requireClockTimes === true,
     flexCountsAsPay: raw.flexCountsAsPay !== false,
+    // Lønn (HR › Lønn). Lønnsformen står på ansattkortet (company.compensationType).
+    // Fastlønn: overtid inngår i lønnen med mindre det er valgt at personen har krav på overtid.
+    // Da skjules overtid som timeart og uttak av mertid som overtid, og lønnsgrunnlaget sier «Fastlønn».
+    fixedSalary: isFixedSalary(employee),
+    overtimeInSalary: isFixedSalary(employee) && raw.overtimeInSalary !== false,
+    bankPayout: raw.bankPayout === true && !(isFixedSalary(employee) && raw.overtimeInSalary !== false),
     utilizationTarget: Number.isFinite(target) ? target : 100,
     hourlyRate: raw.hourlyRate == null ? '' : String(raw.hourlyRate),
     notifyTimesheet: raw.notifyTimesheet !== false,

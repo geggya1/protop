@@ -204,6 +204,7 @@ function loadJsx(rel) {
       || id.includes('TimesheetEmployeePicker')
       || id.includes('AbsenceTypeModal')
       || id.includes('SickNoteModal')
+      || id.includes('OvertimePayoutModal')
       || id.includes('AbsenceNoticeModal')
       || id.includes('TimesheetSideForm')
       || id.includes('WorkingTimeSaveWarning')

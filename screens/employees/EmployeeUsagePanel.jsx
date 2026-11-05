@@ -81,8 +81,8 @@ export default function EmployeeUsagePanel({
 
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },
-  heading: { fontSize: 17, fontWeight: '700' },
-  sub: { fontSize: 15, fontWeight: '700', marginTop: 6 },
+  heading: { fontSize: 17, fontWeight: '600' },
+  sub: { fontSize: 15, fontWeight: '600', marginTop: 6 },
   row: { flexDirection: 'row', gap: 8, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth },
   event: { gap: 2 },
 });

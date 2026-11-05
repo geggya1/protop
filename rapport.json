@@ -1,0 +1,137 @@
+{
+  "steps": [
+    {
+      "name": "Mor: Underenheter viser Tilknyttede selskaper",
+      "ok": true,
+      "ms": 2653,
+      "detail": "bilder/01-mor-underenheter.png"
+    },
+    {
+      "name": "Mor: ber Datter om tilknytning som datterselskap",
+      "ok": true,
+      "ms": 4492,
+      "detail": "bilder/03-mor-sendt.png"
+    },
+    {
+      "name": "Datter: ser forespørselen og godtar",
+      "ok": true,
+      "ms": 6657,
+      "detail": "active; bilder/05-datter-aktiv.png"
+    },
+    {
+      "name": "Mor: avtalen vises som aktiv",
+      "ok": true,
+      "ms": 2630,
+      "detail": "bilder/06-mor-aktiv.png"
+    },
+    {
+      "name": "Mor: tildeler Per fra Datter på prosjektet",
+      "ok": true,
+      "ms": 11041,
+      "detail": "bilder/09-mor-team-etter.png"
+    },
+    {
+      "name": "Server: prosjektkopi, kunde og innleid medarbeider",
+      "ok": true,
+      "ms": 38,
+      "detail": "kopi prjic_icl-e2e-datter-e2e-mor-mw39garw_prj_e2e_mor1, pris {\"hourlyRate\":1200}, rabatt 10"
+    },
+    {
+      "name": "Datter: ser kopien med samme nummer og Mor som kunde",
+      "ok": true,
+      "ms": 8633,
+      "detail": "bilder/11-datter-kopi-team.png"
+    },
+    {
+      "name": "Timer: ført hos Datter vises hos Mor (venter på godkjenning)",
+      "ok": true,
+      "ms": 1538,
+      "detail": "speilet: registrert"
+    },
+    {
+      "name": "Timer: godkjent hos Datter er godkjent hos Mor",
+      "ok": true,
+      "ms": 1522,
+      "detail": ""
+    },
+    {
+      "name": "Faktura: Datter fakturerer Mor, nummeret vises på timen hos Mor",
+      "ok": true,
+      "ms": 3062,
+      "detail": "faktura 20001 på speilet"
+    },
+    {
+      "name": "Utlegg og salg: speiles til Mor når Datter har godkjent",
+      "ok": true,
+      "ms": 1561,
+      "detail": "utlegg og salg speilet"
+    },
+    {
+      "name": "Mor: Timerapport viser at timen belastes på faktura 20001",
+      "ok": true,
+      "ms": 8479,
+      "detail": "bilder/12-mor-timerapport.png"
+    },
+    {
+      "name": "Mor: Utlegg på prosjektet viser utlegget fra Datter",
+      "ok": true,
+      "ms": 225,
+      "detail": "bilder/13-mor-utlegg.png"
+    },
+    {
+      "name": "Mor: Til fakturering viser timene fra Datter mot sluttkunden",
+      "ok": true,
+      "ms": 7331,
+      "detail": "bilder/15-mor-til-fakturering-apnet.png"
+    },
+    {
+      "name": "Datter: Til fakturering viser kopien med Mor som kunde",
+      "ok": true,
+      "ms": 5596,
+      "detail": "bilder/16-datter-til-fakturering.png"
+    },
+    {
+      "name": "Datter: utstyr med utleiepris",
+      "ok": true,
+      "ms": 2813,
+      "detail": "bilder/18-datter-utstyr-utleie.png"
+    },
+    {
+      "name": "Mor og Datter: prosjektlisten merker felles prosjekter",
+      "ok": true,
+      "ms": 5200,
+      "detail": "bilder/20-mor-prosjektliste.png"
+    },
+    {
+      "name": "Mor: knytter til en samarbeidspartner (ikke konsern), partneren godtar",
+      "ok": true,
+      "ms": 11409,
+      "detail": "partner aktiv, ikke i konsernet"
+    },
+    {
+      "name": "Mor: fordeler nummerserier i konsernet (ikke til partneren)",
+      "ok": true,
+      "ms": 5536,
+      "detail": "bilder/25-mor-nummerserier.png"
+    },
+    {
+      "name": "Mor: nytt prosjekt får neste nummer i serien",
+      "ok": true,
+      "ms": 8452,
+      "detail": ""
+    },
+    {
+      "name": "Datter: ser nummerserien fra morselskapet",
+      "ok": true,
+      "ms": 5780,
+      "detail": "bilder/27-datter-nummerserie.png"
+    },
+    {
+      "name": "Mobil: Underenheter og Team hos Mor",
+      "ok": true,
+      "ms": 13829,
+      "detail": ""
+    }
+  ],
+  "errors": []
+}

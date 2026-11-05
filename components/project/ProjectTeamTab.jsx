@@ -47,8 +47,8 @@ export default function ProjectTeamTab({
   const [menuId, setMenuId] = useState('');
   const [error, setError] = useState('');
   const [partnerOpen, setPartnerOpen] = useState(false);
-  const { familyId } = useApp();
-  const { active: partnerLinks } = useIntercompanyLinks(familyId);
+  const { familyId, family } = useApp();
+  const { active: partnerLinks } = useIntercompanyLinks(familyId, family);
   // En leveranse til et annet selskap (kopi) får ikke folk fra et tredje selskap herfra.
   const isSupplierCopy = project?.intercompany?.role === 'supplier';
   const icLabel = projectIntercompanyLabel(project);

@@ -589,7 +589,7 @@ export const PROTOP_PAGES = {
         '“Link companies in ProTop” connects other ProTop companies in the group.',
         { find: ['Knytt selskaper i ProTop'], via: ['Innstillinger for underenheter'] }),
       step(tx('Tilknyttede selskaper', 'Linked companies'),
-        '«Knytt til selskap» under Tilknyttede selskaper sender en forespørsel til en samarbeidspartner, underentreprenør, mor- eller datterselskap. Det andre selskapet må godta. Avtalen har standardpriser for nye felles prosjekter. I et konsern fordeler morselskapet nummerserier for prosjekter og kunder.',
+        '«Knytt til selskap» under Tilknyttede selskaper sender en forespørsel til en samarbeidspartner, underentreprenør, mor- eller datterselskap. Det andre selskapet må godta. Prisen settes på hvert prosjekt, ikke i avtalen. I et konsern fordeler morselskapet nummerserier for prosjekter og kunder.',
         '“Link to company” under Linked companies sends a request to a partner, subcontractor, parent or subsidiary. The other company must accept. The agreement holds default prices for new shared projects. In a group, the parent assigns number series for projects and customers.',
         { find: ['Tilknyttede selskaper', 'Knytt til selskap'] }),
       step(tx('Folk på hverandres prosjekter', 'People on each other’s projects'),

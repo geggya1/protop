@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from '../OptionPicker';
 import { PROJECT_ROLES } from '../../src/arbeid/roles.js';
 import { allocateMembers, listPartnerEmployees } from '../../src/intercompany/client';
-import { settingsSummary } from '../../src/intercompany/model';
 
 /**
  * Tildel medarbeidere fra et tilknyttet selskap på prosjektet. Personene blir innleide
@@ -98,7 +97,7 @@ export default function AllocatePartnerDialog({ visible, onClose, links = [], fa
               })}
             </View>
           ) : null}
-          {link ? <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 6 }}>{`${link.partner.name} · ${settingsSummary(link.settings)}`}</Text> : null}
+          {link ? <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 6 }}>{`${link.partner.name} · prisen settes på prosjektet`}</Text> : null}
           {loading ? <ActivityIndicator color={colors.brand} /> : null}
           <ScrollView style={{ maxHeight: 260 }}>
             {people.map((row) => {

@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   section: { gap: space.md },
   sectionHead: { borderBottomWidth: 1, paddingBottom: space.xs },
   light: { fontWeight: '400' },
-  intro: { fontSize: type.body.fontSize + 1, lineHeight: 22 },
+  intro: { fontSize: type.body.fontSize, lineHeight: 21 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   item: { gap: space.xs },
   cardImage: { width: '100%', aspectRatio: 3 / 2, borderRadius: radius.control },

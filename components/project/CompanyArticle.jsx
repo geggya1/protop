@@ -292,5 +292,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: space.xxs, borderWidth: 1,
     borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: space.xxs + 2,
   },
-  input: { borderWidth: 1, borderRadius: radius.control, paddingHorizontal: space.sm, paddingVertical: space.xs, fontSize: type.body.fontSize + 1 },
+  input: { borderWidth: 1, borderRadius: radius.control, paddingHorizontal: space.sm, paddingVertical: space.xs, fontSize: type.body.fontSize },
 });

@@ -235,7 +235,7 @@ export function NewsBodyEditor({
 
 const styles = StyleSheet.create({
   body: { gap: space.xs },
-  text: { fontSize: 15, lineHeight: 22 },
+  text: { fontSize: type.body.fontSize, lineHeight: 21 },
   heading: { ...type.title },
   headingGap: { marginTop: space.xxs },
   bold: { fontWeight: '600' },
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderBottomLeftRadius: radius.card, borderBottomRightRadius: radius.card,
-    paddingHorizontal: space.sm, paddingVertical: 10, fontSize: 16, lineHeight: 22,
+    paddingHorizontal: space.sm, paddingVertical: 10, fontSize: type.body.fontSize, lineHeight: 21,
   },
   preview: {
     borderWidth: 1, gap: space.xs,

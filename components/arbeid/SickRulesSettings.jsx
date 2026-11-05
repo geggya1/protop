@@ -3,7 +3,6 @@ import {
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import CheckBox from '../CheckBox';
 import OptionPicker from '../OptionPicker';
 import {
   AGREEMENT_OPTIONS, IA_SELF_CERT, PAID_LEAVE_OPTIONS, SICK_LEAVE_DEFAULTS, normalizeSickRules, selfCertScheme,
@@ -35,6 +34,24 @@ const STATUTORY = [
   'Svangerskapskontroll (aml. § 12-1)',
   'Ammefri inntil én time per dag til barnet er ett år (aml. § 12-8)',
 ];
+
+/** Kompakt avkrysning i samme skrift som resten av innstillingene. */
+function Check({ checked, onPress, label, colors, disabled }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked, disabled }}
+      style={styles.check}
+    >
+      <View style={[styles.box, { borderColor: checked ? colors.brand : colors.muted, backgroundColor: checked ? colors.brand : colors.card }]}>
+        {checked ? <Ionicons name="checkmark" size={13} color={colors.onBrand || '#fff'} /> : null}
+      </View>
+      <Text style={[styles.body, styles.flex, { color: colors.ink }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
 function digits(value) {
   return String(value || '').replace(/[^0-9]/g, '').slice(0, 3);
@@ -147,9 +164,11 @@ export default function SickRulesSettings({ familyId, colors, canEdit }) {
 
       {scheme !== 'law' ? (
         <View style={styles.stackTight}>
-          <CheckBox
+          <Check
             checked={!!current.extendedDiscussed}
-            onPress={canEdit ? () => set({ extendedDiscussed: !current.extendedDiscussed }) : undefined}
+            onPress={() => set({ extendedDiscussed: !current.extendedDiscussed })}
+            disabled={!canEdit}
+            colors={colors}
             label="Drøftet med tillitsvalgte (ftrl § 8-24)"
           />
           {!current.extendedDiscussed ? (
@@ -160,9 +179,11 @@ export default function SickRulesSettings({ familyId, colors, canEdit }) {
         </View>
       ) : null}
 
-      <CheckBox
+      <Check
         checked={!!current.requireForm}
-        onPress={canEdit ? () => set({ requireForm: !current.requireForm }) : undefined}
+        onPress={() => set({ requireForm: !current.requireForm })}
+        disabled={!canEdit}
+        colors={colors}
         label="Krev skriftlig egenmelding i appen (ftrl § 8-26)"
       />
 
@@ -183,35 +204,70 @@ export default function SickRulesSettings({ familyId, colors, canEdit }) {
 
       <View style={[styles.divider, { borderTopColor: colors.line }]} />
       <Text style={[styles.strong, { color: colors.ink }]}>Hva bedriften dekker</Text>
-      <Text style={[styles.caption, { color: colors.muted }]}>Lovpålagt, alltid med lønn fra arbeidsgiver:</Text>
-      {STATUTORY.map((label) => (
-        <View key={label} style={styles.lawRow}>
-          <Ionicons name="lock-closed-outline" size={16} color={colors.muted} />
-          <Text style={[styles.caption, styles.flex, { color: colors.ink }]}>{label}</Text>
+
+      <View style={[styles.group, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="fravaer-dekning-lovpalagt">
+        <View style={[styles.groupHead, { backgroundColor: colors.successSoft || colors.bg, borderBottomColor: colors.line }]}>
+          <Ionicons name="shield-checkmark-outline" size={18} color={colors.successInk || colors.brand} />
+          <View style={styles.flex}>
+            <Text style={[styles.strong, { color: colors.ink }]}>Lovpålagt</Text>
+            <Text style={[styles.caption, { color: colors.muted }]}>Alltid med lønn fra arbeidsgiver. Kan ikke slås av.</Text>
+          </View>
         </View>
-      ))}
-      <Text style={[styles.caption, { color: colors.muted }]}>
-        Ikke lovpålagt. Av som standard, og dekkes bare hvis tariffavtale, personalhåndbok eller arbeidsavtale sier det. Fraværsskjemaet fører dagene med eller uten lønn etter valgene her.
-      </Text>
-      <View style={styles.fieldColumn}>
-        <Text style={[styles.label, { color: colors.muted }]}>Avtalegrunnlag</Text>
-        <OptionPicker
-          options={AGREEMENT_OPTIONS}
-          value={current.agreement || 'none'}
-          onChange={(id) => canEdit && set({ agreement: id || 'none' })}
-          title="Avtalegrunnlag"
-          clearable={false}
-          disabled={!canEdit}
-        />
+        {STATUTORY.map((label, i) => (
+          <View key={label} style={[styles.itemRow, i > 0 && styles.itemLine, { borderTopColor: colors.line }]}>
+            <Ionicons name="lock-closed" size={14} color={colors.muted} />
+            <Text style={[styles.body, styles.flex, { color: colors.ink }]}>{label}</Text>
+          </View>
+        ))}
       </View>
-      {PAID_LEAVE_OPTIONS.map((row) => (
-        <CheckBox
-          key={row.id}
-          checked={!!current.paidLeave?.[row.id]}
-          onPress={canEdit ? () => set({ paidLeave: { ...(current.paidLeave || {}), [row.id]: !current.paidLeave?.[row.id] } }) : undefined}
-          label={`Dekkes: ${row.label}`}
-        />
-      ))}
+
+      <View style={[styles.group, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="fravaer-dekning-valgfritt">
+        <View style={[styles.groupHead, { backgroundColor: colors.brandSoft || colors.bg, borderBottomColor: colors.line }]}>
+          <Ionicons name="options-outline" size={18} color={colors.brand} />
+          <View style={styles.flex}>
+            <Text style={[styles.strong, { color: colors.ink }]}>Ikke lovpålagt – bedriften velger</Text>
+            <Text style={[styles.caption, { color: colors.muted }]}>
+              Av som standard. Slå på det tariffavtale, personalhåndbok eller arbeidsavtale gir rett til. Fraværsskjemaet fører dagene med eller uten lønn etter valgene her.
+            </Text>
+          </View>
+        </View>
+        <View style={[styles.itemRow, styles.agreementRow]}>
+          <Text style={[styles.label, { color: colors.muted }]}>Avtalegrunnlag</Text>
+          <View style={styles.agreementPicker}>
+            <OptionPicker
+              options={AGREEMENT_OPTIONS}
+              value={current.agreement || 'none'}
+              onChange={(id) => canEdit && set({ agreement: id || 'none' })}
+              title="Avtalegrunnlag"
+              clearable={false}
+              disabled={!canEdit}
+            />
+          </View>
+        </View>
+        {PAID_LEAVE_OPTIONS.map((row) => {
+          const on = !!current.paidLeave?.[row.id];
+          return (
+            <TouchableOpacity
+              key={row.id}
+              onPress={() => canEdit && set({ paidLeave: { ...(current.paidLeave || {}), [row.id]: !on } })}
+              disabled={!canEdit}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: on, disabled: !canEdit }}
+              accessibilityLabel={row.label}
+              nativeID={`fravaer-dekning-${row.id}`}
+              style={[styles.itemRow, styles.itemLine, { borderTopColor: colors.line }]}
+            >
+              <View style={[styles.box, { borderColor: on ? colors.brand : colors.muted, backgroundColor: on ? colors.brand : colors.card }]}>
+                {on ? <Ionicons name="checkmark" size={13} color={colors.onBrand || '#fff'} /> : null}
+              </View>
+              <Text style={[styles.body, styles.flex, { color: colors.ink }]}>{row.label}</Text>
+              <View style={[styles.pill, { backgroundColor: on ? (colors.successSoft || colors.brandSoft || colors.bg) : colors.bg }]}>
+                <Text style={[styles.pillText, { color: on ? (colors.successInk || colors.brand) : colors.muted }]}>{on ? 'Med lønn' : 'Uten lønn'}</Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
       {error ? <Text style={{ color: colors.dangerInk || colors.danger }}>{error}</Text> : null}
       {message ? <Text style={{ color: colors.brand }}>{message}</Text> : null}
@@ -231,14 +287,21 @@ export default function SickRulesSettings({ familyId, colors, canEdit }) {
 
 const styles = StyleSheet.create({
   stack: { gap: 12 },
-  lawRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  group: { borderWidth: 1, borderRadius: radius.card, overflow: 'hidden', maxWidth: 760 },
+  groupHead: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  itemRow: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, minHeight: 44 },
+  itemLine: { borderTopWidth: StyleSheet.hairlineWidth },
+  agreementRow: { flexWrap: 'wrap' },
+  agreementPicker: { flexGrow: 1, flexBasis: 240, maxWidth: 420 },
+  check: { flexDirection: 'row', gap: 10, alignItems: 'center', minHeight: 36 },
+  box: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  pill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  pillText: { ...type.caption, fontWeight: '600' },
   divider: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 4 },
   stackTight: { gap: 4 },
   flex: { flex: 1, minWidth: 0, gap: 4 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   field: { flexGrow: 1, flexBasis: 180, gap: 4 },
-  // I kolonnen (ikke i en rad): flexBasis ville blitt høyde.
-  fieldColumn: { gap: 4, maxWidth: 520 },
   option: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderWidth: 1, borderRadius: radius.card, padding: 12 },
   info: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', borderWidth: 1, borderRadius: radius.card, padding: 12 },
   body: { ...type.body },

@@ -2,7 +2,7 @@
  * Fraværsskjema, egenmelding og lønn – hele flyten i nettleseren mot emulatorene.
  *
  *  1. Bedrift → Fravær → Innstillinger → «Egenmelding og lønn»: lovpålagt dekning vises låst,
- *     alt annet er av som standard. Velg IA-ordning, drøftet, «Dekkes: egen legetime», lagre.
+ *     alt annet er av som standard. Velg IA-ordning, drøftet, «Egen legetime» under Ikke lovpålagt, lagre.
  *     Sjekker dokumentet hr/sickLeave.
  *  2. Timeliste (telefon): fører «Annet fravær med lønn» → spørsmålet «Vil du registrere
  *     fraværet?» → «Senere» → «Mangler fraværsskjema» → fyller ut skjemaet som legetime hos
@@ -125,7 +125,7 @@ await check('1.3 Alt som ikke er lovpålagt, er av som standard', async () => {
 await check('1.4 Velg IA-ordning, drøftet og egen legetime, lagre', async () => {
   await desk.click('IA-ordning');
   await desk.click('Drøftet med tillitsvalgte (ftrl § 8-24)');
-  await desk.click('Dekkes: Egen lege-, tannlege- eller spesialisttime');
+  await desk.click('Egen lege-, tannlege- eller spesialisttime');
   await desk.click('Lagre');
   await expectText(desk, 'Reglene er lagret.');
   await desk.shot('innstillinger-lagret');

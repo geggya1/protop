@@ -156,7 +156,7 @@ for (const [q, want] of PRECISE) {
 // «Hvordan føre fravær?» fra Timeliste: oppgaven, «Vis meg» fra fraværssteget på denne siden.
 const absence = answerQuestion('Hvordan føre fravær?', { pageKey: 'arbeid.timeliste' });
 assert.match(absence.text, /^\*\*Føre fravær/);
-assert.ok(absence.steps.some((st) => /«Legg til fravær \/ ferie»/.test(st.text)));
+assert.ok(absence.steps.some((st) => /«Registrer fravær»/.test(st.text)));
 assert.ok(absence.steps.some((st) => /7:30 er en hel dag/.test(st.text)));
 assert.match(absence.after, /Planlagt fravær/);
 assert.ok(!absence.steps.some((st) => st.title === 'Åpne timelisten'), 'står allerede i timelisten');

@@ -188,7 +188,7 @@ function loadJsx(rel) {
         __esModule: true,
         default: function TimesheetGrid(props) {
           gridProjects = props.projects || [];
-          return React.createElement('Grid', null, gridProjects.map((row) => row.project.name).join('|'));
+          return React.createElement('Grid', null, gridProjects.map((row) => row.project.name).join('|'), props.monthActions || null);
         },
       };
     }
@@ -340,7 +340,7 @@ const { default: ArbeidScreen } = loadJsx('screens/arbeid/ArbeidScreen.jsx');
   assert.deepEqual(names, ['p-hours', 'p-star'], `synlige prosjekt: ${names.join(', ')}`);
   assert.ok(!text.includes('Henter timer'), 'timelisten skal ikke låse skjermen på «Henter timer»');
   assert.ok(text.includes('Legg til prosjekt'));
-  assert.ok(text.includes('Legg til fravær / ferie'));
+  assert.ok(text.includes('Registrer fravær'));
   const fills = acc.styles.flatMap((style) => backgroundColors(style));
   assert.ok(fills.includes('#1099F4'), `forventet blå merkefarge, fikk ${fills.join(', ')}`);
   assert.ok(!fills.includes('#0d9488') && !fills.includes('#0f766e'), `teal knapper igjen: ${fills.join(', ')}`);

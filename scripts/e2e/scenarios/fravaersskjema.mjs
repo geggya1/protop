@@ -178,119 +178,150 @@ await check('1.9 Registrer 3 barn og alene om omsorgen: 30 omsorgsdager, lagret 
   await desk.shot('ansatt-barn');
 });
 
-// ---------------------------------------------------------------- 2. Timeliste (telefon)
+// ---------------------------------------------------------------- 2. Timeliste (telefon): linjen «Fravær»
+const d1 = workday(0);
+const d2 = workday(d1.offset + 1);
+const d3 = workday(d2.offset + 1);
+const d4 = workday(d3.offset + 1);
+// Et eldre fravær uten skjema (ført før veiviseren): skal gi «Mangler fraværsskjema».
+await putDoc(`families/${BOT_COMPANY_ID}/absences/fra-legacy`, {
+  id: 'fra-legacy', employeeId: 'emp-bot', employeeName: 'Hjelpe Bot', date: d4.iso, hours: 7.5, type: 'annet_med',
+  status: 'registrert', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+});
+
 const phone = await new Bot('eier-telefon', { ...BOT_USER, view: 'phone', outDir: OUT }).start();
-const consoleLog = [];
-phone.page.on('console', (msg) => { if (['warning', 'error', 'log'].includes(msg.type())) consoleLog.push(`${msg.type()}: ${msg.text().slice(0, 200)}`); });
 await phone.login();
 await phone.open('timeliste', null, 4000);
-const first = workday(0);
-// Timelisten står på i dag. Er det helg, går vi fram til mandag.
-for (let i = 0; i < first.offset; i += 1) {
-  await phone.page.getByRole('button', { name: 'Neste dag' }).first().click().catch(() => {});
-  await phone.page.waitForTimeout(400);
-}
-await phone.shot('timeliste');
-
-await check('2.1 «Annet fravær med lønn» åpner timedialogen', async () => {
-  await clickId(phone, 'timesheet-absence-annet_med', 20000);
-  await expectText(phone, 'Timer på denne dagen');
-});
-await check('2.2 Lagre gir spørsmålet «Vil du registrere fraværet?»', async () => {
-  await phone.click('Lagre');
-  await expectText(phone, 'Vil du registrere fraværet?');
-  await phone.shot('sporsmal');
-});
-await check('2.3 «Senere» gir påminnelsen «Mangler fraværsskjema»', async () => {
-  await clickId(phone, 'fravaersskjema-senere');
-  await expectText(phone, 'Mangler fraværsskjema');
-  let row = null;
-  const until = Date.now() + 30000;
-  while (!row && Date.now() < until) {
-    row = (await absences()).find((r) => r.date === first.iso && r.type === 'annet_med');
-    if (!row) await phone.page.waitForTimeout(1000);
-  }
-  if (!row) {
-    const all = await listDocs(`families/${BOT_COMPANY_ID}/absences`).catch((e) => [String(e)]);
-    const screen = await phone.visibleText();
-    console.log('DIAG absences:', JSON.stringify(all).slice(0, 1500));
-    const flat = screen.replace(/\s+/g, ' ');
-    const i = flat.indexOf('Fravær registrert');
-    console.log('DIAG skjerm:', flat.slice(Math.max(0, i - 300), i + 300));
-    console.log('DIAG feiltekst:', /Kunne ikke|feilet|avvist|ikke lagret/i.test(flat) ? flat.match(/.{0,120}(Kunne ikke|feilet|avvist|ikke lagret).{0,160}/i)?.[0] : 'ingen');
-    console.log('DIAG konsoll:', JSON.stringify(consoleLog.filter((m) => !/CORS|ERR_FAILED/.test(m)).slice(-30)).slice(0, 3000));
-    const local = await phone.page.evaluate(() => Object.keys(localStorage).filter((k) => /absen|frav|pending|queue|outbox/i.test(k)).map((k) => `${k}=${String(localStorage.getItem(k)).slice(0, 200)}`));
-    console.log('DIAG localStorage:', JSON.stringify(local).slice(0, 2000));
-  }
-  if (!row) throw new Error(`Fant ikke fraværet ${first.iso} i skyen`);
-  if (row.formId) throw new Error('Fraværet har skjema allerede');
-  await phone.shot('mangler-skjema');
-});
-await check('2.4 «Fyll ut» åpner fraværsskjemaet', async () => {
-  await clickId(phone, 'husk-fravaersskjema');
-  await expectText(phone, 'Fraværsskjema');
-  await expectText(phone, 'Hva gjelder fraværet?');
-});
-await check('2.5 Sende uten grunnlag og bekreftelse gir feil', async () => {
-  await clickId(phone, 'fravaersskjema-send');
-  await expectText(phone, 'Velg hva fraværet gjelder.');
-  await expectText(phone, 'Bekreft at opplysningene er riktige.');
-});
-await check('2.6 Legetime hos spesialist for meg selv: føres som «Legebesøk med lønn»', async () => {
-  await phone.click('Velg grunnlag', { exact: false });
-  await phone.click('Lege, tannlege, spesialist eller behandling');
-  await expectText(phone, 'Ingen lovfestet rett etter aml.');
-  await phone.click('Meg selv');
-  await phone.click('Spesialisthelsetjenesten / sykehus');
-  await expectText(phone, 'Føres som: Legebesøk med lønn');
-  await expectText(phone, 'Med lønn etter bedriftens avtale (legetime).');
-  await phone.shot('skjema-lege');
-});
-await check('2.7 Send skjema: dagen får skjema og riktig type', async () => {
-  await phone.click('Jeg bekrefter at opplysningene er riktige, og at dokumentasjon kan kreves.');
-  await clickId(phone, 'fravaersskjema-send');
-  await expectText(phone, 'Fraværsskjema sendt til leder.');
-  await expectNoText(phone, 'Mangler fraværsskjema');
-  const deadline = Date.now() + 15000;
-  let row = null;
-  while (Date.now() < deadline) {
-    row = (await absences()).find((r) => r.date === first.iso && r.formId);
-    if (row) break;
-    await phone.page.waitForTimeout(800);
-  }
-  if (!row) throw new Error('Fraværet i skyen har ikke formId');
-  if (row.type !== 'lege_med') throw new Error(`type = ${row.type}, ventet lege_med`);
-  if (row.formCategory !== 'lege') throw new Error(`formCategory = ${row.formCategory}`);
-  if (row.formDetails?.provider !== 'spesialist' || row.formDetails?.whoFor !== 'selv') throw new Error(`formDetails = ${JSON.stringify(row.formDetails)}`);
-  const dup = (await absences()).filter((r) => r.date === first.iso);
-  if (dup.length !== 1) throw new Error(`${dup.length} fraværsrader på dagen, ventet 1`);
-  return `${row.date} ${row.type}`;
-});
-
-// ---------------------------------------------------------------- 3. Med barn til lege
-const second = workday(first.offset + 1);
-await check('3.1 Neste arbeidsdag: legetime med barnet spør om barnet er sykt', async () => {
-  for (let i = first.offset; i < second.offset; i += 1) {
+async function goToDay(target, from) {
+  for (let i = from; i < target; i += 1) {
     await phone.page.getByRole('button', { name: 'Neste dag' }).first().click();
     await phone.page.waitForTimeout(500);
   }
-  await clickId(phone, 'timesheet-absence-annet_med');
-  await phone.click('Lagre');
-  await clickId(phone, 'fravaersskjema-apne');
-  await phone.click('Velg grunnlag', { exact: false });
-  await phone.click('Lege, tannlege, spesialist eller behandling');
-  await phone.click('Barnet mitt');
-  await expectText(phone, 'Er barnet sykt?');
-  const day2 = (await absences()).find((r) => r.date === second.iso);
-  console.log('DIAG dag 2 i skyen (før skjema):', day2 ? `${day2.type} ${day2.hours}` : 'nei');
-  await expectText(phone, 'Føres som: Legebesøk uten lønn');
-  await phone.shot('skjema-barn');
+}
+await goToDay(d1.offset, 0);
+await phone.shot('timeliste');
+
+async function waitAbsence(pred, label, timeout = 20000) {
+  const until = Date.now() + timeout;
+  while (Date.now() < until) {
+    const row = (await absences()).find(pred);
+    if (row) return row;
+    await phone.page.waitForTimeout(800);
+  }
+  throw new Error(`${label}: ikke i skyen`);
+}
+
+await check('2.1 Linjen «Fravær» står nederst og åpner «Registrer fravær»', async () => {
+  await expectText(phone, 'Trykk for å registrere fravær');
+  await clickId(phone, 'timesheet-absence', 20000);
+  await expectText(phone, 'Registrer fravær');
+  await expectText(phone, 'Hva gjelder fraværet? Velg det som passer best.');
+  for (const id of ['syk', 'sykt_barn', 'ferie', 'avspasering', 'lege', 'familie', 'permisjon', 'kurs', 'annet']) {
+    if (!(await phone.page.locator(`[id="fravaer-valg-${id}"]`).count())) throw new Error(`mangler valget ${id}`);
+  }
+  await phone.shot('valg');
 });
-await check('3.2 «Ja, meld sykt barn» åpner egenmelding for sykt barn', async () => {
-  await clickId(phone, 'fravaersskjema-meld-sykt-barn');
+await check('2.2 Lege: felt, lønn etter avtale og timer per dag', async () => {
+  await clickId(phone, 'fravaer-valg-lege');
+  await expectText(phone, 'Ingen lovfestet rett etter aml.');
+  await phone.click('Meg selv');
+  await phone.click('Spesialisthelsetjenesten / sykehus');
+  await phone.page.locator('[id="fravaersskjema-timer"]').first().fill('2:00');
+  await expectText(phone, 'Føres som: Legebesøk med lønn');
+  await phone.shot('skjema-lege');
+});
+await check('2.3 Sende uten bekreftelse gir feil', async () => {
+  await clickId(phone, 'fravaersskjema-send');
+  await expectText(phone, 'Bekreft at opplysningene er riktige.');
+});
+await check('2.4 Send: legetime 2:00 med skjema i skyen', async () => {
+  await phone.click('Jeg bekrefter at opplysningene er riktige, og at dokumentasjon kan kreves.');
+  await clickId(phone, 'fravaersskjema-send');
+  await expectText(phone, 'Fraværsskjema sendt til leder.');
+  const row = await waitAbsence((r) => r.date === d1.iso && r.formId, 'legetimen');
+  if (row.type !== 'lege_med' || row.hours !== 2) throw new Error(`${row.type} ${row.hours}`);
+  if (row.formDetails?.provider !== 'spesialist' || row.formDetails?.whoFor !== 'selv') throw new Error(JSON.stringify(row.formDetails));
+  return `${row.date} ${row.type} ${row.hours}`;
+});
+await check('2.5 Linjen viser dagens fravær, og trykk viser det først', async () => {
+  await expectText(phone, 'Legebesøk med lønn');
+  await clickId(phone, 'timesheet-absence');
+  await expectText(phone, 'Registrer nytt fravær');
+  if (!(await phone.page.locator('[id^="fravaer-rad-"]').count())) throw new Error('fraværet på dagen vises ikke');
+  await phone.shot('dagen');
+});
+await check('2.6 Nytt fravær samme dag: velferd (flytting) via «Permisjon og velferd»', async () => {
+  await clickId(phone, 'fravaer-nytt');
+  await clickId(phone, 'fravaer-valg-permisjon');
+  await clickId(phone, 'fravaer-undervalg-velferd');
+  if (!(await phone.hasText('Flytting', { timeout: 1500 }))) await phone.click('Velg anledning', { exact: false });
+  await phone.click('Flytting');
+  await phone.page.locator('[id="fravaersskjema-timer"]').first().fill('4:00');
+  await expectText(phone, 'Føres som: Annet fravær uten lønn');
+  await phone.click('Jeg bekrefter at opplysningene er riktige, og at dokumentasjon kan kreves.');
+  await clickId(phone, 'fravaersskjema-send');
+  const row = await waitAbsence((r) => r.date === d1.iso && r.formCategory === 'velferd', 'velferden');
+  if (row.type !== 'annet_uten' || row.hours !== 4) throw new Error(`${row.type} ${row.hours}`);
+});
+await check('2.7 Ferie neste arbeidsdag: lagres uten skjema, hel dag', async () => {
+  await goToDay(d2.offset, d1.offset);
+  await clickId(phone, 'timesheet-absence');
+  await clickId(phone, 'fravaer-valg-ferie');
+  await expectText(phone, 'Føres som: Ferie');
+  await clickId(phone, 'fravaersskjema-send');
+  const row = await waitAbsence((r) => r.date === d2.iso && r.type === 'ferie', 'ferien');
+  if (row.formId) throw new Error('ferie skal ikke ha skjema');
+  return `${row.date} ${row.hours} t`;
+});
+await check('2.8 Sykt barn går til egenmeldingen', async () => {
+  await goToDay(d3.offset, d2.offset);
+  await clickId(phone, 'timesheet-absence');
+  await clickId(phone, 'fravaer-valg-sykt_barn');
   await expectText(phone, 'Meld sykefravær');
   await expectText(phone, 'Omsorgsdager');
   await phone.shot('sykt-barn');
+  await phone.page.getByRole('button', { name: 'Lukk' }).first().click().catch(() => {});
+  await phone.page.waitForTimeout(600);
+});
+await check('2.9 Eldre fravær uten skjema: «Mangler fraværsskjema» → skjema, typen byttes', async () => {
+  await expectText(phone, 'Mangler fraværsskjema');
+  await clickId(phone, 'husk-fravaersskjema');
+  await expectText(phone, 'Dagene står som Annet fravær med lønn');
+  await clickId(phone, 'fravaer-valg-lege');
+  await phone.click('Meg selv');
+  await phone.click('Tannlege');
+  await expectText(phone, 'Føres som: Legebesøk med lønn');
+  await phone.click('Jeg bekrefter at opplysningene er riktige, og at dokumentasjon kan kreves.');
+  await clickId(phone, 'fravaersskjema-send');
+  const row = await waitAbsence((r) => r.id === 'fra-legacy' && r.formId, 'det eldre fraværet');
+  if (row.type !== 'lege_med' || row.hours !== 7.5) throw new Error(`${row.type} ${row.hours}`);
+  const same = (await absences()).filter((r) => r.date === d4.iso);
+  if (same.length !== 1) throw new Error(`${same.length} rader på dagen`);
+  await expectNoText(phone, 'Mangler fraværsskjema');
+});
+
+// ---------------------------------------------------------------- 3. Timeliste på PC
+await check('3.1 PC: «Fravær» nederst i rutenettet, knappene over tabellen, uten «Åpne prosjekt»', async () => {
+  await desk.open('timeliste', null, 4000);
+  await desk.page.locator('[id="timesheet-absence-row-fravaer"]').first().waitFor({ state: 'visible', timeout: 20000 });
+  await expectText(desk, 'Legg til prosjekt');
+  await expectText(desk, 'Registrer fravær');
+  const all = await desk.visibleText();
+  if (all.includes('Åpne prosjekt')) throw new Error('«Åpne prosjekt» står fortsatt');
+  const pos = await desk.page.evaluate(() => {
+    const row = document.querySelector('[id="timesheet-absence-row-fravaer"]');
+    const rows = [...document.querySelectorAll('[id="timesheet-grid"] [role=button]')];
+    const add = document.querySelector('[id="timesheet-add-project"]');
+    const month = document.querySelector('[id="timesheet-month-row"]');
+    const r = row?.getBoundingClientRect();
+    const m = month?.getBoundingClientRect();
+    const a = add?.getBoundingClientRect();
+    return { rowTop: r?.top, addInMonthRow: !!(a && m && a.top >= m.top - 2 && a.bottom <= m.bottom + 2), cells: rows.length };
+  });
+  if (!pos.addInMonthRow) throw new Error('«Legg til prosjekt» står ikke i månedslinjen');
+  await desk.page.locator('[id="timesheet-absence-row-fravaer"] > [role=button]').nth(Number(d1.iso.slice(8, 10)) - 1).click();
+  await expectText(desk, 'Registrer nytt fravær');
+  await desk.shot('pc-timeliste');
 });
 
 // Emulatoren laster bare konsernfunksjonene: CORS-feil fra andre funksjoner ved innlogging er miljøstøy.

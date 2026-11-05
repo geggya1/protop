@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
 import { emptyProjectState, normalizeAbsenceRow } from '../project/engine.js';
+import { defaultAbsenceTypes } from './absenceCatalog.js';
 import {
+  WIZARD_GROUPS,
+  applyPlainAbsence,
+  dayAbsenceSummary,
+  wizardOtherTypes,
   absenceFormFromRows,
   categoryDaysUsed,
   cleanFormDetails,
   defaultFormCategory,
+  formCategory,
   formPayDecision,
   formSummary,
   formTypeFor,
@@ -178,6 +184,53 @@ assert.ok(formWarnings({ category: 'livets_sluttfase', fromDate: '2026-11-04', t
     assert.deepEqual(row.formDetails, clean, cat);
   }
   assert.ok(validateAbsenceForm({ type: 'lege_med', category: 'lege', fromDate: '2026-11-04', details: { whoFor: 'selv' } }).some((e) => /type time/.test(e)));
+}
+
+// Veiviseren «Registrer fravær».
+{
+  // Ferie over to dager med helg imellom: bare arbeidsdagene, timer fra arbeidsplanen.
+  const base = emptyProjectState();
+  const ferie = applyPlainAbsence(base, { employeeId: 'e1', type: 'ferie', fromDate: '2026-11-06', toDate: '2026-11-09' }, { hoursForDate: hours });
+  assert.equal(ferie.ok, true);
+  assert.deepEqual(ferie.state.absences.map((a) => a.date).sort(), ['2026-11-06', '2026-11-09']);
+  assert.ok(ferie.state.absences.every((a) => a.type === 'ferie' && a.hours === 7.5 && !a.formId));
+  // Kortere dag: timer per dag, høyst arbeidstiden.
+  const kort = applyPlainAbsence(base, { employeeId: 'e1', type: 'avspasering', fromDate: '2026-11-06', toDate: '2026-11-06', hoursPerDay: 3 }, { hoursForDate: hours });
+  assert.equal(kort.state.absences[0].hours, 3);
+  const lang = applyPlainAbsence(base, { employeeId: 'e1', type: 'avspasering', fromDate: '2026-11-06', toDate: '2026-11-06', hoursPerDay: 12 }, { hoursForDate: hours });
+  assert.equal(lang.state.absences[0].hours, 7.5);
+  // Samme type på dagen fra før: timene endres, ingen ny rad.
+  const igjen = applyPlainAbsence(kort.state, { employeeId: 'e1', type: 'avspasering', fromDate: '2026-11-06', toDate: '2026-11-06', hoursPerDay: 4 }, { hoursForDate: hours });
+  assert.equal(igjen.state.absences.length, 1);
+  assert.equal(igjen.state.absences[0].hours, 4);
+  // Bare helg: ingen dager.
+  assert.equal(applyPlainAbsence(base, { employeeId: 'e1', type: 'ferie', fromDate: '2026-11-07', toDate: '2026-11-08' }, { hoursForDate: hours }).ok, false);
+
+  // Legetime med skjema: 2 timer.
+  const lege = applyAbsenceForm(base, {
+    employeeId: 'e1', type: 'lege_med', category: 'lege', details: { whoFor: 'selv', provider: 'tannlege' },
+    fromDate: '2026-11-05', toDate: '2026-11-05', hoursPerDay: 2,
+  }, { hoursForDate: hours });
+  assert.equal(lege.ok, true);
+  assert.equal(lege.state.absences[0].hours, 2);
+  assert.equal(lege.state.absences[0].type, 'lege_med');
+
+  // Valgene: syk og sykt barn går til egenmeldingen, ferie og avspasering er bare timer.
+  const ids = WIZARD_GROUPS.map((g) => g.id);
+  assert.deepEqual(ids.slice(0, 4), ['syk', 'sykt_barn', 'ferie', 'avspasering']);
+  assert.equal(WIZARD_GROUPS.find((g) => g.id === 'sykt_barn').sick, 'child');
+  for (const g of WIZARD_GROUPS.filter((row) => Array.isArray(row.options))) {
+    for (const id of g.options) assert.ok(formCategory(id), `${g.id}: ${id}`);
+  }
+  // «Annet»: bedriftens øvrige typer, ikke sykdom, ferie eller typer med egne valg.
+  const other = wizardOtherTypes(defaultAbsenceTypes()).map((row) => row.id);
+  assert.ok(other.includes('intern_admin') && other.includes('annet_med') && other.includes('permittert'));
+  assert.ok(!other.includes('ferie') && !other.includes('egenmelding') && !other.includes('lege_med') && !other.includes('avspasering'));
+  assert.equal(wizardOtherTypes(defaultAbsenceTypes()).find((row) => row.id === 'intern_admin').needsForm, false);
+  assert.equal(wizardOtherTypes(defaultAbsenceTypes()).find((row) => row.id === 'annet_med').needsForm, true);
+  // Linjen «Fravær»: navnene på dagens fravær.
+  assert.equal(dayAbsenceSummary([{ type: 'ferie', hours: 7.5 }, { type: 'lege_med', hours: 1 }, { type: 'ferie', hours: 0 }]), 'Ferie, Legebesøk med lønn');
+  assert.equal(dayAbsenceSummary([]), '');
 }
 
 console.log('absenceForm ok');

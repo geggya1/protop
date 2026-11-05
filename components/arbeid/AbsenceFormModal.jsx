@@ -8,24 +8,37 @@ import OptionPicker from '../OptionPicker';
 import CheckBox from '../CheckBox';
 import { HEALTH_FREE_TEXT_NOTICE, absenceTypeById, isHealthAbsence } from '../../src/arbeid/absenceCatalog.js';
 import {
-  FORM_CATEGORIES, OCCASIONS, PROVIDERS, RELATIONS, WHO_FOR, categoryDaysUsed, defaultFormCategory, formCategory, formTypeFor,
-  formWarnings, validateAbsenceForm,
+  OCCASIONS, PROVIDERS, RELATIONS, WHO_FOR, WIZARD_GROUPS, categoryDaysUsed, defaultFormCategory, formCategory,
+  formPayDecision, formSummary, formTypeFor, formWarnings, validateAbsenceForm, wizardOtherTypes,
+  ABSENCE_FORM_START, needsAbsenceForm,
 } from '../../src/arbeid/absenceForm.js';
+import { formatHours, parseHours } from '../../src/arbeid/hours.js';
 import { addDays, calendarDays, todayIso } from '../../src/arbeid/sickLeave.js';
 import { radius, type } from '../../src/ui/tokens';
 
 export const FORM_DECLARATION = 'Jeg bekrefter at opplysningene er riktige, og at dokumentasjon kan kreves.';
 
 /**
- * Fraværsskjema for permisjon, annet fravær, legetime, kurs o.l. Grunnlaget velges etter
- * arbeidsmiljøloven kapittel 12, og skjemaet spør bare om det grunnlaget trenger.
- * Åpnes etter at fravær er ført i timelisten, fra «Mangler fraværsskjema» og fra fraværsdialogen.
+ * «Registrer fravær»: linjen «Fravær» i timelisten åpner denne. Først hva som skjedde (syk,
+ * sykt barn, ferie, legetime, permisjon …) med en hjelpelinje per valg, så bare feltene det
+ * valget trenger, med lovgrunnlag og om dagen føres med eller uten lønn.
+ * Står dagen med fravær fra før, vises det først. Åpnes også fra «Mangler fraværsskjema»,
+ * da med typen dagene står med (originType).
  */
 export default function AbsenceFormModal(props) {
   if (!props.visible) return null;
   const { initial } = props;
   const key = [initial?.id, initial?.type, initial?.fromDate, initial?.toDate].join(':');
   return <AbsenceForm key={key} {...props} />;
+}
+
+function needsFormRow(row, catalog) {
+  return needsAbsenceForm(row?.type, catalog) && String(row?.date || '') >= ABSENCE_FORM_START;
+}
+
+function formatNbDate(iso) {
+  const [y, m, d] = String(iso || '').split('-');
+  return y && m && d ? `${d}.${m}.${y}` : String(iso || '');
 }
 
 function workDayCount(fromDate, toDate, hoursForDate) {
@@ -38,12 +51,24 @@ function workDayCount(fromDate, toDate, hoursForDate) {
 
 function AbsenceForm({
   colors, catalog, rules = null, employeeId = '', employeeName = '', absences = [], hoursForDate, initial = null,
-  onBehalf = false, busy = false, error = '', onClose, onSubmit, onSickChild,
+  dayRows = [], onBehalf = false, busy = false, error = '', onClose, onSubmit, onSickChild, onSick, onEditRow,
 }) {
   const start = initial?.fromDate || todayIso();
-  // Typen dagene sto med da skjemaet ble åpnet. Skjemaet kan bytte til riktig type med/uten lønn.
-  const typeId = initial?.originType || initial?.type || '';
-  const [category, setCategory] = useState(initial?.category || defaultFormCategory(typeId, catalog));
+  // Typen dagene sto med da skjemaet ble åpnet («Mangler fraværsskjema»). Skjemaet kan bytte
+  // til riktig type med/uten lønn. Ny registrering har ingen type før et valg er gjort.
+  const originType = initial?.originType || initial?.type || '';
+  const fixing = !!originType;
+  const firstCategory = initial?.category || (fixing ? defaultFormCategory(originType, catalog) : '');
+  const [step, setStep] = useState(firstCategory ? 'form' : (initial?.listDay && dayRows.length ? 'list' : 'choose'));
+  const [group, setGroup] = useState(null);
+  const [plainType, setPlainType] = useState('');
+  const [pickedType, setPickedType] = useState('');
+  const [category, setCategory] = useState(firstCategory);
+  const [hoursText, setHoursText] = useState(() => {
+    const planned = typeof hoursForDate === 'function' ? hoursForDate(start) : 0;
+    return planned > 0 ? formatHours(planned) : '';
+  });
+  const [hoursTouched, setHoursTouched] = useState(false);
   const [fromDate, setFromDate] = useState(start);
   const [toDate, setToDate] = useState(initial?.toDate || start);
   const [details, setDetails] = useState(initial?.details || {});
@@ -51,8 +76,11 @@ function AbsenceForm({
   const [note, setNote] = useState(initial?.note || '');
   const [confirmed, setConfirmed] = useState(!!initial?.confirmed);
   const [tried, setTried] = useState(false);
-  const typeLabel = absenceTypeById(typeId, catalog).label;
   const cat = formCategory(category);
+  const decision = cat ? formPayDecision(category, details, { rules, fromDate }) : null;
+  // Uten type fra før: «Annet»-valget, ellers annet fravær med/uten lønn etter lønnsvalget.
+  const typeId = originType || pickedType || (decision?.paid ? 'annet_med' : 'annet_uten');
+  const typeLabel = absenceTypeById(plainType || typeId, catalog).label;
   const fields = cat?.fields || [];
   const health = cat?.health || isHealthAbsence(typeId, catalog);
   const end = toDate || fromDate;
@@ -70,13 +98,79 @@ function AbsenceForm({
   const warnings = formWarnings(form, { usedDays: used, workDays });
   const shown = tried ? errors : [];
 
+  const hoursPerDay = hoursTouched ? parseHours(hoursText) : null;
+  const hoursError = hoursTouched && !(hoursPerDay > 0) ? 'Skriv timer per dag, for eksempel 2:00.' : '';
+  const plain = step === 'form' && !!plainType;
+  const plainErrors = plain ? [
+    ...(!fromDate || (toDate && toDate < fromDate) ? ['Velg gyldig periode.'] : []),
+  ] : [];
+
+  function choose(row) {
+    if (row.kind === 'sick') {
+      onSick?.(row.sick, { fromDate, toDate: end });
+      return;
+    }
+    setGroup(row);
+    setTried(false);
+    if (row.kind === 'plain') {
+      setPlainType(row.type);
+      setCategory('');
+      setStep('form');
+    } else if (row.kind === 'form') {
+      setPlainType('');
+      setCategory(row.category);
+      setStep('form');
+    } else {
+      setStep('pick');
+    }
+  }
+
+  function pick(option) {
+    setTried(false);
+    if (option.kind === 'type') {
+      setPickedType(option.id);
+      if (option.needsForm) {
+        setPlainType('');
+        setCategory('annet');
+      } else {
+        setPlainType(option.id);
+        setCategory('');
+      }
+    } else {
+      setPlainType('');
+      setCategory(option.id);
+    }
+    setStep('form');
+  }
+
+  function back() {
+    setTried(false);
+    if (step === 'form' && group?.kind === 'pick') setStep('pick');
+    else if (step === 'form' || step === 'pick') setStep('choose');
+    else if (step === 'choose' && dayRows.length && initial?.listDay) setStep('list');
+  }
+
   function submit() {
     setTried(true);
-    if (errors.length || busy) return;
+    if (busy || hoursError) return;
+    if (plain) {
+      if (plainErrors.length) return;
+      onSubmit?.({
+        plain: true,
+        type: plainType,
+        fromDate,
+        toDate: end,
+        hoursPerDay,
+        note: note.trim(),
+      });
+      return;
+    }
+    if (errors.length) return;
     onSubmit?.({
       id: initial?.id || '',
       type: pay?.resolvedType || typeId,
-      originType: typeId,
+      originType: fixing ? originType : '',
+      hoursPerDay,
       category,
       fromDate,
       toDate: end,
@@ -114,10 +208,21 @@ function AbsenceForm({
         >
           <ScrollView contentContainerStyle={styles.stack} keyboardShouldPersistTaps="handled">
             <View style={styles.head}>
+              {step === 'form' || step === 'pick' || (step === 'choose' && dayRows.length && initial?.listDay) ? (
+                <TouchableOpacity onPress={back} accessibilityRole="button" accessibilityLabel="Tilbake" nativeID="fravaer-tilbake" hitSlop={8}>
+                  <Ionicons name="chevron-back" size={22} color={colors.ink} />
+                </TouchableOpacity>
+              ) : null}
               <View style={styles.flex}>
-                <Text style={[styles.title, { color: colors.ink }]}>Fraværsskjema</Text>
+                <Text style={[styles.title, { color: colors.ink }]}>
+                  {step === 'list' ? 'Fravær' : step === 'form' ? (plain ? typeLabel : (cat?.label || 'Fraværsskjema')) : step === 'pick' ? group?.label : 'Registrer fravær'}
+                </Text>
                 <Text style={[styles.body, { color: colors.muted }]}>
-                  {onBehalf ? `${typeLabel} for ${employeeName || 'medarbeideren'}.` : `${typeLabel}. Går til leder for godkjenning.`}
+                  {onBehalf ? `For ${employeeName || 'medarbeideren'}. ` : ''}
+                  {step === 'list' ? formatNbDate(start)
+                    : step === 'choose' ? (fixing ? `Dagene står som ${absenceTypeById(originType, catalog).label}. Hva gjelder fraværet?` : 'Hva gjelder fraværet? Velg det som passer best.')
+                      : step === 'pick' ? group?.help
+                        : 'Går til leder for godkjenning.'}
                 </Text>
               </View>
               <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Lukk">
@@ -125,17 +230,93 @@ function AbsenceForm({
               </TouchableOpacity>
             </View>
 
-            <View style={styles.field}>
-              <Text style={[styles.label, { color: colors.muted }]}>Hva gjelder fraværet?</Text>
-              <OptionPicker
-                options={FORM_CATEGORIES.map((row) => ({ id: row.id, label: row.label }))}
-                value={category}
-                onChange={(id) => setCategory(id || '')}
-                title="Hva gjelder fraværet?"
-                placeholder="Velg grunnlag"
-                clearable={false}
-              />
-            </View>
+            {step === 'list' ? (
+              <View style={styles.stack} nativeID="fravaer-dagen">
+                {dayRows.map((row) => (
+                  <TouchableOpacity
+                    key={row.id}
+                    onPress={() => onEditRow?.(row)}
+                    style={[styles.choice, { borderColor: colors.line }]}
+                    accessibilityRole="button"
+                    nativeID={`fravaer-rad-${row.id}`}
+                  >
+                    <View style={styles.flex}>
+                      <Text style={[styles.strong, { color: colors.ink }]}>{`${absenceTypeById(row.type, catalog).label} · ${formatHours(row.hours)}`}</Text>
+                      <Text style={[styles.caption, { color: row.formId ? colors.muted : (colors.warnInk || colors.muted) }]}>
+                        {row.formId ? formSummary(row) : (needsFormRow(row, catalog) ? 'Mangler fraværsskjema' : (row.description || 'Trykk for å endre timer eller slette'))}
+                      </Text>
+                    </View>
+                    <Ionicons name="create-outline" size={18} color={colors.brand} />
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  onPress={() => setStep('choose')}
+                  style={[styles.button, { backgroundColor: colors.brand }]}
+                  accessibilityRole="button"
+                  nativeID="fravaer-nytt"
+                >
+                  <Text style={[styles.buttonText, { color: colors.onBrand || '#fff' }]}>Registrer nytt fravær</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {step === 'choose' ? (
+              <View style={styles.stack} nativeID="fravaer-valg">
+                {WIZARD_GROUPS.filter((row) => !fixing || (row.kind !== 'plain' && row.id !== 'syk')).map((row) => (
+                  <TouchableOpacity
+                    key={row.id}
+                    onPress={() => choose(row)}
+                    style={[styles.choice, { borderColor: colors.line }]}
+                    accessibilityRole="button"
+                    nativeID={`fravaer-valg-${row.id}`}
+                  >
+                    <Ionicons name={row.icon} size={22} color={colors.brand} />
+                    <View style={styles.flex}>
+                      <Text style={[styles.strong, { color: colors.ink }]}>{row.label}</Text>
+                      <Text style={[styles.caption, { color: colors.muted }]}>{row.help}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+
+            {step === 'pick' ? (
+              <View style={styles.stack} nativeID="fravaer-undervalg">
+                {(group?.options === 'types'
+                  ? wizardOtherTypes(catalog).map((row) => ({ kind: 'type', id: row.id, label: row.label, needsForm: row.needsForm, help: row.needsForm ? 'Med fraværsskjema til leder.' : 'Føres med timer.' }))
+                  : (group?.options || []).map((id) => {
+                    const c = formCategory(id);
+                    return { kind: 'category', id, label: c?.label || id, help: [c?.law, c?.info].filter(Boolean).join(' · ') };
+                  })
+                ).filter((row) => !fixing || row.kind === 'category' || row.needsForm).map((row) => (
+                  <TouchableOpacity
+                    key={row.id}
+                    onPress={() => pick(row)}
+                    style={[styles.choice, { borderColor: colors.line }]}
+                    accessibilityRole="button"
+                    nativeID={`fravaer-undervalg-${row.id}`}
+                  >
+                    <View style={styles.flex}>
+                      <Text style={[styles.strong, { color: colors.ink }]}>{row.label}</Text>
+                      {row.help ? <Text style={[styles.caption, { color: colors.muted }]} numberOfLines={3}>{row.help}</Text> : null}
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+
+            {step === 'form' ? (<>
+            {plain ? (
+              <View style={[styles.info, { backgroundColor: colors.bg, borderColor: colors.line }]} nativeID="fravaersskjema-lonn">
+                <Ionicons name="information-circle-outline" size={18} color={colors.brand} />
+                <View style={styles.flex}>
+                  <Text style={[styles.label, { color: colors.ink }]}>{`Føres som: ${typeLabel}`}</Text>
+                  {group?.help ? <Text style={[styles.caption, { color: colors.ink }]}>{group.help}</Text> : null}
+                </View>
+              </View>
+            ) : null}
 
             {cat ? (
               <View style={[styles.info, { backgroundColor: colors.bg, borderColor: colors.line }]} nativeID="fravaersskjema-lov">
@@ -185,6 +366,22 @@ function AbsenceForm({
             <Text style={[styles.caption, { color: colors.muted }]}>
               {`${days} kalenderdag${days === 1 ? '' : 'er'} · ${workDays} arbeidsdag${workDays === 1 ? '' : 'er'} føres i timelisten`}
             </Text>
+
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: colors.muted }]}>Timer per dag</Text>
+              <TextInput
+                value={hoursText}
+                onChangeText={(v) => { setHoursText(v); setHoursTouched(true); }}
+                placeholder="7:30"
+                placeholderTextColor={colors.muted}
+                style={[fieldStyle, styles.short, styles.hours]}
+                accessibilityLabel="Timer per dag"
+                nativeID="fravaersskjema-timer"
+              />
+              <Text style={[styles.caption, { color: colors.muted }]}>
+                {hoursTouched ? 'Gjelder hver arbeidsdag i perioden, høyst arbeidstiden den dagen.' : 'Hele arbeidsdager etter arbeidsplanen. Skriv færre timer for en kortere time.'}
+              </Text>
+            </View>
 
             {fields.includes('percent') ? (
               <View style={styles.field}>
@@ -282,6 +479,7 @@ function AbsenceForm({
             {fields.includes('organ') ? textField('organ', cat?.id === 'verv' ? 'Verv og organ' : 'Tjeneste', cat?.id === 'verv' ? 'For eksempel: kommunestyret, Stavanger' : 'For eksempel: repetisjonsøvelse, Heimevernet', 'organ') : null}
             {fields.includes('holiday') ? textField('holiday', 'Høytid', 'For eksempel: Eid al-Fitr', 'hoytid') : null}
 
+            {plain ? null : (
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.muted }]}>
                 {cat?.reasonRequired || details.occasion === 'annet' || !cat ? 'Begrunnelse' : 'Utdypning (valgfritt)'}
@@ -299,6 +497,7 @@ function AbsenceForm({
               />
               {health ? <Text style={[styles.caption, { color: colors.muted }]}>{HEALTH_FREE_TEXT_NOTICE}</Text> : null}
             </View>
+            )}
 
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.muted }]}>Merknad i timelisten (valgfritt)</Text>
@@ -319,13 +518,13 @@ function AbsenceForm({
               </View>
             ) : null}
 
-            <CheckBox checked={confirmed} onPress={() => setConfirmed((v) => !v)} label={FORM_DECLARATION} />
+            {plain ? null : <CheckBox checked={confirmed} onPress={() => setConfirmed((v) => !v)} label={FORM_DECLARATION} />}
 
-            {shown.length || error ? (
+            {(tried && (plain ? plainErrors.length : shown.length)) || (tried && hoursError) || error ? (
               <View accessibilityRole="alert" style={[styles.info, { borderColor: colors.dangerInk || colors.danger }]}>
                 <Ionicons name="alert-circle" size={18} color={colors.dangerInk || colors.danger} />
                 <Text style={[styles.body, styles.flex, { color: colors.dangerInk || colors.danger }]}>
-                  {[...shown, error].filter(Boolean).join(' ')}
+                  {[...(plain ? plainErrors : shown), hoursError, error].filter(Boolean).join(' ')}
                 </Text>
               </View>
             ) : null}
@@ -341,9 +540,10 @@ function AbsenceForm({
                 accessibilityRole="button"
                 nativeID="fravaersskjema-send"
               >
-                <Text style={[styles.buttonText, { color: colors.onBrand || '#fff' }]}>{busy ? 'Sender …' : 'Send skjema'}</Text>
+                <Text style={[styles.buttonText, { color: colors.onBrand || '#fff' }]}>{busy ? 'Sender …' : (plain ? 'Lagre' : 'Send skjema')}</Text>
               </TouchableOpacity>
             </View>
+            </>) : null}
           </ScrollView>
         </Pressable>
       </Pressable>
@@ -418,6 +618,11 @@ const styles = StyleSheet.create({
     ...type.body, borderWidth: 1, borderRadius: radius.control, paddingHorizontal: 12, paddingVertical: 10, minHeight: 64, textAlignVertical: 'top',
   },
   short: { minHeight: 44 },
+  hours: { maxWidth: 160 },
+  strong: { ...type.bodyStrong },
+  choice: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: radius.card, paddingHorizontal: 14, paddingVertical: 12, minHeight: 56,
+  },
   chip: { borderWidth: 1, borderRadius: radius.control, paddingHorizontal: 12, paddingVertical: 8, marginTop: 6 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 4 },
   button: {

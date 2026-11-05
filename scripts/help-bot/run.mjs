@@ -521,7 +521,7 @@ async function testAssistant(view, page) {
   await page.waitForTimeout(4200);
   const ab = await tourState(page);
   res.absence = {
-    steps: /Legg til fravær \/ ferie/.test(absenceText) && /7:30 er en hel dag/.test(absenceText),
+    steps: /Registrer fravær/.test(absenceText) && /7:30 er en hel dag/.test(absenceText),
     tip: hasTip,
     noFlow: processBtn === 0,
     tour: { pageKey: ab.help?.tourPageKey, index: ab.help?.tourIndex, title: ab.title },

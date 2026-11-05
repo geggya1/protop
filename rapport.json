@@ -1,0 +1,137 @@
+{
+  "steps": [
+    {
+      "name": "Mor: Underenheter viser Tilknyttede selskaper",
+      "ok": true,
+      "ms": 2631,
+      "detail": "bilder/01-mor-underenheter.png"
+    },
+    {
+      "name": "Mor: ber Datter om tilknytning som datterselskap",
+      "ok": false,
+      "ms": 1848,
+      "detail": "Fant ikke #ic-hours-discount"
+    },
+    {
+      "name": "Datter: ser forespørselen og godtar",
+      "ok": false,
+      "ms": 62506,
+      "detail": "locator.waitFor: Timeout 60000ms exceeded.\nCall log:\n  - waiting for getByText('Svar trengs').first() to be visible\n"
+    },
+    {
+      "name": "Mor: avtalen vises som aktiv",
+      "ok": false,
+      "ms": 32508,
+      "detail": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByText('Foreslå nye priser').first() to be visible\n"
+    },
+    {
+      "name": "Mor: tildeler Per fra Datter på prosjektet",
+      "ok": false,
+      "ms": 6815,
+      "detail": "Fant ikke #project-team-add-partner"
+    },
+    {
+      "name": "Server: prosjektkopi, kunde og innleid medarbeider",
+      "ok": false,
+      "ms": 60312,
+      "detail": "Tidsavbrudd: kopi hos datter"
+    },
+    {
+      "name": "Datter: ser kopien med samme nummer og Mor som kunde",
+      "ok": false,
+      "ms": 65647,
+      "detail": "locator.waitFor: Timeout 60000ms exceeded.\nCall log:\n  - waiting for getByText('Skole Fjordgata').first() to be visible\n"
+    },
+    {
+      "name": "Timer: ført hos Datter vises hos Mor (venter på godkjenning)",
+      "ok": false,
+      "ms": 90338,
+      "detail": "Tidsavbrudd: speilet time hos mor"
+    },
+    {
+      "name": "Timer: godkjent hos Datter er godkjent hos Mor",
+      "ok": false,
+      "ms": 90290,
+      "detail": "Tidsavbrudd: godkjent speil"
+    },
+    {
+      "name": "Faktura: Datter fakturerer Mor, nummeret vises på timen hos Mor",
+      "ok": false,
+      "ms": 90288,
+      "detail": "Tidsavbrudd: fakturautkast på speilet"
+    },
+    {
+      "name": "Utlegg og salg: speiles til Mor når Datter har godkjent",
+      "ok": false,
+      "ms": 90265,
+      "detail": "Tidsavbrudd: speilet utlegg"
+    },
+    {
+      "name": "Mor: Timerapport viser at timen belastes på faktura 20001",
+      "ok": false,
+      "ms": 68332,
+      "detail": "locator.waitFor: Timeout 60000ms exceeded.\nCall log:\n  - waiting for getByText('faktura 20001').first() to be visible\n"
+    },
+    {
+      "name": "Mor: Utlegg på prosjektet viser utlegget fra Datter",
+      "ok": false,
+      "ms": 60080,
+      "detail": "locator.waitFor: Timeout 60000ms exceeded.\nCall log:\n  - waiting for getByText('Hotell Bergen').first() to be visible\n"
+    },
+    {
+      "name": "Mor: Til fakturering viser timene fra Datter mot sluttkunden",
+      "ok": false,
+      "ms": 65529,
+      "detail": "locator.waitFor: Timeout 60000ms exceeded.\nCall log:\n  - waiting for getByText('Skole Fjordgata').first() to be visible\n"
+    },
+    {
+      "name": "Datter: Til fakturering viser kopien med Mor som kunde",
+      "ok": true,
+      "ms": 5601,
+      "detail": "bilder/03-datter-til-fakturering.png"
+    },
+    {
+      "name": "Datter: utstyr med utleiepris",
+      "ok": true,
+      "ms": 2814,
+      "detail": "bilder/05-datter-utstyr-utleie.png"
+    },
+    {
+      "name": "Mor og Datter: prosjektlisten merker felles prosjekter",
+      "ok": false,
+      "ms": 62505,
+      "detail": "locator.waitFor: Timeout 60000ms exceeded.\nCall log:\n  - waiting for getByText('Leveranse til Mor Bygg AS').first() to be visible\n"
+    },
+    {
+      "name": "Mor: knytter til en samarbeidspartner (ikke konsern), partneren godtar",
+      "ok": true,
+      "ms": 14493,
+      "detail": "partner aktiv, ikke i konsernet"
+    },
+    {
+      "name": "Mor: fordeler nummerserier i konsernet (ikke til partneren)",
+      "ok": false,
+      "ms": 62504,
+      "detail": "locator.waitFor: Timeout 60000ms exceeded.\nCall log:\n  - waiting for getByText('Nummerserier i konsernet').first() to be visible\n"
+    },
+    {
+      "name": "Mor: nytt prosjekt får neste nummer i serien",
+      "ok": false,
+      "ms": 8827,
+      "detail": "prosjektnummer 10000 ble ikke foreslått"
+    },
+    {
+      "name": "Datter: ser nummerserien fra morselskapet",
+      "ok": false,
+      "ms": 66058,
+      "detail": "locator.waitFor: Timeout 60000ms exceeded.\nCall log:\n  - waiting for getByText('Nummerserie i konsernet').first() to be visible\n"
+    },
+    {
+      "name": "Mobil: Underenheter og Team hos Mor",
+      "ok": true,
+      "ms": 13829,
+      "detail": ""
+    }
+  ],
+  "errors": []
+}

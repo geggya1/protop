@@ -1,4 +1,5 @@
-import { Platform, useWindowDimensions } from 'react-native';
+import { useSyncExternalStore } from 'react';
+import { Dimensions, Platform, useWindowDimensions } from 'react-native';
 import { adaptiveColor } from './appearance/adaptiveColor';
 import { DARK, LIGHT } from './appearance/palette';
 import { BREAKPOINTS, coarsePointer, layoutFor } from './ui/layout.js';
@@ -123,6 +124,65 @@ export function useLayout() {
     /** App-grid: antall kolonner for snarveier. */
     appCols: isDesktop ? 4 : isTablet ? 4 : 3,
   };
+}
+
+/**
+ * Bare brytepunktene, uten bredde og høyde: telefon/nettbrett/PC, berøring og tettheten.
+ *
+ * useLayout() leser vindusbredden og tegner komponenten på nytt ved hver pikselendring
+ * (vindu som dras, tastatur på Android, adresselinjen i iOS Safari). Komponenter som bare
+ * trenger brytepunktet bruker useBreakpoints(); den endres bare når et brytepunkt skiftes.
+ */
+function breakpointsFor(width) {
+  const touch = Platform.OS !== 'web' || coarsePointer();
+  const {
+    isPhone, isTablet, isDesktop, isWide, isTouch, density,
+  } = layoutFor(width, { touch });
+  return {
+    isPhone,
+    isTablet,
+    isDesktop,
+    isWide,
+    isTouch,
+    density,
+    hasRail: !isPhone,
+    pad: isDesktop ? 12 : isTablet ? 22 : 16,
+    railWidth: isDesktop ? 220 : 200,
+    headerCompact: isDesktop,
+    appCols: isDesktop ? 4 : isTablet ? 4 : 3,
+  };
+}
+
+const BP_KEYS = ['isPhone', 'isTablet', 'isDesktop', 'isWide', 'isTouch'];
+let bpCurrent = null;
+const bpListeners = new Set();
+let bpSubscription = null;
+
+function readBreakpoints() {
+  const next = breakpointsFor(Dimensions.get('window')?.width || 0);
+  if (!bpCurrent || BP_KEYS.some((k) => bpCurrent[k] !== next[k])) bpCurrent = next;
+  return bpCurrent;
+}
+
+function subscribeBreakpoints(listener) {
+  bpListeners.add(listener);
+  if (!bpSubscription) {
+    bpSubscription = Dimensions.addEventListener('change', () => {
+      const before = bpCurrent;
+      if (readBreakpoints() !== before) bpListeners.forEach((fn) => fn());
+    });
+  }
+  return () => {
+    bpListeners.delete(listener);
+    if (!bpListeners.size && bpSubscription) {
+      bpSubscription.remove?.();
+      bpSubscription = null;
+    }
+  };
+}
+
+export function useBreakpoints() {
+  return useSyncExternalStore(subscribeBreakpoints, readBreakpoints, readBreakpoints);
 }
 
 /**

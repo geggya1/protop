@@ -43,16 +43,17 @@ assert.match(detail, /section === 'employment'/);
 assert.match(detail, /!limited && \(personalRows\.length \|\| canEdit\)/);
 assert.match(detail, /!limited && \(workRows\.length \|\| canEdit\)/);
 assert.match(detail, /gaps && !limited/);
-assert.match(detail, /limited \|\| !showAdminCards \? null : \(\s*<View[^>]*>\s*<Text[^>]*>Tagger/);
-// Hovedsiden har ikke lenger Ansettelsesdata direkte; kortet ligger i employmentCard.
+// Tagger og papirkurv står under Innstillinger › Brukerkonto, bare for Admin-kort.
+assert.match(detail, /section === 'account'[\s\S]{0,200}showAdminCards \? \(/);
+assert.match(screen, /<EmployeeDetailView\s+section="account"/);
+// Persondata-vinduet har ikke Ansettelsesdata direkte; kortet ligger i employmentCard.
 const home = detail.slice(detail.indexOf('nativeID="employee-detail"'));
 assert.equal(/title="Ansettelsesdata"/.test(home), false);
 assert.equal(/\{employmentCard\}/.test(home), false);
 
-// Lenker til skjulte undersider (timeføring, CV) vises ikke for Lese.
-assert.match(detail, /onHours && !limited \?/);
-assert.match(detail, /right=\{limited \? null : \(/);
-assert.match(detail, /!limited && \(employee\.cv\?\.projects/);
+// Hovedsiden viser timer, produktivitet og fravær bare for den som kan åpne Timer på personen.
+assert.match(screen, /<EmployeeHome[\s\S]{0,400}showWork=\{personViewAllowed\(selected, 'hours'\)\}/);
+assert.match(screen, /onOpenAbsence=\{personViewAllowed\(selected, 'absence'\)/);
 
 const arbeid = readFileSync(new URL('../../screens/arbeid/ArbeidScreen.jsx', import.meta.url), 'utf8');
 assert.ok((arbeid.match(/if \(readOnly\) return;/g) || []).length >= 12);
@@ -70,7 +71,7 @@ assert.match(screen, /<ScrollView\s+nativeID="employee-absence-view"/);
 assert.match(screen, /showAdminCards=\{!readOnlyPerson\}/);
 assert.match(screen, /enabled=\{employeesAdmin \|\| isSelfRow\(selected\)\}/);
 assert.match(detail, /gaps && !limited && showAdminCards/);
-assert.match(detail, /limited \|\| !showAdminCards \? null/);
+assert.match(detail, /\{showAdminCards \? \(/);
 
 // Tannhjul og «Skriv ut utvalg» på timelisten skjules i skrivebeskyttet modus.
 

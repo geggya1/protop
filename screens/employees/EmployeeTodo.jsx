@@ -88,6 +88,71 @@ export default function EmployeeTodo({
   }
 
   const today = new Date().toISOString().slice(0, 10);
+  // 'card': kortet på hovedsiden. Overskrift med antall og «Se alle», én rad per gjøremål.
+  if (variant === 'card') {
+    return (
+      <View nativeID="employee-todo-card" style={styles.cardRoot}>
+        <View style={styles.cardHead}>
+          <Ionicons name="checkmark-done-outline" size={20} color={colors.brand} />
+          <Text style={[styles.cardTitle, { color: colors.ink }]}>Gjøremål</Text>
+          {slice && open.length ? (
+            <View style={[styles.cardBadge, { backgroundColor: open.some((row) => row.urgent || (row.due && row.due < today)) ? colors.danger : colors.brand }]}>
+              <Text style={[styles.cardBadgeText, { color: colors.onBrand }]}>{open.length}</Text>
+            </View>
+          ) : null}
+          {onOpenTodo ? (
+            <Pressable onPress={onOpenTodo} accessibilityRole="link" nativeID="employee-todo-card-open" style={styles.cardLink} hitSlop={6}>
+              <Text style={[styles.cardLinkText, { color: colors.brand }]}>Se alle</Text>
+              <Ionicons name="chevron-forward" size={14} color={colors.brand} />
+            </Pressable>
+          ) : null}
+        </View>
+        {!slice ? <Text style={[styles.sideMeta, { color: colors.muted }]}>Henter …</Text> : null}
+        {slice && !open.length ? (
+          <View style={styles.sideRow}>
+            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+            <Text style={[styles.sideText, { color: colors.muted }]}>Alt er på plass.</Text>
+          </View>
+        ) : null}
+        {open.slice(0, 5).map((row) => {
+          const late = !!row.due && row.due < today;
+          const red = late || row.urgent;
+          return (
+            <Pressable
+              key={row.id}
+              nativeID={`employee-todo-card-${row.id.replace(/[^A-Za-z0-9_-]/g, '-')}`}
+              onPress={() => onOpenTodo?.()}
+              accessibilityRole="button"
+              accessibilityLabel={`${row.title}${row.due ? `, frist ${row.due}` : ''}`}
+              style={({ hovered }) => [styles.cardRow, {
+                backgroundColor: red ? colors.starSoft : colors.sunken,
+                borderColor: hovered ? colors.brand : 'transparent',
+              }]}
+            >
+              <Ionicons
+                name={red ? 'alert-circle-outline' : (ICONS[row.kind] || 'ellipse-outline')}
+                size={20}
+                color={red ? colors.warn : colors.brand}
+              />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.cardRowText, { color: colors.ink }]} numberOfLines={2}>{row.title}</Text>
+                {row.due ? (
+                  <Text style={[styles.sideMeta, { color: red ? colors.dangerInk : colors.muted }]}>
+                    {`${late ? 'Frist passert' : 'Frist'} ${row.due.split('-').reverse().join('.')}`}
+                  </Text>
+                ) : null}
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.ink} />
+            </Pressable>
+          );
+        })}
+        {open.length > 5 ? (
+          <Text style={[styles.sideMeta, { color: colors.muted }]}>{`og ${open.length - 5} til`}</Text>
+        ) : null}
+      </View>
+    );
+  }
+
   if (variant === 'side') {
     return (
       <View nativeID="employee-todo-side" style={[styles.side, { borderColor: colors.line }]}>
@@ -241,4 +306,13 @@ const styles = StyleSheet.create({
   sideMeta: { fontSize: type.caption.fontSize, lineHeight: type.caption.lineHeight },
   sideLink: { fontSize: type.label.fontSize, marginTop: 4 },
   doneText: { fontSize: 12, lineHeight: 17 },
+  cardRoot: { gap: 8 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardTitle: { ...type.title },
+  cardBadge: { minWidth: 22, height: 22, borderRadius: radius.pill, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
+  cardBadgeText: { ...type.label },
+  cardLink: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 'auto' },
+  cardLinkText: { ...type.label },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: radius.control, borderWidth: 1 },
+  cardRowText: { ...type.label },
 });

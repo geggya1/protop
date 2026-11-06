@@ -117,6 +117,7 @@ import EmployeeAiAccessCard from '../../components/company/EmployeeAiAccessCard'
 import EmployeeFilesView from './EmployeeFilesView';
 import EmployeeHrSelfService from '../hr/EmployeeHrSelfService';
 import EmployeeTodo from './EmployeeTodo';
+import EmployeeHome from './EmployeeHome';
 import { kinMissing } from '../../src/hr/kinReminder';
 import { hrKindBucket } from '../../src/hr/directory';
 import { closeKinTask } from '../../src/hr/kinTasks';
@@ -128,7 +129,7 @@ import {
   EMPLOYEE_DETAIL_TABS, EMPLOYEE_SETTINGS_SUBS, EMPLOYEE_SUB_TABS, PERSON_FILL_VIEWS, PERSON_VIEWS, employeeTabViews, employeeViewToTab,
 } from '../../src/employees/personTabs.js';
 import { companyDisplayName } from '../../src/utils/companyName';
-import { radius } from '../../src/ui/tokens';
+import { radius, type } from '../../src/ui/tokens';
 import { lazyScreen } from '../../src/ui/lazyScreen';
 const ProjectExpensesScreen = lazyScreen(() => import('../economy/ProjectExpensesScreen'), { name: 'ProjectExpensesScreen', pick: 'ProjectExpensesScreen' });
 const AbsenceOverviewScreen = lazyScreen(() => import('../arbeid/AbsenceScreens'), { name: 'AbsenceOverviewScreen', pick: 'AbsenceOverviewScreen' });
@@ -230,6 +231,8 @@ export default function EmployeesScreen({ subView = null } = {}) {
   const [editExpanded, setEditExpanded] = useState(false);
   const [addressHits, setAddressHits] = useState([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Persondata-vinduet fra blyanten på hovedsiden.
+  const [profileOpen, setProfileOpen] = useState(false);
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(() => new Set());
   const [importReport, setImportReport] = useState(null);
@@ -1729,11 +1732,25 @@ export default function EmployeesScreen({ subView = null } = {}) {
     || !busyKind
   );
 
+  // Snarveiene på hovedsiden: bare det personen (eller den som ser på) har tilgang til.
+  const homeShortcuts = selected ? [
+    personViewAllowed(selected, 'hours') && !readOnlyPerson
+      ? { id: 'hours', label: 'Før timer', icon: 'time-outline', color: colors.brand, onPress: () => openPersonView('hours') } : null,
+    isSelfRow(selected)
+      ? { id: 'mileage', label: 'Registrer kjøring', icon: 'car-outline', color: colors.success, onPress: () => requestShellTab?.('okonomi', 'kjorebok') } : null,
+    personViewAllowed(selected, 'expenses')
+      ? { id: 'expenses', label: 'Registrer utlegg', icon: 'document-text-outline', color: colors.accent, onPress: () => openPersonView('expenses') } : null,
+    personViewAllowed(selected, 'absence') && !readOnlyPerson
+      ? { id: 'absence', label: 'Registrer fravær', icon: 'calendar-outline', color: colors.warn, onPress: () => openPersonView('absence') } : null,
+  ].filter(Boolean) : [];
+
   const personMode = PERSON_VIEWS.has(view) && !!selected;
   const personFills = personMode && PERSON_FILL_VIEWS.has(view);
   const personEmployee = (view === 'detail' || view === 'settings' || view === 'settingsEmployment' || view === 'cv') && draft && draft.id === selectedId
     ? draft
     : selected;
+
+  useEffect(() => { setProfileOpen(false); }, [selectedId, view]);
 
   useEffect(() => {
     if (!personMode || personFills) return;
@@ -1882,6 +1899,7 @@ export default function EmployeesScreen({ subView = null } = {}) {
       contentContainerStyle={[
         styles.inner,
         personMode && styles.innerWide,
+        view === 'detail' && personMode && styles.innerHome,
         // Ansatte og eksterne står side om side og bruker hele bredden.
         view === 'list' && isDesktop && styles.innerList,
         (view === 'hours' || view === 'report') && styles.innerHours,
@@ -2135,6 +2153,24 @@ export default function EmployeesScreen({ subView = null } = {}) {
             />
           ) : null}
 
+          {/* Tagger og papirkurv: flyttet fra hovedsiden til Brukerkonto. */}
+          {view === 'settings' && personEmployee ? (
+            <EmployeeDetailView
+              section="account"
+              employee={personEmployee}
+              colors={colors}
+              companyName={companyName}
+              departments={departments}
+              showAdminCards={!readOnlyPerson}
+              canDelete={employeesAdmin}
+              confirmDelete={confirmDelete}
+              onConfirmDelete={() => setConfirmDelete(true)}
+              onCancelDelete={() => setConfirmDelete(false)}
+              onDestroy={destroy}
+              onRestore={restoreEmployee}
+            />
+          ) : null}
+
           {view === 'settingsEmployment' && personEmployee ? (
             <EmployeeDetailView
               section="employment"
@@ -2170,68 +2206,101 @@ export default function EmployeesScreen({ subView = null } = {}) {
             />
           ) : null}
 
-          {/* Hovedside: personkortet i midten, gjøremålene som en huskeliste i margen til høyre
-              (på telefon øverst). Frister vises, og passerte frister er røde. */}
+          {/* Hovedside: personkort og snarveier, nøkkeltall og produktivitet, gjøremål, fravær og arbeidstid.
+              Blyanten på personkortet åpner persondata i et eget vindu. */}
           {view === 'detail' && detailEmployee ? (
-          <View nativeID="employee-home" style={isDesktop ? styles.homeRow : styles.homeStack}>
-            {selected && canSeeTodo(selected) ? (
-              <View style={isDesktop ? styles.homeSide : [styles.homeSideTop, { borderColor: colors.line, backgroundColor: colors.card }]}>
-                <EmployeeTodo
-                  variant="side"
-                  colors={colors}
-                  companyId={familyId}
-                  employee={selected}
-                  naeringskode={family?.company?.naeringskode || ''}
-                  onOpenTodo={() => openPersonView('todo')}
-                />
-              </View>
-            ) : null}
-            <View style={isDesktop ? styles.homeMain : null}>
-            <EmployeeDetailView
-              companyId={familyId}
-              currentUid={uid}
+            <EmployeeHome
               employee={detailEmployee}
-              showName={false}
               colors={colors}
-              companyName={companyName}
-              departments={departments}
-              members={people}
-              addressHits={addressHits}
-              reveal={canSeeSensitive(detailEmployee, { uid, isAdmin })}
-              gaps={gaps}
-              canEdit={isAdmin || (isSelfRow(detailEmployee) && ownLevel !== 'reader')}
-              canEditAccess={canEditAccess}
-              canEndEmployment={canEndEmployment}
-              isAdmin={isAdmin}
-              isSelf={isSelfRow(detailEmployee)}
-              limited={limitedPerson}
-              showAdminCards={!readOnlyPerson}
-              canDelete={employeesAdmin}
-              confirmDelete={confirmDelete}
-              busy={busy}
-              onCv={() => openCv(detailEmployee)}
-              onHours={() => openHours(detailEmployee)}
-              projectState={visibleProjectState}
+              companyId={familyId}
+              company={family?.company}
+              projectState={projectState}
+              projects={visibleProjectState.projects || []}
+              showWork={personViewAllowed(selected, 'hours')}
+              showTodo={!!selected && canSeeTodo(selected)}
+              own={isSelfRow(selected)}
+              naeringskode={family?.company?.naeringskode || ''}
+              shortcuts={homeShortcuts}
+              onEditProfile={() => setProfileOpen(true)}
+              onOpenTodo={() => openPersonView('todo')}
+              onOpenAbsence={personViewAllowed(selected, 'absence') ? () => openPersonView('absence') : undefined}
+              onOpenHours={personViewAllowed(selected, 'hours') ? () => openPersonView('hours') : undefined}
               onOpenProject={(project) => {
                 if (!project?.id) return;
                 requestShellTab?.('projects', null, { type: 'openProject', projectId: project.id });
               }}
-              onChange={changeDetail}
-              onSave={save}
-              onPhoto={choosePhoto}
-              onPickAddress={pickAddress}
-              onPushProfile={access.previewing ? undefined : pushProfile}
-              onPullToProfile={access.previewing ? undefined : pullToProfile}
-              onConfirmDelete={() => setConfirmDelete(true)}
-              onCancelDelete={() => setConfirmDelete(false)}
-              onDestroy={destroy}
-              onRestore={restoreEmployee}
-              canInvite={canInvite}
-              onInvite={() => inviteEmployee(detailEmployee)}
+              onOpenProjects={() => requestShellTab?.('projects')}
             />
-            </View>
-          </View>
           ) : null}
+
+          <Modal
+            visible={view === 'detail' && !!detailEmployee && profileOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setProfileOpen(false)}
+          >
+            <View style={styles.modalRoot}>
+              <Pressable
+                style={styles.modalBackdrop}
+                onPress={() => setProfileOpen(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Lukk persondata"
+              />
+              <View
+                nativeID="employee-profile-sheet"
+                style={[styles.profileSheet, isPhone && styles.profileSheetPhone, { backgroundColor: colors.bg, borderColor: colors.line }]}
+              >
+                <View style={[styles.profileSheetHead, { borderBottomColor: colors.line, backgroundColor: colors.card }]}>
+                  <Text accessibilityRole="header" style={[styles.profileSheetTitle, { color: colors.ink }]} numberOfLines={1}>
+                    {`Persondata · ${detailEmployee ? displayName(detailEmployee) : ''}`}
+                  </Text>
+                  <TouchableOpacity
+                    nativeID="employee-profile-close"
+                    onPress={() => setProfileOpen(false)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Lukk"
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close" size={22} color={colors.ink} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView contentContainerStyle={styles.profileSheetBody} keyboardShouldPersistTaps="handled">
+                  {detailEmployee ? (
+                    <EmployeeDetailView
+                      section="profile"
+                      companyId={familyId}
+                      currentUid={uid}
+                      employee={detailEmployee}
+                      showName={false}
+                      colors={colors}
+                      companyName={companyName}
+                      departments={departments}
+                      members={people}
+                      addressHits={addressHits}
+                      reveal={canSeeSensitive(detailEmployee, { uid, isAdmin })}
+                      gaps={gaps}
+                      canEdit={isAdmin || (isSelfRow(detailEmployee) && ownLevel !== 'reader')}
+                      canEditAccess={canEditAccess}
+                      canEndEmployment={canEndEmployment}
+                      isAdmin={isAdmin}
+                      isSelf={isSelfRow(detailEmployee)}
+                      limited={limitedPerson}
+                      showAdminCards={!readOnlyPerson}
+                      canDelete={false}
+                      busy={busy}
+                      onChange={changeDetail}
+                      onSave={save}
+                      onPhoto={choosePhoto}
+                      onPickAddress={pickAddress}
+                      onPushProfile={access.previewing ? undefined : pushProfile}
+                      onPullToProfile={access.previewing ? undefined : pullToProfile}
+                      canInvite={canInvite}
+                    />
+                  ) : null}
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
 
           {/* Brukerloggen står alene på egen underside under Innstillinger, ikke på hovedsiden. */}
           {view === 'settingsLog' && selected ? (
@@ -2712,11 +2781,6 @@ function summaryNote(labels) {
 
 const styles = StyleSheet.create({
   // Hovedside: margen står til høyre (order), selv om den ligger først i koden for telefon.
-  homeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 24 },
-  homeMain: { flex: 1, minWidth: 0, order: 1 },
-  homeSide: { width: 260, order: 2 },
-  homeStack: { gap: 12 },
-  homeSideTop: { borderWidth: 1, borderRadius: radius.card, padding: 12 },
   screen: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', alignSelf: 'stretch' },
   selfPending: { alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
   screenScroll: { flex: 1, minWidth: 0, alignSelf: 'stretch' },
@@ -2731,6 +2795,12 @@ const styles = StyleSheet.create({
   personFill: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', alignSelf: 'stretch' },
   inner: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 1080, width: '100%', alignSelf: 'flex-start' },
   innerWide: { maxWidth: 1220 },
+  innerHome: { maxWidth: 1640 },
+  profileSheet: { zIndex: 1, width: '100%', maxWidth: 860, maxHeight: '92%', borderRadius: radius.sheet, borderWidth: 1, overflow: 'hidden' },
+  profileSheetPhone: { maxHeight: '100%', height: '100%', borderRadius: 0 },
+  profileSheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  profileSheetTitle: { ...type.title, flex: 1 },
+  profileSheetBody: { padding: 16, gap: 12 },
   innerList: { maxWidth: '100%' },
   innerHours: { maxWidth: '100%', width: '100%', alignSelf: 'stretch', flexGrow: 1 },
   innerAbsence: { padding: 0, gap: 0, maxWidth: 1180, paddingBottom: 28 },

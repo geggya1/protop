@@ -1557,15 +1557,6 @@ export default function ArbeidScreen({
         <Text style={styles.ctaText}>Legg til prosjekt</Text>
       </TouchableOpacity>
       )}
-      <TouchableOpacity
-        onPress={() => openAbsenceWizard(selectedDay || todayKey)}
-        style={[styles.cta, { backgroundColor: colors.brand }, isPhone && styles.ctaPhone]}
-        accessibilityRole="button"
-        nativeID="registrer-fravaer"
-      >
-        <Ionicons name="add" size={18} color="#fff" />
-        <Text style={styles.ctaText}>Registrer fravær</Text>
-      </TouchableOpacity>
       {payoutButton}
     </View>
   );
@@ -1584,15 +1575,6 @@ export default function ArbeidScreen({
           <Text style={[styles.gridActionText, { color: '#fff' }]}>Legg til prosjekt</Text>
         </TouchableOpacity>
       )}
-      <TouchableOpacity
-        onPress={() => openAbsenceWizard(selectedDay || todayKey)}
-        style={[styles.gridAction, { borderColor: colors.brand, backgroundColor: colors.brand }]}
-        accessibilityRole="button"
-        nativeID="registrer-fravaer"
-      >
-        <Ionicons name="add" size={15} color="#fff" />
-        <Text style={[styles.gridActionText, { color: '#fff' }]}>Registrer fravær</Text>
-      </TouchableOpacity>
       {payoutButton ? (
         <TouchableOpacity
           onPress={payoutButton.props.onPress}
@@ -1606,7 +1588,7 @@ export default function ArbeidScreen({
     </>
   );
 
-  // PC: «Legg til prosjekt», «Registrer fravær» og tannhjulet til høyre over tabellen, alltid synlige
+  // PC: «Legg til prosjekt» og tannhjulet til høyre over tabellen, alltid synlige
   // (tabellen kan rulle sidelengs på smale skjermer).
   const desktopTools = isPhone ? null : (
     <View style={[styles.topActions, embedded && styles.topActionsEmbedded]} nativeID="timesheet-tools">

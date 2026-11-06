@@ -15,6 +15,20 @@ function bustExpoAssetUrls(html, buildId) {
 }
 
 /**
+ * Selvreparasjon for /_expo-filer. Firebase svarer med index.html (200, text/html) for en
+ * /_expo-adresse som ikke finnes, og firebase.json merker alt under /_expo som immutable i ett
+ * år. Spør nettleseren etter de nye filene i det øyeblikket en deploy bytter versjon, lagrer den
+ * HTML som JS og blir stående med blank side («MIME type text/html is not executable»).
+ * Feiler et /_expo-skript eller -stilark, hentes alle /_expo-filene på siden på nytt rett fra
+ * serveren (cache: 'reload' skriver over det lagrede svaret), og siden lastes på nytt.
+ * Bare én gang per versjon, så en fil som faktisk mangler, ikke gir en løkke.
+ * Må stå før appens skript (i <head>), så lytteren er på plass når de lastes.
+ */
+function assetHealScript(id) {
+  return `window.addEventListener('error',function(e){var t=e&&e.target;if(!t||(t.tagName!=='SCRIPT'&&t.tagName!=='LINK'))return;var u=t.src||t.href||'';if(u.indexOf('/_expo/')<0)return;var hk='protop_asset_heal';try{if(sessionStorage.getItem(hk)===${id})return;sessionStorage.setItem(hk,${id});}catch(x){return;}var urls=[].map.call(document.querySelectorAll('script[src*="/_expo/"],link[href*="/_expo/"]'),function(n){return n.src||n.href;});Promise.all(urls.map(function(x){return fetch(x,{cache:'reload',credentials:'same-origin'}).catch(function(){});})).then(function(){location.reload();});},true);`;
+}
+
+/**
  * Inline-skript i index.html. HTML-en hentes alltid fersk (no-cache), og den peker på bundlen
  * for samme bygg, så siden lastes bare på nytt når serveren har et nyere bygg enn HTML-en selv
  * (f.eks. en PWA på iOS som viste en gammel kopi). Før lastet den også på nytt hver gang id-en
@@ -22,7 +36,7 @@ function bustExpoAssetUrls(html, buildId) {
  */
 function buildRefreshScript(nextId) {
   const id = JSON.stringify(nextId);
-  return `<script data-protop-build-refresh>(function(){var id=${id};var tried='protop_build_reload_target';function reloadOnce(target){try{if(!target||sessionStorage.getItem(tried)===target)return;sessionStorage.setItem(tried,target);}catch(e){return;}location.reload();}try{localStorage.setItem('protop_html_build',id);}catch(e){}if(/^(localhost|127\\.0\\.0\\.1)$/.test(location.hostname))return;fetch('/build.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(j&&j.id&&j.id!==id)reloadOnce(j.id);}).catch(function(){})})();</script>`;
+  return `<script data-protop-build-refresh>${assetHealScript(id)}(function(){var id=${id};var tried='protop_build_reload_target';function reloadOnce(target){try{if(!target||sessionStorage.getItem(tried)===target)return;sessionStorage.setItem(tried,target);}catch(e){return;}location.reload();}try{localStorage.setItem('protop_html_build',id);}catch(e){}if(/^(localhost|127\\.0\\.0\\.1)$/.test(location.hostname))return;fetch('/build.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(j&&j.id&&j.id!==id)reloadOnce(j.id);}).catch(function(){})})();</script>`;
 }
 
 module.exports = { bustExpoAssetUrls, buildRefreshScript };

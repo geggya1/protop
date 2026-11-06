@@ -30,11 +30,11 @@ function Chips({
               key={String(id)}
               onPress={() => onChange(id)}
               disabled={disabled || active}
-              style={[styles.chip, { borderColor: active ? colors.brand : colors.line, backgroundColor: active ? colors.brand : 'transparent' }, disabled && !active && styles.off]}
+              style={[styles.chip, { borderColor: active ? colors.brand : colors.line, backgroundColor: active ? (colors.brandSoft || 'transparent') : 'transparent' }, disabled && !active && styles.off]}
               accessibilityRole="button"
               accessibilityState={{ selected: active, disabled }}
             >
-              <Text style={{ color: active ? '#fff' : colors.ink }}>{text}</Text>
+              <Text style={[styles.chipText, { color: active ? colors.brand : colors.ink, fontWeight: active ? '600' : '400' }]}>{text}</Text>
             </TouchableOpacity>
           );
         })}
@@ -50,9 +50,9 @@ function Switch({
     <View style={styles.switchRow} nativeID={nativeID}>
       <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
         <Text style={[styles.label, { color: colors.ink }]}>{title}</Text>
-        {body ? <Text style={[styles.lead, { color: colors.muted }]}>{body}</Text> : null}
+        {body ? <Text style={[styles.hint, { color: colors.muted }]}>{body}</Text> : null}
       </View>
-      <BrandToggle value={value} onValueChange={onChange} disabled={disabled} />
+      <BrandToggle value={value} onValueChange={onChange} disabled={disabled} compact />
     </View>
   );
 }
@@ -84,9 +84,18 @@ function PersonRow({
   person, value, disabled, onChange, colors,
 }) {
   return (
-    <View style={styles.switchRow}>
-      <Text style={[styles.lead, { color: colors.ink, flex: 1, minWidth: 0 }]} numberOfLines={1}>{person.name}</Text>
-      <BrandToggle value={value} onValueChange={onChange} disabled={disabled} compact />
+    <View style={[styles.personRow, { borderBottomColor: colors.line }]}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[styles.name, { color: person.hasUser ? colors.ink : colors.muted }]} numberOfLines={1}>{person.name}</Text>
+        {person.detail || !person.hasUser ? (
+          <Text style={[styles.small, { color: colors.muted }]} numberOfLines={1}>
+            {person.hasUser
+              ? person.detail
+              : ['Ikke invitert eller har ikke akseptert ennå', person.detail].filter(Boolean).join(' · ')}
+          </Text>
+        ) : null}
+      </View>
+      <BrandToggle value={person.hasUser && value} onValueChange={onChange} disabled={disabled || !person.hasUser} compact />
     </View>
   );
 }
@@ -186,17 +195,19 @@ export default function CompanyAiSettings({
     touched();
   }
 
-  const allOwnOn = people.own.length > 0 && people.own.every((p) => plan.allowedUids.includes(p.uid));
+  const ownWithUser = people.own.filter((p) => p.hasUser);
+  const allOwnOn = ownWithUser.length > 0 && ownWithUser.every((p) => plan.allowedUids.includes(p.uid));
   function setOwnAll(on) {
-    setChanges((prev) => people.own.reduce(
+    setChanges((prev) => ownWithUser.reduce(
       (acc, person) => ({ ...acc, [person.uid]: { uid: person.uid, on, external: false } }),
       prev,
     ));
     touched();
   }
   // Bare de som står i listene nå og fortsatt er aktive, telles.
-  const grantedCount = people.own.filter((p) => plan.allowedUids.includes(p.uid)).length
-    + people.external.filter((p) => plan.externalUids.includes(p.uid)).length;
+  const grantedCount = ownWithUser.filter((p) => plan.allowedUids.includes(p.uid)).length
+    + people.external.filter((p) => p.hasUser && plan.externalUids.includes(p.uid)).length;
+  const withoutUser = [...people.own, ...people.external].filter((p) => !p.hasUser).length;
 
   const summary = aiUsageSummary(
     { ...plan, monthlyBudgetNok: Number(budgetText) || 0 },
@@ -204,7 +215,7 @@ export default function CompanyAiSettings({
     usage.users,
   );
   const off = !canEdit || busy;
-  const ceilingPct = Math.round(AI_DOWNGRADE_CEILING * 100);
+  const overPct = Math.round((AI_DOWNGRADE_CEILING - 1) * 100);
 
   if (loading) {
     return <Text style={[styles.lead, { color: colors.muted }]}>Henter AI-abonnementet…</Text>;
@@ -266,39 +277,42 @@ export default function CompanyAiSettings({
           label="Når budsjettet er brukt opp"
           choices={[
             { id: 'stop', label: 'Stopp assistenten' },
-            { id: 'downgrade', label: `Bytt til lett modell (til ${ceilingPct} %)` },
+            { id: 'downgrade', label: 'Fortsett med en billigere modell' },
           ]}
           value={plan.onLimit}
           disabled={off}
           onChange={(value) => patch({ onLimit: value })}
           colors={colors}
         />
-        <Text style={[styles.hint, { color: colors.muted }]}>
-          Du får varsel når forbruket passerer 50, 80 og 100 % av budsjettet.
+        <Text style={[styles.hint, { color: colors.muted }]} nativeID="company-ai-on-limit-hint">
+          {plan.onLimit === 'downgrade'
+            ? `Assistenten svarer videre med en enklere og billigere modell. Svarene blir kortere og mindre grundige. Kommer forbruket ${overPct} % over budsjettet, stopper den likevel.`
+            : 'Ingen får svar før neste måned, eller til du øker budsjettet.'}
+          {' Du får varsel når forbruket passerer 50, 80 og 100 % av budsjettet.'}
         </Text>
       </Card>
 
       <Card title="Hvem har tilgang" colors={colors}>
         <Text style={[styles.lead, { color: colors.muted }]}>
-          {`Ingen har tilgang før du gir det. Bare personer som er i arbeid nå og har bruker i ProTop, står her. Ved permisjon, sluttdato eller deaktivering stopper tilgangen av seg selv. ${grantedCount} har tilgang nå.`}
+          {`Ingen har tilgang før du gir det. Listen viser alle som er i arbeid nå. Ved permisjon, sluttdato eller deaktivering stopper tilgangen av seg selv. ${grantedCount} har tilgang nå.${withoutUser ? ` ${withoutUser} er ikke invitert eller har ikke akseptert invitasjonen ennå, og kan få tilgang når de har det.` : ''}`}
         </Text>
-        <View style={{ gap: 8 }} nativeID="company-ai-own">
+        <View nativeID="company-ai-own">
           <View style={styles.headRow}>
             <Text style={[styles.label, { color: colors.ink, flex: 1 }]}>Egne ansatte</Text>
-            {canEdit && people.own.length ? (
+            {canEdit && ownWithUser.length ? (
               <TouchableOpacity
                 nativeID="company-ai-all-own"
                 onPress={() => setOwnAll(!allOwnOn)}
                 disabled={off}
                 accessibilityRole="button"
               >
-                <Text style={{ color: colors.brand }}>{allOwnOn ? 'Fjern alle egne ansatte' : 'Gi alle egne ansatte tilgang'}</Text>
+                <Text style={[styles.hint, { color: colors.brand }]}>{allOwnOn ? 'Fjern alle egne ansatte' : 'Gi alle egne ansatte tilgang'}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
           {people.own.length ? people.own.map((person) => (
             <PersonRow
-              key={person.uid}
+              key={person.key}
               person={person}
               value={plan.allowedUids.includes(person.uid)}
               disabled={off}
@@ -306,17 +320,17 @@ export default function CompanyAiSettings({
               colors={colors}
             />
           )) : (
-            <Text style={[styles.hint, { color: colors.muted }]}>Ingen aktive egne ansatte med bruker i ProTop.</Text>
+            <Text style={[styles.hint, { color: colors.muted }]}>Ingen egne ansatte i arbeid nå.</Text>
           )}
         </View>
-        <View style={{ gap: 8 }} nativeID="company-ai-external">
+        <View style={{ gap: 4 }} nativeID="company-ai-external">
           <Text style={[styles.label, { color: colors.ink }]}>Innleide og eksterne</Text>
           <Text style={[styles.hint, { color: colors.muted }]}>
             Gis bare én og én. De har en annen arbeidsgiver, så tenk gjennom hva de skal få lese.
           </Text>
           {people.external.length ? people.external.map((person) => (
             <PersonRow
-              key={person.uid}
+              key={person.key}
               person={person}
               value={plan.externalUids.includes(person.uid)}
               disabled={off}
@@ -324,7 +338,7 @@ export default function CompanyAiSettings({
               colors={colors}
             />
           )) : (
-            <Text style={[styles.hint, { color: colors.muted }]}>Ingen aktive innleide eller eksterne med bruker i ProTop.</Text>
+            <Text style={[styles.hint, { color: colors.muted }]}>Ingen innleide eller eksterne i arbeid nå.</Text>
           )}
         </View>
       </Card>
@@ -449,30 +463,36 @@ export default function CompanyAiSettings({
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 12, maxWidth: 880 },
-  card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 12 },
-  cardTitle: { fontSize: 16, fontWeight: '600' },
-  label: { fontSize: 15, fontWeight: '600' },
+  wrap: { gap: 10, maxWidth: 860 },
+  card: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 10 },
+  cardTitle: { fontSize: 15, fontWeight: '600' },
+  label: { fontSize: 14, fontWeight: '600' },
+  name: { fontSize: 14 },
   lead: { fontSize: 14, lineHeight: 20 },
   hint: { fontSize: 13, lineHeight: 18 },
-  big: { fontSize: 20, fontWeight: '600' },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  small: { fontSize: 12, lineHeight: 16 },
+  big: { fontSize: 16, fontWeight: '600' },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  chip: {
-    borderWidth: 1, borderRadius: 999, minHeight: 36, paddingHorizontal: 14, paddingVertical: 6, alignItems: 'center', justifyContent: 'center',
+  personRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  chip: {
+    borderWidth: 1, borderRadius: 8, minHeight: 32, paddingHorizontal: 10, paddingVertical: 4, alignItems: 'center', justifyContent: 'center',
+  },
+  chipText: { fontSize: 13 },
   off: { opacity: 0.5 },
   input: {
-    borderWidth: 1, borderRadius: 10, minHeight: 44, paddingHorizontal: 12, fontSize: 15,
+    borderWidth: 1, borderRadius: 8, minHeight: 38, paddingHorizontal: 10, fontSize: 14, maxWidth: 220,
   },
   notice: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6 },
   saveRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   btn: {
-    alignSelf: 'flex-start', borderRadius: 12, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 8,
+    alignSelf: 'flex-start', borderRadius: 12, minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16,
   },
-  btnText: { color: '#fff', fontWeight: '600' },
-  bar: { height: 8, borderRadius: 4, overflow: 'hidden' },
-  barFill: { height: 8, borderRadius: 4 },
+  btnText: { color: '#fff', fontSize: 14 },
+  bar: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  barFill: { height: 6, borderRadius: 3 },
   userRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
+  headRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap', paddingBottom: 2 },
 });

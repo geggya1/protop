@@ -222,13 +222,15 @@ await check('2.1 Linjen «Fravær» står nederst og åpner «Registrer fravær�
   await expectText(phone, 'Trykk for å registrere fravær');
   await clickId(phone, 'timesheet-absence', 20000);
   await expectText(phone, 'Registrer fravær');
-  await expectText(phone, 'Hva gjelder fraværet? Velg det som passer best.');
-  for (const id of ['syk', 'sykt_barn', 'ferie', 'avspasering', 'lege', 'familie', 'permisjon', 'kurs', 'annet']) {
-    if (!(await phone.page.locator(`[id="fravaer-valg-${id}"]`).count())) throw new Error(`mangler valget ${id}`);
+  await expectText(phone, 'Hva gjelder fraværet?');
+  for (const id of ['sykdom', 'fri', 'permisjoner', 'kurs_annet']) {
+    if (!(await phone.page.locator(`[id="fravaer-tema-${id}"]`).count())) throw new Error(`mangler temaet ${id}`);
   }
+  if (await phone.page.locator('[id^="fravaer-valg-"]').count()) throw new Error('undervalgene skal komme på neste side');
   await phone.shot('valg');
 });
 await check('2.2 Lege: felt, lønn etter avtale og timer per dag', async () => {
+  await clickId(phone, 'fravaer-tema-sykdom');
   await clickId(phone, 'fravaer-valg-lege');
   await expectText(phone, 'Ingen lovfestet rett etter aml.');
   await phone.click('Meg selv');
@@ -259,6 +261,7 @@ await check('2.5 Linjen viser dagens fravær, og trykk viser det først', async 
 });
 await check('2.6 Nytt fravær samme dag: velferd (flytting) via «Permisjon og velferd»', async () => {
   await clickId(phone, 'fravaer-nytt');
+  await clickId(phone, 'fravaer-tema-permisjoner');
   await clickId(phone, 'fravaer-valg-permisjon');
   await clickId(phone, 'fravaer-undervalg-velferd');
   await expectText(phone, 'Anledning');
@@ -278,6 +281,7 @@ await check('2.6 Nytt fravær samme dag: velferd (flytting) via «Permisjon og v
 await check('2.7 Ferie neste arbeidsdag: lagres uten skjema, hel dag', async () => {
   await goToDay(d2.offset, d1.offset);
   await clickId(phone, 'timesheet-absence');
+  await clickId(phone, 'fravaer-tema-fri');
   await clickId(phone, 'fravaer-valg-ferie');
   await expectText(phone, 'Føres som: Ferie');
   await clickId(phone, 'fravaersskjema-send');
@@ -288,6 +292,7 @@ await check('2.7 Ferie neste arbeidsdag: lagres uten skjema, hel dag', async () 
 await check('2.8 Sykt barn går til egenmeldingen', async () => {
   await goToDay(d3.offset, d2.offset);
   await clickId(phone, 'timesheet-absence');
+  await clickId(phone, 'fravaer-tema-sykdom');
   await clickId(phone, 'fravaer-valg-sykt_barn');
   await expectText(phone, 'Meld sykefravær');
   await expectText(phone, 'Omsorgsdager');
@@ -299,6 +304,7 @@ await check('2.9 Eldre fravær uten skjema: «Mangler fraværsskjema» → skjem
   await expectText(phone, 'Mangler fraværsskjema');
   await clickId(phone, 'husk-fravaersskjema');
   await expectText(phone, 'Dagene står som Annet fravær med lønn');
+  await clickId(phone, 'fravaer-tema-sykdom');
   await clickId(phone, 'fravaer-valg-lege');
   await phone.click('Meg selv');
   await phone.click('Tannlege');
@@ -317,7 +323,7 @@ await check('3.1 PC: «Fravær» nederst i rutenettet, knappene synlige over tab
   await desk.open('timeliste', null, 4000);
   await desk.page.locator('[id="timesheet-absence-row-fravaer"]').first().waitFor({ state: 'visible', timeout: 20000 });
   await expectText(desk, 'Legg til prosjekt');
-  await expectText(desk, 'Registrer fravær');
+  if (await desk.page.locator('[id="registrer-fravaer"]').count()) throw new Error('knappen «Registrer fravær» står fortsatt');
   const all = await desk.visibleText();
   if (all.includes('Åpne prosjekt')) throw new Error('«Åpne prosjekt» står fortsatt');
   const pos = await desk.page.evaluate(() => {
@@ -398,6 +404,7 @@ await check('5.3 Sykt barn: egenmeldingen viser omsorgsdagene fra barna hun regi
   await eva.open('timeliste', null, 4000);
   await clickId(eva, 'timesheet-absence', 20000);
   if (await eva.hasText('Registrer nytt fravær', { timeout: 1500 })) await clickId(eva, 'fravaer-nytt');
+  await clickId(eva, 'fravaer-tema-sykdom');
   await clickId(eva, 'fravaer-valg-sykt_barn');
   await expectText(eva, 'av 10 dager brukt');
   await eva.click('Avbryt');

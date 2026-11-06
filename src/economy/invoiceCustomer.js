@@ -74,12 +74,32 @@ export function editedCustomerFields(invoice) {
   return CUSTOMER_COPY_KEYS.filter((key) => !same(key, invoice[key], copy[key]));
 }
 
+function hasAddress(raw) {
+  const addr = address(raw);
+  return !!(addr.street && (addr.postalCode || addr.city));
+}
+
+/**
+ * Kreditnota: kunden følger fakturaen den krediterer. Mangler adressen der (typisk en faktura
+ * overført til PowerOffice), hentes bare adressen fra kunderegisteret, så kreditnotaen
+ * ProTop utsteder har kjøpers adresse (bokføringsforskriften § 5-1-1 og § 5-2-1).
+ */
+function withRegistryAddress(invoice, customers, project) {
+  if (hasAddress(invoice.customerAddress)) return invoice;
+  const customer = draftCustomer(invoice, customers);
+  if (!customer) return invoice;
+  const fresh = customerFieldsFrom(customer, project).customerAddress;
+  if (!hasAddress(fresh)) return invoice;
+  return { ...invoice, customerAddress: fresh };
+}
+
 /**
  * Utkastet med kunden slik den står i registeret nå. Ferdigstilte fakturaer, kreditnotaer
  * og utkast uten treff i registeret gis tilbake uendret (samme objekt).
  */
 export function withRegistryCustomer(invoice, customers = [], project = null) {
-  if (!invoice || !isEditableDraft(invoice) || isCreditNote(invoice)) return invoice;
+  if (!invoice || !isEditableDraft(invoice)) return invoice;
+  if (isCreditNote(invoice)) return withRegistryAddress(invoice, customers, project);
   const customer = draftCustomer(invoice, customers);
   if (!customer) return invoice;
   const copy = invoice.customerCopy && typeof invoice.customerCopy === 'object' ? invoice.customerCopy : null;

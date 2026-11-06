@@ -344,7 +344,9 @@ export function issueChecks(invoice, {
 } = {}) {
   const row = normalizeInvoice(invoice);
   // Partene, ytelsen og selgers registreringer. Selger kontrolleres bare når ProTop utsteder.
-  const content = invoiceContentChecks(row, { supplier: supplier || {}, mode });
+  // Kreditnotaen utstedes alltid av ProTop, også når PowerOffice er koblet, og kontrolleres
+  // som det (samme kontroll som issueInvoice gjør).
+  const content = invoiceContentChecks(row, { supplier: supplier || {}, mode: isCreditNote(row) ? 'protop' : mode });
   const blocking = [...content.blocking];
   const warnings = [];
   const add = (list, id, message, field = '') => list.push({ id, text: message, field });

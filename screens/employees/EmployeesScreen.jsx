@@ -121,6 +121,7 @@ import EmployeeHome, { EmployeeAbsenceSummary, EmployeeProductivity, EmployeeSho
 import PersonSettingsLayout from '../../components/employees/PersonSettingsLayout';
 import FamilyCard from '../../components/employees/FamilyCard';
 import { settingsProgress, settingsSummary } from '../../src/employees/settingsSummary';
+import { ANSATT_AREAS } from '../../src/employees/ansattAreas';
 import { kinMissing } from '../../src/hr/kinReminder';
 import { hrKindBucket } from '../../src/hr/directory';
 import { closeKinTask } from '../../src/hr/kinTasks';
@@ -1776,13 +1777,13 @@ export default function EmployeesScreen({ subView = null } = {}) {
   // Snarveiene på hovedsiden: bare det personen (eller den som ser på) har tilgang til.
   const homeShortcuts = selected ? [
     personViewAllowed(selected, 'hours') && !readOnlyPerson
-      ? { id: 'hours', label: 'Før timer', icon: 'time-outline', color: colors.brand, onPress: () => openPersonView('hours') } : null,
+      ? { id: 'hours', label: 'Før timer', icon: `${ANSATT_AREAS.hours.icon}-outline`, color: ANSATT_AREAS.hours.color, onPress: () => openPersonView('hours') } : null,
     isSelfRow(selected)
-      ? { id: 'mileage', label: 'Registrer kjøring', icon: 'car-outline', color: colors.success, onPress: () => requestShellTab?.('okonomi', 'kjorebok') } : null,
+      ? { id: 'mileage', label: 'Registrer kjøring', icon: `${ANSATT_AREAS.mileage.icon}-outline`, color: ANSATT_AREAS.mileage.color, onPress: () => requestShellTab?.('okonomi', 'kjorebok') } : null,
     personViewAllowed(selected, 'expenses')
-      ? { id: 'expenses', label: 'Registrer utlegg', icon: 'document-text-outline', color: colors.accent, onPress: () => openPersonView('expenses') } : null,
+      ? { id: 'expenses', label: 'Registrer utlegg', icon: `${ANSATT_AREAS.expenses.icon}-outline`, color: ANSATT_AREAS.expenses.color, onPress: () => openPersonView('expenses') } : null,
     personViewAllowed(selected, 'absence') && !readOnlyPerson
-      ? { id: 'absence', label: 'Registrer fravær', icon: 'calendar-outline', color: colors.warn, onPress: () => openPersonView('absence') } : null,
+      ? { id: 'absence', label: 'Registrer fravær', icon: `${ANSATT_AREAS.absence.icon}-outline`, color: ANSATT_AREAS.absence.color, onPress: () => openPersonView('absence') } : null,
   ].filter(Boolean) : [];
 
   const personMode = PERSON_VIEWS.has(view) && !!selected;
@@ -2494,6 +2495,10 @@ export default function EmployeesScreen({ subView = null } = {}) {
               onOpenAbsence={personViewAllowed(selected, 'absence') ? () => openPersonView('absence') : undefined}
               onOpenHours={personViewAllowed(selected, 'hours') ? () => openPersonView('hours') : undefined}
               onOpenReport={personViewAllowed(selected, 'report') ? () => openPersonView('report') : undefined}
+              onOpenExpenses={personViewAllowed(selected, 'expenses') ? () => openPersonView('expenses') : undefined}
+              onOpenMileage={isSelfRow(selected) ? () => requestShellTab?.('okonomi', 'kjorebok') : undefined}
+              onOpenSettings={personViewAllowed(selected, 'settingsOverview') ? () => openPersonView('settingsOverview') : undefined}
+              profilePct={settingsProgress(settingsSummary(detailEmployee, { companyName, reveal: canSeeSensitive(detailEmployee, { uid, isAdmin }) })).pct}
               onOpenProject={(project) => {
                 if (!project?.id) return;
                 requestShellTab?.('projects', null, { type: 'openProject', projectId: project.id });

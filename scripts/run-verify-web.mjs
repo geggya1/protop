@@ -250,6 +250,10 @@ export const FILES = [
   'src/employees/settingsSummary.test.mjs',
   'src/employees/personSettingsRender.test.cjs',
   'src/employees/todoFocus.test.mjs',
+  // Min side og Gjøremål: hver knapp fører til riktig sted, felles farger og fliser.
+  'src/employees/ansattAreas.test.mjs',
+  'src/employees/employeeHomeRender.test.cjs',
+  'src/employees/employeeTodoRender.test.cjs',
   'src/employees/employeeAccount.test.mjs',
   'src/employees/membership.test.mjs',
   'src/project/projectAccess.test.mjs',

@@ -256,6 +256,8 @@ export function productivitySeries(ledger, mode, { today = new Date() } = {}) {
 }
 
 /** Uken vi er i: registrert arbeid mot planlagt tid (avtalt tid minus fravær). */
+const WEEK_DAY_LABELS = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn'];
+
 export function weekWork(ledger, today = new Date()) {
   const monday = mondayOf(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
   const from = toDateKey(monday);
@@ -267,11 +269,27 @@ export function weekWork(ledger, today = new Date()) {
     planned += Math.max(0, day.agreed - day.absence);
     worked += day.billable + day.other;
   }
+  // Dag for dag (man–søn), til stolpene på Min side. Hver dag kan åpnes i timelisten.
+  const todayKey = toDateKey(today);
+  const days = WEEK_DAY_LABELS.map((label, index) => {
+    const key = toDateKey(addDays(monday, index));
+    const day = ledger.get(key);
+    return {
+      key,
+      label,
+      planned: round1(day ? Math.max(0, day.agreed - day.absence) : 0),
+      worked: round1(day ? day.billable + day.other : 0),
+      absence: round1(day ? day.absence : 0),
+      today: key === todayKey,
+      future: key > todayKey,
+    };
+  });
   return {
     week: isoWeek(monday),
     planned: round1(planned),
     worked: round1(worked),
     pct: planned > 0 ? Math.round((worked / planned) * 100) : null,
+    days,
   };
 }
 

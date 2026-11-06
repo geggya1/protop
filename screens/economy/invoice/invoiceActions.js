@@ -54,8 +54,6 @@ import {
 import { invoiceWorkIds, releaseWork } from '../../../src/economy/billingWork.js';
 import { loadTimeEntriesByIds } from '../../../src/economy/timeEntryStorage.js';
 import { creditNeedsAddress, draftCustomer, withCustomerAddress, withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
-import { upsertCustomer } from '../../../src/anbud/customers.js';
-import { loadAnbudState, saveAnbudState } from '../../../src/anbud/storage';
 import {
   addCollectionStep, buildInterestInvoice, canTakeStep, checkDeadline, collectionLetter, collectionStatus, setCollectionHold,
 } from '../../../src/economy/collection.js';
@@ -129,8 +127,9 @@ export async function fillCreditAddress(ctx, invoice, sources = []) {
 /**
  * Kundens adresse fylt inn i ferdigstillingsvinduet: lagres på kunden i kunderegisteret
  * (så neste faktura har den) og i utkastet. Kunden uten treff i registeret: bare utkastet.
+ * saveCustomer(customer, patch) lagrer kunden og gir true når det gikk.
  */
-export async function saveCustomerAddress(ctx, invoice, { street = '', postalCode = '', city = '' } = {}) {
+export async function saveCustomerAddress(ctx, invoice, { street = '', postalCode = '', city = '' } = {}, { saveCustomer = null } = {}) {
   const customerAddress = {
     street: String(street).trim(),
     postalCode: String(postalCode).trim(),
@@ -142,20 +141,12 @@ export async function saveCustomerAddress(ctx, invoice, { street = '', postalCod
   }
   let registered = false;
   const customer = draftCustomer(invoice, ctx.customers || []);
-  if (customer?.id && !demo(ctx)) {
-    const loaded = await loadAnbudState(ctx.familyId);
-    const current = (loaded?.customers || []).find((row) => row.id === customer.id) || customer;
-    const result = upsertCustomer(loaded, {
-      ...current,
-      id: customer.id,
+  if (customer?.id && !demo(ctx) && typeof saveCustomer === 'function') {
+    registered = !!(await saveCustomer(customer, {
       address: customerAddress.street,
       postalCode: customerAddress.postalCode,
       place: customerAddress.city,
-    });
-    if (result.ok) {
-      await saveAnbudState(result.state, ctx.familyId);
-      registered = true;
-    }
+    }));
   }
   const result = updateDraft(invoice, { customerAddress }, { actor: ctx.actor, message: 'la inn kundens adresse' });
   if (!result.ok) throw new Error(result.error);

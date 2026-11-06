@@ -35,7 +35,8 @@ import { canSendFromPowerOffice, POWEROFFICE_GUI, powerOfficeSummary } from '../
 import { fetchPowerOfficeDocument } from '../../../src/economy/powerOfficeClient.js';
 import { accountsFrom } from '../../../src/economy/invoiceDraft.js';
 import { creditNeedsAddress, withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
-import { fillCustomerFromBrreg } from '../../../src/anbud/customers.js';
+import { fillCustomerFromBrreg, upsertCustomer } from '../../../src/anbud/customers.js';
+import { loadAnbudState, saveAnbudState } from '../../../src/anbud/storage';
 import { fetchBrregEnhet, searchBrregUnderenheter } from '../../../src/utils/boligmappaApis';
 import { Banner, Button, LinkText, money } from '../billing/ui';
 import { InvoiceHeaderEditor, InvoiceHeaderView, InvoiceTexts } from './InvoiceHeader';
@@ -91,6 +92,17 @@ async function brregAddress(orgnr) {
   }
   const row = hit ? fillCustomerFromBrreg({}, hit) : null;
   return row ? { street: row.address, postalCode: row.postalCode, city: row.place } : null;
+}
+
+/** Lagrer felt på en kunde i kunderegisteret. Gir true når det gikk. */
+async function saveRegistryCustomer(familyId, customer, patch) {
+  const loaded = await loadAnbudState(familyId);
+  const current = (loaded?.customers || []).find((row) => row.id === customer.id);
+  if (!current) return false;
+  const result = upsertCustomer(loaded, { ...current, ...patch, id: customer.id });
+  if (!result.ok) return false;
+  await saveAnbudState(result.state, familyId);
+  return true;
 }
 
 export default function InvoicePage({
@@ -647,7 +659,9 @@ export default function InvoicePage({
           ? finalizeAndSend(options)
           : run('send', () => actions.send(ctx, invoice, options)))}
         onSaveAddress={editable ? async (address) => {
-          const done = await actions.saveCustomerAddress(ctx, invoice, address);
+          const done = await actions.saveCustomerAddress(ctx, invoice, address, {
+            saveCustomer: (customer, patch) => saveRegistryCustomer(familyId, customer, patch),
+          });
           onChanged?.(done.invoice);
           showSaveToast(done.message);
         } : null}

@@ -318,3 +318,24 @@ import {
   assert.deepEqual(runs[1].weeks.map((week) => week.key), ['2026-09-21']);
   assert.equal(runs[1].startIndex, 3);
 }
+
+{
+  // Et prosjekt lagt til i belegget blir stående når reservasjonen fjernes.
+  const plan = await import('./plan.js');
+  const projects = [
+    { id: 'p1', name: 'Alpha', number: '100' },
+    { id: 'p2', name: 'Beta', number: '200' },
+  ];
+  let state = plan.addPlanRow(plan.emptyPlan(), 'a', 'p1');
+  state = plan.addPlanRow(state, 'a', 'p1');
+  assert.equal(state.rows.length, 1);
+  assert.equal(state.allocations.length, 0, 'ingen automatisk reservasjon');
+  assert.equal(plan.planHasData(state), true);
+  assert.deepEqual(plan.normalizePlan(JSON.parse(JSON.stringify(state))).rows, [{ employeeId: 'a', projectId: 'p1' }]);
+  const rows = plan.planningRows({ projects, allocations: [], employeeId: 'a', pinned: state.rows });
+  assert.deepEqual(rows.map((row) => row.projectId), ['p1']);
+  // Andres rader og prosjekter som ikke er aktive, vises ikke.
+  const other = plan.addPlanRow(plan.addPlanRow(state, 'b', 'p2'), 'a', 'gone');
+  assert.deepEqual(plan.planningRows({ projects, employeeId: 'a', pinned: other.rows }).map((row) => row.projectId), ['p1']);
+  assert.equal(plan.removePlanRow(state, 'a', 'p1').rows.length, 0);
+}

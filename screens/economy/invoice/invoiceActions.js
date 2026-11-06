@@ -53,7 +53,7 @@ import {
 } from '../../../src/economy/invoiceDelivery.js';
 import { invoiceWorkIds, releaseWork } from '../../../src/economy/billingWork.js';
 import { loadTimeEntriesByIds } from '../../../src/economy/timeEntryStorage.js';
-import { withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
+import { creditNeedsAddress, draftCustomer, withCustomerAddress, withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
 import {
   addCollectionStep, buildInterestInvoice, canTakeStep, checkDeadline, collectionLetter, collectionStatus, setCollectionHold,
 } from '../../../src/economy/collection.js';
@@ -98,6 +98,63 @@ async function fullInvoice(ctx, row) {
 function originalOf(ctx, invoice) {
   if (!isCreditNote(invoice)) return null;
   return (ctx.invoices || []).find((row) => row.id === invoice.creditNoteForId) || null;
+}
+
+/**
+ * Kreditnota uten kjøpers adresse (fakturaen som krediteres og kunderegisteret mangler den):
+ * adressen hentes fra kilde etter kilde og lagres på utkastet. Hver kilde er
+ * { label, find: async (invoice) => { street, postalCode, city, country } | null }.
+ * Gir det lagrede utkastet, eller null.
+ */
+export async function fillCreditAddress(ctx, invoice, sources = []) {
+  if (!creditNeedsAddress(invoice)) return null;
+  for (const source of sources) {
+    let found = null;
+    try {
+      found = await source.find(invoice);
+    } catch {
+      found = null;
+    }
+    const next = found ? withCustomerAddress(invoice, found) : null;
+    if (!next) continue;
+    const addr = next.customerAddress;
+    const line = [addr.street, [addr.postalCode, addr.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    return save(ctx, withEvent(next, { type: 'edit', text: `hentet kundens adresse fra ${source.label} (${line})`, actor: ctx.actor }));
+  }
+  return null;
+}
+
+/**
+ * Kundens adresse fylt inn i ferdigstillingsvinduet: lagres på kunden i kunderegisteret
+ * (så neste faktura har den) og i utkastet. Kunden uten treff i registeret: bare utkastet.
+ * saveCustomer(customer, patch) lagrer kunden og gir true når det gikk.
+ */
+export async function saveCustomerAddress(ctx, invoice, { street = '', postalCode = '', city = '' } = {}, { saveCustomer = null } = {}) {
+  const customerAddress = {
+    street: String(street).trim(),
+    postalCode: String(postalCode).trim(),
+    city: String(city).trim(),
+    country: invoice?.customerAddress?.country || 'NO',
+  };
+  if (!customerAddress.street || !(customerAddress.postalCode || customerAddress.city)) {
+    throw new Error('Skriv inn gate og postnummer eller sted.');
+  }
+  let registered = false;
+  const customer = draftCustomer(invoice, ctx.customers || []);
+  if (customer?.id && !demo(ctx) && typeof saveCustomer === 'function') {
+    registered = !!(await saveCustomer(customer, {
+      address: customerAddress.street,
+      postalCode: customerAddress.postalCode,
+      place: customerAddress.city,
+    }));
+  }
+  const result = updateDraft(invoice, { customerAddress }, { actor: ctx.actor, message: 'la inn kundens adresse' });
+  if (!result.ok) throw new Error(result.error);
+  const saved = result.changed ? await save(ctx, result.invoice) : invoice;
+  return {
+    invoice: saved,
+    message: registered ? 'Adressen er lagret på kunden og i utkastet.' : 'Adressen er lagret i utkastet.',
+  };
 }
 
 /** Lagrer endringer i utkastet. Linjer fra grunnlaget som fjernes, frigjøres. */

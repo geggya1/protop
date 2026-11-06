@@ -93,6 +93,26 @@ function withRegistryAddress(invoice, customers, project) {
   return { ...invoice, customerAddress: fresh };
 }
 
+/** Kreditnotautkast som fortsatt mangler kjøpers adresse etter kunderegisteret. */
+export function creditNeedsAddress(invoice) {
+  return !!invoice && isEditableDraft(invoice) && isCreditNote(invoice) && !hasAddress(invoice.customerAddress);
+}
+
+/**
+ * Adressen { street, postalCode, city, country } lagt inn på kreditnotautkastet.
+ * null når adressen ikke har gate og postnummer eller sted.
+ */
+export function withCustomerAddress(invoice, found) {
+  const next = address({
+    street: found?.street,
+    postalCode: found?.postalCode,
+    city: found?.city,
+    country: found?.country || invoice?.customerAddress?.country,
+  });
+  if (!hasAddress(next)) return null;
+  return { ...invoice, customerAddress: next };
+}
+
 /**
  * Utkastet med kunden slik den står i registeret nå. Ferdigstilte fakturaer, kreditnotaer
  * og utkast uten treff i registeret gis tilbake uendret (samme objekt).

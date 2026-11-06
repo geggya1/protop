@@ -191,6 +191,43 @@ export function initialRecipients(invoice, settings) {
  * Ferdigstill og send (mode 'finalize') eller send en ferdigstilt faktura (mode 'send').
  * peppol: { loading, connected, receiver: { found, invoice } }
  */
+/** Kundens adresse rett i ferdigstillingsvinduet, så den kan legges inn uten å bytte side. */
+function AddressForm({ invoice, colors, onSave }) {
+  const start = invoice?.customerAddress || {};
+  const [street, setStreet] = useState(start.street || '');
+  const [postalCode, setPostalCode] = useState(start.postalCode || '');
+  const [city, setCity] = useState(start.city || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const ready = !!street.trim() && !!(postalCode.trim() || city.trim());
+  async function save() {
+    setSaving(true);
+    setError('');
+    try {
+      await onSave({ street, postalCode, city });
+    } catch (cause) {
+      setError(String(cause?.message || cause || 'Kunne ikke lagre adressen.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <View style={{ gap: 8, marginTop: 10 }} nativeID="invoice-address-form">
+      <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }}>Legg inn adressen nå</Text>
+      <Field label="Gate" value={street} onChangeText={setStreet} colors={colors} nativeID="invoice-address-street" />
+      <View style={styles.dates}>
+        <Field label="Postnummer" value={postalCode} onChangeText={setPostalCode} colors={colors} keyboardType="number-pad" width={120} nativeID="invoice-address-zip" />
+        <Field label="Sted" value={city} onChangeText={setCity} colors={colors} grow nativeID="invoice-address-city" />
+      </View>
+      {error ? <Text style={{ color: colors.dangerInk || colors.danger, fontSize: 12 }}>{error}</Text> : null}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <Button label="Lagre adressen" colors={colors} busy={saving} disabled={!ready || saving} onPress={save} nativeID="invoice-address-save" />
+        <Text style={{ color: colors.muted, fontSize: 12, flexShrink: 1 }}>Lagres på kunden og i utkastet.</Text>
+      </View>
+    </View>
+  );
+}
+
 export function SendDialog({
   visible,
   invoice,
@@ -205,6 +242,7 @@ export function SendDialog({
   busy = false,
   onCancel,
   onConfirm,
+  onSaveAddress = null,
 }) {
   const credit = isCreditNote(invoice);
   const [send, setSend] = useState(true);
@@ -335,6 +373,9 @@ export function SendDialog({
               <View style={{ gap: 2 }}>
                 {blocking.map((row) => <Text key={row.id} style={{ color: colors.ink, fontSize: 13 }}>{`• ${row.text}`}</Text>)}
               </View>
+              {onSaveAddress && blocking.some((row) => row.id === 'address') ? (
+                <AddressForm invoice={invoice} colors={colors} onSave={onSaveAddress} />
+              ) : null}
             </Banner>
           ) : null}
           {warnings.length ? (

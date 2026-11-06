@@ -34,7 +34,10 @@ import {
 import { canSendFromPowerOffice, POWEROFFICE_GUI, powerOfficeSummary } from '../../../src/economy/powerOfficeView.js';
 import { fetchPowerOfficeDocument } from '../../../src/economy/powerOfficeClient.js';
 import { accountsFrom } from '../../../src/economy/invoiceDraft.js';
-import { withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
+import { creditNeedsAddress, withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
+import { fillCustomerFromBrreg, upsertCustomer } from '../../../src/anbud/customers.js';
+import { loadAnbudState, saveAnbudState } from '../../../src/anbud/storage';
+import { fetchBrregEnhet, searchBrregUnderenheter } from '../../../src/utils/boligmappaApis';
 import { Banner, Button, LinkText, money } from '../billing/ui';
 import { InvoiceHeaderEditor, InvoiceHeaderView, InvoiceTexts } from './InvoiceHeader';
 import { InvoiceLinesView, InvoiceTotalsView } from './InvoiceLinesView';
@@ -68,6 +71,38 @@ function titleOf(invoice) {
   const credit = isCreditNote(invoice);
   if (isDraftInvoice(invoice)) return credit ? 'Kreditnotautkast' : 'Fakturautkast';
   return `${credit ? 'Kreditnota' : 'Faktura'} #${invoice.invoiceNumber || '—'}`;
+}
+
+/** Adressen til en virksomhet i Brønnøysund: hovedenhet, ellers underenhet. Slettede har ingen. */
+async function brregAddress(orgnr) {
+  const id = String(orgnr || '').replace(/\D/g, '');
+  if (id.length !== 9) return null;
+  let hit = null;
+  try {
+    hit = await fetchBrregEnhet(id);
+  } catch {
+    hit = null;
+  }
+  if (!hit?.organisasjonsnummer) {
+    try {
+      hit = (await searchBrregUnderenheter(id, { size: 1 })).results?.[0] || null;
+    } catch {
+      hit = null;
+    }
+  }
+  const row = hit ? fillCustomerFromBrreg({}, hit) : null;
+  return row ? { street: row.address, postalCode: row.postalCode, city: row.place } : null;
+}
+
+/** Lagrer felt på en kunde i kunderegisteret. Gir true når det gikk. */
+async function saveRegistryCustomer(familyId, customer, patch) {
+  const loaded = await loadAnbudState(familyId);
+  const current = (loaded?.customers || []).find((row) => row.id === customer.id);
+  if (!current) return false;
+  const result = upsertCustomer(loaded, { ...current, ...patch, id: customer.id });
+  if (!result.ok) return false;
+  await saveAnbudState(result.state, familyId);
+  return true;
 }
 
 export default function InvoicePage({
@@ -150,6 +185,24 @@ export default function InvoicePage({
     mode,
     companyName: companyName || supplier.name,
   }), [familyId, store, supplier, logo, settings, chart, actor, allInvoices, customers, contracts, mode, companyName]);
+
+  // Kreditnota uten kjøpers adresse (fakturaen som krediteres og kunden i registeret mangler den):
+  // adressen hentes fra Brønnøysund og lagres på utkastet. Én gang per utkast. Finnes den ikke
+  // der, fylles den inn i ferdigstillingsvinduet. PowerOffice er ikke kilde for kundedata.
+  const brregTried = useRef('');
+  const needsAddress = canManage && !!familyId && familyId !== '__demo__' && creditNeedsAddress(invoice);
+  useEffect(() => {
+    const key = needsAddress ? String(invoice?.id || '') : '';
+    if (!key || brregTried.current === key) return undefined;
+    brregTried.current = key;
+    const sources = [{ label: 'Brønnøysund', find: async (row) => brregAddress(row.orgnr) }];
+    let live = true;
+    actions.fillCreditAddress(ctx, invoice, sources).then((saved) => {
+      if (live && saved) onChanged?.(saved);
+    }).catch(() => {});
+    return () => { live = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsAddress, invoice?.id]);
 
   const checks = useMemo(() => (isDraftInvoice(shown)
     ? issueChecks(shown, { supplier, settings, mode, indexWarning })
@@ -605,6 +658,13 @@ export default function InvoicePage({
         onConfirm={(options) => (dialog === 'finalize'
           ? finalizeAndSend(options)
           : run('send', () => actions.send(ctx, invoice, options)))}
+        onSaveAddress={editable ? async (address) => {
+          const done = await actions.saveCustomerAddress(ctx, invoice, address, {
+            saveCustomer: (customer, patch) => saveRegistryCustomer(familyId, customer, patch),
+          });
+          onChanged?.(done.invoice);
+          showSaveToast(done.message);
+        } : null}
       />
       <CreditDialog
         visible={dialog === 'credit'}

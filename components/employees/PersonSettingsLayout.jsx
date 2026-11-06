@@ -17,12 +17,17 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { useBreakpoints } from '../../src/theme';
 import { SETTINGS_GROUPS } from '../../src/employees/personTabs.js';
+import { BREAKPOINTS } from '../../src/ui/layout';
 import { elevation, radius, space, type } from '../../src/ui/tokens';
 import SettingsCard from './SettingsCard.jsx';
 
 const lift = Platform.OS === 'web' ? elevation[1].web : elevation[1].native;
 
 export const OVERVIEW_ID = 'settingsOverview';
+
+// Kolonner i oversikten etter bredden på innholdet (ikke vinduet), fra de felles brytepunktene.
+const TWO_COLS = Math.round(BREAKPOINTS.tablet * 0.8);
+const FOUR_COLS = BREAKPOINTS.wide + 220;
 
 export { SettingsCard };
 
@@ -285,7 +290,7 @@ function OverviewGroups({
   const loose = sections.filter((row) => row.id !== OVERVIEW_ID && !SETTINGS_GROUPS.some((g) => g.id === row.group));
   if (loose.length) groups.push({ id: 'other', label: 'Annet', icon: 'ellipsis-horizontal', items: loose });
   // Kolonner etter bredden på innholdet: 1 på mobil, opptil 4 på brede skjermer.
-  const cols = width >= 1500 ? 4 : width >= 1050 ? 3 : width >= 620 ? 2 : 1;
+  const cols = width >= FOUR_COLS ? 4 : width >= BREAKPOINTS.desktop ? 3 : width >= TWO_COLS ? 2 : 1;
   const basis = cols === 1 ? '100%' : `${(100 / cols) - 2}%`;
   return (
     <View nativeID="employee-settings-overview" style={styles.groups}>
@@ -392,7 +397,7 @@ export default function PersonSettingsLayout({
 
   const overviewBody = (
     <View style={styles.overviewStack}>
-      <Hero person={person || {}} progress={progress} colors={colors} compact={isPhone || (!!width && width < 620)} />
+      <Hero person={person || {}} progress={progress} colors={colors} compact={isPhone || (!!width && width < TWO_COLS)} />
       <MissingPanel progress={progress} sections={cards} colors={colors} onSelect={onSelect} />
       <OverviewGroups
         sections={cards}

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { settingsSummary, weeklyScheduleHours } from './settingsSummary.js';
+import { settingsProgress, settingsSummary, weeklyScheduleHours } from './settingsSummary.js';
 import { EMPLOYEE_SUB_TABS } from './personTabs.js';
 
 const employee = {
@@ -46,5 +46,20 @@ const empty = settingsSummary({ id: 'x', person: {}, company: {} }, { todayKey: 
 assert.equal(empty.settingsProfile[0].missing, true);
 assert.equal(empty.settingsProfile[0].value, 'Ikke registrert');
 assert.equal(empty.settingsWork[0].value, 'Følger stillingsprosenten');
+
+// Utfyllingsgraden: de fire seksjonene om personen teller, det som mangler listes med seksjonen sin.
+{
+  const progress = settingsProgress({
+    settingsProfile: [{ label: 'Stilling', missing: false }, { label: 'Telefon', missing: true }],
+    settingsPersonal: [{ label: 'Adresse', missing: false }],
+    settingsWork: [{ label: 'Tidsplan', missing: true }],
+  });
+  assert.equal(progress.total, 3);
+  assert.equal(progress.filled, 2);
+  assert.equal(progress.pct, 67);
+  assert.deepEqual(progress.missing, [{ section: 'settingsProfile', label: 'Telefon' }]);
+  assert.deepEqual(progress.bySection.settingsWork, { filled: 0, total: 1 });
+  assert.equal(settingsProgress({}).pct, 100);
+}
 
 console.log('settingsSummary.test.mjs: ok');

@@ -105,7 +105,7 @@ import {
 } from '../../src/employees/storage';
 import EmployeeCvView from './EmployeeCvView';
 import { useShellDetail } from '../../src/navigation/shellDetail';
-import { ansattSelfView } from '../../src/navigation/shellModules';
+import { ANSATT_SELF_VIEWS, ansattSelfView } from '../../src/navigation/shellModules';
 import { DetailMissing } from '../../src/ui/BackLink';
 import EmployeePersonChrome from './EmployeePersonChrome';
 import EmployeeWorkViews from './EmployeeWorkViews';
@@ -120,7 +120,7 @@ import EmployeeTodo from './EmployeeTodo';
 import EmployeeHome, { EmployeeAbsenceSummary, EmployeeProductivity, EmployeeShortcuts } from './EmployeeHome';
 import PersonSettingsLayout from '../../components/employees/PersonSettingsLayout';
 import FamilyCard from '../../components/employees/FamilyCard';
-import { settingsSummary } from '../../src/employees/settingsSummary';
+import { settingsProgress, settingsSummary } from '../../src/employees/settingsSummary';
 import { kinMissing } from '../../src/hr/kinReminder';
 import { hrKindBucket } from '../../src/hr/directory';
 import { closeKinTask } from '../../src/hr/kinTasks';
@@ -162,6 +162,11 @@ const READER_PERSON_VIEWS = new Set(['detail']);
 const EDITOR_PERSON_VIEWS = new Set(['detail', 'overview', 'hours', 'report', 'absence']);
 // Egen profil med begrenset redigering: holde egen profil oppdatert. Inntjening og Innstillinger krever Admin.
 const SELF_EDITOR_VIEWS = new Set(['detail', 'hours', 'report', 'saldo', 'absence', 'overview', 'files', 'expenses', 'cv']);
+
+/** view-id → egen side under Bedrift › Ansatt (ansatte/min-side …). */
+const SELF_PAGE_FOR_VIEW = Object.fromEntries(
+  Object.entries(ANSATT_SELF_VIEWS).map(([page, viewId]) => [viewId, page]),
+);
 
 export default function EmployeesScreen({ subView = null } = {}) {
   // Bedrift › Ansatt: egen side (Min side, Gjøremål, Fravær, Utlegg). Null = ansattregisteret.
@@ -239,6 +244,8 @@ export default function EmployeesScreen({ subView = null } = {}) {
   const [profileOpen, setProfileOpen] = useState(false);
   // Familievinduet fra Gjøremål (pårørende og barn), og nøkkel som henter barna på nytt etter lagring.
   const [familyOpen, setFamilyOpen] = useState(false);
+  // Gjøremålet siden skal rulle til (fra Min side eller et varsel): { target, n }.
+  const [todoFocus, setTodoFocus] = useState(null);
   const [familyKey, setFamilyKey] = useState(0);
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(() => new Set());
@@ -952,6 +959,12 @@ export default function EmployeesScreen({ subView = null } = {}) {
       clearShellIntent?.();
       return;
     }
+    // Fra Min side: Ansatt › Gjøremål, rullet til gjøremålet som ble trykket på.
+    if (shellIntent.type === 'todoFocus') {
+      setTodoFocus({ target: String(shellIntent.target || ''), n: Date.now() });
+      clearShellIntent?.();
+      return;
+    }
     // Varsel om medarbeiderundersøkelsen: Min side, der skjemaet står.
     if (shellIntent.type === 'mySurvey') {
       pendingMineSurvey.current = true;
@@ -1020,6 +1033,12 @@ export default function EmployeesScreen({ subView = null } = {}) {
   function openPersonView(requested) {
     const nextView = normalizePersonView(requested);
     if (!selected || !personViewAllowed(selected, nextView)) return;
+    // Egne sider under Bedrift › Ansatt har egen meny-rad: gå dit, så menyen og adressen følger.
+    const ownPage = selfRoute && isSelfRow(selected) ? SELF_PAGE_FOR_VIEW[nextView] : '';
+    if (ownPage && ownPage !== subView) {
+      requestShellTab?.('ansatte', ownPage);
+      return;
+    }
     if (nextView === 'detail') {
       openDetail(selected);
       return;
@@ -1033,6 +1052,18 @@ export default function EmployeesScreen({ subView = null } = {}) {
       return;
     }
     openWork(selected, nextView);
+  }
+
+  /** Gjøremål, rullet til et punkt (src/employees/todoFocus.js). */
+  function openTodo(target = '') {
+    if (!selected) return;
+    const ownPage = selfRoute && isSelfRow(selected) ? SELF_PAGE_FOR_VIEW.todo : '';
+    if (ownPage && ownPage !== subView) {
+      requestShellTab?.('ansatte', ownPage, target ? { type: 'todoFocus', target } : null);
+      return;
+    }
+    setTodoFocus(target ? { target, n: Date.now() } : null);
+    if (view !== 'todo') openPersonView('todo');
   }
 
   function openPersonTab(tabId) {
@@ -1760,6 +1791,26 @@ export default function EmployeesScreen({ subView = null } = {}) {
   const personEmployee = (view === 'detail' || view === 'todo' || settingsView || view === 'cv') && draft && draft.id === selectedId
     ? draft
     : selected;
+  // Innstillinger: linjene per seksjon, og båndet med bilde, rolle og status i oversikten.
+  const settingsSummaryRows = settingsView && personEmployee
+    ? settingsSummary(personEmployee, { companyName, reveal: canSeeSensitive(personEmployee, { uid, isAdmin }) })
+    : {};
+  const settingsPerson = settingsView && personEmployee ? (() => {
+    const state = employmentState(personEmployee);
+    const percent = Number(personEmployee.company?.workPercent);
+    const chips = [
+      { label: { active: 'Aktiv', leave: 'Permisjon', inactive: 'Deaktivert', ended: 'Sluttet', deleted: 'I papirkurven' }[state] || 'Aktiv', icon: 'ellipse', color: state === 'active' || !state ? colors.success : colors.warn },
+      Number.isFinite(percent) && percent > 0 ? { label: `${percent} % stilling`, icon: 'pie-chart-outline', color: colors.brand } : null,
+      companyName ? { label: companyName, icon: 'business-outline', color: colors.accent } : null,
+      settingsSummaryRows.settings?.[0] ? { label: settingsSummaryRows.settings[0].value, icon: 'person-circle-outline', color: '#475569' } : null,
+    ].filter(Boolean);
+    return {
+      initials: initials(personEmployee),
+      role: [personEmployee.company?.title, personEmployee.company?.projectRole].map((v) => String(v || '').trim()).filter(Boolean).join(' · '),
+      photo: personEmployee.person?.photoUrl ? <StorageImage uri={personEmployee.person.photoUrl} style={styles.settingsPhoto} /> : null,
+      chips,
+    };
+  })() : null;
 
   useEffect(() => { setProfileOpen(false); setFamilyOpen(false); }, [selectedId, view]);
 
@@ -2129,6 +2180,7 @@ export default function EmployeesScreen({ subView = null } = {}) {
               canEdit={canSeeTodo(selected)}
               onOpenMine={isSelfRow(selected) ? openMine : null}
               onOpenKin={isAdmin || (isSelfRow(selected) && ownLevel !== 'reader') ? () => setFamilyOpen(true) : null}
+              focus={todoFocus}
               aside={(
                 <>
                   <FamilyCard
@@ -2235,7 +2287,9 @@ export default function EmployeesScreen({ subView = null } = {}) {
               active={view}
               onSelect={openPersonView}
               colors={colors}
-              summary={settingsSummary(personEmployee, { companyName, reveal: canSeeSensitive(personEmployee, { uid, isAdmin }) })}
+              summary={settingsSummaryRows}
+              progress={settingsProgress(settingsSummaryRows)}
+              person={settingsPerson}
             >
           {view === 'settingsProfile' || view === 'settingsPersonal' || view === 'settingsKin' ? (
             <EmployeeDetailView
@@ -2436,9 +2490,10 @@ export default function EmployeesScreen({ subView = null } = {}) {
               naeringskode={family?.company?.naeringskode || ''}
               shortcuts={homeShortcuts}
               onEditProfile={() => setProfileOpen(true)}
-              onOpenTodo={() => openPersonView('todo')}
+              onOpenTodo={(target) => openTodo(typeof target === 'string' ? target : '')}
               onOpenAbsence={personViewAllowed(selected, 'absence') ? () => openPersonView('absence') : undefined}
               onOpenHours={personViewAllowed(selected, 'hours') ? () => openPersonView('hours') : undefined}
+              onOpenReport={personViewAllowed(selected, 'report') ? () => openPersonView('report') : undefined}
               onOpenProject={(project) => {
                 if (!project?.id) return;
                 requestShellTab?.('projects', null, { type: 'openProject', projectId: project.id });
@@ -2756,7 +2811,10 @@ export default function EmployeesScreen({ subView = null } = {}) {
               companyId={familyId}
               employee={mineTodoEmployee}
               naeringskode={family?.company?.naeringskode || ''}
-              onOpenTodo={() => openWork(mineTodoEmployee, 'todo')}
+              onOpenTodo={(target) => {
+                setTodoFocus(typeof target === 'string' && target ? { target, n: Date.now() } : null);
+                openWork(mineTodoEmployee, 'todo');
+              }}
             />
           ) : null}
           {view === 'mine' && mineHrEmployeeId ? (
@@ -2998,8 +3056,10 @@ const styles = StyleSheet.create({
   },
   personFill: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', alignSelf: 'stretch' },
   inner: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 1080, width: '100%', alignSelf: 'flex-start' },
-  innerWide: { maxWidth: 1220 },
-  innerHome: { maxWidth: 1640 },
+  // Personsidene bruker hele bredden; kortene og kolonnene tilpasser seg (onLayout).
+  innerWide: { maxWidth: '100%', alignSelf: 'stretch' },
+  innerHome: { maxWidth: '100%' },
+  settingsPhoto: { width: '100%', height: '100%' },
   profileSheet: { zIndex: 1, width: '100%', maxWidth: 860, maxHeight: '92%', borderRadius: radius.sheet, borderWidth: 1, overflow: 'hidden' },
   familySheet: { maxWidth: 640 },
   profileSheetPhone: { maxHeight: '100%', height: '100%', borderRadius: 0 },

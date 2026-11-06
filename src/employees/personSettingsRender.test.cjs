@@ -49,6 +49,7 @@ function load(full) {
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
     if (id === '@expo/vector-icons') return { Ionicons: host('Ionicons') };
+    if (id === 'react-native-svg') return { __esModule: true, default: host('Svg'), Circle: host('Circle') };
     if (id.endsWith('src/theme')) return { useBreakpoints: () => ({ isPhone: phone, isDesktop: !phone }) };
     if (id.includes('childCareStorage')) return { loadChildCare: async () => ({ kids: [] }) };
     if (id.includes('employees/model')) {
@@ -155,6 +156,21 @@ assert.match(view.text, /Innstillinger/);
 assert.match(view.text, /Prosjektleder/);
 assert.match(view.text, /37,5 t per uke/);
 assert.match(view.text, /Tilgang og rettigheter/);
+// Gruppene, båndet med utfyllingsgraden og «Gjør profilen komplett» med knapp per felt som mangler.
+const progress = {
+  pct: 50, filled: 1, total: 2, missing: [{ section: 'settingsProfile', label: 'Telefon' }],
+  bySection: { settingsProfile: { filled: 1, total: 2 } },
+};
+view = render(React.createElement(Layout, {
+  sections, active: 'settingsOverview', colors, summary, progress, person: { initials: 'AN', role: 'Prosjektleder', chips: [{ label: 'Aktiv', icon: 'ellipse' }] },
+}));
+assert.ok(view.ids.has('employee-settings-hero'));
+assert.match(view.text, /Profilen er 50 % utfylt/);
+assert.ok(view.ids.has('employee-settings-missing'));
+assert.ok(view.ids.has('employee-settings-missing-settingsProfile-Telefon'));
+for (const group of ['me', 'work', 'system']) assert.ok(view.ids.has(`employee-settings-group-${group}`), group);
+assert.match(view.text, /Om meg/);
+assert.match(view.text, /1 mangler/);
 
 // En seksjon: overskrift og forklaring, innholdet under, ingen kort-oversikt.
 view = render(React.createElement(Layout, { sections, active: 'settingsWork', colors, summary }, React.createElement('Text', null, 'UKEPLAN-INNHOLD')));
@@ -163,6 +179,10 @@ assert.match(view.text, /Ukeplan og perioder/);
 assert.match(view.text, /UKEPLAN-INNHOLD/);
 assert.equal(view.ids.has('employee-settings-overview'), false);
 assert.ok(view.ids.has('employee-settings-nav'));
+// Seksjonen har fargebånd og forrige/neste.
+assert.ok(view.ids.has('employee-settings-header'));
+assert.ok(view.ids.has('employee-settings-prev'));
+assert.ok(view.ids.has('employee-settings-next'));
 
 // Mobil: oversikten er menyen. En seksjon har «Alle innstillinger» tilbake, ingen meny ved siden av.
 phone = true;

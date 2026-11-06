@@ -15,7 +15,6 @@ import { useBottomChromeInset } from '../../src/utils/useBottomChromeInset';
 import WidgetBoard from '../home/WidgetBoard';
 import CompanyOfferCard from '../home/CompanyOfferCard';
 import CompanyStartChecklist from '../home/CompanyStartChecklist';
-import CompanyQuickReport from '../home/CompanyQuickReport';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { useCompanyModules } from '../../src/access/useCompanyModules';
 import { openNotifications } from '../../src/navigation/openNotifications';
@@ -91,7 +90,6 @@ export default function ParentHomeThemeHost({
     mileageCompanyId: mileageCompany?.id || '',
     mileageCompanyName: mileageCompany ? companyDisplayName(mileageCompany, 'Bedrift') : '',
   }), [model, board, familyId, weekCounts, isoActive, mileageActive, anbudActive, absenceActive, mileageCompany]);
-  const hasQuickActions = (home.layout?.widgets || []).some((w) => w.type === 'quickActions');
   const [editing, setEditing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [setupEdit, setSetupEdit] = useState(false);
@@ -180,7 +178,6 @@ export default function ParentHomeThemeHost({
             <>
               <CompanyOfferCard style={styles.startCard} />
               <CompanyStartChecklist style={styles.startCard} />
-              {hasQuickActions ? null : <CompanyQuickReport style={styles.startCard} />}
             </>
           )}
         />

@@ -85,6 +85,28 @@ test('ferdigstilte fakturaer og kreditnotaer er øyeblikksbilder', () => {
   assert.equal(withRegistryCustomer(credit, [after]), credit);
 });
 
+test('kreditnota uten adresse henter bare adressen fra kunderegisteret', async () => {
+  const { issueChecks } = await import('./invoiceFlow.js');
+  const draft = draftFor(before);
+  const credit = {
+    ...draft,
+    kind: 'credit_note',
+    creditNoteForId: 'inv_1',
+    creditNoteForNumber: '10000',
+    customerAddress: { street: '', postalCode: '', city: '', country: 'NO' },
+    lines: draft.lines.map((line) => ({ ...line, quantity: -Math.abs(line.quantity || 1) })),
+  };
+  const shown = withRegistryCustomer(credit, [after]);
+  assert.equal(shown.customerAddress.street, 'Nyveien 2');
+  assert.equal(shown.customerAddress.postalCode, '4020');
+  assert.equal(shown.customerName, credit.customerName, 'navnet følger fakturaen som krediteres');
+  assert.equal(withRegistryCustomer(credit, [{ ...after, address: '', postalCode: '', place: '' }]).customerAddress.street, '');
+  // Kreditnotaen utstedes av ProTop også med PowerOffice koblet: manglende adresse stopper i kontrollen.
+  const checks = issueChecks(credit, { mode: 'poweroffice' });
+  assert.ok(checks.blocking.some((row) => row.id === 'address'));
+  assert.ok(!issueChecks(shown, { mode: 'poweroffice' }).blocking.some((row) => row.id === 'address'));
+});
+
 test('ferdigstilling kopierer kunden fra registeret slik den er nå', async () => {
   const draft = draftFor(before);
   const saved = [];

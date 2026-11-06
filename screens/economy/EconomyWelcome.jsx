@@ -7,23 +7,9 @@ import { EconomyTile } from '../../components/economy/EconomyGrid';
 import AccountHistoryCard from '../../components/project/AccountHistoryCard';
 import { useAccountHistory } from '../../components/project/useAccountHistory';
 import { mergeAccountYears } from '../../src/project/accountSeries';
-import {
-  fetchPublicCompany,
-  nbDate,
-  storedCompanyProfile,
-} from '../../src/project/companyPublic';
+import { fetchPublicCompany, storedCompanyProfile } from '../../src/project/companyPublic';
 import { companyLogoOf } from '../../src/project/companyLogo';
 import { radius } from '../../src/ui/tokens';
-
-function Fact({ label, value, colors }) {
-  if (!value) return null;
-  return (
-    <View style={styles.fact}>
-      <Text style={[styles.factLabel, { color: colors.muted }]}>{label}</Text>
-      <Text style={[styles.factValue, { color: colors.ink }]}>{value}</Text>
-    </View>
-  );
-}
 
 export default function EconomyWelcome({ stored, familyId }) {
   const colors = useColors();
@@ -76,31 +62,6 @@ export default function EconomyWelcome({ stored, familyId }) {
       </View>
 
       <InvoicedStatement familyId={familyId}>
-        <EconomyTile label="Om bedriften">
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
-            <Text style={[styles.cardTitle, { color: colors.ink }]}>Om bedriften</Text>
-            <Text style={[styles.body, { color: colors.ink }]}>
-              {[profile?.organisasjonsnummer, profile?.organisasjonsform].filter(Boolean).join(' · ') || 'Bedriften er ikke koblet mot Enhetsregisteret ennå.'}
-            </Text>
-            {live?.parent?.navn ? (
-              <Text style={[styles.body, { color: colors.muted }]}>
-                Overordnet enhet: {[live.parent.navn, live.parent.organisasjonsnummer].filter(Boolean).join(' · ')}
-              </Text>
-            ) : null}
-            {profile?.formaal?.length ? (
-              <Text style={[styles.body, { color: colors.ink }]}>{profile.formaal.join(' ')}</Text>
-            ) : null}
-            <View style={styles.factGrid}>
-              <Fact label="Stiftet" value={nbDate(profile?.stiftelsesdato)} colors={colors} />
-              <Fact label="Oppstart" value={profile?.stiftelsesdato ? '' : nbDate(profile?.oppstart)} colors={colors} />
-              <Fact label="Ansatte" value={profile?.ansatte != null ? String(profile.ansatte) : ''} colors={colors} />
-              <Fact label="Siste årsregnskap" value={profile?.sisteRegnskap} colors={colors} />
-              <Fact label="Telefon" value={profile?.telefon || stored?.telefon} colors={colors} />
-              <Fact label="E-post" value={profile?.epostadresse || stored?.epostadresse} colors={colors} />
-              <Fact label="Hjemmeside" value={profile?.hjemmeside} colors={colors} />
-            </View>
-          </View>
-        </EconomyTile>
         {accountView ? (
           <EconomyTile label="Regnskap og nøkkeltall">
             <View nativeID="economy-accounts" id="economy-accounts" style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
@@ -133,10 +94,4 @@ const styles = StyleSheet.create({
   },
   companyLogo: { width: 148, height: 56 },
   card: { flexGrow: 1, borderWidth: 1, borderRadius: radius.sheet, padding: 14, gap: 8, ...webShadow },
-  cardTitle: { fontSize: 16, fontWeight: '600', paddingRight: 36 },
-  body: { fontSize: 15, lineHeight: 21 },
-  factGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  fact: { minWidth: 140, flexGrow: 1, gap: 2 },
-  factLabel: { fontSize: 12 },
-  factValue: { fontSize: 14, lineHeight: 19 },
 });

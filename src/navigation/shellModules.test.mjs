@@ -411,6 +411,8 @@ assert.equal(desktopLanding.includes('Regnskap og nøkkeltall'), false);
 const economyWelcome = readFileSync(new URL('../../screens/economy/EconomyWelcome.jsx', import.meta.url), 'utf8');
 assert.match(economyWelcome, /AccountHistoryCard/);
 assert.match(economyWelcome, /nativeID="economy-accounts"/);
+// «Om bedriften» står ikke i økonomioversikten; regnskapet tar plassen i rutenettet.
+assert.doesNotMatch(economyWelcome, /Om bedriften/);
 
 const unitsScreen = readFileSync(new URL('../../screens/project/CompanyUnitsScreen.jsx', import.meta.url), 'utf8');
 assert.match(unitsScreen, /Underenheter/);

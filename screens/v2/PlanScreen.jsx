@@ -22,15 +22,8 @@ import { fetchExternalCalendarEvents, listCalendarConnections, hydrateExternalCa
 import { peekCalendarConnectionsCache } from '../../src/utils/calendarConnectionsCache';
 import { peekFamilyEventsCache, putFamilyEventsCache } from '../../src/utils/familyEventsCache';
 import { calendarSyncNotice } from '../../src/utils/externalCalendarMerge';
-import {
-  listenChildTodos, toggleTodo, toggleParentTodo,
-} from '../../src/utils/todos';
+import { toggleParentTodo } from '../../src/utils/todos';
 import { buildCalendarPaneItems } from '../../src/utils/calendarTaskPane';
-import { isChildParentTaskReadOnly } from '../../src/utils/childTaskAccess';
-import {
-  canCreateFamilyCalendarEvent,
-  canShowCalendarSettings,
-} from '../../src/utils/childCalendarAccess';
 import { isExternalCalendarEvent } from '../../src/utils/externalEventVisibility';
 import {
   useExternalEventVisibilityMap,
@@ -45,17 +38,6 @@ import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colorForConnection, colorForExternalCalendar, colorForFamilyEvent, FAMILY_CALENDAR_COLOR, isDefaultLayerCalendar } from '../../src/utils/calendarColors';
-import CustodyLegendBar from '../../components/CustodyLegendBar';
-import {
-  childrenWithCustody,
-  custodyCellTint,
-  custodyEnabled,
-  custodyOverlayForDay,
-} from '../../src/utils/custodySchedule';
-import {
-  loadCustodyOverlayPrefs,
-  saveCustodyOverlayPrefs,
-} from '../../src/utils/custodyOverlayPrefs';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { loadProjectState } from '../../src/project/storage';
@@ -151,10 +133,8 @@ export default function PlanScreen({ active = true }) {
   const { t } = useI18n();
   const { pad, isDesktop, isTablet } = useBreakpoints();
   const {
-    familyId, members, uid, family, families, isParent, meChild, isChild, activeChild, isActingAsChild,
-    isGrandparent, kids, friendPeople,
+    familyId, members, uid, family, families, isParent, friendPeople,
   } = useApp();
-  const splitCalendar = isDesktop;
   const [mode, setMode] = useState('week');
   const [anchor, setAnchor] = useState(new Date());
   const [events, setEvents] = useState(() => peekFamilyEventsCache(familyId ? [familyId] : []) || []);
@@ -180,11 +160,9 @@ export default function PlanScreen({ active = true }) {
   const manageEquipment = gearAccess.manage;
   const [showCalendarSettings, setShowCalendarSettings] = useState(false);
   const [parentTodos, setParentTodos] = useState([]);
-  const [kidsTodosById, setKidsTodosById] = useState({});
-  const [custodyOverlayPrefs, setCustodyOverlayPrefs] = useState({ showOverlay: false, childFilter: 'all' });
 
   useEffect(() => {
-    if (!isParent || isChild || isActingAsChild) return undefined;
+    if (!isParent) return undefined;
     if (typeof sessionStorage === 'undefined') return undefined;
     try {
       if (sessionStorage.getItem(OPEN_CALENDAR_SETTINGS_KEY) === '1') {
@@ -193,87 +171,14 @@ export default function PlanScreen({ active = true }) {
       }
     } catch { /* ignore */ }
     return undefined;
-  }, [isParent, isChild, isActingAsChild]);
-
-  useEffect(() => {
-    if (!uid) {
-      setCustodyOverlayPrefs({ showOverlay: false, childFilter: 'all' });
-      return undefined;
-    }
-    let alive = true;
-    loadCustodyOverlayPrefs(uid).then((prefs) => {
-      if (!alive) return;
-      setCustodyOverlayPrefs(prefs);
-    });
-    return () => { alive = false; };
-  }, [uid, isChild, meChild?.id, meChild?.custody]);
-
-  const custodyKids = useMemo(() => childrenWithCustody(kids), [kids]);
-  const childViewerCustody = useMemo(
-    () => (isChild && meChild ? custodyEnabled(meChild) : false),
-    [isChild, meChild],
-  );
-  const custodyOverlayActive = custodyOverlayPrefs.showOverlay && (
-    custodyKids.length > 0 || childViewerCustody
-  );
-  const custodyChildFilter = useMemo(() => {
-    if (isChild && meChild?.id) return meChild.id;
-    if (isActingAsChild && activeChild?.id) return activeChild.id;
-    return custodyOverlayPrefs.childFilter || 'all';
-  }, [isChild, meChild?.id, isActingAsChild, activeChild?.id, custodyOverlayPrefs.childFilter]);
-
-  const getCustodyOverlay = useCallback((d) => {
-    if (!custodyOverlayActive || !uid) return null;
-    const custodyKids = (isChild && meChild)
-      ? [meChild]
-      : (isActingAsChild && activeChild ? [activeChild] : kids);
-    return custodyOverlayForDay({
-      date: d,
-      kids: custodyKids,
-      viewerUid: uid,
-      childFilter: custodyChildFilter,
-      viewerIsChild: isChild,
-    });
-  }, [custodyOverlayActive, uid, kids, isChild, meChild, isActingAsChild, activeChild, custodyChildFilter]);
-
-  const toggleCustodyOverlay = useCallback(async () => {
-    if (!uid) return;
-    const next = await saveCustodyOverlayPrefs(uid, { showOverlay: !custodyOverlayPrefs.showOverlay });
-    setCustodyOverlayPrefs(next);
-  }, [uid, custodyOverlayPrefs.showOverlay]);
-
-  const onCustodyOverlayChange = useCallback(async (patch) => {
-    if (!uid) return;
-    const next = await saveCustodyOverlayPrefs(uid, patch);
-    setCustodyOverlayPrefs(next);
-  }, [uid]);
+  }, [isParent]);
 
   const selectedKey = dateKey(anchor);
-  const asChildViewer = isChild || isActingAsChild;
+  // Barnekalender, delt bosted og «vis som barn» hørte til familieproduktet.
+  const parentCalendarSettings = isParent;
+  const canCreateCalendarEvent = isParent;
 
-  const viewingChild = useMemo(
-    () => (isActingAsChild ? activeChild : (isChild ? meChild : null)),
-    [isActingAsChild, activeChild, isChild, meChild],
-  );
-
-  const childCanEditCalendar = !!viewingChild?.calendarSelfEdit;
-  const parentCalendarSettings = canShowCalendarSettings({ isParent, asChildViewer });
-  const canCreateCalendarEvent = canCreateFamilyCalendarEvent({
-    isParent,
-    asChildViewer,
-    childCanEditCalendar,
-  });
-
-  const viewerIds = useMemo(() => {
-    const child = isActingAsChild ? activeChild : (isChild ? meChild : null);
-    // «Vis som barn» / innlogget barn: kun barnets id-er (ikke foresattes uid).
-    if (child) {
-      const ids = new Set();
-      [child.uid, child.id, child.childId, child.docId].filter(Boolean).forEach((id) => ids.add(id));
-      return ids;
-    }
-    return new Set([uid].filter(Boolean));
-  }, [uid, isChild, isActingAsChild, meChild, activeChild]);
+  const viewerIds = useMemo(() => new Set([uid].filter(Boolean)), [uid]);
 
   const platformIds = useMemo(() => {
     const ids = platformIdsFromFamilies(families);
@@ -299,7 +204,7 @@ export default function PlanScreen({ active = true }) {
   }, [familyId, viewerIds, families]);
 
   useEffect(() => {
-    if (!uid || asChildViewer) {
+    if (!uid) {
       setFriendSharedEvents([]);
       return undefined;
     }
@@ -307,11 +212,10 @@ export default function PlanScreen({ active = true }) {
       excludeFamilyIds: platformIds,
       onChange: setFriendSharedEvents,
     });
-  }, [uid, platformIds, asChildViewer]);
+  }, [uid, platformIds]);
 
   useEffect(() => {
-    const asChild = isChild || isActingAsChild;
-    if (!familyId || !isDesktop || asChild) {
+    if (!familyId || !isDesktop) {
       setParentTodos([]);
       return undefined;
     }
@@ -324,19 +228,7 @@ export default function PlanScreen({ active = true }) {
       platforms: families,
       onChange: setParentTodos,
     });
-  }, [familyId, isDesktop, platformIds, uid, viewerIds, isChild, isActingAsChild, families]);
-
-  useEffect(() => {
-    const asChild = isChild || isActingAsChild;
-    if (!familyId || !isDesktop || !asChild || !meChild?.id) {
-      setKidsTodosById({});
-      return undefined;
-    }
-    const childId = meChild.id;
-    return listenChildTodos(familyId, childId, (todos) => {
-      setKidsTodosById({ [childId]: todos });
-    });
-  }, [familyId, isDesktop, isChild, isActingAsChild, meChild?.id]);
+  }, [familyId, isDesktop, platformIds, uid, viewerIds, families]);
 
   useFocusEffect(useCallback(() => {
     if (!isCompany || !familyId) {
@@ -477,38 +369,22 @@ export default function PlanScreen({ active = true }) {
     return () => { alive = false; };
   }, [isParent, uid, rangeKeys, mode]));
 
-  const childEventVisible = useCallback((e) => (
-    eventVisibleToUser(e, viewerIds, { asChild: true, members })
-  ), [viewerIds, members]);
-
   const canManageEvent = useCallback((e) => {
     if (!e || e.readOnly || e.sharedFromFriend) return false;
-    if (asChildViewer) {
-      if (!childCanEditCalendar) return false;
-      return childEventVisible(e);
-    }
-    if (isGrandparent) {
-      return !!(uid && e.createdBy && e.createdBy === uid);
-    }
     if (isParent) return true;
     // Egen privat/personlig hendelse — også når den ligger i en annen familie.
     return !!(uid && e.createdBy && e.createdBy === uid);
-  }, [asChildViewer, isParent, isGrandparent, uid, childCanEditCalendar, childEventVisible]);
+  }, [isParent, uid]);
 
   /** Foreldre kan åpne alle; barn kan lese synlige hendelser (redigering krever calendarSelfEdit). */
   const canOpenEvent = useCallback((e) => {
     if (!e) return false;
     if (e.source === 'equipment') return true;
     if (e.sharedFromFriend) return true;
-    if (asChildViewer) {
-      if (e.sharedFromExternal) return childEventVisible(e);
-      if (e.readOnly) return false;
-      return childEventVisible(e);
-    }
     if (isParent) return true;
     if (e.readOnly) return false;
     return !!(uid && e.createdBy && e.createdBy === uid);
-  }, [asChildViewer, isParent, uid, childEventVisible]);
+  }, [isParent, uid]);
 
   const openEventForm = useCallback((e) => {
     if (!canOpenEvent(e)) return;
@@ -578,29 +454,22 @@ export default function PlanScreen({ active = true }) {
     const k = dateKey(d);
     const familyEv = events
       .filter((e) => eventOccursOnDate(e, d))
-      .filter((e) => !(isParent && !isActingAsChild && e.sharedFromExternal))
-      // Barn ser hendelser de er med på, eller hele familien.
-      // Voksenkalenderen er din egen ProTop-kalender, ikke hjemmet eller hele selskapet.
+      .filter((e) => !(isParent && e.sharedFromExternal))
+      // Kalenderen er din egen ProTop-kalender, ikke hele selskapet.
       .filter((e) => {
         if (e.crossPlatform) return false;
-        if (isParent && !isActingAsChild && !isGrandparent) {
-          return eventOnOwnCalendar(e, viewerIds, members);
-        }
-        return eventVisibleToUser(e, viewerIds, {
-          asChild: asChildViewer,
-          isGrandparent,
-          members,
-        });
+        if (isParent) return eventOnOwnCalendar(e, viewerIds, members);
+        return eventVisibleToUser(e, viewerIds, { asChild: false, members });
       })
       .map((e) => ({
         ...e,
         occurrenceDateKey: k,
         color: e.color || colorForFamilyEvent(e, members),
       }));
-    const privateEv = isParent && !isActingAsChild && !isGrandparent
+    const privateEv = isParent
       ? visibleExternalEvents.filter((e) => eventOccursOnDate(e, d))
       : [];
-    const friendEv = (!asChildViewer ? friendSharedEvents : [])
+    const friendEv = friendSharedEvents
       .filter((e) => eventOccursOnDate(e, d))
       .map((e) => ({
         ...e,
@@ -612,7 +481,7 @@ export default function PlanScreen({ active = true }) {
         .filter((child) => shownEquipment.has(child.id))
         .map((child) => child.id),
     );
-    const equipmentEv = isCompany && !asChildViewer
+    const equipmentEv = isCompany
       ? equipmentEventsFromBookings(projectState?.equipmentBookings, projectState?.equipment)
         .filter((e) => visibleGear.has(equipmentLayerId(e.equipmentId)))
         .filter((e) => eventOccursOnDate(e, d))
@@ -633,28 +502,22 @@ export default function PlanScreen({ active = true }) {
         return ta.localeCompare(tb);
       });
     return { ev };
-  }, [events, visibleExternalEvents, friendSharedEvents, isParent, isActingAsChild, asChildViewer, isGrandparent, viewerIds, members, hiddenCals, familyId, isCompany, projectState, shownEquipment, equipmentGroup]);
-
-  const paneKids = useMemo(
-    () => (asChildViewer && meChild?.id ? [meChild] : []),
-    [asChildViewer, meChild],
-  );
+  }, [events, visibleExternalEvents, friendSharedEvents, isParent, viewerIds, members, hiddenCals, familyId, isCompany, projectState, shownEquipment, equipmentGroup]);
 
   const paneItemsForDay = useCallback((d) => buildCalendarPaneItems({
     date: d,
     parentTodos,
-    kids: paneKids,
-    kidsTodosById,
+    kids: [],
+    kidsTodosById: {},
     viewer: {
       uid,
       ids: viewerIds,
-      asChild: asChildViewer,
+      asChild: false,
     },
-  }), [parentTodos, paneKids, kidsTodosById, uid, viewerIds, asChildViewer]);
+  }), [parentTodos, uid, viewerIds]);
 
   const onOpenPaneItem = useCallback((item) => {
     if (!item) return;
-    if (item.kind === 'chore') return; // Barnas gjøremål hørte til familieproduktet.
     const t = item.task;
     const resolved = t.crossPlatform ? { ...t, id: t.sourceTodoId || t.id } : t;
     nav.navigate('ParentTask', {
@@ -667,14 +530,9 @@ export default function PlanScreen({ active = true }) {
   const onTogglePaneItem = useCallback(async (item) => {
     if (!item) return;
     try {
-      if (item.kind === 'chore') {
-        await toggleTodo(familyId, item.childId, item.task, item.date);
-        return;
-      }
-      if (isChildParentTaskReadOnly({ isChild, isNew: false })) return;
       await toggleParentTodo(item.task.familyId || familyId, item.task, item.date);
     } catch { /* ignore */ }
-  }, [familyId, isChild]);
+  }, [familyId]);
 
   const onCreatePaneItem = useCallback((k) => {
     nav.navigate('ParentTask', { familyId, deadline: k });
@@ -916,8 +774,6 @@ export default function PlanScreen({ active = true }) {
         calendars={calendars}
         hiddenCals={hiddenCals}
         onToggleCal={toggleCal}
-        custodyOverlayPrefs={custodyOverlayPrefs}
-        onCustodyOverlayChange={onCustodyOverlayChange}
       />
     );
   }
@@ -955,25 +811,11 @@ export default function PlanScreen({ active = true }) {
           onToggleCal={toggleCal}
           syncNotice={syncNotice}
           paneItemsForDay={paneItemsForDay}
-          paneLabel={asChildViewer ? t('tabs.chores') : t('tabs.tasks')}
-          paneCreateLabel={asChildViewer ? 'Nytt gjøremål' : 'Ny oppgave'}
+          paneLabel={t('tabs.tasks')}
+          paneCreateLabel="Ny oppgave"
           onOpenPaneItem={onOpenPaneItem}
           onTogglePaneItem={onTogglePaneItem}
-          onCreatePaneItem={isParent && !asChildViewer ? onCreatePaneItem : null}
-          getCustodyOverlay={custodyOverlayActive ? getCustodyOverlay : null}
-          custodyOverlayActive={custodyOverlayActive}
-          showCustodyToggle={custodyKids.length > 0 || childViewerCustody}
-          onToggleCustodyOverlay={toggleCustodyOverlay}
-          custodyLegend={(
-            <CustodyLegendBar
-              visible={custodyOverlayActive}
-              kids={kids}
-              viewerUid={uid}
-              childFilter={custodyChildFilter}
-              members={members}
-              viewerIsChild={asChildViewer}
-            />
-          )}
+          onCreatePaneItem={isParent ? onCreatePaneItem : null}
         />
       </Screen>
     );
@@ -991,41 +833,14 @@ export default function PlanScreen({ active = true }) {
             ))}
           </View>
           {isParent ? (
-            <>
-              {custodyKids.length > 0 ? (
-                <TouchableOpacity
-                  style={[styles.settingsBtn, custodyOverlayActive && styles.custodyBtnOn]}
-                  onPress={toggleCustodyOverlay}
-                  accessibilityLabel={custodyOverlayActive ? 'Skjul delt bosted' : 'Vis delt bosted'}
-                >
-                  <Ionicons
-                    name={custodyOverlayActive ? 'home' : 'home-outline'}
-                    size={20}
-                    color={custodyOverlayActive ? colors.brand : colors.ink}
-                  />
-                </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity
-                style={styles.settingsBtn}
-                onPress={() => setShowCalendarSettings(true)}
-                accessibilityLabel="Kalenderinnstillinger"
-              >
-                <Ionicons name="settings-outline" size={20} color={colors.ink} />
-              </TouchableOpacity>
-            </>
-          ) : (childViewerCustody ? (
             <TouchableOpacity
-              style={[styles.settingsBtn, custodyOverlayActive && styles.custodyBtnOn]}
-              onPress={toggleCustodyOverlay}
-              accessibilityLabel={custodyOverlayActive ? 'Skjul bosted' : 'Vis bosted'}
+              style={styles.settingsBtn}
+              onPress={() => setShowCalendarSettings(true)}
+              accessibilityLabel="Kalenderinnstillinger"
             >
-              <Ionicons
-                name={custodyOverlayActive ? 'home' : 'home-outline'}
-                size={20}
-                color={custodyOverlayActive ? colors.brand : colors.ink}
-              />
+              <Ionicons name="settings-outline" size={20} color={colors.ink} />
             </TouchableOpacity>
-          ) : null)}
+          ) : null}
         </View>
 
         {mode === 'day' || mode === 'week' ? (
@@ -1035,16 +850,12 @@ export default function PlanScreen({ active = true }) {
               const { ev } = itemsForDay(d);
               const selectedDay = sameDay(d, anchor);
               const todayDay = isToday(d);
-              const custodyTint = custodyOverlayActive
-                ? custodyCellTint(getCustodyOverlay(d), { selected: selectedDay, today: todayDay })
-                : null;
               return (
                 <TouchableOpacity
                   key={k}
                   onPress={() => setAnchor(d)}
                   style={[
                     styles.homeWeekCell,
-                    custodyTint,
                     todayDay && !selectedDay && styles.cellToday,
                     selectedDay && styles.cellOn,
                   ]}
@@ -1104,15 +915,6 @@ export default function PlanScreen({ active = true }) {
           onPress={() => setShowCalendarSettings(true)}
         />
 
-        <CustodyLegendBar
-          visible={custodyOverlayActive}
-          kids={kids}
-          viewerUid={uid}
-          childFilter={custodyChildFilter}
-          members={members}
-          viewerIsChild={asChildViewer}
-        />
-
         <ScrollView
           style={styles.dayList}
           contentContainerStyle={styles.listPad}
@@ -1136,9 +938,6 @@ export default function PlanScreen({ active = true }) {
                   const selectedDay = sameDay(d, anchor);
                   const todayDay = isToday(d);
                   const outside = !isSameMonth(d, anchor);
-                  const custodyTint = custodyOverlayActive
-                    ? custodyCellTint(getCustodyOverlay(d), { selected: selectedDay, today: todayDay })
-                    : null;
                   return (
                     <TouchableOpacity
                       key={k}
@@ -1146,8 +945,7 @@ export default function PlanScreen({ active = true }) {
                       style={[
                         styles.cell,
                         (isDesktop || isTablet) && styles.cellWide,
-                        custodyTint,
-                        todayDay && !selectedDay && styles.cellToday,
+                            todayDay && !selectedDay && styles.cellToday,
                         selectedDay && styles.cellOn,
                         outside && { opacity: 0.35 },
                       ]}
@@ -1168,7 +966,7 @@ export default function PlanScreen({ active = true }) {
           ) : null}
 
           {selected.ev.length === 0 && (
-            externalLoading && isParent && !asChildViewer ? (
+            externalLoading && isParent ? (
               <View style={styles.dayLoading}>
                 <ActivityIndicator color={colors.brand} />
                 <Text style={styles.emptyDay}>Laster kalender…</Text>
@@ -1228,7 +1026,6 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: colors.line,
     backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center',
   },
-  custodyBtnOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
   seg: { flex: 1, flexDirection: 'row', backgroundColor: colors.card, borderRadius: 12, padding: 3, borderWidth: 1, borderColor: colors.line },
   segBtn: { flex: 1, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 10, alignItems: 'center' },
   segOn: { backgroundColor: colors.brand },

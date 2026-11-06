@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
 import { useWeather } from '../../src/hooks/useWeather';
@@ -17,16 +17,7 @@ import {
 } from '../../src/utils/deskHome';
 import { firstNameFromProfile, formatGreetingDate } from '../../src/utils/timeGreeting';
 import { roundTemp } from '../../src/utils/weather';
-import { addDays, dateKey, startOfWeekMonday } from '../../src/utils/dates';
-import { listenChildTodos } from '../../src/utils/todos';
-import { kidProgressRows } from '../../src/utils/familyProgress';
-import {
-  custodyEnabled,
-  custodyParentSlotForDate,
-  resolveCustodyLabels,
-  childrenWithCustody,
-  countFamilyCustodyHandoffsInWeek,
-} from '../../src/utils/custodySchedule';
+import { addDays, dateKey } from '../../src/utils/dates';
 import { resolveEventMembers } from '../MemberAvatarStack';
 import { useParentDashboardTheme } from '../../src/hooks/useParentDashboardTheme';
 import { placeText } from '../../src/utils/homeWidgetVisuals';
@@ -36,6 +27,8 @@ import {
   resolveThemeAccentArt,
   resolveThemeBackgroundArt,
 } from '../../src/utils/dashboardTimeArt';
+
+const EMPTY = Object.freeze([]);
 
 function capitalizeNb(value) {
   const s = String(value || '').trim();
@@ -66,7 +59,7 @@ export function useParentHomeModel({
   unreadByModule = null,
 }) {
   const {
-    activeProfile, uid, familyId, isParent, kids, parents, members,
+    activeProfile, uid, familyId, isParent, parents, members,
   } = useApp();
   // Hjem regnes om ved minuttskiftet (før hvert 30. sekund, uavhengig av minuttet).
   const now = useNow(60_000, { align: true });
@@ -160,70 +153,25 @@ export function useParentHomeModel({
     items: taskItems,
   };
 
-  const activeKids = useMemo(
-    () => (kids || []).filter((k) => k.active !== false && k.archived !== true),
-    [kids],
-  );
-
-  const [kidMap, setKidMap] = useState({});
-  const kidsKey = useMemo(
-    () => activeKids.map((k) => k.id).filter(Boolean).sort().join('|'),
-    [activeKids],
-  );
-  const weekKeys = useMemo(() => {
-    const mon = startOfWeekMonday(now);
-    return Array.from({ length: 7 }, (_, i) => dateKey(addDays(mon, i)));
-  }, [now]);
-
-  useEffect(() => {
-    if (!familyId || !kidsKey) {
-      setKidMap({});
-      return undefined;
-    }
-    const ids = kidsKey.split('|');
-    const unsubs = ids.map((kidId) => listenChildTodos(familyId, kidId, (items) => {
-      setKidMap((prev) => ({ ...prev, [kidId]: items }));
-    }));
-    return () => unsubs.forEach((u) => u && u());
-  }, [familyId, kidsKey]);
-
-  const kidProgress = useMemo(
-    () => kidProgressRows(activeKids, kidMap, weekKeys, todayKey),
-    [activeKids, kidMap, weekKeys, todayKey],
-  );
-
-  const custodyWeekLabel = useMemo(() => {
-    const withCustody = childrenWithCustody(activeKids);
-    if (!withCustody.length) return null;
-    const child = withCustody[0];
-    if (!custodyEnabled(child)) return null;
-    const labels = resolveCustodyLabels(child.custody, {
-      parents: parents || [],
-      viewerUid: uid,
-    });
-    const slot = custodyParentSlotForDate(child.custody, now);
-    if (!slot || !labels) return null;
-    const name = slot === 'parentA' ? labels.parentA : labels.parentB;
-    const first = String(name || '').split(' ')[0] || 'forelder';
-    return `Denne uken hos ${first.toLowerCase() === 'meg' ? 'deg' : first}`;
-  }, [activeKids, parents, uid, now]);
+  // Barn, barnas fremgang og delt bosted hørte til familieproduktet.
+  const activeKids = EMPTY;
+  const kidProgress = EMPTY;
+  const custodyWeekLabel = null;
 
   const weekStats = useMemo(() => {
     // Real calendar appointments we know about (today + tomorrow from home feed).
     const appointments = (eventsToday?.length || 0) + (eventsTomorrow?.length || 0);
     // Open tasks as actionable reminders — not a fake 0/1 flag.
     const reminders = Math.max(0, taskCount);
-    // Real custody handoffs this calendar week (not a hardcoded 2).
-    const swaps = countFamilyCustodyHandoffsInWeek(activeKids, now);
     return {
-      swaps,
+      swaps: 0,
       activities: appointments,
       appointments,
       reminders,
       eventsToday: eventsToday?.length || 0,
       eventsTomorrow: eventsTomorrow?.length || 0,
     };
-  }, [eventsToday, eventsTomorrow, taskCount, activeKids, now]);
+  }, [eventsToday, eventsTomorrow, taskCount]);
 
   // «Husk» viser arbeidsdagen: åpne oppgaver og dagens kalender. ProTop har ikke
   // handleliste og middagsplan, så de nevnes ikke (de ga «Planlegg middag» i bedriften).

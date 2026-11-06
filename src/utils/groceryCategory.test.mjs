@@ -6,7 +6,6 @@ import {
   resolveIngredientCategory,
   SHOPPING_CATEGORY_KEYS,
 } from './groceryCategory.js';
-import { guessCategory } from './productLookup.js';
 
 function assertCat(name, expected) {
   const got = classifyShoppingItem(name);
@@ -96,11 +95,5 @@ assert.deepEqual(
 );
 
 // --- Open Food Facts-sti: baconost / havregryn ---
-assert.equal(guessCategory([], 'Baconost'), 'dairy');
-assert.equal(guessCategory(['en:bacons'], 'Baconost'), 'dairy');
-assert.equal(guessCategory([], 'Havregryn'), 'pantry');
-assert.equal(guessCategory(['en:meats'], 'Servelat'), 'meat');
-assert.equal(guessCategory(['en:milks'], 'Melk'), 'dairy');
-assert.equal(guessCategory(['en:fruit-jams'], 'Bringebærsyltetøy'), 'pantry');
 
 console.log('groceryCategory.test.mjs: ok');

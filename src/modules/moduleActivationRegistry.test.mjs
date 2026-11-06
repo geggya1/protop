@@ -137,8 +137,8 @@ assert.match(gateSrc, /source: 'welcome'/, 'Aktiver from the overlay is billed a
 assert.equal(gateSrc.includes('accessReady && isActivatableModule'), false, 'do not hide the dialog while access is loading');
 
 const appSrc = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8');
-assert.match(appSrc, /ActivitiesWithGate/, 'FamilyDashboard → Activities must be gated');
-assert.match(appSrc, /FamilyProgressWithGate/, 'stack FamilyProgress must be gated');
+// Familieskjermene (aktiviteter, fremgang m.m.) er fjernet fra ProTop; de skal ikke komme tilbake i App.jsx.
+assert.equal(/ActivitiesWithGate|FamilyProgressWithGate/.test(appSrc), false, 'family stack screens are removed');
 assert.match(appSrc, /gatedStackScreen/, 'stack routes share one gate helper');
 
 const accessSrc = readFileSync(new URL('../utils/moduleAccess.js', import.meta.url), 'utf8');

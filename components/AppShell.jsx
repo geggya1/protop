@@ -15,7 +15,6 @@ import { openPlatformHome, goPlatformOverview } from '../src/utils/platformNav';
 import HomeScreen from '../screens/v2/HomeScreen';
 import PlanScreen from '../screens/v2/PlanScreen';
 import RewardsScreen from '../screens/v2/RewardsScreen';
-import ChoresScreen from '../screens/v2/ChoresScreen';
 import NotesHubScreen from '../screens/v2/NotesHubScreen';
 import ChatTabScreen from '../screens/v2/ChatTabScreen';
 import MoreHubScreen from '../screens/v2/MoreHubScreen';
@@ -785,10 +784,8 @@ function AppShellInner() {
       return <CompanyAccessDenied colors={colors} />;
     }
     if (tab === 'plan') return null;
-    if (tab === 'chores') {
-      if (isChild || isActingAsChild) return <ChoresScreen />;
-      return <HomeScreen />;
-    }
+    // Barnas gjøremål hørte til familieproduktet; fanen viser Hjem i ProTop.
+    if (tab === 'chores') return <HomeScreen />;
     if (tab === 'stars') return <RewardsScreen variant="tasks" />;
     if (tab === 'chat') return <ChatTabScreen />;
     if (tab === 'notes') return <NotesHubScreen />;
@@ -950,7 +947,7 @@ function AppShellInner() {
       setMoreSubView(null);
       return;
     }
-    if (tab === 'chores' && !(isChild || isActingAsChild)) {
+    if (tab === 'chores') {
       setTab('home');
       return;
     }

@@ -62,15 +62,15 @@ test('bare bedriftsinvitasjoner, og ingen barnekontoer', () => {
   assert.equal(childLoginAllowed(true), true);
 });
 
-test('listene peker på skjermer og sider som finnes (ingen skrivefeil)', () => {
+test('familieskjermene og familiesidene er fjernet fra ProTop-bygget', () => {
   const app = read('App.jsx');
   for (const name of FAMILY_PRODUCT_ROUTES) {
-    assert.match(app, new RegExp(`Stack\\.Screen name="${name}"`), name);
+    assert.doesNotMatch(app, new RegExp(`Stack\\.Screen name="${name}"`), name);
   }
   const more = read('screens/v2/MoreHubScreen.jsx');
   const subScreens = more.slice(more.indexOf('const SUB_SCREENS'), more.indexOf('export default function MoreHubScreen'));
   for (const view of FAMILY_PRODUCT_MORE_VIEWS) {
-    assert.match(subScreens, new RegExp(`\\b${view}:`), view);
+    assert.doesNotMatch(subScreens, new RegExp(`\\b${view}:`), view);
   }
 });
 

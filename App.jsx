@@ -18,38 +18,20 @@ import { capturePendingAddFriendFromLocation, peekPendingAddFriend, persistPendi
 import { captureAgreementLinkFromLocation } from './src/anbud/agreementLink';
 import AgreementLinkHost from './screens/anbud/AgreementLinkHost';
 import SaveToastHost from './components/SaveToastHost';
-import { platformHomeRoute } from './src/utils/groupTypes';
-import { stripSyntheticDomain } from './src/utils/usernamesLogic';
 import { usePhoneVisualViewport } from './src/shell/usePhoneVisualViewport';
-import {
-  syncParentDocs,
-  resolveChildFamilyId,
-  resolveChildProfile,
-  isChildEmail,
-} from './src/utils/session';
+import { syncParentDocs, isChildEmail } from './src/utils/session';
 
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 import VerifyEmailScreen from './screens/VerifyEmailScreen';
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 import FamilyOverviewScreen from './screens/FamilyOverviewScreen';
-import FamilyDashboardScreen from './screens/FamilyDashboardScreen';
-import ChildListScreen from './screens/ChildListScreen';
 import TemplateListScreen from './screens/TemplateListScreen';
 import ProfileScreen from './screens/ProfileScreen';
-import ChildProfileScreen from './screens/ChildProfileScreen';
 import ParentProfileScreen from './screens/ParentProfileScreen';
 import ConfirmationScreen from './screens/ConfirmationScreen';
 import SelectFamilyScreen from './screens/SelectFamilyScreen';
-import ChildDashboardScreen from './screens/ChildDashboardScreen';
-import ChildScheduleScreen from './screens/ChildScheduleScreen';
-import ChildSettingsScreen from './screens/ChildSettingsScreen';
-import ChoreSettingsScreen from './screens/v2/ChoreSettingsScreen';
-import StarGoalsScreen from './screens/v2/StarGoalsScreen';
 import AddTodoScreen from './screens/AddTodoScreen';
-import AddNote from './screens/AddNote';
-import ActivitiesScreen from './screens/ActivitiesScreen';
-import ActivityDetailScreen from './screens/ActivityDetailScreen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider, useApp } from './src/context/AppContext';
 import { HelpProvider } from './src/context/HelpContext';
@@ -69,35 +51,15 @@ import AppShell from './components/AppShell';
 import SessionOverlays from './components/SessionOverlays';
 import StorageNotice from './components/StorageNotice';
 import { ChatDockProvider } from './src/context/ChatDockContext';
-import TeamShell from './components/TeamShell';
-import TeamJoinScreen from './screens/team/TeamJoinScreen';
-import TeamCreateScreen from './screens/team/TeamCreateScreen';
-import TeamComposePostScreen from './screens/team/TeamComposePostScreen';
-import TeamCreateEventScreen from './screens/team/TeamCreateEventScreen';
-import TeamAddMemberScreen from './screens/team/TeamAddMemberScreen';
-import ClassroomShell from './components/ClassroomShell';
-import {
-  FriendsShell, CongregationShell, DaycareShell, GroupShell, CompanyShell,
-} from './components/SocialPlatformShell';
-import PlatformJoinScreen from './screens/platform/PlatformJoinScreen';
+import { CompanyShell } from './components/SocialPlatformShell';
 import CreateCompanyScreen from './screens/company/CreateCompanyScreen';
-import PlatformComposePostScreen from './screens/platform/PlatformComposePostScreen';
-import PlatformCreateEventScreen from './screens/platform/PlatformCreateEventScreen';
-import ClassroomJoinScreen from './screens/classroom/ClassroomJoinScreen';
-import ClassroomCreateScreen from './screens/classroom/ClassroomCreateScreen';
-import ClassroomComposeMessageScreen from './screens/classroom/ClassroomComposeMessageScreen';
-import ClassroomClassworkEditorScreen from './screens/classroom/ClassroomClassworkEditorScreen';
-import ClassroomAssignmentDetailScreen from './screens/classroom/ClassroomAssignmentDetailScreen';
-import ClassroomAddStaffScreen from './screens/classroom/ClassroomAddStaffScreen';
-import ClassroomAddStudentsScreen from './screens/classroom/ClassroomAddStudentsScreen';
-import ClassroomStudentMapScreen from './screens/classroom/ClassroomStudentMapScreen';
+import PlatformJoinScreen from './screens/platform/PlatformJoinScreen';
 import ChatThreadScreen from './screens/v2/ChatThreadScreen';
 import EventFormScreen from './screens/v2/EventFormScreen';
 import ParentTaskScreen from './screens/v2/ParentTaskScreen';
 import AddHomeworkScreen from './screens/AddHomeworkScreen';
 import NotificationsScreen from './screens/v2/NotificationsScreen';
 import SubscriptionScreen from './screens/v2/SubscriptionScreen';
-import LocationSettingsScreen from './screens/v2/LocationSettingsScreen';
 import NotificationSettingsScreen from './screens/v2/NotificationSettingsScreen';
 import WeatherSettingsScreen from './screens/v2/WeatherSettingsScreen';
 import AppearanceSettingsScreen from './screens/v2/AppearanceSettingsScreen';
@@ -111,40 +73,14 @@ import HelpdeskDemoScreen, { helpdeskDemoAllowed } from './screens/helpdesk/Help
 import SurveyAnswerScreen from './screens/surveys/SurveyAnswerScreen';
 import CustomerSurveyDemoScreen, { customerSurveyDemoAllowed } from './screens/surveys/CustomerSurveyDemoScreen';
 import { installDiagnostics } from './src/helpdesk/diagnostics';
-import ChildDashboardThemeSettingsScreen from './screens/v2/ChildDashboardThemeSettingsScreen';
-import ChildDashboardThemeGalleryScreen from './screens/v2/ChildDashboardThemeGalleryScreen';
-import FamilyProgressScreen from './screens/v2/FamilyProgressScreen';
 import CalendarSettingsScreen from './screens/v2/CalendarSettingsScreen';
-import CustodySettingsScreen from './screens/v2/CustodySettingsScreen';
 import CalendarOAuthRedirectScreen from './screens/v2/CalendarOAuthRedirectScreen';
-import StravaOAuthRedirectScreen from './screens/v2/StravaOAuthRedirectScreen';
-import AirbnbOAuthRedirectScreen from './screens/v2/AirbnbOAuthRedirectScreen';
 import AiChatScreen from './screens/v2/AiChatScreen';
 import AssistantScreen from './screens/v2/AssistantScreen';
-import LeksehjelpScreen from './screens/v2/LeksehjelpScreen';
-import MattehjelpScreen from './screens/v2/MattehjelpScreen';
-import LekserHubScreen from './screens/v2/LekserHubScreen';
-import SchoolFolderScreen from './screens/v2/SchoolFolderScreen';
-import KlassenHubScreen from './screens/v2/KlassenHubScreen';
-import KlassenDetailScreen from './screens/v2/KlassenDetailScreen';
 import StackShellChrome from './components/StackShellChrome';
-import FamilyGamesScreen from './screens/v2/FamilyGamesScreen';
-import TicTacToeScreen from './screens/v2/TicTacToeScreen';
-import RockPaperScissorsScreen from './screens/v2/RockPaperScissorsScreen';
-import GuessNumberScreen from './screens/v2/GuessNumberScreen';
-import DrawGuessScreen from './screens/v2/DrawGuessScreen';
-import Connect4Screen from './screens/v2/Connect4Screen';
-import LocalPlayScreen from './screens/v2/LocalPlayScreen';
-import ChessScreen from './screens/v2/ChessScreen';
-import MemoryScreen from './screens/v2/MemoryScreen';
-import GamePreviewScreen from './screens/v2/GamePreviewScreen';
 import EmployeeDetailPreview from './screens/employees/EmployeeDetailPreview';
 import CustomersListPreview from './screens/customers/CustomersListPreview';
 import AiImportReviewScreen from './screens/AiImportReviewScreen';
-import BookshelfScreen from './screens/v2/BookshelfScreen';
-import AddBookScreen from './screens/v2/AddBookScreen';
-import BookDetailScreen from './screens/v2/BookDetailScreen';
-import MealDetailScreen from './screens/v2/MealDetailScreen';
 import LanguageScreen from './screens/onboarding/LanguageScreen';
 import WelcomeScreen from './screens/onboarding/WelcomeScreen';
 import LegalWizardScreen from './screens/onboarding/LegalWizardScreen';
@@ -156,7 +92,6 @@ import ProfileSetupScreen from './screens/onboarding/ProfileSetupScreen';
 import HomeSetupOnboardingScreen from './screens/onboarding/HomeSetupOnboardingScreen';
 import CreateGroupScreen, { GetStartedScreen } from './screens/onboarding/CreateGroupScreen';
 import GroupHubScreen from './screens/GroupHubScreen';
-import AddMemberScreen from './screens/AddMemberScreen';
 import FamilyInviteRespondScreen from './screens/FamilyInviteRespondScreen';
 import EditProfileScreen from './screens/v2/EditProfileScreen';
 import FriendsHubScreen from './screens/v2/FriendsHubScreen';
@@ -264,42 +199,13 @@ function withStackShell(ScreenComponent, title, moduleId) {
   return Wrapped;
 }
 
-const ChoreSettingsWithGate = gatedStackScreen('ChoreSettings', ChoreSettingsScreen);
-const FamilyGamesWithGate = gatedStackScreen('FamilyGames', FamilyGamesScreen);
-const BookshelfWithGate = gatedStackScreen('Bookshelf', BookshelfScreen);
-const ActivitiesWithGate = gatedStackScreen('Activities', ActivitiesScreen);
-const ActivityDetailWithGate = gatedStackScreen('ActivityDetail', ActivityDetailScreen);
-const StarGoalsWithGate = gatedStackScreen('StarGoals', StarGoalsScreen);
-const FamilyProgressWithGate = gatedStackScreen('FamilyProgress', FamilyProgressScreen);
-const LocationSettingsWithGate = gatedStackScreen('LocationSettings', LocationSettingsScreen);
 const NotificationSettingsWithGate = gatedStackScreen('NotificationSettings', NotificationSettingsScreen);
 const AddTodoWithGate = gatedStackScreen('AddTodo', AddTodoScreen);
-const AddNoteWithGate = gatedStackScreen('AddNote', AddNote);
-const AddBookWithGate = gatedStackScreen('AddBook', AddBookScreen);
-const BookDetailWithGate = gatedStackScreen('BookDetail', BookDetailScreen);
-const MealDetailWithGate = gatedStackScreen('MealDetail', MealDetailScreen);
 const AddHomeworkWithGate = gatedStackScreen('AddHomework', AddHomeworkScreen);
 const ParentTaskWithGate = gatedStackScreen('ParentTask', ParentTaskScreen);
-const TicTacToeWithGate = gatedStackScreen('TicTacToe', TicTacToeScreen);
-const RockPaperScissorsWithGate = gatedStackScreen('RockPaperScissors', RockPaperScissorsScreen);
-const GuessNumberWithGate = gatedStackScreen('GuessNumber', GuessNumberScreen);
-const DrawGuessWithGate = gatedStackScreen('DrawGuess', DrawGuessScreen);
-const Connect4WithGate = gatedStackScreen('Connect4', Connect4Screen);
-const LocalPlayWithGate = gatedStackScreen('LocalPlay', LocalPlayScreen);
-const ChessWithGate = gatedStackScreen('Chess', ChessScreen);
-const MemoryWithGate = gatedStackScreen('Memory', MemoryScreen);
 
-const SchoolFolderWithShell = withStackShell(SchoolFolderScreen, 'Skole', STACK_MODULE_IDS.SchoolFolder);
-const LekserWithShell = withStackShell(LekserHubScreen, 'Lekser', STACK_MODULE_IDS.Lekser);
-const LeksehjelpWithShell = withStackShell(LeksehjelpScreen, 'Leksehjelpen', STACK_MODULE_IDS.Leksehjelp);
-const MattehjelpWithShell = withStackShell(MattehjelpScreen, 'Lær skole', STACK_MODULE_IDS.Mattehjelp);
-const ChildScheduleWithShell = withStackShell(ChildScheduleScreen, 'Ukeplan', STACK_MODULE_IDS.ChildSchedule);
-const KlassenWithShell = withStackShell(KlassenHubScreen, 'Klassen', STACK_MODULE_IDS.Klassen);
-const KlassenDetailWithShell = withStackShell(KlassenDetailScreen, 'Klassen', STACK_MODULE_IDS.KlassenDetail);
 const AiImportReviewWithShell = withStackShell(AiImportReviewScreen, 'Importer');
-const ChildSettingsWithShell = withStackShell(ChildSettingsScreen, 'Innstillinger');
 const DashboardThemeSettingsWithShell = withStackShell(DashboardThemeSettingsScreen, 'Tilpass hjem');
-const ChildDashboardThemeSettingsWithShell = withStackShell(ChildDashboardThemeSettingsScreen, 'Tilpass hjem');
 
 const NotificationsWithSwipe = withStackEdgeSwipe(NotificationsScreen);
 const SubscriptionWithSwipe = withStackEdgeSwipe(SubscriptionScreen);
@@ -312,23 +218,8 @@ const AssistantWithSwipe = withStackEdgeSwipe(AssistantScreen);
 const GroupSettingsWithSwipe = withStackEdgeSwipe(GroupSettingsScreen);
 const MemberSettingsWithSwipe = withStackEdgeSwipe(MemberSettingsScreen);
 const ProfileSettingsWithSwipe = withStackEdgeSwipe(EditProfileScreen);
+const CompanyJoinWithSwipe = withStackEdgeSwipe(PlatformJoinScreen);
 const FriendsHubWithSwipe = withStackEdgeSwipe(FriendsHubScreen);
-const TeamComposePostWithSwipe = withStackEdgeSwipe(TeamComposePostScreen);
-const TeamCreateEventWithSwipe = withStackEdgeSwipe(TeamCreateEventScreen);
-const TeamAddMemberWithSwipe = withStackEdgeSwipe(TeamAddMemberScreen);
-const TeamJoinWithSwipe = withStackEdgeSwipe(TeamJoinScreen);
-const TeamCreateWithSwipe = withStackEdgeSwipe(TeamCreateScreen);
-const PlatformJoinWithSwipe = withStackEdgeSwipe(PlatformJoinScreen);
-const PlatformComposePostWithSwipe = withStackEdgeSwipe(PlatformComposePostScreen);
-const PlatformCreateEventWithSwipe = withStackEdgeSwipe(PlatformCreateEventScreen);
-const ClassroomJoinWithSwipe = withStackEdgeSwipe(ClassroomJoinScreen);
-const ClassroomCreateWithSwipe = withStackEdgeSwipe(ClassroomCreateScreen);
-const ClassroomComposeMessageWithSwipe = withStackEdgeSwipe(ClassroomComposeMessageScreen);
-const ClassroomClassworkEditorWithSwipe = withStackEdgeSwipe(ClassroomClassworkEditorScreen);
-const ClassroomAssignmentDetailWithSwipe = withStackEdgeSwipe(ClassroomAssignmentDetailScreen);
-const ClassroomAddStaffWithSwipe = withStackEdgeSwipe(ClassroomAddStaffScreen);
-const ClassroomAddStudentsWithSwipe = withStackEdgeSwipe(ClassroomAddStudentsScreen);
-const ClassroomStudentMapWithSwipe = withStackEdgeSwipe(ClassroomStudentMapScreen);
 
 // Teknisk info til supportsaker (konsollfeil, feilede kall, siste steg). Se src/helpdesk/diagnostics.js.
 installDiagnostics();
@@ -350,9 +241,6 @@ export default function App() {
   const [justRegisteredEmail, setJustRegisteredEmail] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [userRole, setUserRole] = useState(null);
-  const [childData, setChildData] = useState(null);
-  const [childFamilyId, setChildFamilyId] = useState(null);
-  const [childResolving, setChildResolving] = useState(false);
   const [, setLaunchRev] = useState(0);
 
   useEffect(() => {
@@ -528,7 +416,6 @@ export default function App() {
         const email = (current.email || '').toLowerCase();
         setUserRole((role) => role || (isChildEmail(email) ? 'child' : 'parent'));
       }
-      setChildResolving(false);
       setLoading(false);
       console.warn('[auth] left spinner after wait');
     }, 8000);
@@ -546,8 +433,6 @@ export default function App() {
         sessionUid = null;
         setUser(null);
         setUserRole(null);
-        setChildData(null);
-        setChildFamilyId(null);
         setLoading(false);
         // Drop legacy global familyId so the next account is not treated as a returning member.
         try {
@@ -597,64 +482,10 @@ export default function App() {
           }
         })();
 
-        const email = (refreshedUser.email || '').toLowerCase();
-        const isChildLogin = isChildEmail(email);
-
         syncParentDocs(refreshedUser).catch(() => {});
         setReloadKey((prev) => prev + 1);
-
-        if (isChildLogin) {
-          setUserRole('child');
-          setChildResolving(true);
-          const withTimeout = (promise, ms, label) => Promise.race([
-            promise,
-            new Promise((_, reject) => {
-              setTimeout(() => reject(new Error(`${label}-timeout`)), ms);
-            }),
-          ]);
-          try {
-            const profile = await withTimeout(resolveChildProfile(refreshedUser), 12000, 'child-profile');
-            if (profile) {
-              setChildData(profile);
-              const { familyId, childIdFromFam } = await withTimeout(
-                resolveChildFamilyId(profile),
-                12000,
-                'child-family',
-              );
-              setChildFamilyId(familyId || profile.familyId || null);
-              if (childIdFromFam && profile.id !== childIdFromFam) {
-                setChildData((prev) => (prev ? { ...prev, id: childIdFromFam } : prev));
-              }
-            } else {
-              setChildData({
-                uid: refreshedUser.uid,
-                name: refreshedUser.displayName || 'Barn',
-                username: stripSyntheticDomain(email),
-              });
-              const { familyId, childIdFromFam } = await withTimeout(
-                resolveChildFamilyId({ uid: refreshedUser.uid }),
-                12000,
-                'child-family',
-              );
-              setChildFamilyId(familyId || null);
-              if (childIdFromFam) {
-                setChildData((prev) => (prev ? { ...prev, id: childIdFromFam } : prev));
-              }
-            }
-          } catch (childErr) {
-            console.warn('[auth] child resolve failed/timed out', childErr?.message || childErr);
-            setChildData((prev) => prev || {
-              uid: refreshedUser.uid,
-              name: refreshedUser.displayName || 'Barn',
-              username: stripSyntheticDomain(email),
-            });
-          }
-          setChildResolving(false);
-        } else {
-          setUserRole('parent');
-          setChildData(null);
-          setChildFamilyId(null);
-        }
+        // Barnekontoer er logget ut over (L-35), så alle som kommer hit er voksne brukere.
+        setUserRole('parent');
       } catch (err) {
         console.error('Feil i onAuthStateChanged:', err);
         Alert.alert('Feil', 'Klarte ikke å hente/verifisere bruker.');
@@ -666,7 +497,7 @@ export default function App() {
     return unsubscribe;
   }, [authBootstrapped]);
 
-  if ((!isWeb && !fontsLoaded) || !authBootstrapped || loading || (user && userRole === 'child' && childResolving)) {
+  if ((!isWeb && !fontsLoaded) || !authBootstrapped || loading) {
     return <LoadingView label="Laster ProTop…" />;
   }
 
@@ -676,7 +507,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <I18nProvider>
-        <AppProvider user={user} role={userRole} childProfile={childData} childFamilyId={childFamilyId}>
+        <AppProvider user={user} role={userRole}>
           <ModuleAccessProvider>
           <HelpProvider>
           <NotificationProvider>
@@ -952,17 +783,6 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       if (p === '/kundeundersokelse-demo' && customerSurveyDemoAllowed()) return 'CustomerSurveyDemo';
       if (p === '/moter-demo') return 'MeetingsDemo';
       if (p === '/anbud-demo' && anbudDemoAllowed()) return 'AnbudDemo';
-      if (p === '/child-dashboard-themes') return 'ChildDashboardThemeGallery';
-      if (p === '/game-preview' || p.startsWith('/game-preview/')) {
-        try {
-          const parts = p.split('/').filter(Boolean);
-          if (parts[1] && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem('protopGamePreviewId', parts[1]);
-          }
-        } catch { /* ignore */ }
-        return 'GamePreview';
-      }
-      if (p === '/family-games-preview') return 'FamilyGamesPreview';
       if (p === '/employee-detail-preview') return 'EmployeeDetailPreview';
       if (p === '/customers-list-preview') return 'CustomersListPreview';
       return null;
@@ -1009,7 +829,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     : stage === 'homeSetup' ? 'HomeSetupOnboarding'
     : stage === 'start' ? 'HomeSetupOnboarding'
     : (!hasLiveGroups && hasGroups) ? 'FamilyOverview'
-    : (family ? platformHomeRoute(family.type) : 'Home');
+    : 'Home';
 
   // Hooks must be called unconditionally (before any early return)
   const goAfterLegal = (nav) => {
@@ -1017,7 +837,6 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     else if (!profileOk) nav.replace('ProfileSetup');
     else if (needsHomeSetup || (!hasGroups && !familyId)) nav.replace('HomeSetupOnboarding');
     else if (!hasLiveGroups) nav.replace('FamilyOverview');
-    else if (family) nav.replace(platformHomeRoute(family.type));
     else nav.replace('Home');
   };
 
@@ -1120,29 +939,11 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         {customerSurveyDemoAllowed() ? <Stack.Screen name="CustomerSurveyDemo" component={CustomerSurveyDemoScreen} options={{ headerShown: false }} /> : null}
         <Stack.Screen name="MeetingsDemo" component={MeetingsDemoScreen} options={{ headerShown: false }} />
         {anbudDemoAllowed() ? <Stack.Screen name="AnbudDemo" component={AnbudDemoScreen} options={{ headerShown: false }} /> : null}
-        <Stack.Screen name="ChildDashboardThemeGallery" component={ChildDashboardThemeGalleryScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="GamePreview" component={GamePreviewScreen} options={{ headerShown: false }} />
         <Stack.Screen name="EmployeeDetailPreview" component={EmployeeDetailPreview} options={{ headerShown: false }} />
         <Stack.Screen name="CustomersListPreview" component={CustomersListPreview} options={{ headerShown: false }} />
         <Stack.Screen
-          name="FamilyGamesPreview"
-          options={{ headerShown: false }}
-        >
-          {() => <FamilyGamesScreen compactHeader />}
-        </Stack.Screen>
-        <Stack.Screen
           name="CalendarOAuthRedirect"
           component={CalendarOAuthRedirectScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="StravaOAuthRedirect"
-          component={StravaOAuthRedirectScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="AirbnbOAuthRedirect"
-          component={AirbnbOAuthRedirectScreen}
           options={{ headerShown: false }}
         />
 
@@ -1208,7 +1009,6 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             <Stack.Screen name="GetStarted" component={GetStartedScreen} />
             <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
             <Stack.Screen name="GroupHub" component={GroupHubScreen} />
-            <Stack.Screen name="AddMember" component={AddMemberScreen} />
             <Stack.Screen name="FamilyInviteRespond" component={FamilyInviteRespondScreen} options={{ headerShown: false }} />
             <Stack.Screen name="FriendInviteRespond" component={FriendInviteRespondScreen} options={{ headerShown: false }} />
             <Stack.Screen name="AddFriend" component={AddFriendScreen} options={{ headerShown: false }} />
@@ -1219,40 +1019,11 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             <Stack.Screen name="Archive" component={ArchiveScreen} />
             <Stack.Screen name="ProfileSettings" component={ProfileSettingsWithSwipe} />
             <Stack.Screen name="CalendarSettings" component={CalendarSettingsScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="CustodySettings" component={CustodySettingsScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Home" component={AppShell} />
-            <Stack.Screen name="TeamHome" component={TeamShell} options={{ headerShown: false }} />
-            <Stack.Screen name="TeamJoin" component={TeamJoinWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="TeamCreate" component={TeamCreateWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="TeamComposePost" component={TeamComposePostWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="TeamCreateEvent" component={TeamCreateEventWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="TeamAddMember" component={TeamAddMemberWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="ClassroomHome" component={ClassroomShell} options={{ headerShown: false }} />
-            <Stack.Screen name="FriendsHome" component={FriendsShell} options={{ headerShown: false }} />
-            <Stack.Screen name="CongregationHome" component={CongregationShell} options={{ headerShown: false }} />
-            <Stack.Screen name="DaycareHome" component={DaycareShell} options={{ headerShown: false }} />
-            <Stack.Screen name="GroupHome" component={GroupShell} options={{ headerShown: false }} />
             <Stack.Screen name="CompanyHome" component={CompanyShell} options={{ headerShown: false }} />
-            <Stack.Screen name="FriendsJoin" component={PlatformJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'friends' }} />
-            <Stack.Screen name="CongregationJoin" component={PlatformJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'congregation' }} />
-            <Stack.Screen name="DaycareJoin" component={PlatformJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'daycare' }} />
-            <Stack.Screen name="GroupJoin" component={PlatformJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'group' }} />
             <Stack.Screen name="CreateCompany" component={CreateCompanyScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="FriendsComposePost" component={PlatformComposePostWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="CongregationComposePost" component={PlatformComposePostWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="DaycareCreateAnnouncement" component={PlatformCreateEventWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="GroupComposePost" component={PlatformComposePostWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="FriendsCreateEvent" component={PlatformCreateEventWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="CongregationCreateEvent" component={PlatformCreateEventWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="GroupCreateEvent" component={PlatformCreateEventWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="ClassroomJoin" component={ClassroomJoinWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="ClassroomCreate" component={ClassroomCreateWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="ClassroomComposeMessage" component={ClassroomComposeMessageWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="ClassroomClassworkEditor" component={ClassroomClassworkEditorWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="ClassroomAssignmentDetail" component={ClassroomAssignmentDetailWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="ClassroomAddStaff" component={ClassroomAddStaffWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="ClassroomAddStudents" component={ClassroomAddStudentsWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="ClassroomStudentMap" component={ClassroomStudentMapWithSwipe} options={{ headerShown: false }} />
+        {/* Bli med i en bedrift med kode (fra «Bli med i bedrift»). Tidligere rute: GroupJoin. */}
+        <Stack.Screen name="CompanyJoin" component={CompanyJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'organization' }} />
             <Stack.Screen name="ChatThread" component={ChatThreadWithSwipe} options={{ headerShown: false, title: 'Chat' }} />
             <Stack.Screen name="FriendChatThread" component={FriendChatThreadWithSwipe} options={{ headerShown: false, title: 'Chat' }} />
             <Stack.Screen
@@ -1273,48 +1044,15 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
                 </StackShellChrome>
               )}
             </Stack.Screen>
-            <Stack.Screen name="FamilyDashboard" component={FamilyDashboardScreen} />
-            <Stack.Screen name="ChildDashboard" component={ChildDashboardScreen} />
-            <Stack.Screen name="AddFamily" component={CreateGroupScreen} />
-            <Stack.Screen name="AddChild" component={AddMemberScreen} />
-            <Stack.Screen name="AddParent" component={AddMemberScreen} />
-            <Stack.Screen name="ChildList" component={ChildListScreen} />
             <Stack.Screen name="Templates" component={TemplateListScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
-            <Stack.Screen name="ChildProfile" component={ChildProfileScreen} />
             <Stack.Screen name="ParentProfile" component={ParentProfileScreen} />
             <Stack.Screen name="Confirmation" component={ConfirmationScreen} />
             <Stack.Screen name="SelectFamilyScreen" component={SelectFamilyScreen} />
             <Stack.Screen name="AddTodo" component={AddTodoWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="AddNote" component={AddNoteWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="ChildSchedule" component={ChildScheduleWithShell} options={{ headerShown: false }} />
-            <Stack.Screen name="ChildSettings" component={ChildSettingsWithShell} options={{ headerShown: false }} />
-            <Stack.Screen name="ChoreSettings" component={ChoreSettingsWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="StarGoals" component={StarGoalsWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="Activities" component={ActivitiesWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="ActivityDetail" component={ActivityDetailWithGate} options={{ headerShown: false }} />
             <Stack.Screen name="AiChat" component={AiChatWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen name="ProtopAssistant" component={AssistantWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="Leksehjelp" component={LeksehjelpWithShell} options={{ headerShown: false }} />
-            <Stack.Screen name="Mattehjelp" component={MattehjelpWithShell} options={{ headerShown: false }} />
-            <Stack.Screen name="Lekser" component={LekserWithShell} options={{ headerShown: false }} />
-            <Stack.Screen name="SchoolFolder" component={SchoolFolderWithShell} options={{ headerShown: false }} />
-            <Stack.Screen name="Klassen" component={KlassenWithShell} options={{ headerShown: false }} />
-            <Stack.Screen name="KlassenDetail" component={KlassenDetailWithShell} options={{ headerShown: false }} />
-            <Stack.Screen name="FamilyGames" component={FamilyGamesWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="TicTacToe" component={TicTacToeWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="RockPaperScissors" component={RockPaperScissorsWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="GuessNumber" component={GuessNumberWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="DrawGuess" component={DrawGuessWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="Connect4" component={Connect4WithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="Chess" component={ChessWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="Memory" component={MemoryWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="LocalPlay" component={LocalPlayWithGate} options={{ headerShown: false }} />
             <Stack.Screen name="AiImportReview" component={AiImportReviewWithShell} options={{ headerShown: false }} />
-            <Stack.Screen name="Bookshelf" component={BookshelfWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="AddBook" component={AddBookWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="BookDetail" component={BookDetailWithGate} options={{ headerShown: false }} />
-            <Stack.Screen name="MealDetail" component={MealDetailWithGate} options={{ headerShown: false }} />
             <Stack.Screen
               name="AddHomework"
               component={AddHomeworkWithGate}
@@ -1337,13 +1075,10 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             />
             <Stack.Screen name="Notifications" component={NotificationsWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen name="Subscription" component={SubscriptionWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="LocationSettings" component={LocationSettingsWithGate} options={{ headerShown: false }} />
             <Stack.Screen name="NotificationSettings" component={NotificationSettingsWithGate} options={{ headerShown: false }} />
             <Stack.Screen name="WeatherSettings" component={WeatherSettingsWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen name="AppearanceSettings" component={AppearanceSettingsWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen name="DashboardThemeSettings" component={DashboardThemeSettingsWithShell} options={{ headerShown: false }} />
-            <Stack.Screen name="ChildDashboardThemeSettings" component={ChildDashboardThemeSettingsWithShell} options={{ headerShown: false }} />
-            <Stack.Screen name="FamilyProgress" component={FamilyProgressWithGate} options={{ headerShown: false }} />
           </>
         )}
 

@@ -4,12 +4,10 @@ import { useApp } from '../src/context/AppContext';
 import { useHelp } from '../src/context/HelpContext';
 import { routeFromNavigation } from '../src/navigation/routeFromNavigation';
 import DailyGreetingModal from './DailyGreetingModal';
-import BirthdayPrepReminderModal from './BirthdayPrepReminderModal';
 import BiometricLockOverlay from './BiometricLockOverlay';
 import ChatDockHost from './ChatDock';
 import InviteRespondOverlay from './InviteRespondOverlay';
 import PendingAddFriendPrompt from './PendingAddFriendPrompt';
-import FamilySetupNudgeModal from './FamilySetupNudgeModal';
 import MajorUpdateModal from './MajorUpdateModal';
 import LegalUpdateNotice from './LegalUpdateNotice';
 import JoinVerifyNotice from './JoinVerifyNotice';
@@ -88,8 +86,6 @@ export default function SessionOverlays() {
         uid={uid}
         enabled={!loading && invitesEnabled && greetingEnabled && !hasPendingInvites}
       />
-      <BirthdayPrepReminderModal enabled={false} />
-      <FamilySetupNudgeModal enabled={false} />
       <MajorUpdateModal
         enabled={!loading && invitesEnabled && !hasPendingInvites}
       />

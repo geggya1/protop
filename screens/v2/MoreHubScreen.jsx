@@ -9,41 +9,16 @@ import { useI18n } from '../../src/i18n';
 import { colors, radius, useLayout } from '../../src/theme';
 import { Screen, ScrollBody } from '../../components/ui';
 import ChildProfileHeader from '../../components/ChildProfileHeader';
-import BookshelfScreen from './BookshelfScreen';
-import ShoppingListHubScreen from './ShoppingListHubScreen';
-import WishlistsHubScreen from './WishlistsHubScreen';
-import LekserHubScreen from './LekserHubScreen';
 import ChatListScreen from './ChatListScreen';
 import SettingsScreen from './SettingsScreen';
 import NotificationsScreen from './NotificationsScreen';
 import DashboardThemeSettingsScreen from './DashboardThemeSettingsScreen';
-import ChildAppsScreen from './ChildAppsScreen';
 import PlanScreen from './PlanScreen';
-import ActivitiesScreen from '../ActivitiesScreen';
 import GroupHubScreen from '../GroupHubScreen';
 import FriendsHubScreen from './FriendsHubScreen';
-import LocationHubScreen from './LocationHubScreen';
 import DocumentsHubScreen from './DocumentsHubScreen';
 import VoiceNotesHubScreen from './VoiceNotesHubScreen';
 import AiChatScreen from './AiChatScreen';
-import MealsHubScreen from './MealsHubScreen';
-import RecipesHubScreen from './RecipesHubScreen';
-import PantryHubScreen from './PantryHubScreen';
-import MatcoachHubScreen from './MatcoachHubScreen';
-import AlbumsHubScreen from './AlbumsHubScreen';
-import HoldingsHubScreen from './HoldingsHubScreen';
-import BoligmappaHubScreen from './BoligmappaHubScreen';
-import FamilyWallHubScreen from './FamilyWallHubScreen';
-import ChildDrawingsHubScreen from './ChildDrawingsHubScreen';
-import FamilyProgressScreen from './FamilyProgressScreen';
-import FamilyQuizScreen from './FamilyQuizScreen';
-import FamilyGamesScreen from './FamilyGamesScreen';
-import ScratchMapHubScreen from './ScratchMapHubScreen';
-import ReiseplanleggerHubScreen from './ReiseplanleggerHubScreen';
-import FamilyTreeHubScreen from './FamilyTreeHubScreen';
-import RememberDatesHubScreen from './RememberDatesHubScreen';
-import HospitalityHubScreen from './HospitalityHubScreen';
-import KlassenHubScreen from './KlassenHubScreen';
 import MailHubScreen from './MailHubScreen';
 import PrivacyTermsScreen from './PrivacyTermsScreen';
 import SubscriptionScreen from './SubscriptionScreen';
@@ -160,42 +135,18 @@ function Row({
   );
 }
 
+// Familiesidene (handleliste, måltider, spill, lekser m.m.) er fjernet: de hører til familieproduktet, ikke ProTop.
 const SUB_SCREENS = {
-  shop: ShoppingListHubScreen,
-  wishes: WishlistsHubScreen,
-  books: BookshelfScreen,
-  lekser: LekserHubScreen,
   chat: ChatListScreen,
   settings: SettingsScreen,
   dashboardSetup: DashboardThemeSettingsScreen,
-  childApps: ChildAppsScreen,
   plan: PlanScreen,
-  activities: ActivitiesScreen,
   members: GroupHubScreen,
   friends: FriendsHubScreen,
   groupSettings: GroupSettingsScreen,
-  location: LocationHubScreen,
   documents: DocumentsHubScreen,
   voiceNotes: VoiceNotesHubScreen,
   ai: AiChatScreen,
-  meals: MealsHubScreen,
-  recipes: RecipesHubScreen,
-  pantry: PantryHubScreen,
-  matcoach: MatcoachHubScreen,
-  albums: AlbumsHubScreen,
-  holdings: HoldingsHubScreen,
-  boligmappa: BoligmappaHubScreen,
-  wall: FamilyWallHubScreen,
-  childDrawings: ChildDrawingsHubScreen,
-  progress: FamilyProgressScreen,
-  games: FamilyGamesScreen,
-  quiz: FamilyQuizScreen,
-  scratchMap: ScratchMapHubScreen,
-  reiseplanlegger: ReiseplanleggerHubScreen,
-  familyTree: FamilyTreeHubScreen,
-  rememberDates: RememberDatesHubScreen,
-  hospitality: HospitalityHubScreen,
-  klassen: KlassenHubScreen,
   mail: MailHubScreen,
   legal: PrivacyTermsScreen,
   ...(PRICING_VISIBLE ? { subscription: SubscriptionScreen } : {}),

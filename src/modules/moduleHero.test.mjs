@@ -138,7 +138,7 @@ assert.match(headerSrc, /styles\.heroChrome/, 'phone heading is embedded as head
 assert.match(headerSrc, /marginHorizontal: -12/, 'band is edge-to-edge in the header');
 assert.match(headerSrc, /styles\.avatarSlot/, 'profile photo keeps its slot');
 assert.doesNotMatch(headerSrc, /helpOnAvatar/, 'help sits in the logo row, not hanging off the profile photo (EGEN-03)');
-for (const headerName of ['platform/PlatformHeader.jsx', 'team/TeamHeader.jsx', 'classroom/ClassroomHeader.jsx']) {
+for (const headerName of ['platform/PlatformHeader.jsx']) {
   const shellHeader = readFileSync(join(ROOT, 'components', headerName), 'utf8');
   assert.match(shellHeader, /styles\.avatarSlot/, `${headerName} anchors help on the avatar`);
   assert.match(shellHeader, /helpOverlay:\s*\{[^}]*top:\s*36/, `${headerName} help sits under the avatar`);
@@ -167,16 +167,6 @@ assert.doesNotMatch(
 assert.match(headerSrc, /position:\s*'absolute'/, 'help overlay does not push page content down');
 assert.doesNotMatch(headerSrc, /familyNameHero/, 'family name is not painted on top of the band');
 assert.doesNotMatch(headerSrc, /styles\.pageTitleRow[\s\S]*nativeID="module-hero-slot"/, 'hero is not a detached card below the title row');
-
-const drawingsSrc = readFileSync(join(ROOT, 'screens/v2/ChildDrawingsHubScreen.jsx'), 'utf8');
-assert.match(drawingsSrc, /ModulePageFrame name="childDrawings"/, 'Barnetegninger uses the shared page frame');
-assert.match(drawingsSrc, /useShellTitleRight/, 'Barnetegninger registers + Ny tegning in the shell');
-assert.doesNotMatch(drawingsSrc, /<ModuleHero /, 'Barnetegninger must not draw its own heading card');
-
-const datesSrc = readFileSync(join(ROOT, 'screens/v2/RememberDatesHubScreen.jsx'), 'utf8');
-assert.match(datesSrc, /ModulePageFrame name="remember-dates"/, 'Husk dato uses the shared page frame');
-assert.match(datesSrc, /useShellTitleRight/, 'Husk dato registers + Ny dato in the shell title row');
-assert.doesNotMatch(datesSrc, /<ModuleHero /, 'Husk dato must not draw its own heading card');
 
 const schoolSrc = readFileSync(join(ROOT, 'components/SchoolPageLayout.jsx'), 'utf8');
 assert.match(schoolSrc, /force/, 'SchoolPageLayout still opts into ModuleHero on stack screens');
@@ -225,9 +215,6 @@ assert.match(heroSrc, /artWrapPhoneChrome/, 'phone chrome art stays in the title
 assert.match(heroSrc, /artWrapPhoneChrome:\s*\{[^}]*marginRight:\s*0/, 'phone chrome art is flush with the right margin');
 assert.match(heroSrc, /objectPosition: 'right center'/, 'phone heading art anchors to the right edge');
 
-const shopSrc = readFileSync(join(ROOT, 'screens/v2/ShoppingListScreen.jsx'), 'utf8');
-assert.match(shopSrc, /useShowModuleHero/, 'shopping list reads the shared heading flag');
-assert.match(shopSrc, /!showPageHero/, 'shopping list bottom art is suppressed when the heading shows');
 assert.ok(MODULE_HERO.matcoach.title.nb.includes('Ukeplanen'));
 assert.ok(MODULE_HERO.stars.title.nb.includes('oversikt'));
 

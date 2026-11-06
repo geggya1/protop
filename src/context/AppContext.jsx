@@ -96,7 +96,7 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
     setActiveNumberSeries(family?.numberSeries);
   }, [family?.numberSeries]);
   const [parents, setParents] = useState([]);
-  const [kids, setKids] = useState([]);
+  const [kids, setKids] = useState([]); // alltid tom i ProTop, se lytterne nedenfor
   const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(true);
   /** True after family list query finishes — used so RootNav does not flash ProfileSetup. */
@@ -506,23 +506,11 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
         setParents([]);
       },
     );
-    const unsubKids = onSnapshot(
-      collection(db, 'families', familyId, 'children'),
-      (snap) => {
-        const list = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((c) => c.deleted !== true)
-          .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        setKids(list);
-      },
-      () => {
-        setKids([]);
-      },
-    );
+    // Barn (families/{id}/children) hørte til familieproduktet. ProTop lytter ikke på dem;
+    // `kids` står som tom liste så forbrukerne har samme form.
     return () => {
       unsubFam();
       unsubParents();
-      unsubKids();
     };
   }, [familyId, isChild, user, uid, listedOnFamily]);
 

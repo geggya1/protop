@@ -5,11 +5,6 @@
 
 export const CATEGORY_ORDER = [
   { id: 'main', title: 'Personlig' },
-  { id: 'food', title: 'Mat & innkjøp' },
-  { id: 'memories', title: 'Minner' },
-  { id: 'family', title: 'Familien' },
-  { id: 'school', title: 'Skole' },
-  { id: 'vehicles', title: 'Kjøretøy' },
   { id: 'house', title: 'Hus & papir' },
 ];
 
@@ -27,7 +22,7 @@ export function withIllustrationCache(path) {
   return `${s}?v=${ILLUSTRATION_CACHE}`;
 }
 
-/** Catalog + page-hero PNG filenames. Matcoach is page-only (not gated). */
+/** Catalog + page-hero illustration filenames (WebP). */
 export const ILLUSTRATION_FILES = {
   plan: 'kalender--module-activation-illustration.webp',
   mail: 'e-post--module-activation-illustration.webp',
@@ -35,34 +30,7 @@ export const ILLUSTRATION_FILES = {
   notes: 'notat--module-activation-illustration.webp',
   friends: 'venner--module-activation-illustration.webp',
   chat: 'chat--module-activation-illustration.webp',
-  chores: 'gjoremal--module-activation-illustration.webp',
-  shop: 'handleliste--module-activation-illustration.webp',
-  meals: 'maltidsplanlegger--module-activation-illustration.webp',
-  recipes: 'oppskrift--module-activation-illustration.webp',
-  pantry: 'lager--module-activation-illustration.webp',
-  matcoach: 'ai-matcoach--module-activation-illustration.webp',
-  albums: 'familiealbum--module-activation-illustration.webp',
-  wall: 'familievegg--module-activation-illustration.webp',
-  childDrawings: 'barnetegninger--module-activation-illustration.webp',
-  familyTree: 'familietreet--module-activation-illustration.webp',
-  scratchMap: 'vare-reiser--module-activation-illustration.webp',
-  reiseplanlegger: 'reiseplanlegger--module-activation-illustration.webp',
-  wishes: 'gaveonsker--module-activation-illustration.webp',
-  location: 'familieposisjon--module-activation-illustration.webp',
-  rememberDates: 'husk-dato--module-activation-illustration.webp',
-  activities: 'aktiviteter--module-activation-illustration.webp',
-  books: 'bokhylla--module-activation-illustration.webp',
-  games: 'familiespill--module-activation-illustration.webp',
-  progress: 'barnas-progresjon--module-activation-illustration.webp',
-  skole: 'skole--module-activation-illustration.webp',
-  lekser: 'lekser--module-activation-illustration.webp',
-  leksehjelp: 'leksehjelp--module-activation-illustration.webp',
-  mattehjelp: 'mattehjelp--module-activation-illustration.webp',
-  'week-plan': 'ukeplan--module-activation-illustration.webp',
-  holdings: 'kjoretoy--module-activation-illustration.webp',
   documents: 'dokumenter--module-activation-illustration.webp',
-  boligmappa: 'boligen--module-activation-illustration.webp',
-  hospitality: 'utleie--module-activation-illustration.webp',
   projects: 'prosjekt--module-activation-illustration.webp',
   ansatte: 'ansatte--module-activation-illustration.webp',
   'hr-ansatte': 'ansatte--module-activation-illustration.webp',
@@ -161,34 +129,9 @@ export const SHELL_SKIP_MODULE_IDS = new Set([
 ]);
 
 export const STACK_MODULE_IDS = {
-  SchoolFolder: 'skole',
-  Lekser: 'lekser',
-  Leksehjelp: 'leksehjelp',
-  Mattehjelp: 'mattehjelp',
-  ChildSchedule: 'week-plan',
-  Klassen: 'klassen',
-  KlassenDetail: 'klassen',
-  ChoreSettings: 'chores',
-  FamilyGames: 'games',
-  Bookshelf: 'books',
-  Activities: 'activities',
-  ActivityDetail: 'activities',
-  StarGoals: 'chores',
-  FamilyProgress: 'progress',
-  LocationSettings: 'location',
   AddTodo: 'stars',
   AddNote: 'notes',
-  AddBook: 'books',
-  BookDetail: 'books',
-  MealDetail: 'meals',
-  AddHomework: 'lekser',
   ParentTask: 'stars',
-  TicTacToe: 'games',
-  RockPaperScissors: 'games',
-  GuessNumber: 'games',
-  DrawGuess: 'games',
-  Connect4: 'games',
-  LocalPlay: 'games',
 };
 
 function asString(value, fallback = '') {

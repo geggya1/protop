@@ -16,7 +16,6 @@ export const AI_LIMITS = {
   /** Maks chat-meldinger per bruker per dag (foresatte) */
   chatPerUserPerDay: 40,
   /** Maks chat-meldinger per barn per dag (lokal motor, ingen API-kostnad) */
-  chatPerChildPerDay: 50,
   /** Maks tolkede kvitteringer per ansatt per dag (utlegg) */
   receiptsPerUserPerDay: 60,
   /** Maks Leksehjelpen-turer per bruker per dag (litt slakk så barn ikke treffer tak midt i lekseøkt) */
@@ -201,15 +200,6 @@ export const GEMINI_MODEL_FALLBACKS = [
   'gemini-3.7-flash',
   'gemini-3.6-flash',
   'gemini-3.5-flash',
-].filter((m, i, arr) => m && arr.indexOf(m) === i);
-
-/** Leksehjelpen: raske lite-modeller først, deretter tyngre flash som backup. */
-export const TUTOR_GEMINI_MODELS = [
-  'gemini-flash-lite-latest',
-  'gemini-2.5-flash-lite',
-  'gemini-3.1-flash-lite',
-  'gemini-flash-latest',
-  'gemini-2.5-flash',
 ].filter((m, i, arr) => m && arr.indexOf(m) === i);
 
 /** Brukervennlig feilmelding — aldri rå JSON/HTTP-body til UI. */
@@ -464,14 +454,4 @@ export async function callGeminiText(apiKey, systemPrompt, userParts, options = 
     }
   }
   throw lastErr || new Error('Gemini feilet for alle modeller');
-}
-
-/** Parent toggle: allowedApps[appId], with legacy aiEnabled for AI modules. */
-export function childAllowsApp(childData, appId) {
-  const apps = childData?.allowedApps;
-  if (apps && typeof apps[appId] === 'boolean') return apps[appId];
-  if ((appId === 'ai' || appId === 'leksehjelp') && childData?.aiEnabled === false) {
-    return false;
-  }
-  return true;
 }

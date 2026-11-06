@@ -64,16 +64,6 @@ for (const id of ACTIVATABLE_MODULE_IDS) {
   assert.equal(existsSync(published.replace(/\.webp$/, '-m.webp')), true, `${id} missing mobile copy`);
 }
 
-const mealsArt = readFileSync(join(ROOT, 'assets/module-activation/maltidsplanlegger--module-activation-illustration.webp'));
-assert.ok(mealsArt.length > 40000, 'meals illustration looks like the overwritten hero copy');
-
-const matcoachBundled = join(ROOT, 'assets/module-activation/ai-matcoach--module-activation-illustration.webp');
-const matcoachPublic = join(ROOT, 'public/assets/module-activation/ai-matcoach--module-activation-illustration.webp');
-assert.equal(existsSync(matcoachBundled), true, 'matcoach dedicated illustration');
-assert.equal(existsSync(matcoachPublic), true, 'matcoach public illustration');
-assert.equal(sha256(matcoachBundled), sha256(matcoachPublic), 'matcoach bundled != public copy');
-assert.notEqual(sha256(matcoachBundled), sha256(join(ROOT, 'assets/module-activation/maltidsplanlegger--module-activation-illustration.webp')), 'matcoach must not reuse meals art');
-
 for (const [id, filename] of Object.entries(ILLUSTRATION_FILES)) {
   const bundledFile = join(ROOT, 'assets/module-activation', filename);
   const publicFile = join(ROOT, 'public/assets/module-activation', filename);
@@ -81,94 +71,9 @@ for (const [id, filename] of Object.entries(ILLUSTRATION_FILES)) {
   assert.equal(existsSync(publicFile), true, `ILLUSTRATION_FILES missing public ${id}`);
 }
 
-const familyTreeFile = 'familietreet--module-activation-illustration.webp';
-const familyTreeBundled = join(ROOT, 'assets/module-activation', familyTreeFile);
-const familyTreePublic = join(ROOT, 'public/assets/module-activation', familyTreeFile);
-assert.equal(sha256(familyTreeBundled), sha256(familyTreePublic), 'familyTree bundled != public copy');
-const familyTreeSize = webpSize(readFileSync(familyTreeBundled));
-assert.notDeepEqual(
-  familyTreeSize,
-  { width: 748, height: 747 },
-  'familyTree must not keep the leftover pair-crop (corkboard/shovel on the left)',
-);
-assert.notDeepEqual(
-  familyTreeSize,
-  { width: 816, height: 784 },
-  'familyTree must use the dedicated 3D tree with ~28px pad, not the 8px-pad crop',
-);
-assert.ok(familyTreeSize.width >= 840 && familyTreeSize.height >= 800, 'familyTree hero art should fill the heading');
-assert.ok(familyTreeSize.width <= 880 && familyTreeSize.height <= 850, 'familyTree should stay a compact square after trim+pad');
-
-const leftoverPairCrops = {
-  activities: { file: 'aktiviteter--module-activation-illustration.webp', width: 746, height: 482 },
-  games: { file: 'familiespill--module-activation-illustration.webp', width: 752, height: 522 },
-  recipes: { file: 'oppskrift--module-activation-illustration.webp', width: 752, height: 533 },
-};
-for (const [id, spec] of Object.entries(leftoverPairCrops)) {
-  const bundledFile = join(ROOT, 'assets/module-activation', spec.file);
-  const publicFile = join(ROOT, 'public/assets/module-activation', spec.file);
-  assert.equal(sha256(bundledFile), sha256(publicFile), `${id} bundled != public copy`);
-  const size = webpSize(readFileSync(bundledFile));
-  assert.notDeepEqual(
-    size,
-    { width: spec.width, height: spec.height },
-    `${id} must not keep the leftover pair-crop on the left`,
-  );
-  assert.ok(size.width < spec.width, `${id} leftover fragment should be cropped away`);
-}
-
-{
-  const recipesFile = join(ROOT, 'assets/module-activation/oppskrift--module-activation-illustration.webp');
-  const { data, info } = await sharp(recipesFile).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const { width, height, channels } = info;
-  let minX = width;
-  const colOpaque = new Array(width).fill(false);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (data[(y * width + x) * channels + 3] > 12) {
-        colOpaque[x] = true;
-        if (x < minX) minX = x;
-      }
-    }
-  }
-  assert.ok(minX >= 20, `recipes leftover must not start at x=0 (padL=${minX})`);
-  const blobs = [];
-  let start = null;
-  let end = null;
-  for (let x = minX; x < width; x++) {
-    if (colOpaque[x]) {
-      if (start === null) start = x;
-      end = x;
-    } else if (start !== null) {
-      blobs.push({ start, end, width: end - start + 1 });
-      start = end = null;
-    }
-  }
-  if (start !== null) blobs.push({ start, end, width: end - start + 1 });
-  assert.equal(blobs[0]?.start > 0, true, 'recipes first blob must not sit at x=0');
-}
-
-const clippedRightCrops = {
-  books: { file: 'bokhylla--module-activation-illustration.webp', width: 743, height: 547 },
-  wall: { file: 'familievegg--module-activation-illustration.webp', width: 751, height: 547 },
-};
-for (const [id, spec] of Object.entries(clippedRightCrops)) {
-  const bundledFile = join(ROOT, 'assets/module-activation', spec.file);
-  const publicFile = join(ROOT, 'public/assets/module-activation', spec.file);
-  assert.equal(sha256(bundledFile), sha256(publicFile), `${id} bundled != public copy`);
-  const size = webpSize(readFileSync(bundledFile));
-  assert.ok(
-    size.width > spec.width,
-    `${id} must keep the full right edge (was clipped at ${spec.width}px)`,
-  );
-}
-
 const sparseCanvas = {
-  progress: 'barnas-progresjon--module-activation-illustration.webp',
-  holdings: 'kjoretoy--module-activation-illustration.webp',
+  utstyr: 'kjoretoy--module-activation-illustration.webp',
   documents: 'dokumenter--module-activation-illustration.webp',
-  boligmappa: 'boligen--module-activation-illustration.webp',
-  hospitality: 'utleie--module-activation-illustration.webp',
 };
 for (const [id, file] of Object.entries(sparseCanvas)) {
   const bundledFile = join(ROOT, 'assets/module-activation', file);

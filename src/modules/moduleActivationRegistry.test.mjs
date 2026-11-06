@@ -20,14 +20,8 @@ import {
   STACK_MODULE_IDS,
 } from './moduleActivationRegistry.js';
 
-const EXPECTED_IDS = [
-  'plan', 'mail', 'stars', 'notes', 'chat', 'chores',
-  'shop', 'meals', 'recipes', 'pantry',
-  'albums', 'wall', 'childDrawings', 'familyTree', 'scratchMap', 'reiseplanlegger', 'wishes',
-  'location', 'rememberDates', 'activities', 'books', 'games', 'progress',
-  'skole', 'lekser', 'leksehjelp', 'mattehjelp', 'week-plan',
-  'holdings', 'documents', 'boligmappa', 'hospitality',
-];
+// ProTop: bare modulene for arbeid. Familiemodulene (mat, skole, spill, minner, hus) er fjernet.
+const EXPECTED_IDS = ['plan', 'mail', 'stars', 'notes', 'chat', 'documents'];
 
 const json = JSON.parse(readFileSync(new URL('./moduler.json', import.meta.url), 'utf8'));
 assert.deepEqual(catalogJsonFile, json, 'moduler.catalog.js must match moduler.json');
@@ -36,7 +30,7 @@ assert.deepEqual(MODULE_CATALOG, json);
 const registry = createModuleRegistry(json);
 assert.deepEqual(registry.ACTIVATABLE_MODULE_IDS, EXPECTED_IDS);
 assert.deepEqual(ACTIVATABLE_MODULE_IDS, EXPECTED_IDS);
-assert.equal(EXPECTED_IDS.length, 32);
+assert.equal(EXPECTED_IDS.length, 6);
 
 for (const id of EXPECTED_IDS) {
   const mod = getModuleConfig(id);
@@ -79,16 +73,16 @@ assert.equal(activationModuleIdForShell('home'), null);
 assert.equal(activationModuleIdForShell('plan'), 'plan');
 assert.equal(activationModuleIdForShell('more', null), null);
 assert.equal(activationModuleIdForShell('more', 'settings'), null);
-assert.equal(activationModuleIdForShell('more', 'shop'), 'shop');
+assert.equal(activationModuleIdForShell('more', 'shop'), null);
 assert.equal(activationModuleIdForShell('more', 'moduleAccess'), null);
-assert.equal(activationModuleIdForShell('chores'), 'chores');
+assert.equal(activationModuleIdForShell('chores'), null);
 assert.equal(activationModuleIdForShell('mail'), 'mail');
 
-assert.equal(STACK_MODULE_IDS.Activities, 'activities');
-assert.equal(STACK_MODULE_IDS.FamilyProgress, 'progress');
-assert.equal(STACK_MODULE_IDS.LocationSettings, 'location');
-assert.equal(STACK_MODULE_IDS.StarGoals, 'chores');
-assert.equal(activationModuleIdForStack('Activities'), 'activities');
+assert.equal(STACK_MODULE_IDS.AddTodo, 'stars');
+assert.equal(STACK_MODULE_IDS.AddNote, 'notes');
+assert.equal(STACK_MODULE_IDS.Activities, undefined);
+assert.equal(activationModuleIdForStack('AddTodo'), 'stars');
+assert.equal(activationModuleIdForStack('Activities'), null);
 assert.equal(activationModuleIdForStack('FamilyDashboard'), null);
 assert.equal(activationModuleIdForStack('Home'), null);
 

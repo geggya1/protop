@@ -34,18 +34,6 @@ assert.equal(homeHelp.headline, homeCopy.title);
 assert.equal(homeHelp.activationLabel, 'Ta meg gjennom skrittene');
 assert.ok(homeHelp.benefits.length >= 2);
 
-const matcoachCopy = localizeIntro(getModuleIntro('family', 'matcoach'), 'nb');
-const matcoachHelp = buildHelpWelcomeModule({
-  scope: 'family',
-  moduleId: 'matcoach',
-  copy: matcoachCopy,
-  walkthroughLabel: 'Ta meg gjennom skrittene',
-  closeLabel: 'Lukk',
-});
-assert.ok(matcoachHelp);
-assert.match(matcoachHelp.illustrationPath, /ai-matcoach--module-activation-illustration\.webp\?v=/);
-assert.equal(matcoachHelp.headline, matcoachCopy.title);
-
 const teamWallCopy = localizeIntro(getModuleIntro('team', 'wall'), 'nb');
 const teamWall = buildHelpWelcomeModule({
   scope: 'team',

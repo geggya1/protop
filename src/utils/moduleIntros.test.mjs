@@ -20,7 +20,9 @@ assert.ok(getModuleIntro('family', 'plan'));
 assert.ok(getModuleIntro('family', 'voiceNotes'), 'voiceNotes aliases to notes');
 assert.equal(getModuleIntro('family', 'voiceNotes').icon, 'document-text');
 assert.equal(getModuleIntro('family', 'voiceNotes').pageKey, undefined, 'voiceNotes er en familie-intro');
-assert.equal(getModuleIntro('classroom', 'messages').icon, 'chatbubbles');
+// Skole, barnehage og menighet er fjernet fra ProTop.
+assert.equal(getModuleIntro('classroom', 'messages'), null);
+assert.equal(getModuleIntro('family', 'shop'), null);
 assert.equal(getModuleIntro('family', 'does-not-exist'), null);
 
 const chatNb = localizeIntro(legacy('chat'), 'nb');
@@ -34,13 +36,6 @@ assert.ok(plan.icon);
 assert.equal(plan.tour[0].scene, 'hub');
 assert.equal(plan.tour[0].advance, true);
 assert.equal(plan.tour[1].scene, 'inner');
-
-const shop = localizeIntro(legacy('shop'), 'nb');
-assert.equal(shop.tour[0].scene, 'hub');
-assert.equal(shop.tour[0].advance, true);
-assert.equal(shop.tour[1].scene, 'inner');
-assert.equal(shop.tour[1].anchor, 'input');
-assert.equal(shop.tour[2].scene, 'inner');
 
 const planEn = localizeIntro(legacy('plan'), 'en');
 assert.match(planEn.title, /week/i);
@@ -112,26 +107,11 @@ assert.match(mailTour.steps[0], /melding/i);
 assert.equal(mailTour.tour[1].anchor, 'add');
 assert.ok(!/Innstillinger for å koble/i.test(mailTour.steps[0]));
 
-const matcoach = localizeIntro(legacy('matcoach'), 'nb');
-assert.equal(matcoach.tour[0].anchor, 'prefs');
-assert.equal(matcoach.tour[0].scene, 'hub');
-assert.equal(matcoach.tour[0].advance, true);
-assert.equal(matcoach.tour[1].scene, 'inner');
-assert.equal(matcoach.tour[2].anchor, 'add');
-assert.equal(matcoach.tour[3].anchor, 'content');
-assert.match(matcoach.steps[0], /Familie-fanen|preferanser/i);
-
-const albums = localizeIntro(legacy('albums'), 'nb');
-assert.equal(albums.tour[0].anchor, 'add');
-assert.equal(albums.tour[0].advance, true);
-assert.equal(albums.tour[1].scene, 'inner');
-assert.equal(albums.tour[1].anchor, 'input');
-assert.ok(getModuleIntro('family', 'wall'));
 assert.ok(getModuleIntro('family', 'friends'));
 assert.ok(getModuleIntro('family', 'help'));
 assert.ok(getModuleIntro('family', 'moduleAccess'));
 
-const familyHeroes = ['family.home', 'family.stars', 'family.chores', 'family.notes', 'family.chat', 'family.shop'];
+const familyHeroes = ['family.home', 'family.stars', 'family.notes', 'family.chat'];
 familyHeroes.forEach((k) => {
   assert.ok(MODULE_INTROS[k].hero, `${k} should reuse module hero art`);
 });

@@ -85,10 +85,8 @@ assert.equal(plan.title, 'Din kalender, én plan');
 assert.equal(plan.kicker, 'Kalender');
 
 const assetsSrc = readFileSync(join(ROOT, 'src/modules/moduleActivationAssets.js'), 'utf8');
-assert.match(assetsSrc, /matcoach: require\('\.\.\/\.\.\/assets\/module-activation\/ai-matcoach--module-activation-illustration\.webp'\)/);
-assert.match(assetsSrc, /matcoach: 'matcoach'/);
-assert.match(assetsSrc, /location: 'location'/);
-assert.match(assetsSrc, /scratchMap: 'scratchMap'/);
+// Familiemodulene (matcoach, posisjon, reiser, familietre …) er fjernet fra ProTop.
+assert.equal(/matcoach|familietreet|scratchMap/.test(assetsSrc), false);
 
 for (const id of ACTIVATABLE_MODULE_IDS) {
   const hero = resolveModuleHero(id, 'nb');
@@ -97,16 +95,6 @@ for (const id of ACTIVATABLE_MODULE_IDS) {
   assert.ok(ILLUSTRATION_FILES[id], `${id} illustration filename`);
 }
 
-const matcoachFile = 'ai-matcoach--module-activation-illustration.webp';
-const bundled = join(ROOT, 'assets/module-activation', matcoachFile);
-const published = join(ROOT, 'public/assets/module-activation', matcoachFile);
-assert.equal(existsSync(bundled), true, 'matcoach bundled art');
-assert.equal(existsSync(published), true, 'matcoach public art');
-assert.equal(
-  createHash('sha256').update(readFileSync(bundled)).digest('hex'),
-  createHash('sha256').update(readFileSync(published)).digest('hex'),
-  'matcoach bundled != public',
-);
 
 const frameSrc = readFileSync(join(ROOT, 'components/ModulePageBg.jsx'), 'utf8');
 assert.match(frameSrc, /<ModuleHero /, 'frame must render the shared heading');
@@ -203,35 +191,6 @@ assert.match(heroSrc, /objectPosition: 'right center'/, 'phone heading art ancho
 
 assert.ok(MODULE_HERO.matcoach.title.nb.includes('Ukeplanen'));
 assert.ok(MODULE_HERO.stars.title.nb.includes('oversikt'));
-
-const matcoachCopy = localizeIntro(getModuleIntro('family', 'matcoach'), 'nb');
-const matcoachHelp = buildHelpWelcomeModule({
-  scope: 'family',
-  moduleId: 'matcoach',
-  copy: matcoachCopy,
-});
-assert.ok(matcoachHelp);
-assert.match(matcoachHelp.illustrationPath, /ai-matcoach--module-activation-illustration\.webp\?v=/);
-assert.equal(getModuleConfig('matcoach'), null, 'matcoach stays ungated');
-
-const familyTreeFile = 'familietreet--module-activation-illustration.webp';
-const familyTreeBundled = join(ROOT, 'assets/module-activation', familyTreeFile);
-const familyTreePublic = join(ROOT, 'public/assets/module-activation', familyTreeFile);
-assert.equal(existsSync(familyTreeBundled), true, 'familyTree bundled art');
-assert.equal(existsSync(familyTreePublic), true, 'familyTree public art');
-assert.equal(
-  createHash('sha256').update(readFileSync(familyTreeBundled)).digest('hex'),
-  createHash('sha256').update(readFileSync(familyTreePublic)).digest('hex'),
-  'familyTree bundled != public',
-);
-assert.match(assetsSrc, /familyTree: require\('\.\.\/\.\.\/assets\/module-activation\/familietreet--module-activation-illustration\.webp'\)/);
-const familyTreeHelp = buildHelpWelcomeModule({
-  scope: 'family',
-  moduleId: 'familyTree',
-  copy: localizeIntro(getModuleIntro('family', 'familyTree'), 'nb'),
-});
-assert.ok(familyTreeHelp);
-assert.match(familyTreeHelp.illustrationPath, /familietreet--module-activation-illustration\.webp\?v=/);
 
 const COMPANY_PAGES = [
   ['projects', null, 'projects'],

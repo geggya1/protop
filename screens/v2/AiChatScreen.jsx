@@ -8,15 +8,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { colors } from '../../src/theme';
 import { Screen } from '../../components/ui';
-import { profileAge } from '../../src/utils/age';
 import {
-  childGreeting,
-  childSuggestedPrompts,
-  CHILD_DISCLAIMER,
   PARENT_GREETING,
   PARENT_DISCLAIMER,
   parentSuggestedPrompts,
-} from '../../src/utils/childChatPrompts';
+} from '../../src/utils/aiChatPrompts';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
 import {
@@ -33,7 +29,6 @@ import {
   SwipeTimestampHost,
   useSwipeTimestampReveal,
 } from '../../components/SwipeTimestamp';
-import { useChildAppGuard } from '../../src/hooks/useChildAppGuard';
 import ModuleIntroHost from '../../components/ModuleIntroHost';
 import ChatMarkdownText from '../../components/ChatMarkdownText';
 import HelpTarget from '../../components/HelpTarget';
@@ -44,14 +39,13 @@ const FALLBACK_ANSWERS = [
 ];
 
 export default function AiChatScreen({ inShell = false }) {
-  useChildAppGuard('ai');
   const navigation = useNavigation();
   const route = useRoute();
   const paramChatId = route.params?.chatId || null;
   const wantNew = !!route.params?.newChat;
   const paramTitle = route.params?.title || null;
 
-  const { isChild, family, familyId, meChild, uid, requestShellTab } = useApp();
+  const { family, familyId, uid, requestShellTab } = useApp();
   const [chatId, setChatId] = useState(wantNew ? null : paramChatId);
   const [chatTitle, setChatTitle] = useState(paramTitle || null);
   const [messages, setMessages] = useState([]);
@@ -64,13 +58,8 @@ export default function AiChatScreen({ inShell = false }) {
   const creatingRef = useRef(false);
   const { reveal, panResponder, stampWidth } = useSwipeTimestampReveal();
 
-  const childName = isChild ? (meChild?.name || 'Barn') : null;
-  const childAge = isChild ? profileAge(meChild) : null;
-  const childId = isChild ? (meChild?.id || meChild?.childId) : null;
-  const suggestedPrompts = isChild ? childSuggestedPrompts(childAge) : parentSuggestedPrompts();
-  const greeting = isChild
-    ? childGreeting(childName, childAge)
-    : PARENT_GREETING;
+  const suggestedPrompts = parentSuggestedPrompts();
+  const greeting = PARENT_GREETING;
 
   // Start empty / greeting for new chats
   useEffect(() => {
@@ -116,8 +105,7 @@ export default function AiChatScreen({ inShell = false }) {
     try {
       const id = await createAiChat(uid, {
         familyId: familyId || '',
-        context: isChild ? 'child' : 'parent',
-        childId: childId || '',
+        context: 'parent',
         title: firstUserText || 'Ny AI-chat',
       });
       await ensureGreetingMessage(uid, id, greeting);
@@ -128,7 +116,7 @@ export default function AiChatScreen({ inShell = false }) {
     } finally {
       creatingRef.current = false;
     }
-  }, [chatId, uid, familyId, isChild, childId, greeting, navigation]);
+  }, [chatId, uid, familyId, greeting, navigation]);
 
   const sendText = useCallback(async (text) => {
     const trimmed = String(text || '').trim();
@@ -139,7 +127,7 @@ export default function AiChatScreen({ inShell = false }) {
 
     const history = messages
       .filter((m) => m.id !== 'greeting' && !m.isGreeting)
-      .slice(isChild ? -6 : -12)
+      .slice(-12)
       .map((m) => ({ role: m.role, text: m.text }));
 
     setMessages((prev) => [...prev, {
@@ -159,12 +147,8 @@ export default function AiChatScreen({ inShell = false }) {
       const fn = httpsCallable(functions, 'aiChat');
       const result = await fn({
         message: trimmed,
-        context: isChild ? 'child' : 'parent',
         familyName: family?.name || '',
         familyId: familyId || '',
-        childId: childId || '',
-        childName: childName || '',
-        childAge: childAge ?? null,
         history,
       });
       const reply = result?.data?.reply || FALLBACK_ANSWERS[0];
@@ -204,8 +188,7 @@ export default function AiChatScreen({ inShell = false }) {
       setLoading(false);
     }
   }, [
-    loading, uid, chatId, ensureChat, messages, isChild,
-    family?.name, familyId, childId, childName, childAge,
+    loading, uid, chatId, ensureChat, messages, family?.name, familyId,
   ]);
 
   const sendMessage = useCallback(() => sendText(input), [input, sendText]);
@@ -250,19 +233,16 @@ export default function AiChatScreen({ inShell = false }) {
             ) : (
               <ChatMarkdownText
                 text={item.text}
-                style={[
-                  styles.bubbleText,
-                  isChild && styles.bubbleTextChild,
-                ]}
+                style={styles.bubbleText}
               />
             )}
           </View>
         </View>
       </SwipeStampRow>
     );
-  }, [isChild, reveal, stampWidth]);
+  }, [reveal, stampWidth]);
 
-  const disclaimer = isChild ? CHILD_DISCLAIMER : PARENT_DISCLAIMER;
+  const disclaimer = PARENT_DISCLAIMER;
   const headerTitle = chatTitle || (chatId ? 'AI-chat' : 'Ny AI-chat');
 
   const leave = () => {
@@ -299,7 +279,7 @@ export default function AiChatScreen({ inShell = false }) {
               {inShell ? (chatTitle || 'Ny chat') : headerTitle}
             </Text>
             <Text style={styles.headerSub}>
-              {isChild ? `Hei ${childName?.split(/\s+/)[0] || 'du'}!` : 'ProTop Hjelper'}
+              ProTop Hjelper
             </Text>
           </View>
           <HelpTarget id="add" onAdvance={startFresh}>
@@ -412,10 +392,10 @@ export default function AiChatScreen({ inShell = false }) {
         <HelpTarget id="input" style={{ width: '100%' }}>
           <View style={styles.inputRow}>
             <TextInput
-              style={[styles.input, isChild && styles.inputChild]}
+              style={styles.input}
               value={input}
               onChangeText={setInput}
-              placeholder={isChild ? 'Spør om lekser, lesing, gjøremål…' : 'Spør om plan, middag, barn — eller hva som helst…'}
+              placeholder="Spør om prosjekter, timer, HMS — eller få hjelp med en tekst…"
               placeholderTextColor="#94a3b8"
               multiline
               maxLength={500}
@@ -521,7 +501,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderBottomLeftRadius: 4,
   },
   bubbleText: { fontSize: 14, lineHeight: 20, color: colors.ink, fontWeight: '500' },
-  bubbleTextChild: { fontSize: 15, lineHeight: 22 },
   bubbleTextUser: { color: '#fff' },
 
   typingRow: {
@@ -545,7 +524,6 @@ const styles = StyleSheet.create({
     borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8,
     fontSize: 16, fontWeight: '500', color: colors.ink, maxHeight: 90,
   },
-  inputChild: { minHeight: 40 },
   sendBtn: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: colors.brand,
     alignItems: 'center', justifyContent: 'center',

@@ -118,6 +118,8 @@ function mocked(id) {
   if (id.includes('BarcodeScannerModal')) return { __esModule: true, default: () => null };
   // Kjøregodtgjørelse på lønnssiden leser prosjektstaten og satsene fra serveren.
   if (id.includes('mileage/EmployeeMileageCard')) return { __esModule: true, default: () => null };
+  // Lønnsgrunnlaget leser innlogget bruker (useApp) og timelistene; det har egne tester.
+  if (id.endsWith('HrPayrollSummary')) return { __esModule: true, default: () => null };
   if (id.includes('ThemeContext')) {
     return {
       useColors: () => ({

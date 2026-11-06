@@ -37,6 +37,9 @@ export const type = {
   title: { fontSize: 17, lineHeight: 22, fontWeight: '600', letterSpacing: -0.2 },
   h2: { fontSize: 20, lineHeight: 26, fontWeight: '600', letterSpacing: -0.3 },
   h1: { fontSize: 24, lineHeight: 30, fontWeight: '600', letterSpacing: -0.4 },
+  // Rolige kort (personsidene): korttittel og nøkkeltall uten tung fet skrift.
+  cardTitle: { fontSize: 15, lineHeight: 20, fontWeight: '500' },
+  value: { fontSize: 20, lineHeight: 26, fontWeight: '500', letterSpacing: -0.2 },
 };
 
 /** Fontvektene som faktisk er lastet. */

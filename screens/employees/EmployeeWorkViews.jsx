@@ -26,7 +26,8 @@ import { toDateKey } from '../../src/arbeid/calendar.js';
 import { sendPasswordResetV2 } from '../../src/utils/sendPasswordReset';
 import { formatDate } from '../../src/format/nb';
 import DateInput from '../../components/DateInput';
-import { radius } from '../../src/ui/tokens';
+import { radius, space, type } from '../../src/ui/tokens';
+import SettingsCard from '../../components/employees/SettingsCard.jsx';
 
 // «Kan logge inn» er ikke et eget valg: innlogging følger kobling og om ansettelsen er aktiv.
 const CHECKS = [
@@ -72,6 +73,15 @@ export default function EmployeeWorkViews({
   }
   return (
     <EmployeeSettings employee={employee} colors={colors} canEdit={canEdit} onSave={onSave} sub={sub} />
+  );
+}
+
+/** Bryter (av/på). Tilstanden står på raden rundt (accessibilityRole checkbox). */
+function Switch({ on, locked, colors }) {
+  return (
+    <View style={[styles.track, { backgroundColor: on ? colors.brand : colors.line, opacity: locked ? 0.45 : 1 }]}>
+      <View style={[styles.knob, { backgroundColor: colors.card || '#fff' }, on && styles.knobOn]} />
+    </View>
   );
 }
 
@@ -175,84 +185,111 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, sub = 'general' }
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.wrap} nativeID="employee-time-settings">
-      {note ? <Text style={{ color: colors.brand }}>{note}</Text> : null}
-      {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
+    <ScrollView contentContainerStyle={styles.settingsWrap} nativeID="employee-time-settings">
+      {note ? <Text style={[type.body, { color: colors.brand }]}>{note}</Text> : null}
+      {error ? <Text style={[type.body, { color: colors.danger }]}>{error}</Text> : null}
 
       {sub === 'general' ? (
-        <View style={styles.checks}>
-          {membership.externalRules ? null : (
-            <View style={styles.payForm} nativeID="employee-pay-form">
-              <Text style={{ color: colors.muted }}>Lønnsform</Text>
-              <View style={styles.payChips}>
-                {PAY_FORMS.map((form) => {
-                  const on = String(employee?.company?.compensationType || '').toLowerCase() === form.toLowerCase();
-                  return (
-                    <TouchableOpacity
-                      key={form}
-                      disabled={!canEdit}
-                      onPress={() => onSave?.(patchSettings({}, { compensationType: on ? '' : form }))}
-                      style={[styles.payChip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brand : 'transparent', opacity: canEdit ? 1 : 0.6 }]}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: on, disabled: !canEdit }}
-                    >
-                      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13 }}>{form}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-          {CHECKS.filter((row) => !row.show || row.show(flags)).map((row) => {
-            const on = !!flags[row.key];
-            const locked = rowLocked(row, membership);
-            const box = (
-              <View style={[styles.box, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brand : 'transparent', opacity: locked ? 0.45 : 1 }]}>
-                {on ? <Text style={{ color: '#fff', fontSize: 12 }}>✓</Text> : null}
-              </View>
-            );
-            const label = <Text style={{ color: locked ? colors.muted : colors.ink, flex: 1 }}>{row.label}</Text>;
-            if (locked) {
-              return (
-                <View key={row.key} style={styles.check} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: true }}>
-                  {box}
-                  {label}
+        <View style={styles.cards}>
+          <SettingsCard colors={colors} title="Timeliste og lønn" icon="time-outline" hint="Hvordan timene føres og regnes" nativeID="employee-settings-rules">
+            {membership.externalRules ? null : (
+              <View style={styles.payForm} nativeID="employee-pay-form">
+                <Text style={[type.caption, { color: colors.muted }]}>Lønnsform</Text>
+                <View style={styles.payChips}>
+                  {PAY_FORMS.map((form) => {
+                    const on = String(employee?.company?.compensationType || '').toLowerCase() === form.toLowerCase();
+                    return (
+                      <TouchableOpacity
+                        key={form}
+                        disabled={!canEdit}
+                        onPress={() => onSave?.(patchSettings({}, { compensationType: on ? '' : form }))}
+                        style={[styles.payChip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : 'transparent', opacity: canEdit ? 1 : 0.6 }]}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: on, disabled: !canEdit }}
+                      >
+                        <Text style={[type.label, { color: on ? colors.brand : colors.ink }]}>{form}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
-              );
-            }
-            return (
-              <TouchableOpacity key={row.key} onPress={() => toggle(row.key)} style={styles.check} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: false }}>
-                {box}
-                {label}
-              </TouchableOpacity>
-            );
-          })}
-          <Text style={{ color: colors.muted, fontSize: 13 }}>
-            Eksternt personell og kapasitetsoversikten styres under rettigheter.
-          </Text>
-          <Text style={{ color: colors.muted, marginTop: 8 }}>Mål for faktureringsgrad</Text>
-          <View style={styles.row}>
-            <TextInput value={target} onChangeText={setTarget} editable={canEdit} style={[styles.input, { color: colors.ink, borderColor: colors.line }]} accessibilityLabel="Faktureringsgrad" />
-            <Text style={{ color: colors.muted }}>% av forventede timer må være registrerte timer på prosjekter</Text>
-          </View>
-          {canEdit ? (
-            <View style={styles.row}>
-              {isActiveEmployee(employee) ? (
-                <TouchableOpacity
-                  nativeID="employee-settings-close"
-                  onPress={closeAccount}
-                  accessibilityRole="button"
-                  style={[styles.btn, { backgroundColor: '#dc2626' }]}
-                >
-                  <Text style={styles.btnText}>Avslutt medarbeiderkonto</Text>
-                </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity onPress={saveGoals} style={[styles.btn, { backgroundColor: colors.brand }]} nativeID="employee-settings-save">
-                <Text style={styles.btnText}>Lagre endringer</Text>
-              </TouchableOpacity>
+              </View>
+            )}
+            <View style={styles.toggles}>
+              {CHECKS.filter((row) => !row.show || row.show(flags)).map((row, index, list) => {
+                const on = !!flags[row.key];
+                const locked = rowLocked(row, membership);
+                const last = index === list.length - 1;
+                const inner = (
+                  <>
+                    <Text style={[type.body, styles.toggleLabel, { color: locked ? colors.muted : colors.ink }]}>{row.label}</Text>
+                    <Switch on={on} locked={locked} colors={colors} />
+                  </>
+                );
+                const rowStyle = [styles.toggleRow, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line }];
+                if (locked) {
+                  return (
+                    <View key={row.key} style={rowStyle} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: true }}>
+                      {inner}
+                    </View>
+                  );
+                }
+                return (
+                  <TouchableOpacity key={row.key} onPress={() => toggle(row.key)} style={rowStyle} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: false }}>
+                    {inner}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-          ) : null}
+            <Text style={[type.caption, { color: colors.muted }]}>
+              Eksternt personell og kapasitetsoversikten styres under rettigheter.
+            </Text>
+          </SettingsCard>
+
+          <SettingsCard colors={colors} title="Mål og timepris" icon="locate-outline" hint="Brukes i produktivitet og fakturering" nativeID="employee-settings-goals">
+            <View style={styles.fieldRow}>
+              <View style={styles.field}>
+                <Text style={[type.caption, { color: colors.muted }]}>Mål for faktureringsgrad</Text>
+                <View style={styles.inputRow}>
+                  <TextInput value={target} onChangeText={setTarget} editable={canEdit} style={[styles.input, { color: colors.ink, borderColor: colors.line }]} accessibilityLabel="Faktureringsgrad" />
+                  <Text style={[type.body, { color: colors.muted }]}>%</Text>
+                </View>
+                <Text style={[type.caption, { color: colors.muted }]}>av forventede timer må være registrerte timer på prosjekter</Text>
+              </View>
+              <View style={styles.field}>
+                <Text style={[type.caption, { color: colors.muted }]}>Timepris</Text>
+                <View style={styles.inputRow}>
+                  <TextInput value={rate} onChangeText={setRate} editable={canEdit} placeholder="kr / time" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line }]} accessibilityLabel="Timepris" nativeID="employee-settings-rate" />
+                  <Text style={[type.body, { color: colors.muted }]}>kr</Text>
+                </View>
+              </View>
+            </View>
+            {canEdit ? (
+              <TouchableOpacity onPress={saveGoals} style={[styles.btn, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]} nativeID="employee-settings-save">
+                <Text style={styles.btnText}>Lagre mål og timepris</Text>
+              </TouchableOpacity>
+            ) : null}
+          </SettingsCard>
         </View>
+      ) : null}
+
+      {sub === 'close' ? (
+        <SettingsCard colors={colors} title="Avslutt medarbeiderkonto" icon="exit-outline" nativeID="employee-settings-close-card">
+          <Text style={[type.body, { color: colors.muted }]}>
+            {isActiveEmployee(employee)
+              ? 'Personen tas ut av bedriften, logges ut og mister all tilgang. Timer, fravær og dokumenter blir liggende, og kontoen kan aktiveres igjen senere.'
+              : 'Kontoen er avsluttet. Aktiver den igjen under Konto og sikkerhet.'}
+          </Text>
+          {canEdit && isActiveEmployee(employee) ? (
+            <TouchableOpacity
+              nativeID="employee-settings-close"
+              onPress={closeAccount}
+              accessibilityRole="button"
+              style={[styles.btn, { backgroundColor: colors.danger, alignSelf: 'flex-start' }]}
+            >
+              <Text style={styles.btnText}>Avslutt medarbeiderkonto</Text>
+            </TouchableOpacity>
+          ) : null}
+        </SettingsCard>
       ) : null}
 
       {sub === 'rate' ? (
@@ -279,33 +316,43 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, sub = 'general' }
       ) : null}
 
       {sub === 'password' ? (
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.muted }}>Vi sender en lenke til medarbeiderens e-post for å sette nytt passord.</Text>
+        <SettingsCard colors={colors} title="Passord" icon="key-outline" nativeID="employee-settings-password">
+          <Text style={[type.body, { color: colors.muted }]}>Vi sender en lenke til medarbeiderens e-post for å sette nytt passord.</Text>
           {canEdit ? (
             <TouchableOpacity onPress={resetPassword} nativeID="employee-password-send" style={[styles.btn, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]}>
               <Text style={styles.btnText}>Send passordlenke</Text>
             </TouchableOpacity>
           ) : null}
-        </View>
+        </SettingsCard>
       ) : null}
 
       {sub === 'notify' ? (
-        <View style={styles.checks}>
-          {[
-            { key: 'notifyTimesheet', label: 'Varsle om timeliste' },
-            { key: 'notifyApproval', label: 'Varsle om godkjenning' },
-          ].map((row) => {
-            const on = settings[row.key] !== false;
-            return (
-              <TouchableOpacity key={row.key} onPress={() => toggle(row.key)} disabled={!canEdit} style={styles.check} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: !canEdit }}>
-                <View style={[styles.box, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brand : 'transparent', opacity: canEdit ? 1 : 0.45 }]}>
-                  {on ? <Text style={{ color: '#fff', fontSize: 12 }}>✓</Text> : null}
-                </View>
-                <Text style={{ color: colors.ink }}>{row.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <SettingsCard colors={colors} title="Varsler" icon="notifications-outline" hint="Varsler på e-post og i appen" nativeID="employee-settings-notify">
+          <View style={styles.toggles}>
+            {[
+              { key: 'notifyTimesheet', label: 'Varsle om timeliste', hint: 'Påminnelse når timelisten skal føres eller låses' },
+              { key: 'notifyApproval', label: 'Varsle om godkjenning', hint: 'Når timer, fravær eller utlegg er godkjent eller avvist' },
+            ].map((row, index) => {
+              const on = settings[row.key] !== false;
+              return (
+                <TouchableOpacity
+                  key={row.key}
+                  onPress={() => toggle(row.key)}
+                  disabled={!canEdit}
+                  style={[styles.toggleRow, index === 0 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line }]}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on, disabled: !canEdit }}
+                >
+                  <View style={styles.toggleLabel}>
+                    <Text style={[type.body, { color: colors.ink }]}>{row.label}</Text>
+                    <Text style={[type.caption, { color: colors.muted }]}>{row.hint}</Text>
+                  </View>
+                  <Switch on={on} locked={!canEdit} colors={colors} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </SettingsCard>
       ) : null}
     </ScrollView>
   );
@@ -605,6 +652,17 @@ function DayGrid({ colors, days, editing = false, onPatch, onEditDay }) {
 
 const styles = StyleSheet.create({
   wrap: { padding: 16, gap: 10, paddingBottom: 40 },
+  settingsWrap: { gap: space.md, paddingBottom: space.lg },
+  cards: { gap: space.md },
+  toggles: { gap: 0 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md, paddingVertical: 10 },
+  toggleLabel: { flex: 1, minWidth: 0 },
+  track: { width: 40, height: 22, borderRadius: radius.pill, padding: 2, justifyContent: 'center' },
+  knob: { width: 18, height: 18, borderRadius: radius.pill },
+  knobOn: { alignSelf: 'flex-end' },
+  fieldRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.lg },
+  field: { gap: 4, flexBasis: 220, flexGrow: 1 },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   title: { fontSize: 20, fontWeight: '600' },
   checks: { gap: 10, maxWidth: 560 },
   payForm: { gap: 6 },

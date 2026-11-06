@@ -47,6 +47,9 @@ const MAIN_FACT_KEYS = [
   'company.comment',
 ];
 
+/** Alt i persondata-vinduet fra hovedsiden. 'kin' (eget pårørendekort) bare når det bes om. */
+export const PROFILE_PARTS = ['identity', 'personal', 'work', 'childCare', 'custom', 'gaps'];
+
 function clip(value, limit = 220) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   if (text.length <= limit) return text;
@@ -321,7 +324,14 @@ export default function EmployeeDetailView({
   // 'account' = tagger og papirkurv under Innstillinger › Brukerkonto,
   // 'employment' = Ansettelsesdata under Innstillinger.
   section = 'profile',
+  // Delene av persondata som vises (Innstillinger viser én del per seksjon).
+  // Uten parts: alt, slik redigeringsvinduet fra hovedsiden viser det.
+  parts = null,
+  // Familievinduet på Gjøremål åpner barna rett i redigering.
+  childCareEditing = false,
+  onChildCareSaved,
 }) {
+  const show = (id) => (parts || PROFILE_PARTS).includes(id);
   const { isPhone } = useBreakpoints();
   const [editingKey, setEditingKey] = useState('');
   const [editingSection, setEditingSection] = useState('');
@@ -407,6 +417,20 @@ export default function EmployeeDetailView({
     ];
     return canEdit ? rows : rows.filter((row) => row.value);
   }, [employee, reveal, canEdit]);
+
+  const kinRows = useMemo(() => {
+    if (!reveal) return [];
+    const person = employee.person || {};
+    const phone = String(person.kinPhone || '').trim();
+    const email = String(person.kinEmail || '').trim();
+    const rows = [
+      { key: 'person.kinName', label: 'Navn', value: person.kinName },
+      { key: 'person.kinPhone', label: 'Telefon', value: phone, link: phone ? `tel:${phone.replace(/\s+/g, '')}` : '' },
+      { key: 'person.kinEmail', label: 'E-post', value: email, link: email ? `mailto:${email}` : '' },
+      { key: 'person.kinNote', label: 'Merknad', value: person.kinNote },
+    ];
+    return rows.filter((row) => String(row.value || '').trim());
+  }, [employee, reveal]);
 
   const employmentRows = useMemo(() => {
     const rows = [
@@ -568,10 +592,45 @@ export default function EmployeeDetailView({
           </SectionCard>
   );
 
+  const workCard = !limited && (workRows.length || canEdit) ? (
+            <SectionCard
+              title="Arbeidsforhold"
+              icon="time-outline"
+              colors={colors}
+              open={openSections.work}
+              onToggle={() => toggle('work')}
+              onEdit={canEdit && isAdmin ? () => startField('company.workPercent') : undefined}
+            >
+              {editingKey === 'company.workPercent' || editingKey === 'company.periodFrom' || editingKey === 'company.periodTo' ? (
+                <>
+                  {fieldEditor('company.workPercent')}
+                  {fieldEditor('company.periodFrom')}
+                  {fieldEditor('company.periodTo')}
+                </>
+              ) : (
+                <View style={[styles.workTable, { borderColor: colors.line }]}>
+                  <View style={[styles.workHead, { backgroundColor: colors.sunken, borderBottomColor: colors.line }]}>
+                    <Text style={[styles.workCell, { color: colors.muted }]}>Arbeidsprosent</Text>
+                    <Text style={[styles.workCell, styles.workGrow, { color: colors.muted }]}>Periode</Text>
+                  </View>
+                  <View style={styles.workBody}>
+                    <Text style={[styles.workCell, { color: colors.ink }]}>
+                      {employee.company?.workPercent ? `${employee.company.workPercent} %` : '—'}
+                    </Text>
+                    <Text style={[styles.workCell, styles.workGrow, { color: colors.ink }]}>
+                      {periodLabel(employee) || '—'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </SectionCard>
+          ) : null;
+
   if (section === 'employment') {
     return (
       <View nativeID="employee-employment" style={styles.root}>
         {employmentCard}
+        {workCard}
       </View>
     );
   }
@@ -660,6 +719,7 @@ export default function EmployeeDetailView({
     <View nativeID="employee-detail" style={styles.root}>
       <View>
         <View style={styles.profileCol}>
+          {show('identity') ? (
           <View
             style={[
               styles.panel,
@@ -769,8 +829,39 @@ export default function EmployeeDetailView({
               </View>
             ) : null}
           </View>
+          ) : null}
 
-          {editingKey && FIELDS.has(editingKey)
+          {show('kin') ? (
+            <SectionCard
+              title="Nærmeste pårørende"
+              icon="people-outline"
+              colors={colors}
+              open
+              onToggle={() => {}}
+              badge={OWNER_LABEL.person}
+              onEdit={canEdit ? () => startSection('kin') : undefined}
+            >
+              {editingSection === 'kin' ? sectionEditor('kin') : (
+                <>
+                  {kinRows.map((row, i) => (
+                    <FactRow
+                      key={row.key}
+                      label={row.label}
+                      value={row.value}
+                      link={row.link}
+                      colors={colors}
+                      last={i === kinRows.length - 1}
+                    />
+                  ))}
+                  {!kinRows.length ? (
+                    <Text style={{ color: colors.muted, fontSize: 14 }}>Ingen pårørende er registrert.</Text>
+                  ) : null}
+                </>
+              )}
+            </SectionCard>
+          ) : null}
+
+          {show('identity') && editingKey && FIELDS.has(editingKey)
             && !mainFacts.some((row) => row.key === editingKey)
             && !personalRows.some((row) => row.key === editingKey)
             && !employmentRows.some((row) => row.key === editingKey)
@@ -783,7 +874,7 @@ export default function EmployeeDetailView({
               </View>
             ) : null}
 
-          {!limited && (personalRows.length || canEdit) ? (
+          {show('personal') && !limited && (personalRows.length || canEdit) ? (
             <SectionCard
               title="Personlig data"
               icon="person-outline"
@@ -814,41 +905,9 @@ export default function EmployeeDetailView({
           ) : null}
 
 
-          {!limited && (workRows.length || canEdit) ? (
-            <SectionCard
-              title="Arbeidsforhold"
-              icon="time-outline"
-              colors={colors}
-              open={openSections.work}
-              onToggle={() => toggle('work')}
-              onEdit={canEdit && isAdmin ? () => startField('company.workPercent') : undefined}
-            >
-              {editingKey === 'company.workPercent' || editingKey === 'company.periodFrom' || editingKey === 'company.periodTo' ? (
-                <>
-                  {fieldEditor('company.workPercent')}
-                  {fieldEditor('company.periodFrom')}
-                  {fieldEditor('company.periodTo')}
-                </>
-              ) : (
-                <View style={[styles.workTable, { borderColor: colors.line }]}>
-                  <View style={[styles.workHead, { backgroundColor: colors.sunken, borderBottomColor: colors.line }]}>
-                    <Text style={[styles.workCell, { color: colors.muted }]}>Arbeidsprosent</Text>
-                    <Text style={[styles.workCell, styles.workGrow, { color: colors.muted }]}>Periode</Text>
-                  </View>
-                  <View style={styles.workBody}>
-                    <Text style={[styles.workCell, { color: colors.ink }]}>
-                      {employee.company?.workPercent ? `${employee.company.workPercent} %` : '—'}
-                    </Text>
-                    <Text style={[styles.workCell, styles.workGrow, { color: colors.ink }]}>
-                      {periodLabel(employee) || '—'}
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </SectionCard>
-          ) : null}
+          {show('work') ? workCard : null}
 
-          {!limited && (isAdmin || isSelf) && section === 'profile' && companyId ? (
+          {show('childCare') && !limited && (isAdmin || isSelf) && section === 'profile' && companyId ? (
             <SectionCard
               title="Barn og omsorgsdager"
               icon="happy-outline"
@@ -863,11 +922,13 @@ export default function EmployeeDetailView({
                 canEdit={!!canEdit}
                 self={!!isSelf}
                 by={currentUid}
+                startEditing={childCareEditing}
+                onSaved={onChildCareSaved}
               />
             </SectionCard>
           ) : null}
 
-          {customFields.length ? (
+          {show('custom') && customFields.length ? (
             <SectionCard
               title="Egne felt"
               icon="pricetags-outline"
@@ -887,7 +948,7 @@ export default function EmployeeDetailView({
             </SectionCard>
           ) : null}
 
-          {gaps && !limited && showAdminCards ? (
+          {show('gaps') && gaps && !limited && showAdminCards ? (
             <SectionCard
               title="Mangler"
               icon="alert-circle-outline"

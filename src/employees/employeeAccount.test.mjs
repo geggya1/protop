@@ -33,16 +33,21 @@ assert.match(account, /inviteTimeline\(employee\)/);
 assert.match(account, /Rettighetene settes bare i Tilgangsstyring\./);
 assert.match(screen, /onInvite=\{\(\) => inviteEmployee\(personEmployee\)\}/);
 assert.match(screen, /onOpenAccess=\{canOpenAccessPage \? \(\) => openAccessPage\(personEmployee\) : undefined\}/);
-// Tilgangsstyring åpnes på personen og leder tilbake til Brukerkonto.
-assert.match(screen, /intent: \{ type: 'openEmployee', employeeId: row\.id, view: 'settings' \}/);
-assert.match(screen, /\['absence', 'settings'\]\.includes\(shellIntent\.view\)/);
+// Tilgangsstyring åpnes på personen og leder tilbake til Innstillinger › Tilgang og rettigheter.
+assert.match(screen, /intent: \{ type: 'openEmployee', employeeId: row\.id, view: 'settingsAccess' \}/);
+assert.match(screen, /\['absence', 'settings', 'settingsAccess'\]\.includes\(shellIntent\.view\)/);
 assert.match(platform, /requestShellTab\?\.\(returnTo\.tab, returnTo\.subView \|\| null, returnTo\.intent \|\| null\)/);
 assert.match(platform, /focusEmployeeId=\{returnTo\?\.focusEmployeeId \|\| ''\}/);
 assert.match(accessPage, /useState\(focusEmployeeId \? 'people' : initialMode\)/);
 
-// Brukerloggen står alene på egen underside, ikke på hovedsiden.
+// Brukerloggen står under Innstillinger › Administrasjon, ikke på hovedsiden.
 assert.equal((screen.match(/<EmployeeUsagePanel/g) || []).length, 1);
-assert.match(screen, /view === 'settingsLog' && selected \? \(\s*<EmployeeUsagePanel/);
+assert.match(screen, /view === 'settingsAdmin' && selected \? \(\s*<EmployeeUsagePanel/);
+// Konto og sikkerhet og Tilgang og rettigheter deler kortene i EmployeeAccountView.
+assert.match(screen, /<EmployeeAccountView\s+part="account"/);
+assert.match(screen, /<EmployeeAccountView\s+part="access"/);
+assert.match(account, /part !== 'access'/);
+assert.match(account, /part !== 'account'/);
 // L-08: teksten følger selskapets valg og lagringstiden, ikke en fast tekst.
 const usagePanel = read('../../screens/employees/EmployeeUsagePanel.jsx');
 assert.match(usagePanel, /\{notice \|\| usageLogNotice\(company\)\}/);
@@ -53,7 +58,8 @@ assert.match(screen, /<EmployeeUsagePanel\s+companyId=\{familyId\}\s+company=\{f
 assert.match(screen, /const canEndEmployment = canChangeEmployment\(access\);/);
 assert.match(screen, /<EmployeeAccountView[\s\S]{0,260}canEdit=\{canEndEmployment\}/);
 assert.equal((screen.match(/employmentChangeBlocked\(/g) || []).length, 3, 'classifyEmployee, save og saveWork');
-assert.equal((screen.match(/canEndEmployment=\{canEndEmployment\}/g) || []).length, 2);
+// Persondata-vinduet, Ansettelsesforhold og seksjonene Min profil, Personopplysninger og Pårørende.
+assert.equal((screen.match(/canEndEmployment=\{canEndEmployment\}/g) || []).length, 3);
 assert.match(detail, /const employmentLocked = canEndEmployment \? \[\] : \['company\.status', 'company\.periodTo'\]/);
 assert.match(detail, /lockedKeys=\{employmentLocked\}/);
 

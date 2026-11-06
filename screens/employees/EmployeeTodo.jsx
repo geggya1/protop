@@ -7,11 +7,11 @@ import { lazyScreen } from '../../src/ui/lazyScreen';
  * lagres i den ansattes skjermede del (hmsSelf.js), så HR ser det i Lovpålagt.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { documentsForEmployee } from '../../src/doccontrol/model';
 import { loadFilledDocs } from '../../src/forms/filledStore';
-import { hmsCardRequirement, mergeHmsCards } from '../../src/hr/hmsCard';
+import { hmsCardRequirement, hmsCardStatus, mergeHmsCards } from '../../src/hr/hmsCard';
 import { loadOwnHmsCard, saveOwnHmsCard } from '../../src/hr/hmsSelf';
 import { employeeVisibleSlice } from '../../src/hr/model';
 import { loadEmployeeHrSlice } from '../../src/hr/storage';
@@ -19,12 +19,56 @@ import { employeeTodos, openTodoCount } from '../../src/employees/todo';
 import { showSaveToast } from '../../src/ui/saveToast';
 import MyDocuments from '../doccontrol/MyDocuments';
 import { useDocControl } from '../doccontrol/useDocControl';
-import { type, radius } from '../../src/ui/tokens';
+import { BREAKPOINTS } from '../../src/ui/layout';
+import { elevation, type, radius, space } from '../../src/ui/tokens';
 const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
 const HrCard = lazyScreen(() => import('../hr/HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
 const HrSectionTitle = lazyScreen(() => import('../hr/HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
 const RowLink = lazyScreen(() => import('../hr/HrShared'), { name: 'RowLink', pick: 'RowLink', silent: true });
 const HmsCardEditor = lazyScreen(() => import('../hr/HmsCardEditor'), { name: 'HmsCardEditor', silent: true });
+
+const lift = Platform.OS === 'web' ? elevation[1].web : elevation[1].native;
+
+/** Nøkkeltall øverst på Gjøremål. */
+function TodoKpi({ icon, label, value, hint, colors, tone }) {
+  return (
+    <View style={[styles.kpi, lift, { backgroundColor: tone ? tone.bg : colors.card, borderColor: colors.line }]}>
+      <View style={[styles.kpiIcon, { backgroundColor: tone ? colors.card : colors.brandSoft }]}>
+        <Ionicons name={icon} size={18} color={tone ? tone.ink : colors.brand} />
+      </View>
+      <View style={styles.kpiBody}>
+        <Text style={[type.caption, { color: colors.muted }]} numberOfLines={1}>{label}</Text>
+        <Text style={[type.value, { color: tone ? tone.ink : colors.ink }]} numberOfLines={1}>{value}</Text>
+        {hint ? <Text style={[type.caption, { color: colors.muted }]} numberOfLines={1}>{hint}</Text> : null}
+      </View>
+    </View>
+  );
+}
+
+/** «Mine gjøremål»: hvor mye som er på plass, som andel og stolpe. */
+function ProgressCard({ colors, open, done, loading }) {
+  const total = open + done;
+  const pct = total ? Math.round((done / total) * 100) : 100;
+  return (
+    <View nativeID="employee-todo-progress" style={[styles.panel, lift, { backgroundColor: colors.card, borderColor: colors.line }]}>
+      <View style={styles.cardHead}>
+        <Ionicons name="checkmark-done-outline" size={18} color={colors.brand} />
+        <Text style={[styles.cardTitle, { color: colors.ink }]}>Mine gjøremål</Text>
+      </View>
+      <View style={styles.progressTop}>
+        <Text style={[type.value, { color: colors.ink }]}>{loading ? '…' : `${pct} %`}</Text>
+        <Text style={[type.caption, { color: colors.muted }]}>{loading ? 'Henter …' : `${done} av ${total} på plass`}</Text>
+      </View>
+      <View style={[styles.track, { backgroundColor: colors.sunken }]}>
+        <View style={[styles.fill, { width: `${loading ? 0 : pct}%`, backgroundColor: colors.success }]} />
+      </View>
+      <View style={styles.progressLegend}>
+        <Text style={[type.caption, { color: colors.muted }]}>{`${open} gjenstår`}</Text>
+        <Text style={[type.caption, { color: colors.muted }]}>{`${done} fullført`}</Text>
+      </View>
+    </View>
+  );
+}
 
 const ICONS = { document: 'document-text-outline', kin: 'people-outline', hms: 'card-outline', hrTask: 'checkbox-outline' };
 
@@ -35,10 +79,14 @@ function personName(employee) {
 
 export default function EmployeeTodo({
   colors, companyId, employee, self = true, naeringskode = '', canEdit = true,
-  compact = false, always = false, onOpenTodo = null, onOpenMine = null,
+  compact = false, always = false, onOpenTodo = null, onOpenMine = null, onOpenKin = null,
   // 'side': huskeliste i margen til høyre på hovedsiden (frister, rødt når fristen er passert).
+  // 'hms': bare dokumentene og HMS-kortet (Innstillinger › HMS og dokumentasjon).
   variant = '',
+  // Kort i høyre kolonne på hele siden (fravær, familie, snarveier), fra personsiden.
+  aside = null,
 }) {
+  const [width, setWidth] = useState(0);
   const dc = useDocControl();
   const employeeId = employee?.id || '';
   const [slice, setSlice] = useState(null);
@@ -93,7 +141,7 @@ export default function EmployeeTodo({
     return (
       <View nativeID="employee-todo-card" style={styles.cardRoot}>
         <View style={styles.cardHead}>
-          <Ionicons name="checkmark-done-outline" size={20} color={colors.brand} />
+          <Ionicons name="checkmark-done-outline" size={18} color={colors.brand} />
           <Text style={[styles.cardTitle, { color: colors.ink }]}>Gjøremål</Text>
           {slice && open.length ? (
             <View style={[styles.cardBadge, { backgroundColor: open.some((row) => row.urgent || (row.due && row.due < today)) ? colors.danger : colors.brand }]}>
@@ -226,7 +274,7 @@ export default function EmployeeTodo({
             icon={ICONS[row.kind] || 'ellipse-outline'}
             onPress={() => {
               if (compact) onOpenTodo?.();
-              else if (row.target === 'kin') onOpenMine?.();
+              else if (row.target === 'kin') (onOpenKin || onOpenMine)?.();
             }}
           />
         ))}
@@ -242,56 +290,137 @@ export default function EmployeeTodo({
   // Kompakt: på Min side alltid (veien inn til Gjøremål), på Hovedside bare når noe gjenstår.
   if (compact) return always || open.length || !slice ? attention : null;
 
-  return (
-    <View style={styles.page} nativeID="employee-todo">
-      {attention}
+  const documentsCard = (
+    <MyDocuments colors={colors} employeeId={employeeId} employeeName={personName(employee)} self={self} />
+  );
 
-      <MyDocuments colors={colors} employeeId={employeeId} employeeName={personName(employee)} self={self} />
-
-      {/* HMS-kortet kan alltid registreres. Det er et gjøremål bare når bedriften krever det. */}
-      <HrCard colors={colors}>
-        <View nativeID="employee-todo-hms" style={styles.stack}>
-          <HrSectionTitle
+  // HMS-kortet kan alltid registreres. Det er et gjøremål bare når bedriften krever det.
+  const hmsCard = (
+    <HrCard colors={colors}>
+      <View nativeID="employee-todo-hms" style={styles.stack}>
+        <HrSectionTitle
+          colors={colors}
+          title="HMS-kort"
+          subtitle={notApplicable
+            ? 'HR har satt HMS-kort til «Ikke aktuelt».'
+            : `${rule.required ? 'Påkrevd. ' : ''}Skann QR-koden eller ta bilde av forsiden, så registreres kortet og HR ser det i Lovpålagt. Det kommer varsel før kortet går ut.`}
+        />
+        {!notApplicable ? (
+          <HmsCardEditor
+            key={employeeId}
             colors={colors}
-            title="HMS-kort"
-            subtitle={notApplicable
-              ? 'HR har satt HMS-kort til «Ikke aktuelt».'
-              : `${rule.required ? 'Påkrevd. ' : ''}Skann QR-koden eller ta bilde av forsiden, så registreres kortet og HR ser det i Lovpålagt. Det kommer varsel før kortet går ut.`}
+            card={card}
+            canWrite={canEdit}
+            familyId={companyId}
+            personName={personName(employee)}
+            personBirthDate={employee?.person?.birthDate || ''}
+            onSave={saveCard}
           />
-          {!notApplicable ? (
-            <HmsCardEditor
-              key={employeeId}
-              colors={colors}
-              card={card}
-              canWrite={canEdit}
-              familyId={companyId}
-              personName={personName(employee)}
-              personBirthDate={employee?.person?.birthDate || ''}
-              onSave={saveCard}
-            />
-          ) : null}
-        </View>
-      </HrCard>
+        ) : null}
+      </View>
+    </HrCard>
+  );
 
-      {done.length ? (
-        <HrCard colors={colors}>
-          <View nativeID="employee-todo-done" style={styles.stack}>
-            <HrSectionTitle colors={colors} title="Fullført" subtitle={`${done.length} ${done.length === 1 ? 'punkt' : 'punkter'} er på plass`} />
-            {done.map((row) => (
-              <View key={row.id} style={[styles.doneRow, { borderColor: colors.line }]}>
-                <Text style={[styles.doneTitle, { color: colors.ink }]}>{row.title}</Text>
-                {row.text ? <Text style={[styles.doneText, { color: colors.muted }]}>{row.text}</Text> : null}
-              </View>
-            ))}
+  if (variant === 'hms') {
+    return (
+      <View style={styles.page} nativeID="employee-hms">
+        {hmsCard}
+        {documentsCard}
+      </View>
+    );
+  }
+
+  const doneCard = done.length ? (
+    <HrCard colors={colors}>
+      <View nativeID="employee-todo-done" style={styles.stack}>
+        <HrSectionTitle colors={colors} title="Fullført" subtitle={`${done.length} ${done.length === 1 ? 'punkt' : 'punkter'} er på plass`} />
+        {done.map((row) => (
+          <View key={row.id} style={[styles.doneRow, { borderColor: colors.line }]}>
+            <Text style={[styles.doneTitle, { color: colors.ink }]}>{row.title}</Text>
+            {row.text ? <Text style={[styles.doneText, { color: colors.muted }]}>{row.text}</Text> : null}
           </View>
-        </HrCard>
-      ) : null}
+        ))}
+      </View>
+    </HrCard>
+  ) : null;
+
+  const urgent = open.filter((row) => row.urgent || (row.due && row.due < today)).length;
+  const hmsState = notApplicable ? { id: 'na', label: 'Ikke aktuelt' } : hmsCardStatus(card, today);
+  const hmsTone = hmsState.id === 'expired' || (hmsState.id === 'missing' && rule.required)
+    ? { bg: colors.dangerSoft, ink: colors.dangerInk }
+    : hmsState.id === 'expiring' ? { bg: colors.starSoft, ink: colors.warnInk } : null;
+  const hmsValue = { valid: 'Gyldig', expiring: 'Utløper snart', expired: 'Utløpt', na: 'Ikke aktuelt' }[hmsState.id]
+    || (rule.required ? 'Mangler' : 'Ikke registrert');
+  const loading = !slice;
+  const kpis = (
+    <View nativeID="employee-todo-kpis" style={[styles.kpiRow, width && width < BREAKPOINTS.tablet && styles.kpiWrap]}>
+      <TodoKpi icon="list-outline" label="Åpne gjøremål" value={loading ? '…' : String(open.length)} colors={colors} />
+      <TodoKpi
+        icon="alert-circle-outline"
+        label="Haster eller forfalt"
+        value={loading ? '…' : String(urgent)}
+        colors={colors}
+        tone={urgent ? { bg: colors.dangerSoft, ink: colors.dangerInk } : null}
+      />
+      <TodoKpi icon="checkmark-circle-outline" label="Fullført" value={loading ? '…' : String(done.length)} colors={colors} />
+      <TodoKpi
+        icon="card-outline"
+        label="HMS-kort"
+        value={loading ? '…' : hmsValue}
+        hint={hmsState.id === 'valid' || hmsState.id === 'expiring' || hmsState.id === 'expired' ? hmsState.label : ''}
+        colors={colors}
+        tone={hmsTone}
+      />
+    </View>
+  );
+  const progress = <ProgressCard colors={colors} open={open.length} done={done.length} loading={loading} />;
+  const wide = width >= BREAKPOINTS.tablet;
+
+  return (
+    <View style={styles.page} nativeID="employee-todo" onLayout={(ev) => setWidth(ev.nativeEvent.layout.width)}>
+      {kpis}
+      {wide ? (
+        <View style={styles.columns}>
+          <View style={styles.mainCol}>
+            {attention}
+            {documentsCard}
+            {hmsCard}
+            {doneCard}
+          </View>
+          <View style={styles.sideCol}>
+            {progress}
+            {aside}
+          </View>
+        </View>
+      ) : (
+        <>
+          {attention}
+          {progress}
+          {documentsCard}
+          {hmsCard}
+          {aside}
+          {doneCard}
+        </>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { gap: 14 },
+  page: { gap: space.md },
+  kpiRow: { flexDirection: 'row', gap: space.md },
+  kpiWrap: { flexWrap: 'wrap' },
+  kpi: { flex: 1, flexBasis: 150, minWidth: 150, flexDirection: 'row', alignItems: 'center', gap: space.sm, borderWidth: 1, borderRadius: radius.sheet, padding: space.md },
+  kpiIcon: { width: 38, height: 38, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  kpiBody: { flex: 1, minWidth: 0 },
+  columns: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
+  mainCol: { flex: 2, minWidth: 0, gap: space.md },
+  sideCol: { flex: 1, minWidth: 260, gap: space.md },
+  panel: { borderWidth: 1, borderRadius: radius.sheet, padding: space.md, gap: space.sm },
+  progressTop: { flexDirection: 'row', alignItems: 'baseline', gap: space.xs },
+  track: { height: 10, borderRadius: radius.pill, overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: radius.pill },
+  progressLegend: { flexDirection: 'row', justifyContent: 'space-between' },
   stack: { gap: 8 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   doneRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, gap: 2 },
@@ -308,7 +437,7 @@ const styles = StyleSheet.create({
   doneText: { fontSize: 12, lineHeight: 17 },
   cardRoot: { gap: 8 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardTitle: { ...type.title },
+  cardTitle: { ...type.cardTitle },
   cardBadge: { minWidth: 22, height: 22, borderRadius: radius.pill, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
   cardBadgeText: { ...type.label },
   cardLink: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 'auto' },

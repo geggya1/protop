@@ -95,7 +95,7 @@ function CardHead({ icon, title, colors, badge, link, onLink, right, nativeID })
   return (
     <View style={styles.cardHead}>
       <View style={styles.cardHeadLeft}>
-        {icon ? <Ionicons name={icon} size={20} color={colors.brand} /> : null}
+        {icon ? <Ionicons name={icon} size={18} color={colors.brand} /> : null}
         <Text style={[styles.cardTitle, { color: colors.ink }]} numberOfLines={1}>{title}</Text>
         {badge ? (
           <View style={[styles.countBadge, { backgroundColor: colors.brand }]}>
@@ -139,11 +139,11 @@ function ProfileCard({ employee, colors, onEdit }) {
           <StorageImage uri={employee.person.photoUrl} style={styles.photo} />
         ) : (
           <View style={[styles.photo, styles.photoFallback, { backgroundColor: colors.brandSoft }]}>
-            <Text style={[type.h1, { color: colors.brand }]}>{initials(employee)}</Text>
+            <Text style={[type.value, { color: colors.brand }]}>{initials(employee)}</Text>
           </View>
         )}
         <View style={styles.profileFacts}>
-          <Text style={[type.title, { color: colors.ink }]} numberOfLines={2}>{name}</Text>
+          <Text style={[type.cardTitle, { color: colors.ink }]} numberOfLines={2}>{name}</Text>
           {role ? <Text style={[type.body, { color: colors.muted }]} numberOfLines={3}>{role}</Text> : null}
           <View style={[styles.statusChip, { backgroundColor: toneBg }]}>
             <View style={[styles.statusDot, { backgroundColor: toneDot }]} />
@@ -201,9 +201,9 @@ function Shortcuts({ items, colors }) {
             accessibilityRole="button"
             style={({ hovered }) => [styles.shortcut, { backgroundColor: tint(item.color, hovered ? 0.16 : 0.09) }]}
           >
-            <Ionicons name={item.icon} size={24} color={item.color} />
+            <Ionicons name={item.icon} size={20} color={item.color} />
             <View style={styles.shortcutFoot}>
-              <Text style={[type.bodyStrong, styles.shrink, { color: colors.ink }]} numberOfLines={2}>{item.label}</Text>
+              <Text style={[type.body, styles.shrink, { color: colors.ink }]} numberOfLines={2}>{item.label}</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.ink} />
             </View>
           </Pressable>
@@ -217,11 +217,11 @@ function Kpi({ icon, label, value, hint, colors, tone, aside }) {
   return (
     <Card colors={colors} style={[styles.kpi, tone ? { backgroundColor: tone.bg } : null]}>
       <View style={[styles.kpiIcon, { backgroundColor: tone ? colors.card : colors.brandSoft }]}>
-        <Ionicons name={icon} size={22} color={tone ? tone.ink : colors.brand} />
+        <Ionicons name={icon} size={18} color={tone ? tone.ink : colors.brand} />
       </View>
       <View style={styles.kpiBody}>
-        <Text style={[type.label, { color: colors.ink }]} numberOfLines={1}>{label}</Text>
-        <Text style={[type.h1, { color: tone ? tone.ink : colors.ink }]} numberOfLines={1}>{value}</Text>
+        <Text style={[type.caption, { color: colors.muted }]} numberOfLines={1}>{label}</Text>
+        <Text style={[type.value, { color: tone ? tone.ink : colors.ink }]} numberOfLines={1}>{value}</Text>
         {hint ? <Text style={[type.caption, { color: colors.muted }]} numberOfLines={1}>{hint}</Text> : null}
       </View>
       {aside}
@@ -251,7 +251,7 @@ function Gauge({ pct, colors, size = 120 }) {
         />
       </Svg>
       <View style={[StyleSheet.absoluteFill, styles.center]}>
-        <Text style={[type.h1, { color: colors.ink }]}>{pct == null ? '–' : `${pct} %`}</Text>
+        <Text style={[type.value, { color: colors.ink }]}>{pct == null ? '–' : `${pct} %`}</Text>
       </View>
     </View>
   );
@@ -276,7 +276,7 @@ function ProductivityCard({
     <Card colors={colors} nativeID="employee-home-productivity">
       <View style={[styles.cardHead, compact && styles.cardHeadWrap]}>
         <View style={styles.cardHeadLeft}>
-          <Ionicons name="bar-chart-outline" size={20} color={colors.brand} />
+          <Ionicons name="bar-chart-outline" size={18} color={colors.brand} />
           <Text style={[styles.cardTitle, { color: colors.ink }]} numberOfLines={1}>{`Produktivitet – ${series.title.toLowerCase()}`}</Text>
         </View>
         <View accessibilityRole="tablist" style={[styles.segment, { borderColor: colors.line }]}>
@@ -415,7 +415,7 @@ function ProjectsCard({
           accessibilityRole="button"
           style={({ hovered }) => [styles.projectRow, { borderTopColor: colors.line }, hovered && { backgroundColor: colors.sunken }]}
         >
-          <Text style={[type.bodyStrong, styles.projectNo, { color: colors.ink }]} numberOfLines={1}>{row.number ? `#${row.number}` : ''}</Text>
+          <Text style={[type.body, styles.projectNo, { color: colors.muted }]} numberOfLines={1}>{row.number ? `#${row.number}` : ''}</Text>
           <Text style={[type.body, styles.projectName, { color: colors.ink }]} numberOfLines={1}>{row.name}</Text>
           {compact ? null : (
             <Text style={[type.caption, styles.projectClient, { color: colors.muted }]} numberOfLines={1}>{row.client}</Text>
@@ -425,7 +425,7 @@ function ProjectsCard({
               <View style={[styles.projectFill, { width: `${Math.max(4, (row.hours / max) * 100)}%`, backgroundColor: colors.brand }]} />
             </View>
           )}
-          <Text style={[type.bodyStrong, styles.projectHours, { color: colors.ink }]}>{formatHoursShort(row.hours)}</Text>
+          <Text style={[type.body, styles.projectHours, { color: colors.ink }]}>{formatHoursShort(row.hours)}</Text>
           <Ionicons name="chevron-forward" size={16} color={row.project ? colors.ink : 'transparent'} />
         </Pressable>
       ))}
@@ -463,20 +463,20 @@ function Donut({ groups, total, colors, palette, size = 116 }) {
         }) : null}
       </Svg>
       <View style={[StyleSheet.absoluteFill, styles.center]}>
-        <Text style={[type.h1, { color: colors.ink }]}>{String(total).replace('.', ',')}</Text>
+        <Text style={[type.value, { color: colors.ink }]}>{String(total).replace('.', ',')}</Text>
         <Text style={[type.caption, { color: colors.muted }]}>dager i år</Text>
       </View>
     </View>
   );
 }
 
-function AbsenceCard({ data, colors, onAll, loading }) {
+function AbsenceCard({ data, colors, onAll, loading, title = 'Fravær' }) {
   const palette = { ferie: colors.success, egenmelding: colors.brand, syk: colors.warn, annet: colors.accent };
   const groups = data.groups.filter((g) => g.days > 0 || g.id === 'ferie' || g.id === 'egenmelding');
   const dayText = (n) => `${String(n).replace('.', ',')} ${n === 1 ? 'dag' : 'dager'}`;
   return (
     <Card colors={colors} nativeID="employee-home-absence">
-      <CardHead icon="calendar-outline" title="Fravær" colors={colors} link={onAll ? 'Se alle' : null} onLink={onAll} nativeID="employee-home-absence-all" />
+      <CardHead icon="calendar-outline" title={title} colors={colors} link={onAll ? 'Se alle' : null} onLink={onAll} nativeID="employee-home-absence-all" />
       <View style={styles.absenceBody}>
         <Donut groups={data.groups} total={loading ? 0 : data.total} colors={colors} palette={palette} />
         <View style={styles.absenceList}>
@@ -515,8 +515,8 @@ function WeekCard({ data, colors, onDetails }) {
 function WeekStat({ value, label, colors }) {
   return (
     <View style={styles.weekStat}>
-      <Text style={[type.h2, { color: colors.ink }]}>{value}</Text>
-      <Text style={[type.body, { color: colors.muted }]}>{label}</Text>
+      <Text style={[type.value, { color: colors.ink }]}>{value}</Text>
+      <Text style={[type.caption, { color: colors.muted }]}>{label}</Text>
     </View>
   );
 }
@@ -533,6 +533,83 @@ function TodoCard({ colors, companyId, employee, naeringskode, onOpenTodo }) {
         onOpenTodo={onOpenTodo}
       />
     </Card>
+  );
+}
+
+/**
+ * Timer og fravær for personen, regnet om til en dagsliste (mulig tid, fakturerbart, fravær).
+ * Felles for hovedsiden, Gjøremål (fravær) og Innstillinger (produktivitet).
+ */
+function useEmployeeLedger({ employee, companyId, company, projectState, enabled }) {
+  const today = useMemo(() => new Date(), []);
+  const hours = useEmployeeHours({ companyId, employeeId: employee?.id, enabled });
+  const absenceTypes = useMemo(() => resolveAbsenceTypes(projectState), [projectState]);
+  const fullDayHours = Number(projectState?.fullDayHours) || 0;
+  const isOwnCompany = useMemo(() => ownCompanyMatcher({
+    name: company?.navn || '',
+    orgnr: company?.organisasjonsnummer || '',
+    projects: projectState?.projects || [],
+  }), [company?.navn, company?.organisasjonsnummer, projectState?.projects]);
+
+  const ledger = useMemo(() => {
+    if (!enabled) return new Map();
+    const { fromDate, toDate } = homeLoadWindow(today);
+    return dailyLedger({
+      employee,
+      entries: hours.entries,
+      absences: hours.absences,
+      fromDate,
+      toDate,
+      redDays: projectState?.redDays || [],
+      fullDayHours: fullDayHours || undefined,
+      absenceTypes,
+      isOwnCompany,
+    });
+  }, [enabled, employee, hours.entries, hours.absences, projectState?.redDays, fullDayHours, absenceTypes, isOwnCompany, today]);
+  return {
+    today, hours, ledger, absenceTypes, fullDayHours,
+  };
+}
+
+/** Snarveiene fra hovedsiden, også på Gjøremål. */
+export function EmployeeShortcuts({ items = [], colors }) {
+  return <Shortcuts items={items} colors={colors} />;
+}
+
+/** «Fravær og ferie» i år (smultring) for Gjøremål. Henter timer og fravær selv. */
+export function EmployeeAbsenceSummary({
+  employee, colors, companyId, company, projectState, onOpenAbsence,
+}) {
+  const {
+    today, hours, ledger, absenceTypes, fullDayHours,
+  } = useEmployeeLedger({ employee, companyId, company, projectState, enabled: true });
+  const data = useMemo(() => absenceYear({
+    employee, absences: hours.absences, absenceTypes, ledger, today, fullDayHours: fullDayHours || undefined,
+  }), [employee, hours.absences, absenceTypes, ledger, today, fullDayHours]);
+  return <AbsenceCard data={data} colors={colors} onAll={onOpenAbsence} loading={hours.loading} title="Fravær og ferie" />;
+}
+
+/** Produktiviteten (stolper og faktureringsgrad) for Innstillinger › Timeføring og produktivitet. */
+export function EmployeeProductivity({
+  employee, colors, companyId, company, projectState,
+}) {
+  const [width, setWidth] = useState(0);
+  const [mode, setMode] = useState('weeks12');
+  const { today, hours, ledger } = useEmployeeLedger({ employee, companyId, company, projectState, enabled: true });
+  const series = useMemo(() => productivitySeries(ledger, mode, { today }), [ledger, mode, today]);
+  const target = Number(timeSettingsOf(employee).utilizationTarget) || 100;
+  return (
+    <View onLayout={(ev) => setWidth(ev.nativeEvent.layout.width)}>
+      <ProductivityCard
+        series={series}
+        mode={mode}
+        onMode={setMode}
+        target={target}
+        colors={colors}
+        loading={hours.loading}
+        compact={!!width && width < BREAKPOINTS.tablet}
+      />
+    </View>
   );
 }
 
@@ -558,37 +635,14 @@ export default function EmployeeHome({
   const [width, setWidth] = useState(0);
   const [mode, setMode] = useState('weeks12');
   const [projectRange, setProjectRange] = useState(3);
-  const today = useMemo(() => new Date(), []);
-  const hours = useEmployeeHours({ companyId, employeeId: employee?.id, enabled: showWork });
+  const {
+    today, hours, ledger, absenceTypes, fullDayHours,
+  } = useEmployeeLedger({ employee, companyId, company, projectState, enabled: showWork });
 
   useEffect(() => {
     setMode('weeks12');
     setProjectRange(3);
   }, [employee?.id]);
-
-  const absenceTypes = useMemo(() => resolveAbsenceTypes(projectState), [projectState]);
-  const fullDayHours = Number(projectState?.fullDayHours) || 0;
-  const isOwnCompany = useMemo(() => ownCompanyMatcher({
-    name: company?.navn || '',
-    orgnr: company?.organisasjonsnummer || '',
-    projects: projectState?.projects || [],
-  }), [company?.navn, company?.organisasjonsnummer, projectState?.projects]);
-
-  const ledger = useMemo(() => {
-    if (!showWork) return new Map();
-    const { fromDate, toDate } = homeLoadWindow(today);
-    return dailyLedger({
-      employee,
-      entries: hours.entries,
-      absences: hours.absences,
-      fromDate,
-      toDate,
-      redDays: projectState?.redDays || [],
-      fullDayHours: fullDayHours || undefined,
-      absenceTypes,
-      isOwnCompany,
-    });
-  }, [showWork, employee, hours.entries, hours.absences, projectState?.redDays, fullDayHours, absenceTypes, isOwnCompany, today]);
 
   const series = useMemo(() => productivitySeries(ledger, mode, { today }), [ledger, mode, today]);
   const week = useMemo(() => weekWork(ledger, today), [ledger, today]);
@@ -697,7 +751,7 @@ const styles = StyleSheet.create({
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: space.xs, justifyContent: 'space-between' },
   cardHeadWrap: { flexWrap: 'wrap' },
   cardHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: space.xs, flexShrink: 1, minWidth: 0 },
-  cardTitle: { ...type.title },
+  cardTitle: { ...type.cardTitle },
   countBadge: { minWidth: 22, height: 22, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   countBadgeText: { ...type.label },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 'auto' },
@@ -717,12 +771,12 @@ const styles = StyleSheet.create({
   contactGrow: { flexShrink: 1 },
   contactIcon: { width: 30, height: 30, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   shortcutGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  shortcut: { flexGrow: 1, flexBasis: 140, minHeight: 92, borderRadius: radius.card, padding: space.sm, gap: space.xs, justifyContent: 'space-between' },
+  shortcut: { flexGrow: 1, flexBasis: 140, minHeight: 80, borderRadius: radius.card, padding: space.sm, gap: space.xs, justifyContent: 'space-between' },
   shortcutFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.xxs },
   kpiRow: { flexDirection: 'row', gap: space.md },
   kpiRowStack: { flexDirection: 'column', gap: space.sm },
   kpi: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minWidth: 0 },
-  kpiIcon: { width: 44, height: 44, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  kpiIcon: { width: 38, height: 38, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   kpiBody: { flex: 1, minWidth: 0 },
   kpiAside: { borderLeftWidth: 1, paddingLeft: space.xs, alignItems: 'flex-end' },
   segment: { flexDirection: 'row', borderWidth: 1, borderRadius: radius.control, padding: 2, gap: 2, flexShrink: 0 },

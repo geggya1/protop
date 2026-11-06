@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {
-  childCareSummary, formatBirthDate, normalizeChildCare, parseBirthDate, validateChildCare,
+  childCareSummary, formatBirthDate, kidAge, kidGenderLabel, normalizeChildCare, parseBirthDate, resizeKids, validateChildCare,
 } from './childCare.js';
 import { childCareQuota } from '../arbeid/sickLeave.js';
 
@@ -51,6 +51,26 @@ assert.ok(!JSON.stringify(summary).includes('Ida') && !JSON.stringify(summary).i
   // Eldre registrering med antall (HR) virker som før.
   assert.equal(childCareQuota({ children: 2, chronic: 0, alone: false }, { year: 2026 }).total, 10);
   assert.equal(childCareQuota({ children: 2 }, { year: 2026 }).registered, false);
+}
+
+// Familievinduet: antall barn styrer radene, kjønn er valgfritt og lagres med barnet.
+{
+  const two = resizeKids([], 2);
+  assert.equal(two.length, 2);
+  assert.notEqual(two[0].id, two[1].id);
+  assert.deepEqual(resizeKids([{ id: 'a' }, { id: 'b' }, { id: 'c' }], 1).map((k) => k.id), ['a']);
+  assert.equal(resizeKids([], -3).length, 0);
+  assert.equal(resizeKids([], 40).length, 12);
+  const care = normalizeChildCare({ kids: [{ birthDate: '2019-12-24', gender: 'jente' }, { birthDate: '2020-01-01', gender: 'x' }] });
+  assert.equal(care.kids[0].gender, 'jente');
+  assert.equal(care.kids[1].gender, '');
+  assert.equal(kidGenderLabel('gutt'), 'Gutt');
+  assert.equal(kidGenderLabel(''), '');
+  assert.equal(kidAge('2019-12-24', '2026-11-06'), 6);
+  assert.equal(kidAge('2019-11-06', '2026-11-06'), 7);
+  assert.equal(kidAge('', '2026-11-06'), null);
+  // Kjønnet kommer ikke på ansattposten: bare fødselsår.
+  assert.equal(JSON.stringify(childCareSummary(care)).includes('jente'), false);
 }
 
 console.log('childCare ok');

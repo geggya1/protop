@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import StorageImage from '../StorageImage';
 import {
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -215,7 +215,7 @@ export default function ProjectTeamTab({
           <View key={row.id} style={[styles.tableRow, { borderColor: colors.line }]}>
             <View style={[styles.td, styles.nameCell]}>
               {row.photoUrl ? (
-                <Image source={{ uri: row.photoUrl }} style={styles.avatar} />
+                <StorageImage uri={row.photoUrl} style={styles.avatar} />
               ) : (
                 <View style={[styles.avatar, { backgroundColor: `${colors.brand}22`, alignItems: 'center', justifyContent: 'center' }]}>
                   <Ionicons name="person" size={14} color={colors.brand} />

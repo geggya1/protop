@@ -1,7 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import StorageImage from '../../components/StorageImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useApp, useShellNav } from '../../src/context/AppContext';
 import { employeeLevelIds, levelById, placedLevelId } from '../../src/access/companyAccess';
@@ -13,7 +23,6 @@ import {
   employeeMatchEmails,
   inviteDeliveryError,
   inviteLevelFor,
-  inviteStatusLabel,
   matchEmployeeByEmail,
   placedAccessLevel,
   queueEmployeeInvite,
@@ -1997,7 +2006,7 @@ export default function EmployeesScreen({ subView = null } = {}) {
                   style={styles.identity}
                 >
                   {row.person.photoUrl ? (
-                    <Image source={{ uri: row.person.photoUrl }} style={styles.avatarSmall} />
+                    <StorageImage uri={row.person.photoUrl} style={styles.avatarSmall} />
                   ) : (
                     <View style={[styles.avatarSmall, styles.avatarFallback, { backgroundColor: colors.sunken }]}>
                       <Text style={{ color: colors.ink, fontWeight: '400', fontSize: 12 }}>{initials(row)}</Text>

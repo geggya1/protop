@@ -1,6 +1,6 @@
 import React, { startTransition, useEffect, useMemo, useRef, useState } from 'react';
+import StorageImage from '../../components/StorageImage';
 import {
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -28,7 +28,6 @@ import {
   addAbsence,
   addProjectMember,
   emptyProjectState,
-  mergeMemberLists,
   projectsForEmployee,
   upsertTimeEntry,
   deleteAbsence,
@@ -1724,8 +1723,8 @@ export default function ArbeidScreen({
             nativeID="arbeid-employee-name"
           >
             {selectedEmployee?.person?.photoUrl ? (
-              <Image
-                source={{ uri: selectedEmployee.person.photoUrl }}
+              <StorageImage
+                uri={selectedEmployee.person.photoUrl}
                 style={[styles.avatar, { width: identity.avatar, height: identity.avatar, borderRadius: identity.avatar / 2 }]}
               />
             ) : (

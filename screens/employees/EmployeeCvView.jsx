@@ -1,4 +1,5 @@
 import React from 'react';
+import StorageImage from '../../components/StorageImage';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { formattedSegments } from '../../src/employees/cvFormat';
 
@@ -189,7 +190,7 @@ export default function EmployeeCvView({ cv, colors, onEdit, onEditProject }) {
           {!!cv.title && <Text style={[styles.title, { color: colors.ink }]}>{cv.title}</Text>}
         </View>
         <View style={styles.photoWrap}>
-          {cv.photoUrl ? <Image source={{ uri: cv.photoUrl }} style={styles.photo} accessibilityLabel="Profilbilde" /> : null}
+          {cv.photoUrl ? <StorageImage uri={cv.photoUrl} style={styles.photo} accessibilityLabel="Profilbilde" /> : null}
           <Pencil label="Rediger profilbilde" onPress={onEdit ? () => onEdit('personal') : undefined} colors={colors} />
         </View>
       </View>

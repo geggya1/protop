@@ -138,9 +138,15 @@ const og = await meta('public/og-image.png');
 assert.equal(og.width, 1200);
 assert.equal(og.height, 630);
 
+// Appens kopi lages i 3× største visningshøyde (64 px) av scripts/sync-brand-logo.js;
+// masteren i brand/ har full oppløsning.
 const lockup = await meta('assets/protop-logo-transparent.png');
-assert.equal(lockup.width, 1306);
-assert.equal(lockup.height, 481);
+assert.equal(lockup.height, 200);
+assert.equal(Math.round((lockup.width / lockup.height) * 100), Math.round((1306 / 481) * 100));
 assert.equal(lockup.hasAlpha, true);
+const master = await meta('brand/ProTop_logo_primary_transparent.png');
+assert.equal(master.width, 1306);
+const square = await meta('assets/protop-mark-square.png');
+assert.ok(square.width <= 128, 'merket i widgetene vises i 24 px');
 
 console.log('appIcons.test.mjs ok');

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import StorageImage from '../../components/StorageImage';
 import {
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -222,8 +222,8 @@ export default function TimesaldoScreen({
             nativeID="timesaldo-employee-name"
           >
             {employee?.person?.photoUrl ? (
-              <Image
-                source={{ uri: employee.person.photoUrl }}
+              <StorageImage
+                uri={employee.person.photoUrl}
                 style={styles.avatar}
               />
             ) : (

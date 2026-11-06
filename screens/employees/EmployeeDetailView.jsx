@@ -1,6 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import StorageImage from '../../components/StorageImage';
 import {
-  Image, Linking, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -657,7 +664,7 @@ export default function EmployeeDetailView({
             <View style={[styles.heroBody, isPhone && styles.heroBodyPhone]}>
               <View>
                 {employee.person?.photoUrl ? (
-                  <Image source={{ uri: employee.person.photoUrl }} style={styles.photo} />
+                  <StorageImage uri={employee.person.photoUrl} style={styles.photo} />
                 ) : (
                   <View style={[styles.photo, styles.photoFallback, { backgroundColor: colors.brandSoft }]}>
                     <Text style={{ color: colors.brand, fontSize: 32, fontWeight: '600' }}>{initials(employee)}</Text>

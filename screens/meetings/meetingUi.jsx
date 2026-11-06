@@ -3,9 +3,9 @@
  * faner med tall, søk og tomtilstand. Farger følger valgt utseende (lys/mørk).
  */
 import React, { useRef, useState } from 'react';
+import StorageImage from '../../components/StorageImage';
 import {
   ActivityIndicator,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -188,8 +188,8 @@ export function Avatar({ name, photoUrl, size = 28, ring }) {
   const ringColor = ring || colors.card;
   if (photoUrl) {
     return (
-      <Image
-        source={{ uri: photoUrl }}
+      <StorageImage
+        uri={photoUrl}
         accessibilityLabel={name}
         style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 2, borderColor: ringColor }}
       />

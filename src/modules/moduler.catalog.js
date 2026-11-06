@@ -19,7 +19,7 @@ export default {
         "Fordel avtaler og få varsler i tide",
         "Unngå dobbeltbookinger og glemte aktiviteter"
       ],
-      "illustration": "kalender--module-activation-illustration.png",
+      "illustration": "kalender--module-activation-illustration.webp",
       "activationLabel": "Aktiver Kalender"
     },
     {
@@ -34,7 +34,7 @@ export default {
         "Marker det som må følges opp",
         "Gjør meldinger om til oppgaver eller avtaler"
       ],
-      "illustration": "e-post--module-activation-illustration.png",
+      "illustration": "e-post--module-activation-illustration.webp",
       "activationLabel": "Aktiver E-post"
     },
     {
@@ -49,7 +49,7 @@ export default {
         "Bruk frister og påminnelser",
         "Del eller tildel oppgaver ved behov"
       ],
-      "illustration": "oppgaver--module-activation-illustration.png",
+      "illustration": "oppgaver--module-activation-illustration.webp",
       "activationLabel": "Aktiver Oppgaver"
     },
     {
@@ -64,7 +64,7 @@ export default {
         "Samle og arkiver notater ryddig",
         "Gjør et notat om til en oppgave"
       ],
-      "illustration": "notat--module-activation-illustration.png",
+      "illustration": "notat--module-activation-illustration.webp",
       "activationLabel": "Aktiver Notat"
     },
     {
@@ -79,7 +79,7 @@ export default {
         "Egne samtaler og direkte meldinger",
         "Finn viktige beskjeder igjen"
       ],
-      "illustration": "chat--module-activation-illustration.png",
+      "illustration": "chat--module-activation-illustration.webp",
       "activationLabel": "Aktiver Chat"
     },
     {
@@ -94,7 +94,7 @@ export default {
         "Gjør neste steg lett å forstå",
         "Følg fremgang og ukepenger uten mas"
       ],
-      "illustration": "gjoremal--module-activation-illustration.png",
+      "illustration": "gjoremal--module-activation-illustration.webp",
       "activationLabel": "Aktiver Gjøremål"
     },
     {
@@ -109,7 +109,7 @@ export default {
         "Varene sorteres så turen går raskere",
         "Legg til med strekkode eller fra en oppskrift"
       ],
-      "illustration": "handleliste--module-activation-illustration.png",
+      "illustration": "handleliste--module-activation-illustration.webp",
       "activationLabel": "Aktiver Handleliste"
     },
     {
@@ -124,7 +124,7 @@ export default {
         "Beregn mengder etter antall personer",
         "Bruk det dere har og reduser matsvinn"
       ],
-      "illustration": "maltidsplanlegger--module-activation-illustration.png",
+      "illustration": "maltidsplanlegger--module-activation-illustration.webp",
       "activationLabel": "Aktiver Måltidsplanlegger"
     },
     {
@@ -139,7 +139,7 @@ export default {
         "Importer oppskrift fra bilde eller nettside med AI",
         "Vurder med stjerner – favoritter løftes i måltidsplanen"
       ],
-      "illustration": "oppskrift--module-activation-illustration.png",
+      "illustration": "oppskrift--module-activation-illustration.webp",
       "activationLabel": "Aktiver Oppskrift"
     },
     {
@@ -155,7 +155,7 @@ export default {
         "Skann strekkoder for rask registrering",
         "Trekk lageret fra handlelisten automatisk"
       ],
-      "illustration": "lager--module-activation-illustration.png",
+      "illustration": "lager--module-activation-illustration.webp",
       "activationLabel": "Aktiver Lager"
     },
     {
@@ -170,7 +170,7 @@ export default {
         "La familien bidra på samme sted",
         "Bevar minnene privat og oversiktlig"
       ],
-      "illustration": "familiealbum--module-activation-illustration.png",
+      "illustration": "familiealbum--module-activation-illustration.webp",
       "activationLabel": "Aktiver Familiealbum"
     },
     {
@@ -185,7 +185,7 @@ export default {
         "Legg ved bilder fra dagen",
         "Finn høydepunktene igjen senere"
       ],
-      "illustration": "familievegg--module-activation-illustration.png",
+      "illustration": "familievegg--module-activation-illustration.webp",
       "activationLabel": "Aktiver Familievegg"
     },
     {
@@ -200,7 +200,7 @@ export default {
         "Velg rammeform, farge og plassering i rommet",
         "Lagre barn, alder, sted og dato – og endre når som helst"
       ],
-      "illustration": "barnetegninger--module-activation-illustration.png",
+      "illustration": "barnetegninger--module-activation-illustration.webp",
       "activationLabel": "Aktiver Barnetegninger"
     },
     {
@@ -215,7 +215,7 @@ export default {
         "Inviter slektninger til å bidra",
         "Ta vare på bilder og små historier"
       ],
-      "illustration": "familietreet--module-activation-illustration.png",
+      "illustration": "familietreet--module-activation-illustration.webp",
       "activationLabel": "Aktiver Familietreet"
     },
     {
@@ -230,7 +230,7 @@ export default {
         "Hold billetter og informasjon samlet",
         "Bevar bilder og opplevelser etterpå"
       ],
-      "illustration": "vare-reiser--module-activation-illustration.png",
+      "illustration": "vare-reiser--module-activation-illustration.webp",
       "activationLabel": "Aktiver Våre reiser"
     },
     {
@@ -245,7 +245,7 @@ export default {
         "Inviter reisefølge som planlegger eller leser",
         "Sjekk inn, lagre minner og følg tidslinjen underveis"
       ],
-      "illustration": "reiseplanlegger--module-activation-illustration.png",
+      "illustration": "reiseplanlegger--module-activation-illustration.webp",
       "activationLabel": "Aktiver Reiseplanlegger"
     },
     {
@@ -260,7 +260,7 @@ export default {
         "Del riktig liste med riktig person",
         "Unngå dobbeltkjøp med anonym reservasjon"
       ],
-      "illustration": "gaveonsker--module-activation-illustration.png",
+      "illustration": "gaveonsker--module-activation-illustration.webp",
       "activationLabel": "Aktiver Gaveønsker"
     },
     {
@@ -275,7 +275,7 @@ export default {
         "Del midlertidig når det faktisk trengs",
         "Få beskjed ved avtalte ankomster"
       ],
-      "illustration": "familieposisjon--module-activation-illustration.png",
+      "illustration": "familieposisjon--module-activation-illustration.webp",
       "activationLabel": "Aktiver Familieposisjon"
     },
     {
@@ -290,7 +290,7 @@ export default {
         "Gjenta viktige datoer automatisk",
         "Lag nedtelling til ferie og store dager"
       ],
-      "illustration": "husk-dato--module-activation-illustration.png",
+      "illustration": "husk-dato--module-activation-illustration.webp",
       "activationLabel": "Aktiver Husk dato"
     },
     {
@@ -305,7 +305,7 @@ export default {
         "Følg tid, distanse og fremgang",
         "Koble Strava hvis du ønsker det"
       ],
-      "illustration": "aktiviteter--module-activation-illustration.png",
+      "illustration": "aktiviteter--module-activation-illustration.webp",
       "activationLabel": "Aktiver Aktiviteter"
     },
     {
@@ -320,7 +320,7 @@ export default {
         "Logg sider og se fremgang",
         "Gi terningkast når boka er ferdig"
       ],
-      "illustration": "bokhylla--module-activation-illustration.png",
+      "illustration": "bokhylla--module-activation-illustration.webp",
       "activationLabel": "Aktiver Bokhylla"
     },
     {
@@ -335,7 +335,7 @@ export default {
         "Inviter familien før start",
         "Spill sammen uten komplisert oppsett"
       ],
-      "illustration": "familiespill--module-activation-illustration.png",
+      "illustration": "familiespill--module-activation-illustration.webp",
       "activationLabel": "Aktiver FamilieSpill"
     },
     {
@@ -350,7 +350,7 @@ export default {
         "Følg uken uten å bytte profil",
         "Fremhev innsats fremfor sammenligning"
       ],
-      "illustration": "barnas-progresjon--module-activation-illustration.png",
+      "illustration": "barnas-progresjon--module-activation-illustration.webp",
       "activationLabel": "Aktiver Barnas progresjon"
     },
     {
@@ -365,7 +365,7 @@ export default {
         "Importer planer fra bilde eller PDF",
         "Gi barnet oversikt uten informasjonsstøy"
       ],
-      "illustration": "skole--module-activation-illustration.png",
+      "illustration": "skole--module-activation-illustration.webp",
       "activationLabel": "Aktiver Skole"
     },
     {
@@ -380,7 +380,7 @@ export default {
         "Kryss av etter hvert som de blir gjort",
         "Se hva som haster og hva som kan vente"
       ],
-      "illustration": "lekser--module-activation-illustration.png",
+      "illustration": "lekser--module-activation-illustration.webp",
       "activationLabel": "Aktiver Lekser"
     },
     {
@@ -395,7 +395,7 @@ export default {
         "Se stegene tegnet ut – som 5² og 324 × 9",
         "Ros for innsats; fasit låst til forsøk er gjort"
       ],
-      "illustration": "leksehjelp--module-activation-illustration.png",
+      "illustration": "leksehjelp--module-activation-illustration.webp",
       "activationLabel": "Aktiver Leksehjelp"
     },
     {
@@ -410,7 +410,7 @@ export default {
         "Interaktive spill + dagens oppdrag + AI-los",
         "Tydelig skilt fra Leksehjelpen (ekte lekser)"
       ],
-      "illustration": "mattehjelp--module-activation-illustration.png",
+      "illustration": "mattehjelp--module-activation-illustration.webp",
       "activationLabel": "Aktiver Lær skole"
     },
     {
@@ -425,7 +425,7 @@ export default {
         "Fang opp endringer i skoleuken",
         "Gi barnet en enkel plan for hver dag"
       ],
-      "illustration": "ukeplan--module-activation-illustration.png",
+      "illustration": "ukeplan--module-activation-illustration.webp",
       "activationLabel": "Aktiver Ukeplan"
     },
     {
@@ -440,7 +440,7 @@ export default {
         "Samle historikk og dokumenter",
         "Håndter flere biler og andre kjøretøy"
       ],
-      "illustration": "kjoretoy--module-activation-illustration.png",
+      "illustration": "kjoretoy--module-activation-illustration.webp",
       "activationLabel": "Aktiver Kjøretøy"
     },
     {
@@ -455,7 +455,7 @@ export default {
         "Last opp bilder, PDF-er og andre filer",
         "Styr hvem som kan se personlige dokumenter"
       ],
-      "illustration": "dokumenter--module-activation-illustration.png",
+      "illustration": "dokumenter--module-activation-illustration.webp",
       "activationLabel": "Aktiver Dokumenter"
     },
     {
@@ -470,7 +470,7 @@ export default {
         "Vedlikehold du kan krysse av, med historikk",
         "Adresse, papirer og håndverkere samlet"
       ],
-      "illustration": "boligen--module-activation-illustration.png",
+      "illustration": "boligen--module-activation-illustration.webp",
       "activationLabel": "Aktiver Boligen"
     },
     {
@@ -485,7 +485,7 @@ export default {
         "Koble låser og håndter adgang",
         "Send automatiske meldinger gjennom reisen"
       ],
-      "illustration": "utleie--module-activation-illustration.png",
+      "illustration": "utleie--module-activation-illustration.webp",
       "activationLabel": "Aktiver Utleie"
     }
   ]

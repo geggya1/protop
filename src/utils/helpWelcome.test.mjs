@@ -43,7 +43,7 @@ const matcoachHelp = buildHelpWelcomeModule({
   closeLabel: 'Lukk',
 });
 assert.ok(matcoachHelp);
-assert.match(matcoachHelp.illustrationPath, /ai-matcoach--module-activation-illustration\.png\?v=/);
+assert.match(matcoachHelp.illustrationPath, /ai-matcoach--module-activation-illustration\.webp\?v=/);
 assert.equal(matcoachHelp.headline, matcoachCopy.title);
 
 const teamWallCopy = localizeIntro(getModuleIntro('team', 'wall'), 'nb');

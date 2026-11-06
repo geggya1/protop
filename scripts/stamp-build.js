@@ -247,13 +247,6 @@ for (const name of pwaIconFiles) {
   console.log(`Copied icons/${name} to dist/`);
 }
 
-/** Hero-bilder til mobil/nettbrett-hjem (/heroes/…) */
-const heroesCopied = copyDirSync(
-  path.join(publicDir, 'heroes'),
-  path.join(distDir, 'heroes'),
-);
-if (heroesCopied) console.log(`Copied ${heroesCopied} heroes to dist/heroes/`);
-
 /** Module / help / activation illustrations (/assets/module-activation/…). */
 const activationCopied = copyDirSync(
   path.join(publicDir, 'assets', 'module-activation'),
@@ -261,9 +254,3 @@ const activationCopied = copyDirSync(
 );
 if (activationCopied) console.log(`Copied ${activationCopied} illustrations to dist/assets/module-activation/`);
 
-/** Barnetegninger room mockups (/assets/child-drawings/…). */
-const childDrawingsCopied = copyDirSync(
-  path.join(publicDir, 'assets', 'child-drawings'),
-  path.join(distDir, 'assets', 'child-drawings'),
-);
-if (childDrawingsCopied) console.log(`Copied ${childDrawingsCopied} child-drawings to dist/assets/child-drawings/`);

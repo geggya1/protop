@@ -210,6 +210,7 @@ function loadJsx(rel) {
       || id.includes('WorkingTimeSaveWarning')
       || id.includes('ScrollSheet')
       || id.includes('components/Breadcrumb')
+      || id.includes('components/StorageImage')
     ) {
       return { __esModule: true, default: function Stub() { return null; } };
     }

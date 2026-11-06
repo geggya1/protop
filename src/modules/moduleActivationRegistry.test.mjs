@@ -48,7 +48,7 @@ for (const id of EXPECTED_IDS) {
   assert.ok(mod.headline, `${id} headline`);
   assert.ok(mod.pitch, `${id} pitch`);
   assert.equal(mod.benefits.length, 3, `${id} needs 3 benefits`);
-  assert.ok(mod.illustration.endsWith('--module-activation-illustration.png'), `${id} illustration filename`);
+  assert.ok(mod.illustration.endsWith('--module-activation-illustration.webp'), `${id} illustration filename`);
   assert.equal(
     mod.illustrationPath,
     `/assets/module-activation/${mod.illustration}?v=${ILLUSTRATION_CACHE}`,
@@ -117,7 +117,7 @@ assert.equal(broken.getModuleConfig('plan'), null);
 const exported = readFileSync(new URL('./alle-modultekster.txt', import.meta.url), 'utf8');
 assert.equal(exported, buildAlleModultekster(json), 'alle-modultekster.txt must match export-modultekster.mjs');
 assert.match(exported, /Id: plan/);
-assert.match(exported, /Illustrasjon: kalender--module-activation-illustration\.png/);
+assert.match(exported, /Illustrasjon: kalender--module-activation-illustration\.webp/);
 assert.match(exported, /Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere/);
 assert.match(exported, /Trygghetstekst barn: Du kan åpne modulen når du vil/);
 assert.equal(exported.includes('Trygghetstekst barn mobil:'), false);

@@ -1,6 +1,11 @@
 import React from 'react';
+import StorageImage from '../../components/StorageImage';
 import {
-  Image, Platform, Pressable, StyleSheet, Text, View,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
@@ -149,7 +154,7 @@ export function Avatar({
     ...(ring ? { borderWidth: 2, borderColor: ring } : null),
   };
   if (photoUrl) {
-    return <Image source={{ uri: photoUrl }} style={frame} accessibilityLabel={name} />;
+    return <StorageImage uri={photoUrl} style={frame} accessibilityLabel={name} />;
   }
   return (
     <View style={[styles.avatar, frame, { backgroundColor: tint(accent, 0.16) }]}>

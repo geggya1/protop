@@ -168,7 +168,7 @@ queue_entry openFeedIndex.js functions:fetchOpenFeedHttp
 queue_entry interpretAvtaleIndex.js functions:interpretAvtaleHttp
 queue_entry anbudIntakeIndex.js functions:scanAnbudDocumentHttp
 queue_entry friendListIndex.js functions:friendListHttp
-FRIENDS="functions:lookupFriendProfile,functions:sendFriendInviteV2,functions:sendFriendInviteSmsV2,functions:listMyFriends,functions:listFriendsForUid,functions:listFriendRequests,functions:listOutgoingFriendRequests,functions:createFriendRequestAdmin,functions:respondFriendRequestAdmin,functions:withdrawFriendRequestAdmin,functions:dismissOutgoingFriendRequestAdmin,functions:resendFriendRequestAdmin,functions:removeFriendAdmin,functions:sendFriendChatAdmin,functions:listFriendChatMessagesAdmin,functions:createPendingFriendInviteAdmin,functions:claimFriendInviteAdmin,functions:shareWithFriendsAdmin,functions:listSharedAlbumsAdmin,functions:listSharedWishlistsAdmin,functions:respondFriendGameInviteAdmin,functions:notifyFriendGameInvitesAdmin"
+FRIENDS="functions:lookupFriendProfile,functions:sendFriendInviteV2,functions:sendFriendInviteSmsV2,functions:listMyFriends,functions:listFriendsForUid,functions:listFriendRequests,functions:listOutgoingFriendRequests,functions:createFriendRequestAdmin,functions:respondFriendRequestAdmin,functions:withdrawFriendRequestAdmin,functions:dismissOutgoingFriendRequestAdmin,functions:resendFriendRequestAdmin,functions:removeFriendAdmin,functions:sendFriendChatAdmin,functions:listFriendChatMessagesAdmin,functions:createPendingFriendInviteAdmin,functions:claimFriendInviteAdmin,functions:shareWithFriendsAdmin"
 queue_entry friendInviteIndex.js "$FRIENDS"
 open_for friendInviteIndex.js "$FRIENDS"
 queue_entry indeksIndex.js functions:interpretIndeksAvtale,functions:sendIndeksLetter
@@ -189,7 +189,7 @@ DOFFIN="functions:searchDoffin,functions:searchTed,functions:lookupCompany,funct
 queue_entry doffinIndex.js "$DOFFIN"
 open_for doffinIndex.js "$DOFFIN"
 
-AI="functions:aiChat,functions:aiVoiceNote,functions:aiTutor,functions:aiMealIngredients,functions:aiRecipeImport,functions:aiReceiptOcr,functions:mileageRates,functions:aiClassListOcr,functions:aiMatcoachWeeklyPlan,functions:aiMatcoachFridgeScan,functions:aiMatcoachLunchBoxes,functions:aiMatcoachSwapMeal,functions:aiImportPlan,functions:applyAiImport,functions:discardAiImport,functions:uploadDocumentFile,functions:createAlbumUploadUrl,functions:uploadAlbumFile,functions:aiSupportChat,functions:createSupportTicket,functions:scanTimesheetReview"
+AI="functions:aiChat,functions:aiVoiceNote,functions:aiReceiptOcr,functions:mileageRates,functions:uploadDocumentFile,functions:aiSupportChat,functions:createSupportTicket,functions:scanTimesheetReview"
 queue_entry aiIndex.js "$AI"
 open_for aiIndex.js "$AI"
 
@@ -207,14 +207,6 @@ open_for membershipIndex.js "$MEMBERSHIP"
 AUTH="functions:sendInviteV2,functions:sendInviteSmsV2,functions:sendEmailVerificationV2,functions:confirmEmailVerificationV2,functions:sendPasswordResetV2,functions:setMemberPassword,functions:lookupAdultProfile,functions:confirmMicrosoftEmail"
 queue_entry authIndex.js "$AUTH"
 open_for authIndex.js "$AUTH"
-
-HOSP="functions:hospSaveNukiToken,functions:hospGetNukiStatus,functions:hospDisconnectNuki,functions:hospSyncNukiLocks,functions:hospProvisionLockCode,functions:hospRevokeLockCode,functions:hospSyncChannelIcal,functions:hospConnectIcal,functions:hospSyncAllChannels,functions:hospProcessAutomessages,functions:hospGenerateReplyDraft,functions:hospLoginChecklist,functions:hospGetChannelStatus,functions:hospSavePartnerCredentials,functions:hospAirbnbExchangeToken,functions:hospBookingConnectProperty,functions:hospSyncChannelOAuth,functions:hospDisconnectChannel"
-queue_entry hospitalityIndex.js "$HOSP"
-open_for hospitalityIndex.js "$HOSP"
-
-STRAVA="functions:getStravaAppStatus,functions:saveStravaAppConfig,functions:stravaExchangeToken,functions:stravaSyncActivities,functions:stravaDisconnect,functions:stravaWebhook,functions:registerStravaWebhook"
-queue_entry stravaIndex.js "$STRAVA"
-open_for stravaIndex.js "$STRAVA"
 
 queue_entry vacationPlanIndex.js functions:publishVacationPlan,functions:sweepVacationPlan
 open_for vacationPlanIndex.js functions:publishVacationPlan,functions:sweepVacationPlan
@@ -258,6 +250,8 @@ deploy_entry powerOfficeSyncScheduledIndex.js functions:powerOfficeSyncScheduled
 deploy_entry collectionAutoIndex.js functions:collectionAutoScheduled
 deploy_entry aiCleanupIndex.js functions:aiCleanupScheduled
 deploy_entry indeksSsbDailyIndex.js functions:indeksSsbDaily
+# Bildeutgaver (mobil og liten) når et bilde lastes opp til Storage.
+deploy_entry imageVariantsIndex.js functions:imageVariants
 
 node --input-type=module -e "
 import { readFileSync, writeFileSync } from 'node:fs';

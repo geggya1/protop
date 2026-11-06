@@ -42,8 +42,6 @@ export const DEPLOY_ENTRIES = [
   'membershipIndex.js',
   'companyAccessIndex.js',
   'authIndex.js',
-  'hospitalityIndex.js',
-  'stravaIndex.js',
   'pushIndex.js',
   'notifyPushIndex.js',
   'vacationPlanIndex.js',
@@ -58,6 +56,7 @@ export const DEPLOY_ENTRIES = [
   'intercompanyIndex.js',
   'intercompanyTriggerIndex.js',
   'helpdeskIndex.js',
+  'imageVariantsIndex.js',
   'customerSurveyIndex.js',
 ];
 

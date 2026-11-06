@@ -13,15 +13,12 @@ function uploadMeta(contentType) {
 }
 
 const STORAGE_BUCKET = 'protop-c189c.firebasestorage.app';
-const FILE_UPLOAD_TIMEOUT_MS = 25000;
 const REST_UPLOAD_TIMEOUT_MS = 12000;
 const CALLABLE_UPLOAD_TIMEOUT_MS = 90000;
 /** Callable (base64) — begrenset av Cloud Functions payload. */
 const MAX_CALLABLE_DOCUMENT_BYTES = 15 * 1024 * 1024;
 /** Direkte Storage-opplasting — nok til filmer / større dokumenter. */
 export const MAX_DOCUMENT_BYTES = 500 * 1024 * 1024;
-/** Familiealbum — matcher Storage-regler (50 MB). */
-export const MAX_ALBUM_MEDIA_BYTES = 50 * 1024 * 1024;
 
 /** Standard filtyper for lekser / AI-import (uten video). */
 export const DEFAULT_DOCUMENT_ACCEPT =
@@ -30,13 +27,6 @@ export const DEFAULT_DOCUMENT_ACCEPT =
 /** Mine filer / delte dokumenter — inkluderer video. */
 export const FAMILY_DOCUMENT_ACCEPT =
   `${DEFAULT_DOCUMENT_ACCEPT},video/*,.mp4,.m4v,.mov,.webm,.avi,.mkv,.mpeg,.mpg`;
-
-/**
- * Familiealbum — kun MIME-wildcards.
- * Viktig på iOS Safari: filendelser i accept tvinger ofte «Filer»-appen
- * (én og én fil). image/*,video/* åpner Bilder med flervalg.
- */
-export const ALBUM_MEDIA_ACCEPT = 'image/*,video/*';
 
 function restUploadTimeoutMs(byteLength) {
   const size = Number(byteLength) || 0;
@@ -167,118 +157,6 @@ export async function uploadWithProgress(path, picked, {
   });
   report(100);
   return getDownloadURL(r);
-}
-
-/**
- * Album-opplasting med fremdrift.
- * Mindre filer (≤ ~12 MB): direkte via uploadAlbumFile (Admin SDK) — mest pålitelig.
- * Større filer: signert URL, deretter callable/REST-fallback.
- */
-export async function uploadAlbumObjectWithProgress({
-  familyId,
-  albumId,
-  objectPath,
-  picked,
-  contentType,
-  onProgress,
-} = {}) {
-  if (!familyId || !albumId || !objectPath) throw new Error('Mangler album-sti');
-  const blob = await readUploadBlob(picked);
-  const type = contentType || picked?.mimeType || blob.type || 'application/octet-stream';
-  if (blob.size > MAX_ALBUM_MEDIA_BYTES) {
-    throw new Error('Filen er for stor (maks 50 MB).');
-  }
-  const report = (pct) => {
-    if (typeof onProgress === 'function') onProgress(Math.max(0, Math.min(100, Math.round(pct))));
-  };
-  report(1);
-
-  const callableLimit = Math.floor(MAX_CALLABLE_DOCUMENT_BYTES * 0.75); // base64 ~33 % større
-  const errors = [];
-
-  // 1) Foretrekk server-opplasting for typiske mobilbilder
-  if (blob.size <= callableLimit) {
-    try {
-      report(8);
-      const fileBase64 = await blobToBase64(blob);
-      report(35);
-      const fn = httpsCallable(functions, 'uploadAlbumFile', { timeout: 120000 });
-      const res = await fn({
-        familyId,
-        albumId,
-        objectPath,
-        contentType: type,
-        fileBase64,
-      });
-      report(100);
-      const url = res?.data?.downloadUrl;
-      if (!url) throw new Error('Ingen nedlastings-URL fra server');
-      return url;
-    } catch (err) {
-      errors.push(err);
-    }
-  }
-
-  // 2) Signert URL (store filer / video)
-  try {
-    const fn = httpsCallable(functions, 'createAlbumUploadUrl', { timeout: 30000 });
-    const res = await fn({
-      familyId,
-      albumId,
-      objectPath,
-      contentType: type,
-      sizeBytes: blob.size,
-    });
-    const data = res?.data || {};
-    if (!data.uploadUrl || !data.downloadUrl) throw new Error('Mangler signert URL');
-
-    await new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('PUT', data.uploadUrl);
-      xhr.setRequestHeader('Content-Type', type);
-      if (data.metaHeader && data.metaValue) {
-        xhr.setRequestHeader(data.metaHeader, data.metaValue);
-      }
-      xhr.upload.onprogress = (e) => {
-        if (!e.lengthComputable) return;
-        report(Math.min(99, Math.round((e.loaded / Math.max(e.total, 1)) * 100)));
-      };
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          report(100);
-          resolve();
-        } else {
-          reject(new Error(`Opplasting feilet (${xhr.status})`));
-        }
-      };
-      xhr.onerror = () => reject(new Error('Nettverksfeil under opplasting'));
-      xhr.ontimeout = () => reject(new Error('Opplasting tok for lang tid'));
-      xhr.timeout = restUploadTimeoutMs(blob.size);
-      xhr.send(blob);
-    });
-
-    return data.downloadUrl;
-  } catch (err) {
-    errors.push(err);
-  }
-
-  // 3) Direkte Storage REST
-  try {
-    return await uploadWithProgress(objectPath, { blob, mimeType: type }, {
-      contentType: type,
-      onProgress,
-    });
-  } catch (err) {
-    errors.push(err);
-  }
-
-  const last = errors[errors.length - 1] || new Error('Opplasting feilet');
-  const msg = last?.message || last?.code || 'Opplasting feilet';
-  // Unngå kryptiske Firebase-koder som bare «internal»
-  if (/internal|INTERNAL|not-found|NOT_FOUND/i.test(String(msg))) {
-    throw new Error('Kunne ikke laste opp (server). Prøv igjen om litt, eller et mindre bilde.');
-  }
-  throw last instanceof Error ? last : new Error(String(msg));
 }
 
 async function blobToBase64(blob) {
@@ -451,51 +329,6 @@ export async function pickImages({ max = 8 } = {}) {
   if (result.canceled) return [];
   return (result.assets || [])
     .map((asset) => (asset?.uri ? { uri: asset.uri, blob: null } : null))
-    .filter(Boolean)
-    .slice(0, limit);
-}
-
-/**
- * Velg ett eller flere album-media (bilder + video).
- * Web: multi-select filvelger. Native: bildebibliotek med multi når støttet.
- *
- * NB: Ikke vis Alert rett før filvelgeren på web — iOS Safari krever at
- * input.click() skjer direkte i brukerens trykk-handler.
- */
-export async function pickAlbumMedia({ max = 24 } = {}) {
-  const limit = Math.max(1, Math.min(40, Number(max) || 24));
-  if (Platform.OS === 'web') {
-    const picked = await pickFromFileInput({
-      multiple: true,
-      accept: ALBUM_MEDIA_ACCEPT,
-    });
-    return (picked || []).slice(0, limit);
-  }
-
-  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (status !== 'granted') throw new Error('library-denied');
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images', 'videos'],
-    allowsEditing: false,
-    quality: 1,
-    allowsMultipleSelection: true,
-    selectionLimit: limit,
-  });
-  if (result.canceled) return [];
-  return (result.assets || [])
-    .map((asset) => (asset?.uri
-      ? {
-        uri: asset.uri,
-        blob: null,
-        name: asset.fileName || asset.uri.split('/').pop() || 'fil',
-        mimeType: asset.mimeType
-          || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
-        size: asset.fileSize || 0,
-        width: asset.width || 0,
-        height: asset.height || 0,
-        duration: asset.duration || 0,
-      }
-      : null))
     .filter(Boolean)
     .slice(0, limit);
 }
@@ -738,29 +571,6 @@ export async function uploadImage(path, picked) {
   } catch (err) {
     throw err instanceof Error ? err : new Error(String(err || 'Kunne ikke laste opp bildet.'));
   }
-}
-
-async function blobToJpegDataUrl(blob, max = 512, quality = 0.72) {
-  // Best-effort: try fast canvas path first, but always fall back to FileReader.
-  try {
-    if (typeof createImageBitmap === 'function' && typeof document !== 'undefined') {
-      const bitmap = await createImageBitmap(blob);
-      const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height, 1));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-      canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL('image/jpeg', quality);
-    }
-  } catch {
-    // ignore + fallback
-  }
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error('Kunne ikke lese bildet'));
-    reader.readAsDataURL(blob);
-  });
 }
 
 export function photoErrorMessage(err, t) {

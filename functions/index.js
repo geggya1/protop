@@ -11,7 +11,6 @@ import { sendMail, friendlyMailError } from './mail.js';
 import { buildInviteMessage } from './inviteMessage.js';
 
 export { buildInviteMessage };
-import { stravaExchangeToken, stravaSyncActivities, getStravaAppStatus, saveStravaAppConfig, stravaDisconnect, stravaWebhook, registerStravaWebhook } from './strava.js';
 import {
   assertRateLimit,
   hashRateKey,
@@ -19,41 +18,6 @@ import {
   redactEmail,
 } from './security.js';
 import { onChatMessageCreated, onFriendChatMessageCreated } from './chatNotify.js';
-
-export {
-  hospSaveNukiToken,
-  hospGetNukiStatus,
-  hospDisconnectNuki,
-  hospSyncNukiLocks,
-  hospProvisionLockCode,
-  hospRevokeLockCode,
-  hospSyncChannelIcal,
-  hospConnectIcal,
-  hospSyncAllChannels,
-  hospProcessAutomessages,
-  hospGenerateReplyDraft,
-  hospLoginChecklist,
-  hospScheduledSync,
-} from './hospitality.js';
-
-export {
-  hospGetChannelStatus,
-  hospSavePartnerCredentials,
-  hospAirbnbExchangeToken,
-  hospBookingConnectProperty,
-  hospSyncChannelOAuth,
-  hospDisconnectChannel,
-} from './hospitalityOauth.js';
-
-export {
-  stravaExchangeToken,
-  stravaSyncActivities,
-  getStravaAppStatus,
-  saveStravaAppConfig,
-  stravaDisconnect,
-  stravaWebhook,
-  registerStravaWebhook,
-};
 
 export {
   resolveJoinCode,
@@ -255,27 +219,14 @@ export {
 export {
   aiChat,
   aiVoiceNote,
-  aiTutor,
-  aiMealIngredients,
-  aiRecipeImport,
   aiReceiptOcr,
   mileageRates,
-  aiClassListOcr,
   interpretImport,
-  aiMatcoachWeeklyPlan,
-  aiMatcoachFridgeScan,
-  aiMatcoachLunchBoxes,
-  aiMatcoachSwapMeal,
-  aiImportPlan,
-  applyAiImport,
-  discardAiImport,
   aiCleanupScheduled,
   uploadDocumentFile,
   uploadStorageFile,
   downloadStorageFile,
   applyStorageCors,
-  createAlbumUploadUrl,
-  uploadAlbumFile,
   aiSupportChat,
   createSupportTicket,
   scanTimesheetReview,

@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Evalueringer av prosjekter og tilbud (Kunder → Kundeundersøkelse → Evalueringer, og prosjektets
  * Evaluering-fane). En evaluering lages fra en mal, knyttes til et prosjekt, et tilbud eller
@@ -22,9 +23,11 @@ import { formatNbDate } from '../../src/hr/model';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { chartColorsFor } from '../../src/ui/chartColors';
 import { radius, space, type } from '../../src/ui/tokens';
-import { EmptyHint, HrButton, HrChip } from '../hr/HrShared';
 import { STATUS_LABEL, defaultDeadline } from './CustomerSurveyDetail';
 import { recipientFromCustomer } from './CustomerSurveyRecipients';
+const EmptyHint = lazyScreen(() => import('../hr/HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('../hr/HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

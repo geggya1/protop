@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../src/theme';
-import { useLayout } from '../src/theme';
+import { useBreakpoints } from '../src/theme';
 
 /**
  * Desktop: sentrert popup over dimmet bakgrunn (ikke full side).
@@ -18,7 +18,7 @@ export default function DesktopFormShell({
   footer = null,
   width = 520,
 }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   if (!isDesktop || !visible) return null;
 
   return (

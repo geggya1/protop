@@ -27,13 +27,9 @@ test('lagadministrator er eier eller står i adminUids', () => {
   }
 });
 
-test('lagskjermene og medlemsinnstillingene viser admin fra samme kilde', () => {
+test('medlemsinnstillingene viser admin fra samme kilde som isGroupAdmin', () => {
   const read = (file) => readFileSync(new URL(file, import.meta.url), 'utf8');
-  const members = read('../../screens/team/TeamMembersScreen.jsx');
-  const messages = read('../../screens/team/TeamMessagesScreen.jsx');
   const settings = read('../../screens/settings/GroupSettingsScreen.jsx');
-  assert.match(members, /isGroupAdmin\(team, p\.uid \|\| p\.id\)\s*\? 'Administrator'/);
-  assert.equal(/p\.admin \|\| p\.superAdmin/.test(messages), false);
   assert.match(settings, /const memberIsAdmin = isGroupAdmin\(family, m\.uid \|\| m\.id\);/);
   assert.match(settings, /admin: !memberIsAdmin/);
 });

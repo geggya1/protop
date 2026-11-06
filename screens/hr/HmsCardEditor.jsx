@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * HMS-kortet på en person: skann QR-koden, ta bilde av kortet eller skriv inn.
  * Brukes av HR (Lovpålagt) og av den ansatte selv (Min side › Gjøremål).
@@ -12,8 +13,10 @@ import { applyHmsCardRead, hmsCardStatus, parseHmsQr } from '../../src/hr/hmsCar
 import { readHmsCardPhoto } from '../../src/hr/hmsCardRead';
 import { formatNbDate } from '../../src/hr/model';
 import { pickImage } from '../../src/utils/media';
-import BarcodeScannerModal from '../../components/BarcodeScannerModal';
-import { HrButton, HrChip, HrField } from './HrShared';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
+const BarcodeScannerModal = lazyScreen(() => import('../../components/BarcodeScannerModal'), { name: 'BarcodeScannerModal', silent: true });
 
 const SOURCE_LABEL = { qr: 'Skannet', photo: 'Lest fra bilde', manual: 'Skrevet inn' };
 

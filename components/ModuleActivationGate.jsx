@@ -5,7 +5,7 @@ import ModuleWelcomeModal, { ModuleActivationScrim } from './ModuleWelcomeModal'
 import { useModuleAccess, useModuleWriteScope } from '../src/context/ModuleAccessContext';
 import { getModuleConfig, isActivatableModule } from '../src/modules/moduleActivationRegistry';
 import { reassuranceForRole } from '../src/modules/moduleActivationLogic';
-import { localizeModuleFields, localizeCatalogDefaults } from '../src/i18n/moduleCatalog';
+import { localizeModuleFields, localizeCatalogDefaults } from '../src/i18n/moduleCatalogActive';
 import { useI18n } from '../src/i18n';
 import {
   MODULE_ACTIVATION_EVENTS,

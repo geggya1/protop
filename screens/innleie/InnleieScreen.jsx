@@ -3,10 +3,10 @@ import React, {
 } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
+import CompanyAccessDenied from '../../components/project/CompanyAccessDenied';
 import { watchEmployees } from '../../src/employees/storage';
 import { loadAbsences } from '../../src/arbeid/absenceStorage';
 import { createFollowUpTask } from '../../src/hr/followUpTask';
@@ -40,8 +40,9 @@ export default function InnleieScreen({ subView = 'oversikt' }) {
   const colors = useColors();
   const nav = useNavigation();
   const {
-    family, familyId, uid, activeProfile, requestShellTab, shellIntent, clearShellIntent,
+    family, familyId, uid, activeProfile, requestShellTab, clearShellIntent,
   } = useApp();
+  const { shellIntent } = useShellNav();
   const page = defaultInnleieSubView(subView);
   const access = useCompanyAccess();
   // HR-dokumentet har også lønn. Derfor samme tilgang som HR → Personell.

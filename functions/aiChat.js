@@ -11,6 +11,9 @@ import {
 } from './aiShared.js';
 import { childChatLocal } from './childChatLocal.js';
 
+// Et kall som henger skal ikke bruke opp hele funksjonens tidsgrense.
+const GEMINI_TIMEOUT_MS = 45_000;
+
 const SYSTEM_PARENT = `Du er ProTop-assistenten — en dyktig, naturlig samtalepartner for norske foresatte.
 
 Rolle og stil:
@@ -118,10 +121,11 @@ async function callGemini(apiKey, systemPrompt, message, history = [], options =
   let lastErr = null;
   for (const model of models) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systemPrompt }] },
           contents,

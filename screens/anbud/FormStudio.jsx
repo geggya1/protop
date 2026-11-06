@@ -15,8 +15,9 @@ import {
 } from '../../src/anbud/formBuilder';
 import { fileToDataUrl } from '../../src/anbud/intakeClient';
 import { pickImage } from '../../src/utils/media';
-import FormEditor from './FormEditor';
 import { formPrintHtml, printForm } from './formPrint';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FormEditor = lazyScreen(() => import('./FormEditor'), { name: 'FormEditor', silent: true });
 
 const PIE = ['#4285F4', '#EA4335', '#FBBC04', '#34A853', '#AB47BC', '#00ACC1', '#FF7043', '#8D6E63'];
 const ICONS = {

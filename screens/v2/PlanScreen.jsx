@@ -1,18 +1,15 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { addDoc, collection, onSnapshot, serverTimestamp, setDoc, doc } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
-import { db } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
 import { useI18n } from '../../src/i18n';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import {
   addDays, dateKey, startOfWeekMonday, monthGrid, isSameMonth, WEEKDAYS_SHORT, MONTHS_NO, sameDay, isToday, getISOWeek,
 } from '../../src/utils/dates';
 import { formatWeekRangeShortNo, calendarIdOf, isCalendarLayerHidden, calendarConnectionLayerId, calendarSubLayerId, connectionDisplayLabel, icsSidebarLabel, shouldListEventAsCalendarLayer, HIDDEN_CALENDAR_LAYERS_KEY, equipmentGroupLayerId, equipmentLayerId } from '../../src/utils/timeGrid';
-import OutlookCalendar from '../../components/OutlookCalendar';
 import { eventOccursOnDate, eventOnOwnCalendar, eventVisibleToUser } from '../../src/utils/events';
 import {
   listenEventsAcrossPlatforms,
@@ -24,44 +21,22 @@ import { fetchExternalCalendarEvents, listCalendarConnections, hydrateExternalCa
 import { peekCalendarConnectionsCache } from '../../src/utils/calendarConnectionsCache';
 import { peekFamilyEventsCache, putFamilyEventsCache } from '../../src/utils/familyEventsCache';
 import { calendarSyncNotice } from '../../src/utils/externalCalendarMerge';
-import {
-  listenChildTodos, toggleTodo, toggleParentTodo,
-} from '../../src/utils/todos';
+import { toggleParentTodo } from '../../src/utils/todos';
 import { buildCalendarPaneItems } from '../../src/utils/calendarTaskPane';
-import { isChildParentTaskReadOnly } from '../../src/utils/childTaskAccess';
-import {
-  canCreateFamilyCalendarEvent,
-  canShowCalendarSettings,
-} from '../../src/utils/childCalendarAccess';
 import { isExternalCalendarEvent } from '../../src/utils/externalEventVisibility';
 import {
   useExternalEventVisibilityMap,
   useEventsWithExternalVisibility,
 } from '../../src/hooks/useExternalEventVisibility';
-import CalendarSettingsScreen from './CalendarSettingsScreen';
-import { createMeal, familyMealHeadcount } from '../../src/utils/meals';
 import { listenEventsSharedWithMe } from '../../src/utils/friends';
 import MemberAvatarStack, { whoCountLabel, resolveEventMembers } from '../../components/MemberAvatarStack';
-import { Screen, Mute } from '../../components/ui';
-import { DeskBtn } from '../../components/DeskBtn';
+import { Screen } from '../../components/ui';
 import ShellAddButton from '../../components/ShellAddButton';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colorForConnection, colorForExternalCalendar, colorForFamilyEvent, FAMILY_CALENDAR_COLOR, isDefaultLayerCalendar } from '../../src/utils/calendarColors';
-import CustodyLegendBar from '../../components/CustodyLegendBar';
-import {
-  childrenWithCustody,
-  custodyCellTint,
-  custodyEnabled,
-  custodyOverlayForDay,
-} from '../../src/utils/custodySchedule';
-import {
-  loadCustodyOverlayPrefs,
-  saveCustodyOverlayPrefs,
-} from '../../src/utils/custodyOverlayPrefs';
 import { isOrganizationType } from '../../src/utils/groupTypes';
-import { isProtopShellModule } from '../../src/navigation/protopShell';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { loadProjectState } from '../../src/project/storage';
 import {
@@ -71,6 +46,9 @@ import {
   equipmentEventsFromBookings,
   withEquipmentChecks,
 } from '../../src/equipment/calendars';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const CalendarSettingsScreen = lazyScreen(() => import('./CalendarSettingsScreen'), { name: 'CalendarSettingsScreen' });
+const OutlookCalendar = lazyScreen(() => import('../../components/OutlookCalendar'), { name: 'OutlookCalendar', silent: true });
 
 const HIDDEN_CALS_KEY = HIDDEN_CALENDAR_LAYERS_KEY;
 
@@ -154,23 +132,14 @@ export default function PlanScreen({ active = true }) {
   const nav = useNavigation();
   useHelpScene('hub');
   const { t } = useI18n();
-  const { pad, isDesktop, isTablet } = useLayout();
+  const { pad, isDesktop, isTablet } = useBreakpoints();
   const {
-    familyId, members, uid, family, families, isParent, meChild, isChild, activeChild, isActingAsChild,
-    isGrandparent, kids, friendPeople,
+    familyId, members, uid, family, families, isParent, friendPeople,
   } = useApp();
-  const splitCalendar = isDesktop;
   const [mode, setMode] = useState('week');
   const [anchor, setAnchor] = useState(new Date());
   const [events, setEvents] = useState(() => peekFamilyEventsCache(familyId ? [familyId] : []) || []);
   const [friendSharedEvents, setFriendSharedEvents] = useState([]);
-  const [meals, setMeals] = useState([]);
-  const familyCounts = useMemo(() => familyMealHeadcount(members), [members]);
-  const [mealTitle, setMealTitle] = useState('');
-  const [mealAdults, setMealAdults] = useState(() => String(familyMealHeadcount(members).adults));
-  const [mealChildren, setMealChildren] = useState(() => String(familyMealHeadcount(members).children));
-  const [mealDay, setMealDay] = useState(null);
-  const [mealSaving, setMealSaving] = useState(false);
   const [externalEvents, setExternalEvents] = useState([]);
   const externalVisibilityByEventId = useExternalEventVisibilityMap(familyId);
   const visibleExternalEvents = useEventsWithExternalVisibility(
@@ -192,11 +161,9 @@ export default function PlanScreen({ active = true }) {
   const manageEquipment = gearAccess.manage;
   const [showCalendarSettings, setShowCalendarSettings] = useState(false);
   const [parentTodos, setParentTodos] = useState([]);
-  const [kidsTodosById, setKidsTodosById] = useState({});
-  const [custodyOverlayPrefs, setCustodyOverlayPrefs] = useState({ showOverlay: false, childFilter: 'all' });
 
   useEffect(() => {
-    if (!isParent || isChild || isActingAsChild) return undefined;
+    if (!isParent) return undefined;
     if (typeof sessionStorage === 'undefined') return undefined;
     try {
       if (sessionStorage.getItem(OPEN_CALENDAR_SETTINGS_KEY) === '1') {
@@ -205,87 +172,14 @@ export default function PlanScreen({ active = true }) {
       }
     } catch { /* ignore */ }
     return undefined;
-  }, [isParent, isChild, isActingAsChild]);
-
-  useEffect(() => {
-    if (!uid) {
-      setCustodyOverlayPrefs({ showOverlay: false, childFilter: 'all' });
-      return undefined;
-    }
-    let alive = true;
-    loadCustodyOverlayPrefs(uid).then((prefs) => {
-      if (!alive) return;
-      setCustodyOverlayPrefs(prefs);
-    });
-    return () => { alive = false; };
-  }, [uid, isChild, meChild?.id, meChild?.custody]);
-
-  const custodyKids = useMemo(() => childrenWithCustody(kids), [kids]);
-  const childViewerCustody = useMemo(
-    () => (isChild && meChild ? custodyEnabled(meChild) : false),
-    [isChild, meChild],
-  );
-  const custodyOverlayActive = custodyOverlayPrefs.showOverlay && (
-    custodyKids.length > 0 || childViewerCustody
-  );
-  const custodyChildFilter = useMemo(() => {
-    if (isChild && meChild?.id) return meChild.id;
-    if (isActingAsChild && activeChild?.id) return activeChild.id;
-    return custodyOverlayPrefs.childFilter || 'all';
-  }, [isChild, meChild?.id, isActingAsChild, activeChild?.id, custodyOverlayPrefs.childFilter]);
-
-  const getCustodyOverlay = useCallback((d) => {
-    if (!custodyOverlayActive || !uid) return null;
-    const custodyKids = (isChild && meChild)
-      ? [meChild]
-      : (isActingAsChild && activeChild ? [activeChild] : kids);
-    return custodyOverlayForDay({
-      date: d,
-      kids: custodyKids,
-      viewerUid: uid,
-      childFilter: custodyChildFilter,
-      viewerIsChild: isChild,
-    });
-  }, [custodyOverlayActive, uid, kids, isChild, meChild, isActingAsChild, activeChild, custodyChildFilter]);
-
-  const toggleCustodyOverlay = useCallback(async () => {
-    if (!uid) return;
-    const next = await saveCustodyOverlayPrefs(uid, { showOverlay: !custodyOverlayPrefs.showOverlay });
-    setCustodyOverlayPrefs(next);
-  }, [uid, custodyOverlayPrefs.showOverlay]);
-
-  const onCustodyOverlayChange = useCallback(async (patch) => {
-    if (!uid) return;
-    const next = await saveCustodyOverlayPrefs(uid, patch);
-    setCustodyOverlayPrefs(next);
-  }, [uid]);
+  }, [isParent]);
 
   const selectedKey = dateKey(anchor);
-  const asChildViewer = isChild || isActingAsChild;
+  // Barnekalender, delt bosted og «vis som barn» hørte til familieproduktet.
+  const parentCalendarSettings = isParent;
+  const canCreateCalendarEvent = isParent;
 
-  const viewingChild = useMemo(
-    () => (isActingAsChild ? activeChild : (isChild ? meChild : null)),
-    [isActingAsChild, activeChild, isChild, meChild],
-  );
-
-  const childCanEditCalendar = !!viewingChild?.calendarSelfEdit;
-  const parentCalendarSettings = canShowCalendarSettings({ isParent, asChildViewer });
-  const canCreateCalendarEvent = canCreateFamilyCalendarEvent({
-    isParent,
-    asChildViewer,
-    childCanEditCalendar,
-  });
-
-  const viewerIds = useMemo(() => {
-    const child = isActingAsChild ? activeChild : (isChild ? meChild : null);
-    // «Vis som barn» / innlogget barn: kun barnets id-er (ikke foresattes uid).
-    if (child) {
-      const ids = new Set();
-      [child.uid, child.id, child.childId, child.docId].filter(Boolean).forEach((id) => ids.add(id));
-      return ids;
-    }
-    return new Set([uid].filter(Boolean));
-  }, [uid, isChild, isActingAsChild, meChild, activeChild]);
+  const viewerIds = useMemo(() => new Set([uid].filter(Boolean)), [uid]);
 
   const platformIds = useMemo(() => {
     const ids = platformIdsFromFamilies(families);
@@ -311,7 +205,7 @@ export default function PlanScreen({ active = true }) {
   }, [familyId, viewerIds, families]);
 
   useEffect(() => {
-    if (!uid || asChildViewer) {
+    if (!uid) {
       setFriendSharedEvents([]);
       return undefined;
     }
@@ -319,11 +213,10 @@ export default function PlanScreen({ active = true }) {
       excludeFamilyIds: platformIds,
       onChange: setFriendSharedEvents,
     });
-  }, [uid, platformIds, asChildViewer]);
+  }, [uid, platformIds]);
 
   useEffect(() => {
-    const asChild = isChild || isActingAsChild;
-    if (!familyId || !isDesktop || asChild) {
+    if (!familyId || !isDesktop) {
       setParentTodos([]);
       return undefined;
     }
@@ -336,26 +229,7 @@ export default function PlanScreen({ active = true }) {
       platforms: families,
       onChange: setParentTodos,
     });
-  }, [familyId, isDesktop, platformIds, uid, viewerIds, isChild, isActingAsChild, families]);
-
-  useEffect(() => {
-    const asChild = isChild || isActingAsChild;
-    if (!familyId || !isDesktop || !asChild || !meChild?.id) {
-      setKidsTodosById({});
-      return undefined;
-    }
-    const childId = meChild.id;
-    return listenChildTodos(familyId, childId, (todos) => {
-      setKidsTodosById({ [childId]: todos });
-    });
-  }, [familyId, isDesktop, isChild, isActingAsChild, meChild?.id]);
-
-  useEffect(() => {
-    if (!familyId) return undefined;
-    return onSnapshot(collection(db, 'families', familyId, 'meals'), (snap) => {
-      setMeals(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    }, () => setMeals([]));
-  }, [familyId]);
+  }, [familyId, isDesktop, platformIds, uid, viewerIds, families]);
 
   useFocusEffect(useCallback(() => {
     if (!isCompany || !familyId) {
@@ -427,7 +301,6 @@ export default function PlanScreen({ active = true }) {
   const iso = getISOWeek(anchor);
 
   const rangeKeys = useMemo(() => {
-    if (mode === 'meals') return null;
     if (mode === 'day') {
       const k = dateKey(anchor);
       return { start: k, end: k };
@@ -438,7 +311,7 @@ export default function PlanScreen({ active = true }) {
   }, [mode, grid, weekDays, anchor]);
 
   useFocusEffect(useCallback(() => {
-    if (!isParent || !uid || !rangeKeys || mode === 'meals') {
+    if (!isParent || !uid || !rangeKeys) {
       setExternalLoading(false);
       return undefined;
     }
@@ -497,38 +370,22 @@ export default function PlanScreen({ active = true }) {
     return () => { alive = false; };
   }, [isParent, uid, rangeKeys, mode]));
 
-  const childEventVisible = useCallback((e) => (
-    eventVisibleToUser(e, viewerIds, { asChild: true, members })
-  ), [viewerIds, members]);
-
   const canManageEvent = useCallback((e) => {
     if (!e || e.readOnly || e.sharedFromFriend) return false;
-    if (asChildViewer) {
-      if (!childCanEditCalendar) return false;
-      return childEventVisible(e);
-    }
-    if (isGrandparent) {
-      return !!(uid && e.createdBy && e.createdBy === uid);
-    }
     if (isParent) return true;
     // Egen privat/personlig hendelse — også når den ligger i en annen familie.
     return !!(uid && e.createdBy && e.createdBy === uid);
-  }, [asChildViewer, isParent, isGrandparent, uid, childCanEditCalendar, childEventVisible]);
+  }, [isParent, uid]);
 
   /** Foreldre kan åpne alle; barn kan lese synlige hendelser (redigering krever calendarSelfEdit). */
   const canOpenEvent = useCallback((e) => {
     if (!e) return false;
     if (e.source === 'equipment') return true;
     if (e.sharedFromFriend) return true;
-    if (asChildViewer) {
-      if (e.sharedFromExternal) return childEventVisible(e);
-      if (e.readOnly) return false;
-      return childEventVisible(e);
-    }
     if (isParent) return true;
     if (e.readOnly) return false;
     return !!(uid && e.createdBy && e.createdBy === uid);
-  }, [asChildViewer, isParent, uid, childEventVisible]);
+  }, [isParent, uid]);
 
   const openEventForm = useCallback((e) => {
     if (!canOpenEvent(e)) return;
@@ -598,29 +455,22 @@ export default function PlanScreen({ active = true }) {
     const k = dateKey(d);
     const familyEv = events
       .filter((e) => eventOccursOnDate(e, d))
-      .filter((e) => !(isParent && !isActingAsChild && e.sharedFromExternal))
-      // Barn ser hendelser de er med på, eller hele familien.
-      // Voksenkalenderen er din egen ProTop-kalender, ikke hjemmet eller hele selskapet.
+      .filter((e) => !(isParent && e.sharedFromExternal))
+      // Kalenderen er din egen ProTop-kalender, ikke hele selskapet.
       .filter((e) => {
         if (e.crossPlatform) return false;
-        if (isParent && !isActingAsChild && !isGrandparent) {
-          return eventOnOwnCalendar(e, viewerIds, members);
-        }
-        return eventVisibleToUser(e, viewerIds, {
-          asChild: asChildViewer,
-          isGrandparent,
-          members,
-        });
+        if (isParent) return eventOnOwnCalendar(e, viewerIds, members);
+        return eventVisibleToUser(e, viewerIds, { asChild: false, members });
       })
       .map((e) => ({
         ...e,
         occurrenceDateKey: k,
         color: e.color || colorForFamilyEvent(e, members),
       }));
-    const privateEv = isParent && !isActingAsChild && !isGrandparent
+    const privateEv = isParent
       ? visibleExternalEvents.filter((e) => eventOccursOnDate(e, d))
       : [];
-    const friendEv = (!asChildViewer ? friendSharedEvents : [])
+    const friendEv = friendSharedEvents
       .filter((e) => eventOccursOnDate(e, d))
       .map((e) => ({
         ...e,
@@ -632,7 +482,7 @@ export default function PlanScreen({ active = true }) {
         .filter((child) => shownEquipment.has(child.id))
         .map((child) => child.id),
     );
-    const equipmentEv = isCompany && !asChildViewer
+    const equipmentEv = isCompany
       ? equipmentEventsFromBookings(projectState?.equipmentBookings, projectState?.equipment)
         .filter((e) => visibleGear.has(equipmentLayerId(e.equipmentId)))
         .filter((e) => eventOccursOnDate(e, d))
@@ -653,57 +503,37 @@ export default function PlanScreen({ active = true }) {
         return ta.localeCompare(tb);
       });
     return { ev };
-  }, [events, visibleExternalEvents, friendSharedEvents, isParent, isActingAsChild, asChildViewer, isGrandparent, viewerIds, members, hiddenCals, familyId, isCompany, projectState, shownEquipment, equipmentGroup]);
-
-  const paneKids = useMemo(
-    () => (asChildViewer && meChild?.id ? [meChild] : []),
-    [asChildViewer, meChild],
-  );
+  }, [events, visibleExternalEvents, friendSharedEvents, isParent, viewerIds, members, hiddenCals, familyId, isCompany, projectState, shownEquipment, equipmentGroup]);
 
   const paneItemsForDay = useCallback((d) => buildCalendarPaneItems({
     date: d,
     parentTodos,
-    kids: paneKids,
-    kidsTodosById,
+    kids: [],
+    kidsTodosById: {},
     viewer: {
       uid,
       ids: viewerIds,
-      asChild: asChildViewer,
+      asChild: false,
     },
-  }), [parentTodos, paneKids, kidsTodosById, uid, viewerIds, asChildViewer]);
+  }), [parentTodos, uid, viewerIds]);
 
   const onOpenPaneItem = useCallback((item) => {
     if (!item) return;
-    if (item.kind === 'chore') {
-      if (!isParent || isActingAsChild) return;
-      nav.navigate('AddTodo', {
-        familyId,
-        child: item.child,
-        todo: item.task,
-        currentDateKey: dateKey(item.date),
-      });
-      return;
-    }
     const t = item.task;
     const resolved = t.crossPlatform ? { ...t, id: t.sourceTodoId || t.id } : t;
     nav.navigate('ParentTask', {
       task: resolved,
       familyId: t.familyId || familyId,
-      readOnly: isChildParentTaskReadOnly({ isChild, isNew: false }),
+      readOnly: false,
     });
-  }, [nav, familyId, isChild, isParent, isActingAsChild]);
+  }, [nav, familyId]);
 
   const onTogglePaneItem = useCallback(async (item) => {
     if (!item) return;
     try {
-      if (item.kind === 'chore') {
-        await toggleTodo(familyId, item.childId, item.task, item.date);
-        return;
-      }
-      if (isChildParentTaskReadOnly({ isChild, isNew: false })) return;
       await toggleParentTodo(item.task.familyId || familyId, item.task, item.date);
     } catch { /* ignore */ }
-  }, [familyId, isChild]);
+  }, [familyId]);
 
   const onCreatePaneItem = useCallback((k) => {
     nav.navigate('ParentTask', { familyId, deadline: k });
@@ -914,7 +744,7 @@ export default function PlanScreen({ active = true }) {
   }, [equipmentGroup, shownEquipment]);
 
   const calendarAddBtn = useMemo(() => {
-    if (!canCreateCalendarEvent || mode === 'meals') return null;
+    if (!canCreateCalendarEvent) return null;
     return (
       <ShellAddButton
         label="Ny hendelse"
@@ -935,166 +765,7 @@ export default function PlanScreen({ active = true }) {
     else setAnchor((d) => addDays(d, dir * 7));
   };
 
-  const saveMeal = async () => {
-    if (!familyId || !mealDay || !mealTitle.trim() || mealSaving) return;
-    setMealSaving(true);
-    try {
-      const ref = await createMeal(familyId, {
-        dateKey: mealDay,
-        title: mealTitle.trim(),
-        tag: 'Middag',
-        adults: Number(mealAdults) || 2,
-        children: Number(mealChildren) || 0,
-      });
-      const saved = {
-        id: ref.id,
-        dateKey: mealDay,
-        title: mealTitle.trim(),
-        tag: 'Middag',
-        adults: Number(mealAdults) || 2,
-        children: Number(mealChildren) || 0,
-        ingredientsStatus: 'pending',
-      };
-      setMealTitle('');
-      setMealAdults(String(familyCounts.adults));
-      setMealChildren(String(familyCounts.children));
-      setMealDay(null);
-      nav.navigate('MealDetail', { familyId, mealId: ref.id, meal: saved });
-    } finally {
-      setMealSaving(false);
-    }
-  };
-
-  const openMeal = (meal) => {
-    nav.navigate('MealDetail', { familyId, mealId: meal.id, meal });
-  };
-
-  const shareMeals = async () => {
-    if (!familyId || !uid) return;
-    const lines = weekDays.map((d) => {
-      const meal = meals.find((m) => m.dateKey === dateKey(d));
-      if (!meal) return null;
-      const label = WEEKDAYS_SHORT[(d.getDay() + 6) % 7];
-      return `${label}: ${meal.title}`;
-    }).filter(Boolean);
-    if (!lines.length) return;
-    await setDoc(doc(db, 'families', familyId, 'chats', 'family'), {
-      type: 'family',
-      title: family?.name || 'Familien',
-      memberIds: members.map((m) => m.uid).filter(Boolean),
-    }, { merge: true });
-    await addDoc(collection(db, 'families', familyId, 'chats', 'family', 'messages'), {
-      text: `Ukemeny uke ${iso.week}\n${lines.join('\n')}`,
-      senderId: uid,
-      senderName: 'Ukemeny',
-      createdAt: serverTimestamp(),
-    });
-  };
-
   const dayLabel = `${WEEKDAYS_SHORT[(anchor.getDay() + 6) % 7]} ${anchor.getDate()}. ${MONTHS_NO[anchor.getMonth()]}`;
-
-  const renderMealsList = () => (
-
-          <FlatList
-            data={weekDays}
-            keyExtractor={(d) => dateKey(d)}
-            contentContainerStyle={styles.listPad}
-            numColumns={isDesktop ? 2 : 1}
-            key={isDesktop ? 'meals-2' : 'meals-1'}
-            columnWrapperStyle={isDesktop ? styles.mealCols : undefined}
-            renderItem={({ item: d }) => {
-              const k = dateKey(d);
-              const meal = meals.find((m) => m.dateKey === k);
-              const todayDay = isToday(d);
-              return (
-                <View style={[styles.mealCard, isDesktop && styles.mealCardSplit, todayDay && styles.mealCardToday]}>
-                  <View style={styles.mealDayRow}>
-                    <Text style={[styles.mealDay, todayDay && styles.mealDayToday]}>
-                      {WEEKDAYS_SHORT[(d.getDay() + 6) % 7]} {d.getDate()}.{d.getMonth() + 1}
-                    </Text>
-                    {todayDay ? <Text style={styles.mealTodayBadge}>I dag</Text> : null}
-                  </View>
-                  {meal ? (
-                    <TouchableOpacity style={styles.mealRow} onPress={() => openMeal(meal)} activeOpacity={0.75}>
-                      <View style={styles.pill}><Text style={styles.pillTxt}>{meal.tag || 'Middag'}</Text></View>
-                      <Text style={styles.mealTitle}>{meal.title}</Text>
-                      {(meal.adults != null || meal.children != null) && (
-                        <Text style={styles.mealMeta}>
-                          {meal.adults || 0} voksne{meal.children ? ` · ${meal.children} barn` : ''}
-                        </Text>
-                      )}
-                      {meal.ingredients?.length > 0 && (
-                        <Text style={styles.mealIngredients}>
-                          {meal.ingredients.length} varer i handlelisten
-                        </Text>
-                      )}
-                      <Text style={styles.mealTapHint}>Trykk for handleliste →</Text>
-                    </TouchableOpacity>
-                  ) : isParent ? (
-                    mealDay === k ? (
-                      <View style={{ gap: 8 }}>
-                        <TextInput
-                          value={mealTitle}
-                          onChangeText={setMealTitle}
-                          placeholder="F.eks. fiskesuppe, taco, pasta…"
-                          style={styles.mealInput}
-                          autoFocus
-                        />
-                        <View style={styles.portionRow}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.portionLbl}>Voksne</Text>
-                            <TextInput
-                              value={mealAdults}
-                              onChangeText={setMealAdults}
-                              keyboardType="number-pad"
-                              style={styles.portionInput}
-                            />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.portionLbl}>Barn</Text>
-                            <TextInput
-                              value={mealChildren}
-                              onChangeText={setMealChildren}
-                              keyboardType="number-pad"
-                              style={styles.portionInput}
-                            />
-                          </View>
-                        </View>
-                        <Text style={styles.aiHint}>AI lager handleliste basert på rett og antall personer.</Text>
-                        <View style={styles.mealFormActions}>
-                          <TouchableOpacity onPress={() => { setMealDay(null); setMealTitle(''); }}>
-                            <Text style={styles.cancelTxt}>Avbryt</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={saveMeal} disabled={!mealTitle.trim() || mealSaving}>
-                            <Text style={[styles.link, (!mealTitle.trim() || mealSaving) && { opacity: 0.5 }]}>
-                              {mealSaving ? 'Lagrer…' : 'Lagre og lag handleliste'}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ) : (
-                      <TouchableOpacity onPress={() => setMealDay(k)}><Text style={styles.link}>+ Middag</Text></TouchableOpacity>
-                    )
-                  ) : (
-                    <Mute>Ikke planlagt</Mute>
-                  )}
-                </View>
-              );
-            }}
-            ListFooterComponent={isParent ? (
-              isDesktop ? (
-                <View style={{ marginTop: 8 }}>
-                  <DeskBtn icon="chatbubbles-outline" label="Del ukemeny i chat" onPress={shareMeals} />
-                </View>
-              ) : (
-                <TouchableOpacity style={styles.shareBtn} onPress={shareMeals}>
-                  <Text style={styles.shareTxt}>Del ukemeny i chat</Text>
-                </TouchableOpacity>
-              )
-            ) : null}
-          />
-
-  );
 
   if (showCalendarSettings && parentCalendarSettings) {
     return (
@@ -1104,8 +775,6 @@ export default function PlanScreen({ active = true }) {
         calendars={calendars}
         hiddenCals={hiddenCals}
         onToggleCal={toggleCal}
-        custodyOverlayPrefs={custodyOverlayPrefs}
-        onCustodyOverlayChange={onCustodyOverlayChange}
       />
     );
   }
@@ -1142,27 +811,12 @@ export default function PlanScreen({ active = true }) {
           hiddenCals={hiddenCals}
           onToggleCal={toggleCal}
           syncNotice={syncNotice}
-          mealsBody={renderMealsList()}
           paneItemsForDay={paneItemsForDay}
-          paneLabel={asChildViewer ? t('tabs.chores') : t('tabs.tasks')}
-          paneCreateLabel={asChildViewer ? 'Nytt gjøremål' : 'Ny oppgave'}
+          paneLabel={t('tabs.tasks')}
+          paneCreateLabel="Ny oppgave"
           onOpenPaneItem={onOpenPaneItem}
           onTogglePaneItem={onTogglePaneItem}
-          onCreatePaneItem={isParent && !asChildViewer ? onCreatePaneItem : null}
-          getCustodyOverlay={custodyOverlayActive ? getCustodyOverlay : null}
-          custodyOverlayActive={custodyOverlayActive}
-          showCustodyToggle={custodyKids.length > 0 || childViewerCustody}
-          onToggleCustodyOverlay={toggleCustodyOverlay}
-          custodyLegend={(
-            <CustodyLegendBar
-              visible={custodyOverlayActive}
-              kids={kids}
-              viewerUid={uid}
-              childFilter={custodyChildFilter}
-              members={members}
-              viewerIsChild={asChildViewer}
-            />
-          )}
+          onCreatePaneItem={isParent ? onCreatePaneItem : null}
         />
       </Screen>
     );
@@ -1173,49 +827,21 @@ export default function PlanScreen({ active = true }) {
       <View style={[styles.wrap, { paddingHorizontal: pad }]}>
         <View style={styles.toolbar}>
           <View style={styles.seg}>
-            {/* «Mat» hører til måltidsmodulen, som ProTop ikke har. */}
-            {[['day', 'Dag'], ['week', 'Uke'], ['month', 'Måned'], ...(isProtopShellModule('meals') ? [['meals', 'Mat']] : [])].map(([m, label]) => (
+            {[['day', 'Dag'], ['week', 'Uke'], ['month', 'Måned']].map(([m, label]) => (
               <TouchableOpacity key={m} onPress={() => setMode(m)} style={[styles.segBtn, mode === m && styles.segOn]}>
                 <Text style={[styles.segTxt, mode === m && styles.segTxtOn]}>{label}</Text>
               </TouchableOpacity>
             ))}
           </View>
           {isParent ? (
-            <>
-              {custodyKids.length > 0 ? (
-                <TouchableOpacity
-                  style={[styles.settingsBtn, custodyOverlayActive && styles.custodyBtnOn]}
-                  onPress={toggleCustodyOverlay}
-                  accessibilityLabel={custodyOverlayActive ? 'Skjul delt bosted' : 'Vis delt bosted'}
-                >
-                  <Ionicons
-                    name={custodyOverlayActive ? 'home' : 'home-outline'}
-                    size={20}
-                    color={custodyOverlayActive ? colors.brand : colors.ink}
-                  />
-                </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity
-                style={styles.settingsBtn}
-                onPress={() => setShowCalendarSettings(true)}
-                accessibilityLabel="Kalenderinnstillinger"
-              >
-                <Ionicons name="settings-outline" size={20} color={colors.ink} />
-              </TouchableOpacity>
-            </>
-          ) : (childViewerCustody ? (
             <TouchableOpacity
-              style={[styles.settingsBtn, custodyOverlayActive && styles.custodyBtnOn]}
-              onPress={toggleCustodyOverlay}
-              accessibilityLabel={custodyOverlayActive ? 'Skjul bosted' : 'Vis bosted'}
+              style={styles.settingsBtn}
+              onPress={() => setShowCalendarSettings(true)}
+              accessibilityLabel="Kalenderinnstillinger"
             >
-              <Ionicons
-                name={custodyOverlayActive ? 'home' : 'home-outline'}
-                size={20}
-                color={custodyOverlayActive ? colors.brand : colors.ink}
-              />
+              <Ionicons name="settings-outline" size={20} color={colors.ink} />
             </TouchableOpacity>
-          ) : null)}
+          ) : null}
         </View>
 
         {mode === 'day' || mode === 'week' ? (
@@ -1225,16 +851,12 @@ export default function PlanScreen({ active = true }) {
               const { ev } = itemsForDay(d);
               const selectedDay = sameDay(d, anchor);
               const todayDay = isToday(d);
-              const custodyTint = custodyOverlayActive
-                ? custodyCellTint(getCustodyOverlay(d), { selected: selectedDay, today: todayDay })
-                : null;
               return (
                 <TouchableOpacity
                   key={k}
                   onPress={() => setAnchor(d)}
                   style={[
                     styles.homeWeekCell,
-                    custodyTint,
                     todayDay && !selectedDay && styles.cellToday,
                     selectedDay && styles.cellOn,
                   ]}
@@ -1283,7 +905,7 @@ export default function PlanScreen({ active = true }) {
           </TouchableOpacity>
         </View>
 
-        {mode !== 'meals' && !isToday(anchor) && (
+        {!isToday(anchor) && (
           <TouchableOpacity style={styles.todayJump} onPress={() => setAnchor(new Date())}>
             <Text style={styles.todayJumpTxt}>Gå til i dag</Text>
           </TouchableOpacity>
@@ -1294,104 +916,89 @@ export default function PlanScreen({ active = true }) {
           onPress={() => setShowCalendarSettings(true)}
         />
 
-        <CustodyLegendBar
-          visible={custodyOverlayActive && mode !== 'meals'}
-          kids={kids}
-          viewerUid={uid}
-          childFilter={custodyChildFilter}
-          members={members}
-          viewerIsChild={asChildViewer}
-        />
-
-        {mode === 'meals' ? renderMealsList() : (
-          <ScrollView
-            style={styles.dayList}
-            contentContainerStyle={styles.listPad}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {mode === 'month' ? (
-              <View style={styles.monthBlock}>
-                <View style={styles.weekHead}>
-                  {WEEKDAYS_SHORT.map((d, i) => {
-                    const headerToday = (new Date().getDay() + 6) % 7 === i;
-                    return (
-                      <Text key={d} style={[styles.wh, headerToday && styles.whToday]}>{d}</Text>
-                    );
-                  })}
-                </View>
-                <View style={styles.grid}>
-                  {days.map((d) => {
-                    const k = dateKey(d);
-                    const { ev } = itemsForDay(d);
-                    const selectedDay = sameDay(d, anchor);
-                    const todayDay = isToday(d);
-                    const outside = !isSameMonth(d, anchor);
-                    const custodyTint = custodyOverlayActive
-                      ? custodyCellTint(getCustodyOverlay(d), { selected: selectedDay, today: todayDay })
-                      : null;
-                    return (
-                      <TouchableOpacity
-                        key={k}
-                        onPress={() => setAnchor(d)}
-                        style={[
-                          styles.cell,
-                          (isDesktop || isTablet) && styles.cellWide,
-                          custodyTint,
-                          todayDay && !selectedDay && styles.cellToday,
-                          selectedDay && styles.cellOn,
-                          outside && { opacity: 0.35 },
-                        ]}
-                      >
-                        <Text style={[styles.cellNum, selectedDay && styles.cellNumOn, todayDay && !selectedDay && styles.cellNumToday]}>
-                          {d.getDate()}
-                        </Text>
-                        <View style={styles.dots}>
-                          {ev.slice(0, 3).map((e) => (
-                            <View key={e.id} style={[styles.dot, { backgroundColor: e.color || colorForFamilyEvent(e, members) }]} />
-                          ))}
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+        <ScrollView
+          style={styles.dayList}
+          contentContainerStyle={styles.listPad}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {mode === 'month' ? (
+            <View style={styles.monthBlock}>
+              <View style={styles.weekHead}>
+                {WEEKDAYS_SHORT.map((d, i) => {
+                  const headerToday = (new Date().getDay() + 6) % 7 === i;
+                  return (
+                    <Text key={d} style={[styles.wh, headerToday && styles.whToday]}>{d}</Text>
+                  );
+                })}
               </View>
-            ) : null}
-
-            {selected.ev.length === 0 && (
-              externalLoading && isParent && !asChildViewer ? (
-                <View style={styles.dayLoading}>
-                  <ActivityIndicator color={colors.brand} />
-                  <Text style={styles.emptyDay}>Laster kalender…</Text>
-                </View>
-              ) : (
-                <Text style={styles.emptyDay}>
-                  {mode === 'week' && weekEventCount > 0
-                    ? `Ingen hendelser denne dagen. ${weekEventCount} andre denne uken — trykk på dagen med prikker.`
-                    : 'Ingen hendelser denne dagen.'}
-                </Text>
-              )
-            )}
-
-            {selected.ev.length > 0 && (
-              <View style={styles.listCard}>
-                <Text style={styles.listSection}>Hendelser</Text>
-                {selected.ev.map((e) => (
-                  <EventRow
-                    key={`${e.id}-${e.occurrenceDateKey || e.dateKey}`}
-                    item={e}
-                    canOpen={canOpenEvent(e)}
-                    canEdit={canManageEvent(e)}
-                    members={members}
-                    friendPeople={friendPeople}
-                    onPress={() => openEventForm(e)}
-                  />
-                ))}
+              <View style={styles.grid}>
+                {days.map((d) => {
+                  const k = dateKey(d);
+                  const { ev } = itemsForDay(d);
+                  const selectedDay = sameDay(d, anchor);
+                  const todayDay = isToday(d);
+                  const outside = !isSameMonth(d, anchor);
+                  return (
+                    <TouchableOpacity
+                      key={k}
+                      onPress={() => setAnchor(d)}
+                      style={[
+                        styles.cell,
+                        (isDesktop || isTablet) && styles.cellWide,
+                            todayDay && !selectedDay && styles.cellToday,
+                        selectedDay && styles.cellOn,
+                        outside && { opacity: 0.35 },
+                      ]}
+                    >
+                      <Text style={[styles.cellNum, selectedDay && styles.cellNumOn, todayDay && !selectedDay && styles.cellNumToday]}>
+                        {d.getDate()}
+                      </Text>
+                      <View style={styles.dots}>
+                        {ev.slice(0, 3).map((e) => (
+                          <View key={e.id} style={[styles.dot, { backgroundColor: e.color || colorForFamilyEvent(e, members) }]} />
+                        ))}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-            )}
-            <View style={{ height: 16 }} />
-          </ScrollView>
-        )}
+            </View>
+          ) : null}
+
+          {selected.ev.length === 0 && (
+            externalLoading && isParent ? (
+              <View style={styles.dayLoading}>
+                <ActivityIndicator color={colors.brand} />
+                <Text style={styles.emptyDay}>Laster kalender…</Text>
+              </View>
+            ) : (
+              <Text style={styles.emptyDay}>
+                {mode === 'week' && weekEventCount > 0
+                  ? `Ingen hendelser denne dagen. ${weekEventCount} andre denne uken — trykk på dagen med prikker.`
+                  : 'Ingen hendelser denne dagen.'}
+              </Text>
+            )
+          )}
+
+          {selected.ev.length > 0 && (
+            <View style={styles.listCard}>
+              <Text style={styles.listSection}>Hendelser</Text>
+              {selected.ev.map((e) => (
+                <EventRow
+                  key={`${e.id}-${e.occurrenceDateKey || e.dateKey}`}
+                  item={e}
+                  canOpen={canOpenEvent(e)}
+                  canEdit={canManageEvent(e)}
+                  members={members}
+                  friendPeople={friendPeople}
+                  onPress={() => openEventForm(e)}
+                />
+              ))}
+            </View>
+          )}
+          <View style={{ height: 16 }} />
+        </ScrollView>
       </View>
     </Screen>
   );
@@ -1416,25 +1023,17 @@ const styles = StyleSheet.create({
   },
   homeWeekDowOn: { color: '#fff' },
   toolbar: { marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },  toolbarDesk: { marginBottom: 12, gap: 10, flexWrap: 'wrap' },
-  deskNav: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  deskNavLbl: { fontWeight: '400', color: colors.ink, fontSize: 14, minWidth: 88, textAlign: 'center' },
-  deskActions: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   settingsBtn: {
     width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: colors.line,
     backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center',
   },
-  custodyBtnOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
-  settingsBtnDesk: { borderRadius: 8, width: 36, height: 36 },
   seg: { flex: 1, flexDirection: 'row', backgroundColor: colors.card, borderRadius: 12, padding: 3, borderWidth: 1, borderColor: colors.line },
-  segDesk: { borderRadius: 8, flexGrow: 0, flex: 0, width: 280 },
   segBtn: { flex: 1, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 10, alignItems: 'center' },
-  segBtnDesk: { borderRadius: 6 },
   segOn: { backgroundColor: colors.brand },
   segTxt: { fontWeight: '400', color: colors.ink, fontSize: 12 },
   segTxtOn: { color: '#fff' },
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   navBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line },
-  navBtnDesk: { borderRadius: 8 },
   navLbl: { fontWeight: '400', color: colors.ink, fontSize: 12, flex: 1, textAlign: 'center', marginHorizontal: 6 },
   todayJump: { alignSelf: 'center', marginBottom: 8, paddingVertical: 4, paddingHorizontal: 10 },
   todayJumpTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
@@ -1452,51 +1051,6 @@ const styles = StyleSheet.create({
   },
   syncBannerTxt: { flex: 1, color: colors.warnInk, fontWeight: '400', fontSize: 12, lineHeight: 16 },
   syncBannerLink: { color: colors.warnInk, fontWeight: '400', fontSize: 12 },
-  splitRow: { flex: 1, minHeight: 0, flexDirection: 'row', gap: 20 },
-  splitCal: { flex: 1.05, minWidth: 0 },
-  splitList: { flex: 1, minWidth: 280 },
-  weekBoard: {
-    flex: 1, minHeight: 0, flexDirection: 'row', gap: 8,
-  },
-  weekCol: {
-    flex: 1, minWidth: 0, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
-    borderRadius: 8, overflow: 'hidden',
-  },
-  weekColToday: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  weekColHead: {
-    alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.line,
-  },
-  weekColHeadOn: { backgroundColor: colors.brandSoft },
-  weekColDow: { fontSize: 10, fontWeight: '400', color: colors.muted, textTransform: 'uppercase' },
-  weekColDowToday: { color: colors.brand },
-  weekColNum: { fontSize: 16, fontWeight: '400', color: colors.ink, marginTop: 1 },
-  weekColNumToday: { color: colors.brand },
-  weekColBody: { flex: 1, padding: 6 },
-  weekEmpty: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 12 },
-  weekEvent: {
-    backgroundColor: colors.brandSoft, borderLeftWidth: 3, borderRadius: 4,
-    paddingVertical: 5, paddingHorizontal: 6, marginBottom: 5,
-  },
-  weekEventTime: { fontSize: 10, fontWeight: '400', color: colors.brand },
-  weekEventTitle: { fontSize: 12, fontWeight: '400', color: colors.ink, marginTop: 1 },
-  weekAdd: { alignItems: 'center', paddingVertical: 4, marginTop: 2 },
-  weekAddTxt: { color: colors.brand, fontWeight: '400', fontSize: 16 },
-  monthBoard: {
-    flex: 1, flexDirection: 'row', flexWrap: 'wrap', borderTopWidth: 1, borderLeftWidth: 1,
-    borderColor: colors.line, minHeight: 0,
-  },
-  monthCell: {
-    width: `${100 / 7}%`, minHeight: 92, padding: 6,
-    borderRightWidth: 1, borderBottomWidth: 1, borderColor: colors.line, backgroundColor: colors.card,
-  },
-  monthCellToday: { backgroundColor: colors.brandSoft },
-  monthCellOn: { backgroundColor: colors.brandSoft },
-  monthNum: { fontWeight: '400', fontSize: 12, color: colors.ink, marginBottom: 4 },
-  monthNumToday: { color: colors.brand },
-  monthChip: { borderRadius: 3, paddingHorizontal: 4, paddingVertical: 2, marginBottom: 2 },
-  monthChipTxt: { color: '#fff', fontSize: 10, fontWeight: '400' },
-  monthMore: { fontSize: 10, fontWeight: '400', color: colors.muted, marginTop: 2 },
   weekHead: { flexDirection: 'row', marginBottom: 2 },
   wh: { flex: 1, textAlign: 'center', fontWeight: '400', color: colors.muted, fontSize: 10 },
   whToday: { color: colors.brand, fontWeight: '400' },
@@ -1513,8 +1067,6 @@ const styles = StyleSheet.create({
   dot: { width: 4, height: 4, borderRadius: 2 },
   dayList: { flex: 1, minHeight: 0 },
   listPad: { paddingBottom: 8, flexGrow: 1 },
-  mealCols: { gap: 10 },
-  mealCardSplit: { flex: 1 },
   listCard: {
     backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.line, overflow: 'hidden',
   },
@@ -1543,34 +1095,4 @@ const styles = StyleSheet.create({
   avatarSlot: { flexShrink: 0, marginLeft: 2 },
   emptyDay: { textAlign: 'center', color: colors.muted, fontWeight: '400', fontSize: 13, paddingVertical: 16 },
   dayLoading: { alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 20 },
-  mealCard: { backgroundColor: colors.card, borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: colors.line },
-  mealCardToday: { borderColor: colors.brand, borderWidth: 2, backgroundColor: colors.brandSoft },
-  mealDayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  mealDay: { fontWeight: '400', color: colors.ink, fontSize: 14 },
-  mealDayToday: { color: colors.brand },
-  mealTodayBadge: {
-    backgroundColor: colors.brand, color: '#fff', fontSize: 10, fontWeight: '400',
-    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, overflow: 'hidden',
-  },
-  mealRow: { gap: 4, marginTop: 4 },
-  pill: { alignSelf: 'flex-start', backgroundColor: colors.brandSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  pillTxt: { color: colors.brand, fontWeight: '400', fontSize: 11 },
-  mealTitle: { fontWeight: '400', fontSize: 14, color: colors.ink },
-  mealMeta: { color: colors.muted, fontWeight: '400', fontSize: 12 },
-  mealIngredients: { color: colors.brand, fontWeight: '400', fontSize: 12 },
-  mealTapHint: { color: colors.muted, fontWeight: '400', fontSize: 11, marginTop: 2 },
-  mealInput: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, padding: 8, fontSize: 16, backgroundColor: colors.card },
-  portionRow: { flexDirection: 'row', gap: 10 },
-  portionLbl: { fontWeight: '400', fontSize: 11, color: colors.muted, marginBottom: 4 },
-  portionInput: {
-    borderWidth: 1, borderColor: colors.line, borderRadius: 10, padding: 8,
-    fontSize: 14, backgroundColor: colors.card, fontWeight: '400',
-  },
-  aiHint: { color: colors.muted, fontSize: 12, fontWeight: '400', lineHeight: 17 },
-  mealFormActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cancelTxt: { color: colors.muted, fontWeight: '400', fontSize: 13 },
-  link: { color: colors.brand, fontWeight: '400', fontSize: 13 },
-  shareBtn: {
-    alignSelf: 'flex-start', marginTop: 8, backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  shareTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
 });

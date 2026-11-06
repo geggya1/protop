@@ -3,7 +3,9 @@ import {
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { directoryFacetCounts, filterHrDirectory } from '../../src/hr/directory';
-import { EmptyHint, HrChip } from './HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
 
 /** preset ({ kind, status }) setter filteret når siden åpnes fra et tall på oversikten. */
 export function useHrDirectory(employees, { lockedKind = '', preset = null } = {}) {

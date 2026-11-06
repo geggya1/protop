@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Forhåndsvisning av medarbeiderdetalj uten innlogging.
  * Manuell QA via /employee-detail-preview (web).
@@ -7,10 +8,10 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../src/theme';
 import { applyEmployeeClassification, presentEmployee } from '../../src/employees/model';
 import { emptyProjectState } from '../../src/project/engine';
-import ProjectDetail from '../../components/project/ProjectDetail';
-import EmployeeDetailView from './EmployeeDetailView';
-import EmployeePersonChrome from './EmployeePersonChrome';
 import { EMPLOYEE_DETAIL_TABS } from '../../src/employees/personTabs.js';
+const EmployeePersonChrome = lazyScreen(() => import('./EmployeePersonChrome'), { name: 'EmployeePersonChrome', silent: true });
+const ProjectDetail = lazyScreen(() => import('../../components/project/ProjectDetail'), { name: 'ProjectDetail', silent: true });
+const EmployeeDetailView = lazyScreen(() => import('./EmployeeDetailView'), { name: 'EmployeeDetailView', silent: true });
 
 function mockEmployee(id, overrides = {}) {
   return presentEmployee({

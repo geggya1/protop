@@ -3,7 +3,7 @@ import {
   Dimensions, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useColors } from '../src/context/ThemeContext';
-import { useLayout } from '../src/theme';
+import { useBreakpoints } from '../src/theme';
 import { touchHit } from '../src/ui/touchTarget';
 
 let createPortal = null;
@@ -24,7 +24,7 @@ export default function ScrollSheet({
   placement = 'bottom',
 }) {
   const colors = useColors();
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
   // «Lukk» er en kort tekst; trykkflaten er 44 px på berøringsskjerm (UX-26).
   const closeHit = touchHit(32, 20, { touch: isTouch, os: Platform.OS });
   const centered = placement === 'center';

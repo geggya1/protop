@@ -11,7 +11,6 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const script = readFileSync(join(root, 'scripts/deploy-slim-functions.sh'), 'utf8');
 const auth = readFileSync(join(root, 'functions/authCallables.js'), 'utf8');
 const aiIndex = readFileSync(join(root, 'functions/aiIndex.js'), 'utf8');
-const hosp = readFileSync(join(root, 'functions/hospitalityIndex.js'), 'utf8');
 
 const required = [
   'doffinIndex.js',
@@ -37,18 +36,16 @@ const required = [
   'functions:lookupAdultProfile',
   'functions:sendFriendChatAdmin',
   'functions:sendFriendInviteV2',
-  'hospitalityIndex.js',
-  'functions:hospGetNukiStatus',
-  'stravaIndex.js',
   'powerOfficeIndex.js',
   'functions:powerOfficeTransferInvoice',
   'functions:powerOfficeSyncInvoices',
   'functions:powerOfficeLookupInvoice',
   'functions:powerOfficeInvoiceDocument',
-  'functions:stravaSyncActivities',
   'pushIndex.js',
   'functions:onChatMessageCreated',
   'meetingIndex.js',
+  'imageVariantsIndex.js',
+  'functions:imageVariants',
   'functions:sendMeetingMail',
   'functions:aiMeeting',
 ];
@@ -61,7 +58,6 @@ assert.doesNotMatch(auth, /defineSecret\(/);
 assert.match(auth, /resolveMailApiKey/);
 assert.match(aiIndex, /scanTimesheetReview/);
 assert.doesNotMatch(aiIndex, /aiCleanupScheduled/);
-assert.doesNotMatch(hosp, /hospScheduledSync/);
 assert.match(script, /timeout --signal=TERM --kill-after=20s 480/);
 
 // Nye funksjoner finnes først etter deployen. Tilgangen åpnes etterpå, ellers

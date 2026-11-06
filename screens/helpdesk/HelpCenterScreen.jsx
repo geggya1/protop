@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Hjelp og support for brukerne.
  *
@@ -18,8 +19,8 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useOptionalApp } from '../../src/context/AppContext';
-import { useLayout } from '../../src/theme';
+import { useOptionalApp, useShellNav } from '../../src/context/AppContext';
+import { useBreakpoints } from '../../src/theme';
 import {
   ARTICLE_GROUPS, articlesInGroup, getArticle, groupCounts, popularArticles, relatedArticles, searchArticles, suggestForTicket,
 } from '../../src/helpdesk/articles';
@@ -34,12 +35,12 @@ import {
   AttachmentPicker, Btn, Chip, DiagnosticsPreview, Empty, Field, HD, Notice, RemoteImage, SectionTitle, StatusPill, s as ui,
 } from '../../components/helpdesk/HelpdeskUi';
 import { radius, type } from '../../src/ui/tokens';
-import AssistantChat from '../../components/assistant/AssistantChat';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { useHelpAccess } from '../../src/help/useHelpAccess';
 import { condenseStepLocks } from '../../src/help/helpAccess';
 import { formatNewsDate, listHelpNews } from '../../src/utils/helpNews';
 import { groupUpdatesByDay } from '../../src/utils/appUpdatesLogic';
+const AssistantChat = lazyScreen(() => import('../../components/assistant/AssistantChat'), { name: 'AssistantChat', silent: true });
 
 const lang = 'nb';
 const POLL_MS = 30000;
@@ -83,9 +84,10 @@ function Crumbs({ items }) {
 export default function HelpCenterScreen({ initial = null, demo = false }) {
   const app = useOptionalApp() || {};
   const {
-    user, family, shellIntent, clearShellIntent, requestShellTab, shellNav, activeProfile, role: userRole,
+    user, family, clearShellIntent, requestShellTab, activeProfile, role: userRole,
   } = app;
-  const { isDesktop, isPhone } = useLayout();
+  const { shellIntent, shellNav } = useShellNav();
+  const { isDesktop, isPhone } = useBreakpoints();
   const [view, setView] = useState({ name: 'home' });
   const [history, setHistory] = useState([]);
   const [query, setQuery] = useState('');

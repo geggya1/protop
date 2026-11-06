@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Lokal demo av kundeundersøkelsen (/kundeundersokelse-demo). Bare i utviklingsbygg.
  * Kjører den ekte logikken (src/surveys/customerService.js) mot en database i minnet, med tre
@@ -11,11 +12,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { createCustomerSurveyDemo, DEMO_FAMILY } from '../../src/surveys/demoBackend';
 import { setCustomerSurveyBackend } from '../../src/surveys/customerClient';
 import { space, type } from '../../src/ui/tokens';
-import { HrChip } from '../hr/HrShared';
-import CustomerSurveyScreen from '../customers/CustomerSurveyScreen';
-import SurveyAnswerScreen from './SurveyAnswerScreen';
 import ConfirmHost from '../../components/ConfirmHost';
-import SurveyTrend from '../../components/surveys/SurveyTrend';
 import ResponseMeter from '../../components/surveys/ResponseMeter';
 import HrSurveyPlan, { ActionEffects } from '../hr/HrSurveyPlan';
 import { HrCard } from '../hr/HrShared';
@@ -24,6 +21,10 @@ import {
 } from '../../src/hr/survey';
 import { actionEffects, addAction, emptyPlan, toggleStep } from '../../src/hr/surveyPlan';
 import { surveyTrend } from '../../src/surveys/trend';
+const HrChip = lazyScreen(() => import('../hr/HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const SurveyAnswerScreen = lazyScreen(() => import('./SurveyAnswerScreen'), { name: 'SurveyAnswerScreen' });
+const CustomerSurveyScreen = lazyScreen(() => import('../customers/CustomerSurveyScreen'), { name: 'CustomerSurveyScreen' });
+const SurveyTrend = lazyScreen(() => import('../../components/surveys/SurveyTrend'), { name: 'SurveyTrend', silent: true });
 
 export function customerSurveyDemoAllowed() {
   return typeof __DEV__ !== 'undefined' && __DEV__;

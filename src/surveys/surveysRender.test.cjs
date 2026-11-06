@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
+const syncLazyScreen = require('../../tests/helpers/syncLazyScreen.cjs');
 const babel = require('@babel/core');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
@@ -56,15 +57,16 @@ function load(rel) {
   m.paths = Module._nodeModulePaths(path.dirname(full));
   const orig = m.require.bind(m);
   m.require = (id) => {
+    if (id.includes('ui/lazyScreen')) return syncLazyScreen(m.require);
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
     if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
     if (id === 'react-native-svg') {
       return { __esModule: true, default: host('Svg'), G: host('G'), Path: host('Path'), Line: host('Line'), Circle: host('Circle'), Text: host('SvgText') };
     }
-    if (/src\/theme$/.test(id)) return { useLayout: () => ({ isPhone: false, isWide: true, width: 1280 }) };
+    if (/src\/theme$/.test(id)) return ((m) => ({ ...m, useBreakpoints: m.useLayout }))({ useLayout: () => ({ isPhone: false, isWide: true, width: 1280 }) });
     if (id.includes('context/ThemeContext')) return { useColors: () => colors };
-    if (id.includes('context/AppContext')) return { useApp: () => ({ familyId: 'c1', family: { name: 'Bygg AS' }, uid: 'u1' }) };
+    if (id.includes('context/AppContext')) return ((m) => ({ ...m, useShellNav: () => { const a = (m.useApp && m.useApp()) || {}; return { shellIntent: a.shellIntent ?? null, shellNav: a.shellNav ?? null }; } }))({ useApp: () => ({ familyId: 'c1', family: { name: 'Bygg AS' }, uid: 'u1' }) });
     if (id.includes('access/useCompanyAccess')) return { useCompanyAccess: () => ({ ready: true, canEdit: () => true, canView: () => true }) };
     if (id.includes('anbud/storage')) return { loadCustomerList: async () => ({ customers: [] }) };
     if (id.includes('surveys/customerClient')) return { customerSurveyCall: async (action, data) => { calls.push([action, data]); return {}; } };

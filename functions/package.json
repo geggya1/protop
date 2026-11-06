@@ -16,6 +16,7 @@
     "firebase-functions": "^6.4.0",
     "pdfjs-dist": "^4.10.38",
     "pngjs": "^7.0.0",
+    "sharp": "^0.34.5",
     "tesseract.js": "^5.1.1",
     "web-push": "^3.6.7"
   }

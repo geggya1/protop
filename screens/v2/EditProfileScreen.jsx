@@ -20,11 +20,8 @@ import { pickImage, uploadImage, alertPhotoError } from '../../src/utils/media';
 import { calculateAge, isValidBirthday, toIsoDate } from '../../src/utils/age';
 import { normalizePhone, defaultDialCode, splitPhone } from '../../src/utils/phone';
 import { Screen, ScrollBody, BigButton } from '../../components/ui';
-import NotificationPrefsPanel from '../../components/NotificationPrefsPanel';
 import CompactBackLink from '../../components/CompactBackLink';
 import AvatarPicker, { AvatarBubble } from '../../components/AvatarPicker';
-import LocationPicker from '../../components/LocationPicker';
-import BirthdayPicker from '../../components/BirthdayPicker';
 import PhoneInput from '../../components/PhoneInput';
 import WebImageCropperModal from '../../components/WebImageCropperModal';
 import { ChoiceGrid } from '../../components/Wizard';
@@ -37,16 +34,14 @@ import {
   saveBiometricSettings,
 } from '../../src/utils/biometricLock';
 import {
-  loadKitchenDisplaySettings,
-  saveKitchenDisplaySettings,
-  isValidKitchenPin,
-} from '../../src/utils/kitchenDisplay';
-import {
   defaultGreetingEnabled,
   loadGreetingPrefs,
   saveGreetingPrefs,
 } from '../../src/utils/greetingPrefs';
-import KitchenPinModal from '../../components/KitchenPinModal';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const LocationPicker = lazyScreen(() => import('../../components/LocationPicker'), { name: 'LocationPicker', silent: true });
+const NotificationPrefsPanel = lazyScreen(() => import('../../components/NotificationPrefsPanel'), { name: 'NotificationPrefsPanel', silent: true });
+const BirthdayPicker = lazyScreen(() => import('../../components/BirthdayPicker'), { name: 'BirthdayPicker', silent: true });
 
 function SectionHeader({ title }) {
   return <Text style={styles.sectionTitle}>{title}</Text>;
@@ -108,10 +103,6 @@ export default function EditProfileScreen() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Face ID');
   const [biometricBusy, setBiometricBusy] = useState(false);
-  const [kitchenMode, setKitchenMode] = useState(false);
-  const [kitchenPinEnabled, setKitchenPinEnabled] = useState(false);
-  const [kitchenBusy, setKitchenBusy] = useState(false);
-  const [kitchenPinModal, setKitchenPinModal] = useState(null);
   const [greetingEnabled, setGreetingEnabled] = useState(() => defaultGreetingEnabled(isChild));
   const [greetingBusy, setGreetingBusy] = useState(false);
 
@@ -178,31 +169,20 @@ export default function EditProfileScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [available, label, settings, kitchen, greeting] = await Promise.all([
+      const [available, label, settings, greeting] = await Promise.all([
         isBiometricHardwareAvailable(),
         getBiometricLabel(),
         uid ? loadBiometricSettings(uid) : { enabled: false },
-        uid ? loadKitchenDisplaySettings(uid) : { enabled: false },
         uid ? loadGreetingPrefs(uid, { isChild }) : { enabled: defaultGreetingEnabled(isChild) },
       ]);
       if (!alive) return;
       setBiometricAvailable(available);
       setBiometricLabel(label);
       setBiometricEnabled(!!settings.enabled);
-      setKitchenMode(!!kitchen.enabled);
-      setKitchenPinEnabled(!!kitchen.pinEnabled);
       setGreetingEnabled(!!greeting.enabled);
     })();
     return () => { alive = false; };
   }, [uid, isChild]);
-
-  const toggleKitchenMode = async (next) => {
-    if (!uid || kitchenBusy) return;
-    setKitchenBusy(true);
-    setKitchenMode(next);
-    await saveKitchenDisplaySettings(uid, { enabled: next });
-    setKitchenBusy(false);
-  };
 
   const toggleGreeting = async (next) => {
     if (!uid || greetingBusy) return;
@@ -210,16 +190,6 @@ export default function EditProfileScreen() {
     setGreetingEnabled(next);
     await saveGreetingPrefs(uid, next, { isChild });
     setGreetingBusy(false);
-  };
-
-  const toggleKitchenPin = (next) => {
-    if (!uid) return;
-    if (next) {
-      setKitchenPinModal('set');
-      return;
-    }
-    setKitchenPinEnabled(false);
-    saveKitchenDisplaySettings(uid, { pinEnabled: false, pin: '' });
   };
 
   const toggleBiometric = async (next) => {
@@ -657,48 +627,7 @@ export default function EditProfileScreen() {
               thumbColor={greetingEnabled ? '#0b74d1' : '#f9fafb'}
             />
           </View>
-          <View style={[styles.switchRow, { marginTop: 8 }]}>
-            <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={styles.switchLbl}>Kjøkkenvisning</Text>
-              <Text style={styles.hint}>
-                Felles skjerm med middag, handleliste og ukeplan — uten menyer og biometri-lås.
-              </Text>
-            </View>
-            <Switch
-              value={kitchenMode}
-              onValueChange={toggleKitchenMode}
-              disabled={kitchenBusy || !uid}
-              trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-              thumbColor={kitchenMode ? '#0b74d1' : '#f9fafb'}
-            />
-          </View>
-          <View style={[styles.switchRow, { marginTop: 8 }]}>
-            <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={styles.switchLbl}>PIN for å avslutte</Text>
-              <Text style={styles.hint}>4 siffer kreves før noen kan slå av kjøkkenvisning.</Text>
-            </View>
-            <Switch
-              value={kitchenPinEnabled}
-              onValueChange={toggleKitchenPin}
-              disabled={!uid}
-              trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-              thumbColor={kitchenPinEnabled ? '#0b74d1' : '#f9fafb'}
-            />
-          </View>
         </View>
-
-        <KitchenPinModal
-          visible={kitchenPinModal === 'set'}
-          mode="set"
-          onCancel={() => setKitchenPinModal(null)}
-          onSubmit={async (pin) => {
-            if (!isValidKitchenPin(pin)) return false;
-            await saveKitchenDisplaySettings(uid, { pin, pinEnabled: true });
-            setKitchenPinEnabled(true);
-            setKitchenPinModal(null);
-            return true;
-          }}
-        />
 
         <SectionHeader title={t('more.language')} />
         <View style={styles.card}>

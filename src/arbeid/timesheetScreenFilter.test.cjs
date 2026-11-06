@@ -5,6 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
+const syncLazyScreen = require('../../tests/helpers/syncLazyScreen.cjs');
 const babel = require('@babel/core');
 const React = require('react');
 const assert = require('node:assert/strict');
@@ -109,16 +110,17 @@ function loadJsx(rel) {
   m.paths = Module._nodeModulePaths(path.dirname(full));
   const orig = m.require.bind(m);
   m.require = (id) => {
+    if (id.includes('ui/lazyScreen')) return syncLazyScreen(m.require);
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
     if (id.endsWith('/DateInput')) return { __esModule: true, default: host('DateInput') };
     if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
     if (id.includes('ThemeContext')) return { useColors: () => colors };
     if (id.includes('/theme')) {
-      return { useLayout: () => ({ width: 1280, isPhone: false, isDesktop: true }) };
+      return ((m) => ({ ...m, useBreakpoints: m.useLayout }))({ useLayout: () => ({ width: 1280, isPhone: false, isDesktop: true }) });
     }
     if (id.includes('AppContext')) {
-      return {
+      return ((m) => ({ ...m, useShellNav: () => { const a = (m.useApp && m.useApp()) || {}; return { shellIntent: a.shellIntent ?? null, shellNav: a.shellNav ?? null }; } }))({
         useApp: () => ({
           familyId: 'co1',
           family: { name: 'CONSULT1 AS', company: { navn: 'CONSULT1 AS' } },
@@ -128,7 +130,7 @@ function loadJsx(rel) {
           shellIntent: null,
           clearShellIntent: () => {},
         }),
-      };
+      });
     }
     if (id.includes('useCompanyAccess')) {
       return {
@@ -210,6 +212,7 @@ function loadJsx(rel) {
       || id.includes('WorkingTimeSaveWarning')
       || id.includes('ScrollSheet')
       || id.includes('components/Breadcrumb')
+      || id.includes('components/StorageImage')
     ) {
       return { __esModule: true, default: function Stub() { return null; } };
     }

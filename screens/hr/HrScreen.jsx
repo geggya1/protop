@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
+import CompanyAccessDenied from '../../components/project/CompanyAccessDenied';
 import { watchEmployees } from '../../src/employees/storage';
 import { loadTimeEntries } from '../../src/economy/timeEntryStorage';
 import { createFollowUpTask } from '../../src/hr/followUpTask';
@@ -21,7 +21,6 @@ import HrDashboard from './HrDashboard';
 import HrPeople from './HrPeople';
 import HrRecruitment from './HrRecruitment';
 import HrControl from './HrControl';
-import HrHandbook from './HrHandbook';
 import HrForms from './HrForms';
 import HrAnnual from './HrAnnual';
 import HrSickLeave from './HrSickLeave';
@@ -37,6 +36,8 @@ import { useDocControl } from '../doccontrol/useDocControl';
 import { useDocReadTasks } from '../doccontrol/useDocReadTasks';
 import { privacyDocState } from '../../src/hr/privacyDoc';
 import { useIsoCompetence } from './useIsoCompetence';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrHandbook = lazyScreen(() => import('./HrHandbook'), { name: 'HrHandbook', silent: true });
 
 function periodWindow(months = 3) {
   const to = new Date();
@@ -52,8 +53,9 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const colors = useColors();
   const nav = useNavigation();
   const {
-    family, familyId, uid, activeProfile, requestShellTab, shellIntent, clearShellIntent,
+    family, familyId, uid, activeProfile, requestShellTab, clearShellIntent,
   } = useApp();
+  const { shellIntent } = useShellNav();
   const assigneeName = String(activeProfile?.name || activeProfile?.displayName || '').trim();
   // Timer ført på eget selskap er ikke fakturerbare.
   const ownCompanyName = String(family?.company?.navn || family?.name || '').trim();

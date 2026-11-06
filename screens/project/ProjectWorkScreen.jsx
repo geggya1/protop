@@ -12,11 +12,11 @@ import { activeRange, nextInRange } from '../../src/intercompany/numberSeries';
 import IntercompanyTag from '../../components/intercompany/IntercompanyTag';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { myProjectIds } from '../../src/project/myProjects';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useColors } from '../../src/context/ThemeContext';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { showSaveToast, showUndoToast } from '../../src/ui/saveToast';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { openIndexIntentFromContract } from '../../src/anbud/directContract';
@@ -27,7 +27,6 @@ import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
 import EmptyState from '../../components/EmptyState';
-import FilterMenu from '../../components/FilterMenu';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
 import {
@@ -97,12 +96,14 @@ import SearchSelect from '../../components/project/SearchSelect';
 import DateInput from '../../components/DateInput';
 import { searchPlaces } from '../../src/utils/location';
 import { addressFieldsFromPlace } from '../../src/mileage/flow';
-import ProjectDetail from '../../components/project/ProjectDetail';
 import { useShellDetail } from '../../src/navigation/shellDetail';
 import { DetailMissing } from '../../src/ui/BackLink';
 import { useEmployees } from '../../src/context/CompanyDataContext';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
 import ProjectPhoneRow from './ProjectPhoneRow';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
+const ProjectDetail = lazyScreen(() => import('../../components/project/ProjectDetail'), { name: 'ProjectDetail', silent: true });
 
 const DOC_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,application/pdf,image/*';
 
@@ -333,8 +334,9 @@ function Chip({ label, on, onPress, colors }) {
 
 export default function ProjectWorkScreen() {
   const colors = useColors();
-  const { isPhone } = useLayout();
-  const { familyId, requestShellTab, uid, shellIntent, clearShellIntent } = useApp();
+  const { isPhone } = useBreakpoints();
+  const { familyId, requestShellTab, uid, clearShellIntent } = useApp();
+  const { shellIntent } = useShellNav();
   const access = useCompanyAccess();
   // Admin på Prosjekt ser og endrer alt. Begrenset redigering og Lese får en avgrenset prosjektside.
   // Bare tilgangsstyringen gjelder; administratorlisten på selskapet (adminUids) gir ikke Admin her.

@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Ett møte: topptekst med status og neste steg, faner for dagsorden, deltakere,
  * referat og historikk. Endringer lagres automatisk og slås sammen med det
@@ -30,15 +31,22 @@ import { cancelText } from '../../src/meetings/mailText';
 import { icsFileName } from '../../src/meetings/ics';
 import { minutesFileName } from '../../src/meetings/minutesDoc';
 import { meetingType, templateFromMeeting } from '../../src/meetings/templates';
-import AgendaPanel from './AgendaPanel';
-import ParticipantsPanel from './ParticipantsPanel';
-import MinutesPanel from './MinutesPanel';
 import HistoryPanel from './HistoryPanel';
 import SendDialog from './SendDialog';
 import * as actions from './meetingActions';
-import {
-  AvatarStack, Banner, Btn, Check, Field, Menu, NumberChip, PhasePill, TypeIcon, UnderTabs,
-} from './meetingUi';
+const AvatarStack = lazyScreen(() => import('./meetingUi'), { name: 'AvatarStack', pick: 'AvatarStack', silent: true });
+const Banner = lazyScreen(() => import('./meetingUi'), { name: 'Banner', pick: 'Banner', silent: true });
+const Btn = lazyScreen(() => import('./meetingUi'), { name: 'Btn', pick: 'Btn', silent: true });
+const Check = lazyScreen(() => import('./meetingUi'), { name: 'Check', pick: 'Check', silent: true });
+const Field = lazyScreen(() => import('./meetingUi'), { name: 'Field', pick: 'Field', silent: true });
+const Menu = lazyScreen(() => import('./meetingUi'), { name: 'Menu', pick: 'Menu', silent: true });
+const NumberChip = lazyScreen(() => import('./meetingUi'), { name: 'NumberChip', pick: 'NumberChip', silent: true });
+const PhasePill = lazyScreen(() => import('./meetingUi'), { name: 'PhasePill', pick: 'PhasePill', silent: true });
+const TypeIcon = lazyScreen(() => import('./meetingUi'), { name: 'TypeIcon', pick: 'TypeIcon', silent: true });
+const UnderTabs = lazyScreen(() => import('./meetingUi'), { name: 'UnderTabs', pick: 'UnderTabs', silent: true });
+const ParticipantsPanel = lazyScreen(() => import('./ParticipantsPanel'), { name: 'ParticipantsPanel', silent: true });
+const MinutesPanel = lazyScreen(() => import('./MinutesPanel'), { name: 'MinutesPanel', silent: true });
+const AgendaPanel = lazyScreen(() => import('./AgendaPanel'), { name: 'AgendaPanel', silent: true });
 
 const CALENDAR_FIELDS = ['title', 'date', 'start', 'end', 'location', 'number'];
 

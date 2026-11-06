@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import StorageImage from '../../components/StorageImage';
 import {
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -15,7 +15,6 @@ import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
-import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
 import WorkingTimeWarnings from '../../components/arbeid/WorkingTimeWarnings';
 import { workingTimeAlertRecipients } from '../../src/arbeid/workingTimePolicy';
 import { canManageTimesheets, employeeDisplayName } from '../../src/arbeid/roles.js';
@@ -35,6 +34,8 @@ import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { companyDisplayName } from '../../src/utils/companyName';
 import Breadcrumb from '../../components/Breadcrumb';
 import DateInput from '../../components/DateInput';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const TimesheetEmployeePicker = lazyScreen(() => import('../../components/arbeid/TimesheetEmployeePicker'), { name: 'TimesheetEmployeePicker', silent: true });
 
 function todayKey() {
   return toDateKey(new Date());
@@ -222,8 +223,8 @@ export default function TimesaldoScreen({
             nativeID="timesaldo-employee-name"
           >
             {employee?.person?.photoUrl ? (
-              <Image
-                source={{ uri: employee.person.photoUrl }}
+              <StorageImage
+                uri={employee.person.photoUrl}
                 style={styles.avatar}
               />
             ) : (

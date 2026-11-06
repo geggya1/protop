@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Dagsorden: disposisjon til venstre og valgt punkt til høyre.
  * Før møtet planlegges punktene (tid, innleder, forberedelse). Under møtet
@@ -34,9 +35,14 @@ import {
 } from '../../src/meetings/model';
 import { MEETING_TYPES } from '../../src/meetings/templates';
 import { tidyItemNotes } from '../../src/meetings/ai';
-import {
-  Banner, Btn, Check, Choice, Field, IconBtn, Label, Pill,
-} from './meetingUi';
+const Banner = lazyScreen(() => import('./meetingUi'), { name: 'Banner', pick: 'Banner', silent: true });
+const Btn = lazyScreen(() => import('./meetingUi'), { name: 'Btn', pick: 'Btn', silent: true });
+const Check = lazyScreen(() => import('./meetingUi'), { name: 'Check', pick: 'Check', silent: true });
+const Choice = lazyScreen(() => import('./meetingUi'), { name: 'Choice', pick: 'Choice', silent: true });
+const Field = lazyScreen(() => import('./meetingUi'), { name: 'Field', pick: 'Field', silent: true });
+const IconBtn = lazyScreen(() => import('./meetingUi'), { name: 'IconBtn', pick: 'IconBtn', silent: true });
+const Label = lazyScreen(() => import('./meetingUi'), { name: 'Label', pick: 'Label', silent: true });
+const Pill = lazyScreen(() => import('./meetingUi'), { name: 'Pill', pick: 'Pill', silent: true });
 
 const DETAILS = '__details';
 

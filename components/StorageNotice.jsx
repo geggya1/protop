@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import {
   Platform, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
-import { colors, radius, useLayout } from '../src/theme';
+import { colors, radius, useBreakpoints } from '../src/theme';
 import {
   STORAGE_NOTICE_TEXT, markStorageNoticeSeen, storageNoticeSeen,
 } from '../src/privacy/storageNotice';
-import LegalDocumentModal from './LegalDocumentModal';
+import LegalDocumentModal from './LegalDocumentModalLazy';
 
 function webStorage() {
   try {
@@ -18,7 +18,7 @@ function webStorage() {
 
 /** Diskré informasjon om lokal lagring første gang ProTop åpnes i en nettleser. */
 export default function StorageNotice() {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const [visible, setVisible] = useState(false);
   const [docOpen, setDocOpen] = useState(false);
 

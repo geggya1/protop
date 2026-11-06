@@ -1,11 +1,11 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { canImportList } from '../../src/access/companyAccess';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import {
   applyCustomerKind,
@@ -38,9 +38,7 @@ import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
 import EmptyState from '../../components/EmptyState';
-import FilterMenu from '../../components/FilterMenu';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
-import ReportTable from '../../components/table/ReportTable';
 import useReportColumns from '../../components/table/useReportColumns';
 import {
   CUSTOMER_INVOICE_FILTERS,
@@ -80,6 +78,9 @@ import IndexLetterTable from '../../components/economy/IndexLetterTable';
 import { lettersForCustomer } from '../../src/indeksregulering/groups';
 import CustomerPhoneRow from './CustomerPhoneRow';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
+const ReportTable = lazyScreen(() => import('../../components/table/ReportTable'), { name: 'ReportTable', silent: true });
 
 // Tabellen tegner en side om gangen. Tusenvis av rader på én gang låser nettleseren.
 const PAGE_SIZE = 100;
@@ -210,8 +211,9 @@ function fillFromBrreg(current, hit) {
 
 export default function CustomersScreen() {
   const colors = useColors();
-  const { isPhone } = useLayout();
-  const { familyId, requestShellTab, shellIntent, clearShellIntent, members, uid } = useApp();
+  const { isPhone } = useBreakpoints();
+  const { familyId, requestShellTab, clearShellIntent, members, uid } = useApp();
+  const { shellIntent } = useShellNav();
   const access = useCompanyAccess();
   // Import av kundelister krever Admin på Kunder.
   const canImport = canImportList(useCompanyAccess(), 'customers');

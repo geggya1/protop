@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
 import { dateKey, addDays } from '../../src/utils/dates';
 import { eventOccursOnDate } from '../../src/utils/events';
@@ -13,45 +13,24 @@ import {
 import { resolveEventWriteTarget } from '../../src/utils/eventWriteTarget';
 import { Screen, Loader } from '../../components/ui';
 import CreateShortcutSheet from '../../components/CreateShortcutSheet';
-import ChildHomeScreen from './ChildHomeScreen';
 import DeskHomeDashboard from '../../components/DeskHomeDashboard';
-import KitchenWallDashboard from '../../components/KitchenWallDashboard';
-import KitchenPinModal from '../../components/KitchenPinModal';
 import ParentHomeThemeHost from '../../components/parentHome/ParentHomeThemeHost';
 import PendingFamilyInvitePrompt from '../../components/PendingFamilyInvitePrompt';
 import { buildParentDashboardApps } from '../../src/navigation/shellModules';
 import { openNotifications } from '../../src/navigation/openNotifications';
 import { useHomeWidgetData } from '../../src/hooks/useHomeWidgetData';
 import { useI18n } from '../../src/i18n';
-import { BOOK_OWNER } from '../../src/utils/books';
 import { toggleParentTodo } from '../../src/utils/todos';
-import {
-  loadKitchenDisplaySettings,
-  saveKitchenDisplaySettings,
-  subscribeKitchenDisplay,
-  verifyKitchenPin,
-} from '../../src/utils/kitchenDisplay';
 
+// Barnas hjem hørte til familieproduktet (barnekontoer logges ut i ProTop).
 export default function HomeScreen() {
-  const {
-    isParent, isChild, isActingAsChild, activeChild, meChild,
-  } = useApp();
-
-  const viewingChild = isActingAsChild
-    ? activeChild
-    : (isChild ? meChild : null);
-
-  if (viewingChild) {
-    return <ChildHomeScreen child={viewingChild} />;
-  }
-
   return <ParentHomeScreen />;
 }
 
 function ParentHomeScreen() {
   const nav = useNavigation();
   const { t } = useI18n();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const immersive = useHomeImmersive();
   const {
     familyId, families, kids, members, parents, isParent, uid,
@@ -63,45 +42,6 @@ function ParentHomeScreen() {
 
   const [events, setEvents] = useState([]);
   const [createOpen, setCreateOpen] = useState(false);
-  const [kitchenMode, setKitchenMode] = useState(false);
-  const [kitchenSettings, setKitchenSettings] = useState({ enabled: false, pinEnabled: false });
-  const [pinModalOpen, setPinModalOpen] = useState(false);
-
-  useEffect(() => {
-    if (!uid) {
-      setKitchenMode(false);
-      setKitchenSettings({ enabled: false, pinEnabled: false });
-      return undefined;
-    }
-    let alive = true;
-    loadKitchenDisplaySettings(uid).then((s) => {
-      if (!alive) return;
-      setKitchenSettings(s);
-      setKitchenMode(!!s.enabled);
-    });
-    const unsub = subscribeKitchenDisplay((s) => {
-      if (!alive) return;
-      const next = typeof s === 'object' && s ? s : { enabled: !!s };
-      setKitchenSettings((prev) => ({ ...prev, ...next }));
-      setKitchenMode(!!next.enabled);
-    });
-    return () => { alive = false; unsub(); };
-  }, [uid]);
-
-  const requestExitKitchen = () => {
-    if (kitchenSettings.pinEnabled) {
-      setPinModalOpen(true);
-      return;
-    }
-    exitKitchenMode();
-  };
-
-  const exitKitchenMode = async () => {
-    if (!uid) return;
-    setKitchenMode(false);
-    await saveKitchenDisplaySettings(uid, { enabled: false });
-  };
-
   const viewerIds = useMemo(() => new Set([uid].filter(Boolean)), [uid]);
   const platformIds = useMemo(() => {
     const ids = platformIdsFromFamilies(families);
@@ -216,8 +156,6 @@ function ParentHomeScreen() {
     }
   };
 
-  const firstKid = activeKids[0] || null;
-
   const createOptions = useMemo(() => {
     const opts = [
       {
@@ -231,7 +169,7 @@ function ParentHomeScreen() {
         id: 'task',
         icon: 'checkbox',
         label: 'Ny oppgave',
-        sub: 'Oppgave for deg eller andre foresatte',
+        sub: 'Oppgave for deg eller kolleger',
         onPress: () => nav.navigate('ParentTask', { familyId }),
       },
       {
@@ -255,92 +193,16 @@ function ParentHomeScreen() {
         sub: 'Skriv eller ta opp med AI',
         onPress: () => requestShellTab('notes', null, 'create'),
       },
-      {
-        id: 'shop',
-        icon: 'cart',
-        label: 'Ny handleliste',
-        sub: 'Skriv navn og opprett',
-        onPress: () => requestShellTab('more', 'shop', 'create'),
-      },
-      {
-        id: 'wish',
-        icon: 'gift',
-        label: 'Ny ønskeliste',
-        sub: 'Gaveønsker',
-        onPress: () => requestShellTab('more', 'wishes', 'create'),
-      },
-      {
-        id: 'book',
-        icon: 'library',
-        label: 'Ny bok',
-        sub: firstKid ? `I ${firstKid.name?.split(' ')[0] || 'barn'}s bokhylle` : 'I din bokhylle',
-        onPress: () => {
-          if (firstKid) {
-            nav.navigate('AddBook', {
-              familyId,
-              ownerKind: BOOK_OWNER.child,
-              ownerId: firstKid.id,
-              childId: firstKid.id,
-              ownerName: firstKid.name,
-              childName: firstKid.name,
-            });
-            return;
-          }
-          nav.navigate('AddBook', {
-            familyId,
-            ownerKind: BOOK_OWNER.parent,
-            ownerId: uid,
-            ownerName: 'Meg',
-          });
-        },
-      },
     ];
 
-    if (familyId) {
-      opts.push({
-        id: 'activity',
-        icon: 'fitness',
-        label: 'Ny aktivitet',
-        sub: 'Treningsplan / aktivitet',
-        onPress: () => requestShellTab('more', 'activities', 'create'),
-      });
-    }
-
     return opts;
-  }, [familyId, todayKey, firstKid, uid, nav, requestShellTab]);
+  }, [familyId, todayKey, nav, requestShellTab]);
 
   if (!familyId) {
     return (
       <Screen>
         <PendingFamilyInvitePrompt />
         <Loader />
-      </Screen>
-    );
-  }
-
-  if (kitchenMode) {
-    return (
-      <Screen>
-        <PendingFamilyInvitePrompt />
-        <KitchenWallDashboard
-          widgetData={widgetData}
-          familyEventsToday={familyEventsToday}
-          onOpenEvent={openEvent}
-          onTab={(tab, subView) => requestShellTab(tab, subView || null)}
-          onExitRequest={requestExitKitchen}
-        />
-        <KitchenPinModal
-          visible={pinModalOpen}
-          mode="unlock"
-          onCancel={() => setPinModalOpen(false)}
-          onSubmit={async (pin) => {
-            const full = await loadKitchenDisplaySettings(uid);
-            if (!(await verifyKitchenPin(full, pin))) return false;
-            setPinModalOpen(false);
-            await exitKitchenMode();
-            return true;
-          }}
-        />
       </Screen>
     );
   }

@@ -10,7 +10,7 @@ import { absenceWidgetDestination, monthKeyEnd } from '../../src/arbeid/absenceW
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { useShellPageHero } from '../../src/hooks/useShellPageHero.js';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 
 const ui = {
   page: '#F4F7FB',
@@ -97,7 +97,7 @@ export function CompanyAbsenceView({
   onOpenSource,
   types: catalog,
 }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const hosted = useModuleHeroHosted();
   const wide = isDesktop;
   const [menu, setMenu] = useState('');

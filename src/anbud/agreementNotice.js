@@ -1,14 +1,8 @@
 /** E-post når en avtale flytter seg mellom partene. */
+import { escapeHtml } from '../utils/mailHtml.js';
 
 function text(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
-}
-
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }
 
 export function buildAgreementNotice({

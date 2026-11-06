@@ -17,12 +17,3 @@ test('setMemberPassword skriver aldri passordet til Firestore', () => {
   assert.doesNotMatch(call, /password/);
 });
 
-test('foresatte ser bare at passordet er satt, og et nytt passord bare én gang', () => {
-  const settings = read('screens/ChildSettingsScreen.jsx');
-  assert.doesNotMatch(settings, /loaded\.password|password: d\.password/);
-  assert.match(settings, /setPasswordSet\(!!\(d\.passwordSetAt \|\| d\.password\)\)/);
-  assert.match(settings, /password: deleteField\(\)/, 'en gammel kopi slettes når den finnes');
-  const profile = read('screens/ChildProfileScreen.jsx');
-  assert.doesNotMatch(profile, /useState\(child\.password/);
-  assert.doesNotMatch(profile, /setPassword\(child\.password/);
-});

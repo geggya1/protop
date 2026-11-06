@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
-import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
+import CompanyAccessDenied from '../../components/project/CompanyAccessDenied';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { loadAnbudState, peekAnbudState } from '../../src/anbud/storage';
 import { useApp } from '../../src/context/AppContext';

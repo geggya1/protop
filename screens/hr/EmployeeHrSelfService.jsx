@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Det den ansatte selv kan se fra HR-modulen — medarbeidersamtalen (forberede og signere),
  * dokumenter å lese og signere, synlige memo, oppgaver, samtaler, kontrakter og lønn. Vises på Min side.
@@ -13,13 +14,17 @@ import {
   TASK_STATUSES,
 } from '../../src/hr/model';
 import { loadEmployeeHrSlice } from '../../src/hr/storage';
-import { EmptyHint, HrCard, HrSectionTitle, RowLink, SalarySparkline } from './HrShared';
 import MyDocuments from '../doccontrol/MyDocuments';
 import HrAccessLog from './HrAccessLog';
 import { EmployeeControlMeasures } from './ControlMeasuresCard';
 import EmployeeSurveyCard from './EmployeeSurveyCard';
 import EmployeeReviewCard from './EmployeeReviewCard';
 import { useOptionalApp } from '../../src/context/AppContext';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
+const RowLink = lazyScreen(() => import('./HrShared'), { name: 'RowLink', pick: 'RowLink', silent: true });
+const SalarySparkline = lazyScreen(() => import('./HrShared'), { name: 'SalarySparkline', pick: 'SalarySparkline', silent: true });
 
 export default function EmployeeHrSelfService({
   colors, companyId, employeeId, showDocuments = true, showSurvey = true,

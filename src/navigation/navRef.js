@@ -1,8 +1,5 @@
 import { tryOpenChatInDock } from '../utils/chatDockBridge';
-import { requestBirthdayPrepResume } from '../utils/birthdayPrepBridge';
 import { isFriendChatNavPayload, friendUidFromNavPayload } from '../utils/friendsLogic';
-import { GAME_TYPE_SCREENS } from '../utils/familyGamesShared';
-import { gameInviteNavParams } from '../utils/gameInviteNav';
 import { auth } from '../../firebase';
 
 let navRef = null;
@@ -39,24 +36,18 @@ export function subscribeAppRoute(fn) {
   return () => routeListeners.delete(fn);
 }
 
-export { gameInviteNavParams };
 
 function shellForEvent(eventType) {
   if (eventType === 'taskReceived') return { tab: 'stars' };
   if (eventType === 'choreReceived') return { tab: 'chores' };
   if (eventType === 'eventCreated') return { tab: 'plan' };
   if (eventType === 'noteShared') return { tab: 'notes' };
-  if (eventType === 'wishReserved' || eventType === 'wishPurchased' || eventType === 'wishShared') {
-    return { tab: 'more', subView: 'wishes' };
-  }
   if (eventType === 'messageReceived') return { tab: 'chat' };
   if (eventType === 'familyInvite') return null;
   // Venneforespørsel (også en som er trukket tilbake) og godtatt forespørsel: Venner.
   if (eventType === 'friendInvite' || eventType === 'friendInviteAccepted') {
     return { tab: 'more', subView: 'friends' };
   }
-  if (eventType === 'gameInvite') return { tab: 'more', subView: 'games' };
-  if (eventType === 'attestPending') return { tab: 'more', subView: 'progress', intent: 'attest' };
   if (eventType === 'documentApproval' || eventType === 'documentComment') return { tab: 'skjema', intent: { type: 'docControl', tab: 'styring' } };
   if (eventType === 'documentPublished') return { tab: 'ansatte', intent: { type: 'myDocuments' } };
   // Medarbeiderundersøkelse: Min side, der skjemaet står.
@@ -72,26 +63,7 @@ function shellForEvent(eventType) {
   if (eventType === 'intercompanyLink') return { tab: 'selskap', subView: 'underenheter' };
   if (eventType === 'companyMemberLeft') return { tab: 'ansatte' };
   if (eventType === 'birthdayReminder') return { tab: 'home' };
-  if (eventType === 'boligReminder') return { tab: 'more', subView: 'boligmappa' };
   return null;
-}
-
-function navigateGameInvite(nav, payload) {
-  const type = payload.gameType;
-  const params = gameInviteNavParams(payload);
-  // Open the online invite hub so pending invites can be accepted — do not jump
-  // into a gameId the invitee has not joined yet.
-  if (type === 'quiz') {
-    nav.navigate('Home', { openShell: { tab: 'more', subView: 'quiz' } });
-    return true;
-  }
-  const screen = GAME_TYPE_SCREENS[type];
-  if (screen) {
-    nav.navigate(screen, params);
-    return true;
-  }
-  nav.navigate('Home', { openShell: { tab: 'more', subView: 'games' } });
-  return true;
 }
 
 export function navigateFromNotification(payload = {}) {
@@ -104,18 +76,7 @@ export function navigateFromNotification(payload = {}) {
     });
     return true;
   }
-  if (payload.eventType === 'gameInvite') {
-    return navigateGameInvite(nav, payload);
-  }
-  if (payload.eventType === 'birthdayReminder') {
-    // Gjenåpne forberedelses-popup; fallback til Husk dato.
-    if (requestBirthdayPrepResume(payload)) {
-      try { nav.navigate('Home'); } catch { /* ignore */ }
-      return true;
-    }
-    nav.navigate('Home', { openShell: { tab: 'more', subView: 'rememberDates' } });
-    return true;
-  }
+  // Spill, ønskelister og andre familievarsler finnes ikke i ProTop; de åpner Hjem (under).
   const chatId = payload.chatId;
   const familyId = payload.familyId;
   if (chatId) {

@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, useLayout } from '../src/theme';
+import { colors, useBreakpoints } from '../src/theme';
 import BrandToggle from './BrandToggle';
 import { listModulesByCategory } from '../src/modules/moduleActivationRegistry';
 import { applyProtopActivationSections } from '../src/navigation/protopShell';
 import { useModuleAccess, useModuleWriteScope } from '../src/context/ModuleAccessContext';
-import { localizeModuleFields } from '../src/i18n/moduleCatalog';
+import { localizeModuleFields } from '../src/i18n/moduleCatalogActive';
 import { useI18n } from '../src/i18n';
 
 const CATEGORY_KEYS = {
@@ -28,7 +28,7 @@ const CATEGORY_KEYS = {
  * Uten scope: useModuleWriteScope (hele bedriften for den som har tilgangen, ellers bare meg).
  */
 export default function ModuleActivationSettings({ showCategories = true, scope: scopeProp = '', canEdit = true }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { t, lang } = useI18n();
   const {
     isActivated, companyActivated, companyLocked, activateModule, deactivateModule, canManage,

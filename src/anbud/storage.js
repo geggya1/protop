@@ -260,7 +260,27 @@ async function readCustomerRegistry(companyId) {
   }
 }
 
+/**
+ * Lagring mens noen skriver (svar, notat, skjemafelt) skjer ved hvert tastetrykk. Registeret leses
+ * da høyst hvert REGISTRY_READ_MS; «Lagre» (persistAnbudState) og innlasting leser alltid på nytt.
+ */
+const REGISTRY_READ_MS = 5000;
+const registryReads = new Map();
+
+function readCustomerRegistryRecent(companyId) {
+  const key = memoryKey(companyId);
+  const hit = registryReads.get(key);
+  if (hit && Date.now() - hit.at < REGISTRY_READ_MS) return hit.promise;
+  const promise = readCustomerRegistry(companyId).then((result) => {
+    if (!result.ok) registryReads.delete(key);
+    return result;
+  });
+  registryReads.set(key, { at: Date.now(), promise });
+  return promise;
+}
+
 function rememberRegistry(companyId, customers) {
+  registryReads.delete(memoryKey(companyId));
   REGISTRY_BASE.set(memoryKey(companyId), new Map(
     normalizeCustomers(customers).map((row) => [row.id, JSON.stringify(row)]),
   ));
@@ -488,10 +508,11 @@ function customerKey(rows) {
   return JSON.stringify([...(rows || [])].sort((a, b) => String(a?.id || '').localeCompare(String(b?.id || ''))));
 }
 
-async function mergedForSave(state, companyId) {
+async function mergedForSave(state, companyId, { recentRegistry = false } = {}) {
+  const readRegistry = recentRegistry ? readCustomerRegistryRecent : readCustomerRegistry;
   const [local, registry] = await Promise.all([
     readLocal(companyId),
-    companyId ? readCustomerRegistry(companyId) : { ok: false, customers: [] },
+    companyId ? readRegistry(companyId) : { ok: false, customers: [] },
   ]);
   let next = mergeAnbudStates(local, state);
   if (registry.ok) next = mergeAnbudStates(next, { customers: registry.customers });
@@ -580,8 +601,24 @@ function withStoredCustomers(next, stored) {
   return stored ? mergeAnbudStates(next, { customers: stored }) : next;
 }
 
-export async function saveAnbudState(state, companyId) {
-  const merged = await mergedForSave(state, companyId);
+const saveChains = new Map();
+
+/**
+ * Lagrer i rekkefølge per bedrift. Uten køen kunne et eldre tastetrykk, som ventet lenger på
+ * lesingen, bli lagret sist og skrive over nyere tekst.
+ */
+export function saveAnbudState(state, companyId) {
+  const key = memoryKey(companyId);
+  const previous = saveChains.get(key) || Promise.resolve();
+  const run = previous.catch(() => {}).then(() => saveAnbudStateNow(state, companyId));
+  const tail = run.catch(() => {});
+  saveChains.set(key, tail);
+  tail.then(() => { if (saveChains.get(key) === tail) saveChains.delete(key); });
+  return run;
+}
+
+async function saveAnbudStateNow(state, companyId) {
+  const merged = await mergedForSave(state, companyId, { recentRegistry: true });
   let { next } = merged;
   if (companyId && merged.registryStale) {
     next = withStoredCustomers(next, await writeCustomerRegistry(companyId, next.customers).catch(() => null));
@@ -602,6 +639,8 @@ export async function saveAnbudState(state, companyId) {
 
 /** Lagrer med en gang og venter på Firestore, slik at «Lagre» ikke later som det gikk bra. */
 export async function persistAnbudState(state, companyId) {
+  // Lagringer fra tastetrykk som fortsatt går, skal ikke komme etter «Lagre».
+  await saveChains.get(memoryKey(companyId));
   const merged = await mergedForSave(state, companyId);
   let { next } = merged;
   const id = String(companyId || '').trim();

@@ -1,20 +1,17 @@
 import React from 'react';
 import { defaultArbeidSubView } from '../../src/navigation/shellModules';
-import ArbeidScreen from './ArbeidScreen';
-import EconomyHours from '../economy/EconomyHours';
-import TimesaldoScreen from './TimesaldoScreen';
-import {
-  AbsenceOverviewScreen,
-  AbsenceReportScreen,
-  PlannedAbsenceScreen,
-} from './AbsenceScreens';
-import {
-  ApprovalsScreen,
-  ProductSalesScreen,
-} from './OpsScreens';
 import ProductivityScreen from './ProductivityScreen';
 import ProjectTimelineScreen from './ProjectTimelineScreen';
-import AbsenceSettingsScreen from './AbsenceSettingsScreen';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const ApprovalsScreen = lazyScreen(() => import('./ApprovalsScreen'), { name: 'ApprovalsScreen', pick: 'ApprovalsScreen' });
+const ProductSalesScreen = lazyScreen(() => import('./ProductSalesScreen'), { name: 'ProductSalesScreen', pick: 'ProductSalesScreen' });
+const AbsenceOverviewScreen = lazyScreen(() => import('./AbsenceScreens'), { name: 'AbsenceOverviewScreen', pick: 'AbsenceOverviewScreen' });
+const AbsenceReportScreen = lazyScreen(() => import('./AbsenceScreens'), { name: 'AbsenceReportScreen', pick: 'AbsenceReportScreen' });
+const PlannedAbsenceScreen = lazyScreen(() => import('./AbsenceScreens'), { name: 'PlannedAbsenceScreen', pick: 'PlannedAbsenceScreen' });
+const AbsenceSettingsScreen = lazyScreen(() => import('./AbsenceSettingsScreen'), { name: 'AbsenceSettingsScreen' });
+const TimesaldoScreen = lazyScreen(() => import('./TimesaldoScreen'), { name: 'TimesaldoScreen' });
+const EconomyHours = lazyScreen(() => import('../economy/EconomyHours'), { name: 'EconomyHours', silent: true });
+const ArbeidScreen = lazyScreen(() => import('./ArbeidScreen'), { name: 'ArbeidScreen' });
 
 export default function ArbeidHub({ subView } = {}) {
   const page = defaultArbeidSubView(subView);

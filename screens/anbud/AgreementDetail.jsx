@@ -60,10 +60,11 @@ import { pickDocument } from '../../src/utils/media';
 import { dateKey } from '../../src/utils/dates';
 import { useLayout } from '../../src/theme';
 import AgreementAssigneesField from './AgreementAssigneesField';
-import AgreementCustomerField from './AgreementCustomerField';
 import AgreementDocumentPreview, { AgreementOriginalLink } from './AgreementDocumentPreview';
 import AgreementPersonField from './AgreementPersonField';
 import AgreementProjectField from './AgreementProjectField';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const AgreementCustomerField = lazyScreen(() => import('./AgreementCustomerField'), { name: 'AgreementCustomerField', silent: true });
 
 const DOC_ACCEPT = '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const INVOICE_METHODS = [

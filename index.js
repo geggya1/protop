@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 import { registerRootComponent } from 'expo';
 import { Text, View, Pressable } from 'react-native';
 import App from './App';
+import { reportCrash } from './src/helpdesk/crashReporter';
 import { bootstrapAppearance } from './src/appearance/applyAppearance';
 import { captureAgreementLinkFromLocation } from './src/anbud/agreementLink';
 import { installPhoneVisualViewport } from './src/shell/usePhoneVisualViewport';
@@ -72,7 +73,8 @@ class RootErrorBoundary extends React.Component {
     return { error };
   }
 
-  componentDidCatch(error) {
+  componentDidCatch(error, info) {
+    reportCrash(error, { kind: 'render', fatal: true, componentStack: info?.componentStack });
     tryRecoverFromFirestoreAssert(error);
   }
 

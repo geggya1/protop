@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Platform, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../src/context/ThemeContext';
-import { useLayout } from '../src/theme';
+import { useBreakpoints } from '../src/theme';
 import { touchHit } from '../src/ui/touchTarget';
 import ScrollSheet from './ScrollSheet';
 
@@ -10,7 +10,7 @@ import ScrollSheet from './ScrollSheet';
 export default function InfoButton({ title = 'Info', children }) {
   const colors = useColors();
   const [open, setOpen] = useState(false);
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
   const hit = touchHit(22, 24, { touch: isTouch, os: Platform.OS });
   return (
     <>

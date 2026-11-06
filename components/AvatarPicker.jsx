@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import StorageImage from './StorageImage';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors, radius } from '../src/theme';
 import { PEOPLE_AVATARS, GROUP_AVATARS, avatarById } from '../src/data/avatars';
 
@@ -32,7 +33,7 @@ export default function AvatarPicker({ value, onChange, group = false, compact =
 export function AvatarBubble({ avatarId, photoURL, name, size = 64, color, group = false }) {
   const list = group ? GROUP_AVATARS : PEOPLE_AVATARS;
   if (photoURL) {
-    return <Image source={{ uri: photoURL }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
+    return <StorageImage uri={photoURL} style={{ width: size, height: size, borderRadius: size / 2 }} />;
   }
   const a = avatarId ? avatarById(avatarId, list) : null;
   const bg = color || a?.color || '#94a3b8';

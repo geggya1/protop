@@ -3,7 +3,7 @@ import {
   Modal, Pressable, ScrollView, View, Text, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, useLayout } from '../src/theme';
+import { colors, useBreakpoints } from '../src/theme';
 import { desktopOverlay, desktopFormSheet } from '../src/desktop';
 import ConfirmDialog from './ConfirmDialog';
 import BrandToggle from './BrandToggle';
@@ -29,7 +29,7 @@ export default function MailSettingsModal({
   composePrefs,
   onComposePrefsChange,
 }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const [removeId, setRemoveId] = useState(null);
   const removeAcc = accounts.find((a) => a.id === removeId);
 

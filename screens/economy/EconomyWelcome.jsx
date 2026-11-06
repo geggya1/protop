@@ -4,12 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import InvoicedStatement from '../../components/economy/InvoicedStatement';
 import { EconomyTile } from '../../components/economy/EconomyGrid';
-import AccountHistoryCard from '../../components/project/AccountHistoryCard';
 import { useAccountHistory } from '../../components/project/useAccountHistory';
 import { mergeAccountYears } from '../../src/project/accountSeries';
 import { fetchPublicCompany, storedCompanyProfile } from '../../src/project/companyPublic';
 import { companyLogoOf } from '../../src/project/companyLogo';
 import { radius } from '../../src/ui/tokens';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const AccountHistoryCard = lazyScreen(() => import('../../components/project/AccountHistoryCard'), { name: 'AccountHistoryCard', silent: true });
 
 export default function EconomyWelcome({ stored, familyId }) {
   const colors = useColors();

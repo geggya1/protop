@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform, Pressable } from 'r
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../src/context/AppContext';
-import { colors, radius, useLayout } from '../src/theme';
+import { colors, radius, useBreakpoints } from '../src/theme';
 import { touchHit } from '../src/ui/touchTarget';
 import {
   beginNotificationPermissionFromGesture,
@@ -89,7 +89,7 @@ function feedbackForResult(result) {
  */
 export default function PushEnableBanner() {
   const { uid } = useApp();
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
   const [visible, setVisible] = useState(false);
   const [mode, setMode] = useState('ask'); // ask | denied | ios-tab | resubscribe
   const [busy, setBusy] = useState(false);

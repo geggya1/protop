@@ -8,7 +8,7 @@ import { auth } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
 import { useAppearance } from '../../src/appearance/AppearanceContext';
 import { useI18n } from '../../src/i18n';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import { goPlatformOverview } from '../../src/utils/platformNav';
 import { openNotifications } from '../../src/navigation/openNotifications';
 import { shouldOfferAddToHome } from '../../src/utils/addToHome';
@@ -29,12 +29,12 @@ import FriendQrModal from '../../components/FriendQrModal';
 import { FAMILY_PRODUCT_ENABLED } from '../../src/navigation/familyProduct';
 
 function SectionHeader({ title }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   return <Text style={[styles.sectionTitle, isDesktop && styles.sectionTitleDesk]}>{title}</Text>;
 }
 
 function Row({ icon, label, detail, onPress, danger, muted }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   return (
     <TouchableOpacity onPress={onPress} style={[styles.row, isDesktop && styles.rowCompact]} accessibilityRole="button">
       <View style={[styles.iconCircle, isDesktop && styles.iconCircleCompact, danger && styles.iconDanger]}>
@@ -48,7 +48,7 @@ function Row({ icon, label, detail, onPress, danger, muted }) {
 }
 
 function CollapsibleRows({ icon, title, hint, countLabel, children, defaultOpen = false }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const [open, setOpen] = useState(defaultOpen);
   return (
     <View>
@@ -86,7 +86,7 @@ export default function SettingsScreen({ setSubView } = {}) {
   const nav = useNavigation();
   const { t } = useI18n();
   const { prefs, summary } = useAppearance();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const {
     familyId, isParent, isAdmin, isSuperAdmin, kids, user, activeProfile,
     requestShellTab, isChild, uid,

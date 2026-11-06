@@ -27,9 +27,14 @@ import {
 import HrFilledForm from './HrFilledForm';
 import { DEFAULT_DOCUMENT_ACCEPT, pickDocument, uploadFile } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
-import {
-  EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink,
-} from './HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
+const RowLink = lazyScreen(() => import('./HrShared'), { name: 'RowLink', pick: 'RowLink', silent: true });
 
 const TABS = [
   { id: 'cases', label: 'Saker' },

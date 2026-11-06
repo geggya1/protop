@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme';
 import { desktopOverlay, desktopSheet } from '../../src/desktop';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import ConfirmDialog from '../ConfirmDialog';
 import DateInput from '../DateInput';
 import { emptyBilag, formatBilagAmount } from '../../src/utils/documentBilag';
@@ -38,7 +38,7 @@ export default function DocumentBilagEditSheet({
   onOpenImage,
   onRerunOcr,
 }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const [form, setForm] = useState(() => emptyBilag());
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);

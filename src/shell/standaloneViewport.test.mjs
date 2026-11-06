@@ -42,7 +42,7 @@ assert.match(stamp, /data-protop-vv/, 'hosted HTML measures the visible frame be
 assert.match(stamp, /height: 100dvh !important/, 'hosted shell stays on the dynamic viewport');
 assert.doesNotMatch(stamp, /100lvh/, 'hosted shell must not force the large viewport');
 assert.match(stamp, /\[protop-pwa\]/, 'hosted HTML logs launch URL and standalone state');
-assert.match(shell, /headerCoversStatusBar = Platform\.OS === 'web' && isPhone && !kitchenMode/, 'phone web header owns the top edge');
+assert.match(shell, /headerCoversStatusBar = Platform\.OS === 'web' && isPhone;/, 'phone web header owns the top edge');
 assert.match(shell, /coverStatusBar=\{headerCoversStatusBar\}/, 'header background extends to the top edge');
 assert.match(header, /headerTopPad/, 'top bar padding sits inside the header');
 assert.match(header, /chromeTop/, 'phone header is the top layer');

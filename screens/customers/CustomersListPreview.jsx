@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Forhåndsvisning av kundeliste uten innlogging.
  * Manuell QA via /customers-list-preview (web).
@@ -5,12 +6,12 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../src/theme';
-import FilterMenu from '../../components/FilterMenu';
 import {
   filterCustomers,
   projectCountsByCustomer,
   projectLinkSummary,
 } from '../../src/anbud/customers';
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
 
 const MOCK_CUSTOMERS = [
   { id: 'c1', name: 'Novaform AS', kind: 'org', customerNumber: '10002', orgnr: '921234567' },

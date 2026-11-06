@@ -3,13 +3,13 @@ import {
   Modal, Pressable, ScrollView, View, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, useLayout } from '../src/theme';
+import { colors, useBreakpoints } from '../src/theme';
 import { desktopOverlay, desktopFormSheet } from '../src/desktop';
 import FriendQrScreen from '../screens/v2/FriendQrScreen';
 
 /** Min QR som popup — samme mønster som AddFriendModal. */
 export default function FriendQrModal({ visible, onClose }) {
-  const { isDesktop, isTablet } = useLayout();
+  const { isDesktop, isTablet } = useBreakpoints();
   const centered = isDesktop || isTablet;
 
   return (

@@ -25,8 +25,4 @@ export {
   createPendingFriendInviteAdmin,
   claimFriendInviteAdmin,
   shareWithFriendsAdmin,
-  listSharedAlbumsAdmin,
-  listSharedWishlistsAdmin,
-  respondFriendGameInviteAdmin,
-  notifyFriendGameInvitesAdmin,
 } from './friendCallables.js';

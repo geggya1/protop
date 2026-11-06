@@ -3,44 +3,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ACTIVE_LANGS, LANGS, LANG_IDS, LANG_KEY, LEGAL_VERSION, CONSENT_KEY, activeLanguage,
 } from './langs';
-import { TABLE } from './strings';
+// Ferdigbygde ordbøker for de aktive språkene (npm run gen:i18n). Hele tabellen med ni språk
+// (strings.js) lastes ikke i appen.
+import { DICTS } from './dicts.generated';
 import { deviceLanguageId } from './deviceLang';
-
-function setPath(obj, path, value) {
-  const parts = path.split('.');
-  let cur = obj;
-  parts.forEach((p, i) => {
-    if (i === parts.length - 1) cur[p] = value;
-    else {
-      cur[p] = cur[p] || {};
-      cur = cur[p];
-    }
-  });
-}
 
 function getPath(obj, path) {
   return path.split('.').reduce((acc, p) => (acc == null ? acc : acc[p]), obj);
 }
-
-function isLeaf(v) {
-  return v && typeof v === 'object' && LANG_IDS.some((id) => id in v);
-}
-
-function buildDicts(table) {
-  const out = Object.fromEntries(LANG_IDS.map((id) => [id, {}]));
-  const walk = (node, prefix) => {
-    Object.entries(node).forEach(([k, v]) => {
-      const key = prefix ? `${prefix}.${k}` : k;
-      if (isLeaf(v)) {
-        LANG_IDS.forEach((id) => setPath(out[id], key, v[id] || v.en || v.nb || key));
-      } else if (v && typeof v === 'object') walk(v, key);
-    });
-  };
-  walk(table, '');
-  return out;
-}
-
-const DICTS = buildDicts(TABLE);
 
 function lookup(lang, key) {
   return getPath(DICTS[lang] || {}, key) || getPath(DICTS.en || {}, key) || key;

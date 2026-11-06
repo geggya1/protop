@@ -14,7 +14,7 @@ import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { equipmentCalendarGroup, equipmentViewerAccess } from '../../src/equipment/calendars';
 import { cancelBooking, cancelEventBookings, replaceEventBookings, upsertBooking } from '../../src/equipment/state';
 import { displayName, ownEmployee } from '../../src/employees/model';
-import { colors, MEMBER_COLORS, radius, useLayout } from '../../src/theme';
+import { colors, MEMBER_COLORS, radius, useBreakpoints } from '../../src/theme';
 import { dateKey, parseDateKey, WEEKDAYS_SHORT } from '../../src/utils/dates';
 import {
   REPEAT_PRESETS, CUSTOM_FREQS, initRepeatFromEvent, buildRecurrencePayload,
@@ -221,7 +221,7 @@ export default function EventFormScreen() {
   const nav = useNavigation();
   useHelpScene('inner', { onRetreat: () => nav.goBack() });
   const { params } = useRoute();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { familyId: activeFamilyId, members, friendPeople, uid, isParent, family, user, activeProfile } = useApp();
   const access = useCompanyAccess();
   const isCompany = isOrganizationType(family?.type);

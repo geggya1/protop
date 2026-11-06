@@ -169,50 +169,41 @@ export const listMyFamilies = onCall(
         else if (typeof raw === 'string' && raw) ids.add(raw);
       };
 
-      try {
-        const userSnap = await db.doc(`users/${uid}`).get();
-        if (userSnap.exists) {
-          const d = userSnap.data() || {};
-          addIds(d.familyIds);
-          addIds(d.familyId);
-          addIds(d.activeFamilyId);
-        }
-      } catch (e) {
-        logger.warn('listMyFamilies users read', e);
-      }
-
-      try {
-        const parentSnap = await db.doc(`parents/${uid}`).get();
-        if (parentSnap.exists) {
-          const d = parentSnap.data() || {};
-          addIds(d.familyIds);
-          addIds(d.familyId);
-        }
-      } catch (e) {
-        logger.warn('listMyFamilies parents read', e);
-      }
-
-      try {
-        const [mSnap, aSnap, oSnap] = await Promise.all([
+      // Alle kildene leses samtidig (før gikk de etter hverandre, ca. 30 rundturer med 10 grupper).
+      const settle = (label, promise) => promise.catch((e) => {
+        logger.warn(`listMyFamilies ${label}`, e);
+        return null;
+      });
+      const [userSnap, parentSnap, familySnaps, cg] = await Promise.all([
+        settle('users read', db.doc(`users/${uid}`).get()),
+        settle('parents read', db.doc(`parents/${uid}`).get()),
+        settle('family queries', Promise.all([
           db.collection('families').where('members', 'array-contains', uid).get(),
           db.collection('families').where('adminUids', 'array-contains', uid).get(),
           db.collection('families').where('ownerUid', '==', uid).get(),
-        ]);
+        ])),
+        settle('collectionGroup parents', db.collectionGroup('parents').where('uid', '==', uid).limit(50).get()),
+      ]);
+      if (userSnap?.exists) {
+        const d = userSnap.data() || {};
+        addIds(d.familyIds);
+        addIds(d.familyId);
+        addIds(d.activeFamilyId);
+      }
+      if (parentSnap?.exists) {
+        const d = parentSnap.data() || {};
+        addIds(d.familyIds);
+        addIds(d.familyId);
+      }
+      if (familySnaps) {
+        const [mSnap, aSnap, oSnap] = familySnaps;
         [...mSnap.docs, ...aSnap.docs, ...oSnap.docs].forEach((d) => ids.add(d.id));
-      } catch (e) {
-        logger.warn('listMyFamilies family queries', e);
       }
-
-      try {
-        const cg = await db.collectionGroup('parents').where('uid', '==', uid).limit(50).get();
-        cg.docs.forEach((d) => {
-          if (!memberDocGrantsAccess(d.data() || {})) return;
-          const famRef = d.ref.parent?.parent;
-          if (famRef?.id) ids.add(famRef.id);
-        });
-      } catch (e) {
-        logger.warn('listMyFamilies collectionGroup parents', e);
-      }
+      (cg?.docs || []).forEach((d) => {
+        if (!memberDocGrantsAccess(d.data() || {})) return;
+        const famRef = d.ref.parent?.parent;
+        if (famRef?.id) ids.add(famRef.id);
+      });
 
       // Direct parents/{uid} under each candidate is already covered; also try
       // document-id path families/*/parents/{uid} via collectionGroup doc id is not
@@ -245,14 +236,20 @@ export const listMyFamilies = onCall(
         return false;
       };
 
-      const families = [];
-      for (const id of ids) {
+      // Gruppene og tilgangen sjekkes samtidig for alle kandidatene.
+      const idList = [...ids];
+      const snaps = idList.length
+        ? await db.getAll(...idList.map((id) => db.doc(`families/${id}`))).catch(async (e) => {
+          logger.warn('listMyFamilies getAll', e);
+          return Promise.all(idList.map((id) => db.doc(`families/${id}`).get().catch(() => null)));
+        })
+        : [];
+      const rows = await Promise.all(snaps.map(async (snap) => {
         try {
-          const snap = await db.doc(`families/${id}`).get();
-          if (!snap.exists) continue;
+          if (!snap?.exists) return null;
           const data = snap.data() || {};
-          if (data.deleted === true || data.hiddenFromApp === true) continue;
-          if (!(await uidHasLiveAccess(id, data))) continue;
+          if (data.deleted === true || data.hiddenFromApp === true) return null;
+          if (!(await uidHasLiveAccess(snap.id, data))) return null;
           // Strip secrets / sensitive fields before returning to client.
           const {
             joinCode,
@@ -262,11 +259,13 @@ export const listMyFamilies = onCall(
             kitchenPinHash,
             ...safe
           } = data;
-          families.push({ id: snap.id, ...safe });
+          return { id: snap.id, ...safe };
         } catch (e) {
-          logger.warn('listMyFamilies family get', id, e);
+          logger.warn('listMyFamilies family get', snap?.id, e);
+          return null;
         }
-      }
+      }));
+      const families = rows.filter(Boolean);
 
       logger.info('listMyFamilies', { uid, count: families.length });
       return { ok: true, families };

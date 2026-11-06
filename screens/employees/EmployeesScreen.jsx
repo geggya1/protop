@@ -1,9 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import StorageImage from '../../components/StorageImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { employeeLevelIds, levelById, placedLevelId } from '../../src/access/companyAccess';
 import {
   applyInviteSendResult,
@@ -13,7 +23,6 @@ import {
   employeeMatchEmails,
   inviteDeliveryError,
   inviteLevelFor,
-  inviteStatusLabel,
   matchEmployeeByEmail,
   placedAccessLevel,
   queueEmployeeInvite,
@@ -32,7 +41,7 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { isSuperAdmin } from '../../src/utils/groups';
 import { useColors } from '../../src/context/ThemeContext';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { downloadBytes } from '../../src/indeksregulering/office';
@@ -95,18 +104,11 @@ import {
   watchEmployees,
 } from '../../src/employees/storage';
 import EmployeeCvView from './EmployeeCvView';
-import EmployeeDetailView from './EmployeeDetailView';
 import { useShellDetail } from '../../src/navigation/shellDetail';
 import { ansattSelfView } from '../../src/navigation/shellModules';
 import { DetailMissing } from '../../src/ui/BackLink';
 import EmployeePersonChrome from './EmployeePersonChrome';
-import ArbeidScreen from '../arbeid/ArbeidScreen';
-import EconomyHours from '../economy/EconomyHours';
-import TimesaldoScreen from '../arbeid/TimesaldoScreen';
-import { AbsenceOverviewScreen, MyOverviewScreen } from '../arbeid/AbsenceScreens';
-import { ProjectExpensesScreen } from '../arbeid/OpsScreens';
 import EmployeeWorkViews from './EmployeeWorkViews';
-import EmployeeFields from './EmployeeFields';
 import EmployeeInvitePanel from './EmployeeInvitePanel';
 import RegisterEmployeeDialog from './RegisterEmployeeDialog';
 import EmployeeUsagePanel from './EmployeeUsagePanel';
@@ -125,9 +127,18 @@ import { loadProjectState } from '../../src/project/storage';
 import {
   EMPLOYEE_DETAIL_TABS, EMPLOYEE_SETTINGS_SUBS, EMPLOYEE_SUB_TABS, PERSON_FILL_VIEWS, PERSON_VIEWS, employeeTabViews, employeeViewToTab,
 } from '../../src/employees/personTabs.js';
-import EmployeeEarningsSheet from '../../components/economy/EmployeeEarningsSheet';
 import { companyDisplayName } from '../../src/utils/companyName';
 import { radius } from '../../src/ui/tokens';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const ProjectExpensesScreen = lazyScreen(() => import('../economy/ProjectExpensesScreen'), { name: 'ProjectExpensesScreen', pick: 'ProjectExpensesScreen' });
+const AbsenceOverviewScreen = lazyScreen(() => import('../arbeid/AbsenceScreens'), { name: 'AbsenceOverviewScreen', pick: 'AbsenceOverviewScreen' });
+const MyOverviewScreen = lazyScreen(() => import('../arbeid/AbsenceScreens'), { name: 'MyOverviewScreen', pick: 'MyOverviewScreen' });
+const TimesaldoScreen = lazyScreen(() => import('../arbeid/TimesaldoScreen'), { name: 'TimesaldoScreen' });
+const EmployeeEarningsSheet = lazyScreen(() => import('../../components/economy/EmployeeEarningsSheet'), { name: 'EmployeeEarningsSheet', silent: true });
+const EmployeeFields = lazyScreen(() => import('./EmployeeFields'), { name: 'EmployeeFields', silent: true });
+const EmployeeDetailView = lazyScreen(() => import('./EmployeeDetailView'), { name: 'EmployeeDetailView', silent: true });
+const EconomyHours = lazyScreen(() => import('../economy/EconomyHours'), { name: 'EconomyHours', silent: true });
+const ArbeidScreen = lazyScreen(() => import('../arbeid/ArbeidScreen'), { name: 'ArbeidScreen' });
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -151,8 +162,9 @@ export default function EmployeesScreen({ subView = null } = {}) {
   // Bedrift › Ansatt: egen side (Min side, Gjøremål, Fravær, Utlegg). Null = ansattregisteret.
   const selfRoute = ansattSelfView(subView);
   const colors = useColors();
-  const { isDesktop, isPhone } = useLayout();
-  const { familyId, family, members, uid, user, userProfile, requestShellTab, shellIntent, clearShellIntent } = useApp();
+  const { isDesktop, isPhone } = useBreakpoints();
+  const { familyId, family, members, uid, user, userProfile, requestShellTab, clearShellIntent } = useApp();
+  const { shellIntent } = useShellNav();
   const leaving = useLeaveCompany();
   const access = useCompanyAccess();
   // «Tillat AI-funksjoner» (L-09): av = importen leses lokalt, CV fra PDF/bilde gir beskjed.
@@ -2002,7 +2014,7 @@ export default function EmployeesScreen({ subView = null } = {}) {
                   style={styles.identity}
                 >
                   {row.person.photoUrl ? (
-                    <Image source={{ uri: row.person.photoUrl }} style={styles.avatarSmall} />
+                    <StorageImage uri={row.person.photoUrl} style={styles.avatarSmall} />
                   ) : (
                     <View style={[styles.avatarSmall, styles.avatarFallback, { backgroundColor: colors.sunken }]}>
                       <Text style={{ color: colors.ink, fontWeight: '400', fontSize: 12 }}>{initials(row)}</Text>

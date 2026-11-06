@@ -3,7 +3,13 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 import { hmsCardAlerts, siteOverviewCsv, siteOverviewRows } from '../../src/hr/hmsCard';
 import { filterHrEmployees, localIsoDate } from '../../src/hr/model';
 import { hrKindBucket } from '../../src/hr/directory';
-import { EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle } from './HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
 
 const HMS_CHOICES = [
   { id: '', label: 'Følg næringskoden' },

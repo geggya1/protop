@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Oppfølging: alle oppfølgingspunkter fra møtene på ett sted, gruppert på
  * ansvarlig, frist eller møte. Forfalte står øverst.
@@ -7,9 +8,14 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import { actionCounts, collectActions, daysBetween, shortDate } from '../../src/meetings/model';
-import {
-  Avatar, Card, Choice, Empty, Pill, SearchBox, SectionHead, Stat,
-} from './meetingUi';
+const Avatar = lazyScreen(() => import('./meetingUi'), { name: 'Avatar', pick: 'Avatar', silent: true });
+const Card = lazyScreen(() => import('./meetingUi'), { name: 'Card', pick: 'Card', silent: true });
+const Choice = lazyScreen(() => import('./meetingUi'), { name: 'Choice', pick: 'Choice', silent: true });
+const Empty = lazyScreen(() => import('./meetingUi'), { name: 'Empty', pick: 'Empty', silent: true });
+const Pill = lazyScreen(() => import('./meetingUi'), { name: 'Pill', pick: 'Pill', silent: true });
+const SearchBox = lazyScreen(() => import('./meetingUi'), { name: 'SearchBox', pick: 'SearchBox', silent: true });
+const SectionHead = lazyScreen(() => import('./meetingUi'), { name: 'SectionHead', pick: 'SectionHead', silent: true });
+const Stat = lazyScreen(() => import('./meetingUi'), { name: 'Stat', pick: 'Stat', silent: true });
 
 const FILTERS = [
   { id: 'apne', label: 'Åpne' },

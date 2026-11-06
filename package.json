@@ -5,9 +5,11 @@
   "main": "index.js",
   "scripts": {
     "prepare": "git config core.hooksPath .githooks || true",
+    "prestart": "node scripts/gen-i18n-dicts.mjs",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
+    "preweb": "node scripts/gen-i18n-dicts.mjs",
     "web": "expo start --web",
     "clean": "node -e \"const fs=require('fs'); for (const d of ['dist','web-build','.expo']) { try { fs.rmSync(d,{recursive:true,force:true}); } catch {} }\"",
     "export:web": "cross-env EXPO_NO_STATIC_RENDERING=1 expo export --platform web --output-dir dist",
@@ -24,7 +26,7 @@
     "sync:logo": "node scripts/sync-brand-logo.js",
     "deploy": "npx firebase deploy --only hosting --project protop-c189c",
     "publish:web": "npm run build:web && npm run verify:dist && npm run deploy",
-    "build:web": "npm run clean && node scripts/export-web-with-build-id.js && npm run stamp:web",
+    "build:web": "npm run clean && npm run gen:i18n && node scripts/export-web-with-build-id.js && npm run stamp:web",
     "typecheck": "tsc --noEmit",
     "doctor": "npx expo-doctor",
     "prebuild:native": "npx expo prebuild --clean",
@@ -35,7 +37,8 @@
     "submit:ios": "eas submit --platform ios --profile production",
     "submit:android": "eas submit --platform android --profile production",
     "submit:native": "eas submit --platform all --profile production",
-    "generate:responsive-images": "node scripts/generate-responsive-images.mjs"
+    "generate:responsive-images": "node scripts/generate-responsive-images.mjs",
+    "gen:i18n": "node scripts/gen-i18n-dicts.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

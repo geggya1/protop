@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateInput from '../../components/DateInput';
 import OptionPicker from '../../components/OptionPicker';
-import LocationPicker from '../../components/LocationPicker';
 import { interpretAvtale } from '../../src/indeksregulering/aiClient';
 import { extractContractText, MAX_LOCAL_PDF_BYTES, pdfTextLooksReadable } from '../../src/indeksregulering/extractText';
 import { emptyDraft } from '../../src/indeksregulering/engine';
@@ -36,14 +35,16 @@ import { agreementSummary, emailLooksLikeSupplier, registerConfirmText, reviewFl
 import { ensureAgreementOriginal } from '../../src/anbud/contractFiles';
 import { AGREEMENT_IMPORT_ACCEPT, documentHasOriginalFile, documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
 import { pickDocument } from '../../src/utils/media';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import AgreementAssigneesField from './AgreementAssigneesField';
-import AgreementCustomerField from './AgreementCustomerField';
 import AgreementDocumentPreview from './AgreementDocumentPreview';
 import AgreementPersonField from './AgreementPersonField';
 import AgreementProjectField from './AgreementProjectField';
 import FileDropZone from './FileDropZone';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const AgreementCustomerField = lazyScreen(() => import('./AgreementCustomerField'), { name: 'AgreementCustomerField', silent: true });
+const LocationPicker = lazyScreen(() => import('../../components/LocationPicker'), { name: 'LocationPicker', silent: true });
 
 const DATE_FIELD_KEYS = new Set(['start', 'end', 'contractDate', 'renewalUntil']);
 
@@ -424,7 +425,7 @@ export default function DirectAgreementForm({
     ramme: false,
     opsjoner: false,
   });
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const splitPreview = !isPhone;
 
   useEffect(() => {

@@ -83,14 +83,14 @@ function loadJsx(rel) {
       };
     }
     if (id.includes('AppContext')) {
-      return {
+      return ((m) => ({ ...m, useShellNav: () => { const a = (m.useApp && m.useApp()) || {}; return { shellIntent: a.shellIntent ?? null, shellNav: a.shellNav ?? null }; } }))({
         useApp: () => ({
           familyId: 'F',
           user: { email: 'ada@protop.no', displayName: 'Ada' },
           uid: 'ada',
           activeProfile: { name: 'Ada' },
         }),
-      };
+      });
     }
     if (id.includes('employees/storage')) return { watchEmployees: () => () => {} };
     if (id.includes('CompanyDataContext')) return companyData;

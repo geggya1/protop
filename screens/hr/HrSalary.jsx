@@ -10,12 +10,15 @@ import {
   salarySeriesWithPercents,
   upsertSalary,
 } from '../../src/hr/model';
-import {
-  EmptyHint, HrButton, HrCard, HrSectionTitle, SalarySparkline,
-} from './HrShared';
 import HrSalaryEntryModal from './HrSalaryEntryModal';
 import EmployeeMileageCard from '../../components/mileage/EmployeeMileageCard';
 import { radius, type } from '../../src/ui/tokens';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
+const SalarySparkline = lazyScreen(() => import('./HrShared'), { name: 'SalarySparkline', pick: 'SalarySparkline', silent: true });
 
 function SalaryRow({ colors, row, canWrite, onEdit }) {
   const body = (

@@ -1,11 +1,9 @@
-/** Escape text for HTML mail bodies. */
+/** Escape text for HTML (mail bodies, print views, map popups, EHF). null/undefined → ''. */
 export function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return String(value ?? '').replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
+
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
 export function looksLikeHtml(value) {
   return /<[a-z][\s\S]*>/i.test(String(value || ''));

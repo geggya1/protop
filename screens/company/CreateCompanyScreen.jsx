@@ -17,7 +17,7 @@ import { companyChoice, registerCompany, requestCompanyAccess } from '../../src/
 import { dpaAcceptanceRecord } from '../../src/privacy/companyPrivacy';
 import { logConsent } from '../../src/utils/consents';
 import CheckBox from '../../components/CheckBox';
-import LegalDocumentModal from '../../components/LegalDocumentModal';
+import LegalDocumentModal from '../../components/LegalDocumentModalLazy';
 
 export default function CreateCompanyScreen() {
   const colors = useColors();

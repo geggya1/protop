@@ -74,3 +74,4 @@ e2e-out/
 .e2e-firebase.json
 .e2e-storage.rules
 .claude/worktrees/
+.e2e-ready

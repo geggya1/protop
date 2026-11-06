@@ -9,10 +9,12 @@ import {
 import { csvFileName, downloadCsv } from '../../src/surveys/csv';
 import { chartColorsFor } from '../../src/ui/chartColors';
 import { showSaveToast } from '../../src/ui/saveToast';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { radius, space, type } from '../../src/ui/tokens';
-import { HrButton, HrChip } from '../hr/HrShared';
 import { formatNbDate } from '../../src/hr/model';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('../hr/HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
 
 /** Avrundede ender på søylene (diagrammenes merker). */
 const MARK_RADIUS = 4;
@@ -220,7 +222,7 @@ function FollowUpRow({ colors, row, canWrite, onFollowUp }) {
 export default function CustomerSurveyResults({
   colors, survey, results, analysis, canWrite, onFollowUp,
 }) {
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const [table, setTable] = useState(false);
   const sent = survey.stats.sent || 0;
   const pct = sent ? Math.min(100, Math.round((results.count / sent) * 100)) : null;

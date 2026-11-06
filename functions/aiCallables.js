@@ -16,24 +16,9 @@ import './geminiEnv.js';
 import { touchGeminiEnv } from './geminiEnv.js';
 import { handleAiChat } from './aiChat.js';
 import { handleAiVoiceNote } from './aiVoiceNote.js';
-import {
-  handleAiImportPlan,
-  handleApplyAiImport,
-  handleDiscardAiImport,
-} from './aiImport.js';
-import { handleAiMealIngredients } from './aiMealPlan.js';
-import { handleAiRecipeImport } from './aiRecipeImport.js';
 import { handleAiReceiptOcr } from './aiReceiptOcr.js';
 import { handleMileageRates } from './mileageRates.js';
-import { handleAiClassListOcr } from './aiClassListOcr.js';
 import { handleInterpretImport } from './importInterpret.js';
-import {
-  handleAiMatcoachWeeklyPlan,
-  handleAiMatcoachFridgeScan,
-  handleAiMatcoachLunchBoxes,
-  handleAiMatcoachSwapMeal,
-} from './aiMatcoach.js';
-import { handleAiTutor } from './aiTutor.js';
 import { handleUploadDocument } from './uploadDocument.js';
 import { handleUploadStorageFile, handleDownloadStorageFile, handleApplyStorageCors } from './uploadStorage.js';
 import { runAiCleanup } from './aiCleanup.js';
@@ -101,70 +86,6 @@ export const aiVoiceNote = onCall(
   },
 );
 
-/** Leksehjelpen — sokratisk steg-for-steg veileder (barn + foresatte). */
-export const aiTutor = onCall(
-  {
-    region: 'europe-west1',
-    // Litt slakk: cold start + parallell modell-race skal ikke treffe deadline.
-    timeoutSeconds: 120,
-    memory: '1GiB',
-    cpu: 1,
-    cors: true,
-  },
-  async (req) => {
-    try {
-      touchGeminiEnv();
-      const uid = requireAuth(req.auth);
-      // Time for en ekte lekseøkt uten burst-stopp midtveis.
-      await guardAiBurst(uid, 'tutor', 45, 100);
-      return await handleAiTutor(req.data, req.auth);
-    } catch (error) {
-      logger.warn('aiTutor failed', { message: error?.message });
-      rethrowCallable(error, 'Klarte ikke starte Leksehjelpen.');
-    }
-  },
-);
-
-/** Generer handleliste-ingredienser for en middag (kun foresatte). */
-export const aiMealIngredients = onCall(
-  {
-    region: 'europe-west1',
-    timeoutSeconds: 60,
-    memory: '256MiB',
-    cors: true,
-  },
-  async (req) => {
-    try {
-      const uid = requireAuth(req.auth);
-      await guardAiBurst(uid, 'meal', 15, 40);
-      return await handleAiMealIngredients(req.data, req.auth);
-    } catch (error) {
-      logger.warn('aiMealIngredients failed', { message: error?.message });
-      rethrowCallable(error, 'Klarte ikke generere handleliste for middagen.');
-    }
-  },
-);
-
-/** Importer oppskrift fra bilde eller nettside-URL (kun foresatte). */
-export const aiRecipeImport = onCall(
-  {
-    region: 'europe-west1',
-    timeoutSeconds: 120,
-    memory: '512MiB',
-    cors: true,
-  },
-  async (req) => {
-    try {
-      const uid = requireAuth(req.auth);
-      await guardAiBurst(uid, 'meal', 15, 40);
-      return await handleAiRecipeImport(req.data, req.auth);
-    } catch (error) {
-      logger.warn('aiRecipeImport failed', { message: error?.message });
-      rethrowCallable(error, 'Klarte ikke tolke oppskriften.');
-    }
-  },
-);
-
 /**
  * OCR kvittering/faktura → regnskapsbilag. Utlegg (purpose 'expense'): skann av store bilder
  * og to tolkerunder, derfor mer minne og tid.
@@ -210,26 +131,6 @@ export const mileageRates = onCall(
   },
 );
 
-/** OCR klasseliste (papir/bilde) → elever, foresatte, lærere. */
-export const aiClassListOcr = onCall(
-  {
-    region: 'europe-west1',
-    timeoutSeconds: 120,
-    memory: '512MiB',
-    cors: true,
-  },
-  async (req) => {
-    try {
-      const uid = requireAuth(req.auth);
-      await guardAiBurst(uid, 'import', 20, 60);
-      return await handleAiClassListOcr(req.data, req.auth);
-    } catch (error) {
-      logger.warn('aiClassListOcr failed', { message: error?.message });
-      rethrowCallable(error, 'Klarte ikke tolke klasselisten.');
-    }
-  },
-);
-
 /** OCR og kolonne-tolking av kundelister, medarbeiderlister og CV-er. */
 export const interpretImport = onCall(
   {
@@ -250,124 +151,6 @@ export const interpretImport = onCall(
   },
 );
 
-/** AI Matcoach — generer familietilpasset middagsuke. */
-export const aiMatcoachWeeklyPlan = onCall(
-  {
-    region: 'europe-west1',
-    timeoutSeconds: 90,
-    memory: '512MiB',
-    cors: true,
-  },
-  async (req) => {
-    try {
-      const uid = requireAuth(req.auth);
-      await guardAiBurst(uid, 'meal', 15, 40);
-      return await handleAiMatcoachWeeklyPlan(req.data, req.auth);
-    } catch (error) {
-      logger.warn('aiMatcoachWeeklyPlan failed', { message: error?.message });
-      rethrowCallable(error, 'Klarte ikke lage AI-ukeplan.');
-    }
-  },
-);
-
-/** AI Matcoach — skann kjøleskap (bilde eller tekstliste). */
-export const aiMatcoachFridgeScan = onCall(
-  {
-    region: 'europe-west1',
-    timeoutSeconds: 90,
-    memory: '512MiB',
-    cors: true,
-  },
-  async (req) => {
-    try {
-      const uid = requireAuth(req.auth);
-      await guardAiBurst(uid, 'meal', 15, 40);
-      return await handleAiMatcoachFridgeScan(req.data, req.auth);
-    } catch (error) {
-      logger.warn('aiMatcoachFridgeScan failed', { message: error?.message });
-      rethrowCallable(error, 'Klarte ikke skanne kjøleskapet.');
-    }
-  },
-);
-
-/** AI Matcoach — matpakkeuke. */
-export const aiMatcoachLunchBoxes = onCall(
-  {
-    region: 'europe-west1',
-    timeoutSeconds: 60,
-    memory: '256MiB',
-    cors: true,
-  },
-  async (req) => {
-    try {
-      const uid = requireAuth(req.auth);
-      await guardAiBurst(uid, 'meal', 15, 40);
-      return await handleAiMatcoachLunchBoxes(req.data, req.auth);
-    } catch (error) {
-      logger.warn('aiMatcoachLunchBoxes failed', { message: error?.message });
-      rethrowCallable(error, 'Klarte ikke lage matpakker.');
-    }
-  },
-);
-
-/** AI Matcoach — bytt én middag i planen. */
-export const aiMatcoachSwapMeal = onCall(
-  {
-    region: 'europe-west1',
-    timeoutSeconds: 60,
-    memory: '256MiB',
-    cors: true,
-  },
-  async (req) => {
-    try {
-      const uid = requireAuth(req.auth);
-      await guardAiBurst(uid, 'meal', 15, 40);
-      return await handleAiMatcoachSwapMeal(req.data, req.auth);
-    } catch (error) {
-      logger.warn('aiMatcoachSwapMeal failed', { message: error?.message });
-      rethrowCallable(error, 'Klarte ikke bytte rett.');
-    }
-  },
-);
-
-/** Analyser skole-/ukeplan-bilde → forslag til godkjenning (kun foresatte). */
-export const aiImportPlan = onCall(
-  {
-    region: 'europe-west1',
-    timeoutSeconds: 180,
-    memory: '1GiB',
-    cors: true,
-  },
-  async (req) => {
-    try {
-      const uid = requireAuth(req.auth);
-      await guardAiBurst(uid, 'import', 8, 30);
-      return await handleAiImportPlan(req.data, req.auth);
-    } catch (error) {
-      logger.warn('aiImportPlan failed', { message: error?.message });
-      rethrowCallable(error, 'Klarte ikke analysere dokumentet.');
-    }
-  },
-);
-
-/** Lagre godkjente AI-forslag på barnet. */
-export const applyAiImport = onCall(
-  {
-    region: 'europe-west1',
-    timeoutSeconds: 60,
-    memory: '256MiB',
-    cors: true,
-  },
-  async (req) => {
-    try {
-      return await handleApplyAiImport(req.data, req.auth);
-    } catch (error) {
-      logger.warn('applyAiImport failed', { message: error?.message });
-      rethrowCallable(error, 'Klarte ikke lagre forslagene.');
-    }
-  },
-);
-
 /** Planlagt opprydding av utløpte AI-utkast, midlertidige bilder og gamle tellere. */
 export const aiCleanupScheduled = onSchedule(
   {
@@ -379,24 +162,6 @@ export const aiCleanupScheduled = onSchedule(
   async () => {
     const stats = await runAiCleanup();
     logger.info('[aiCleanupScheduled]', stats);
-  },
-);
-
-/** Avvis utkast og slett midlertidig bilde. */
-export const discardAiImport = onCall(
-  {
-    region: 'europe-west1',
-    timeoutSeconds: 30,
-    memory: '256MiB',
-    cors: true,
-  },
-  async (req) => {
-    try {
-      return await handleDiscardAiImport(req.data, req.auth);
-    } catch (error) {
-      logger.warn('discardAiImport failed', { message: error?.message });
-      rethrowCallable(error, 'Klarte ikke avvise utkastet.');
-    }
   },
 );
 
@@ -468,44 +233,6 @@ export const applyStorageCors = onCall(
     } catch (error) {
       logger.warn('applyStorageCors failed', { message: error?.message });
       rethrowCallable(error, 'Klarte ikke oppdatere Storage CORS.');
-    }
-  },
-);
-
-/** Signert URL for familiealbum — støtter fremdriftsbar opplasting (inkl. video). */
-export const createAlbumUploadUrl = onCall(
-  {
-    region: 'europe-west1',
-    timeoutSeconds: 30,
-    memory: '256MiB',
-    cors: true,
-  },
-  async (req) => {
-    try {
-      const { handleCreateAlbumUploadUrl } = await import('./uploadAlbum.js');
-      return await handleCreateAlbumUploadUrl(req.data, req.auth);
-    } catch (error) {
-      logger.warn('createAlbumUploadUrl failed', { message: error?.message });
-      rethrowCallable(error, 'Klarte ikke starte album-opplasting.');
-    }
-  },
-);
-
-/** Base64-opplasting for album-varianter / mindre filer (≤ 15 MB). */
-export const uploadAlbumFile = onCall(
-  {
-    region: 'europe-west1',
-    timeoutSeconds: 120,
-    memory: '512MiB',
-    cors: true,
-  },
-  async (req) => {
-    try {
-      const { handleUploadAlbumFile } = await import('./uploadAlbum.js');
-      return await handleUploadAlbumFile(req.data, req.auth);
-    } catch (error) {
-      logger.warn('uploadAlbumFile failed', { message: error?.message });
-      rethrowCallable(error, 'Klarte ikke laste opp til album.');
     }
   },
 );

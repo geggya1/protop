@@ -14,7 +14,8 @@ import {
 import { workGeocodeQuery } from '../../src/anbud/workMap';
 import { useParentBottomNavChrome } from '../../src/hooks/useParentBottomNavChrome';
 import { BREAKPOINTS } from '../../src/theme';
-import TenderMap from './TenderMap';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const TenderMap = lazyScreen(() => import('./TenderMap'), { name: 'TenderMap', silent: true });
 
 let createPortal = null;
 if (Platform.OS === 'web') {

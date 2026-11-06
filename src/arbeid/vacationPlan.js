@@ -10,6 +10,7 @@
  */
 
 import { kindOf } from '../employees/employmentFlags.js';
+import { escapeHtml } from '../utils/mailHtml.js';
 
 export const VACATION_PLAN_DEFAULTS = {
   ordinaryDays: 25,
@@ -465,14 +466,6 @@ export function planningPhaseLabel(phase) {
   if (phase === 'overdue') return 'Fristen er passert';
   if (phase === 'locked') return 'Planleggingen er låst';
   return 'Åpen for planlegging';
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function dayText(value) {

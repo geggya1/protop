@@ -1,11 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { HrButton, HrCard, HrChip, HrField, HrSectionTitle } from './HrShared';
 import { controlMeasuresSummary } from '../../src/hr/controlMeasures';
 import { loadControlMeasures, saveControlMeasures } from '../../src/hr/controlMeasuresStorage';
 import { formatNbDate, localIsoDate } from '../../src/hr/model';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { type } from '../../src/ui/tokens';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
 
 /** Register over kontrolltiltak etter aml kap. 9 (brukslogg, produktivitet, AI-kontroll). HR → Lovpålagt. */
 export default function ControlMeasuresCard({ colors, familyId, canWrite }) {

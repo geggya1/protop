@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, StyleSheet, ScrollView } from 'react-native';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import { MODULE_CATALOG } from '../../src/modules/moduleActivationRegistry';
 import { Screen } from '../../components/ui';
 import CompactBackLink from '../../components/CompactBackLink';
@@ -14,7 +14,7 @@ import { UnlessShellTitle } from '../../src/ui/ShellTitles';
  * Modulinnstillinger av den som har tilgangen (eier, administrator, Admin på Modulinnstillinger).
  */
 export default function ModuleAccessSettingsScreen({ onBack }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const reassurance = MODULE_CATALOG?.defaults?.reassuranceText || '';
   const { isCompany } = useModuleAccess();
   const scope = useModuleWriteScope();

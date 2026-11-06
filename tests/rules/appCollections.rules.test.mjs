@@ -118,12 +118,9 @@ describe('profil og innboks', () => {
     await assertSucceeds(getDocs(query(collection(as('kid'), 'children'), where('uid', '==', 'kid'))));
   });
 
-  test('spillinvitasjon og venneforespørsel kan legges i andres innboks i eget navn', async () => {
-    await assertSucceeds(setDoc(doc(as('mor'), 'users', 'ola', 'gameInvites', 'chess_g1'), {
+  test('venneforespørsel kan legges i andres innboks i eget navn; spillinvitasjoner er stengt', async () => {
+    await assertFails(setDoc(doc(as('mor'), 'users', 'ola', 'gameInvites', 'chess_g1'), {
       status: 'pending', inviteeUid: 'ola', hostUid: 'mor', gameId: 'g1', gameType: 'chess',
-    }));
-    await assertFails(setDoc(doc(as('mor'), 'users', 'ola', 'gameInvites', 'chess_g2'), {
-      status: 'pending', inviteeUid: 'ola', hostUid: 'ext', gameId: 'g2', gameType: 'chess',
     }));
     await assertSucceeds(setDoc(doc(as('ext'), 'users', 'ola', 'friendRequests', 'r1'), {
       status: 'pending', fromUid: 'ext', toUid: 'ola',
@@ -134,13 +131,17 @@ describe('profil og innboks', () => {
   });
 
   test('deling til venn krever vennskap; den andre kan fjerne seg fra vennelisten', async () => {
-    await assertSucceeds(setDoc(doc(as('ola'), 'users', 'mor', 'sharedAlbums', 'a1'), {
+    await assertSucceeds(setDoc(doc(as('ola'), 'users', 'mor', 'sharedDocuments', 'd1'), {
+      folderId: 'd1', sharedBy: 'ola', kind: 'document',
+    }));
+    await assertFails(setDoc(doc(as('ext'), 'users', 'mor', 'sharedDocuments', 'd2'), {
+      folderId: 'd2', sharedBy: 'ext', kind: 'document',
+    }));
+    await assertSucceeds(deleteDoc(doc(as('ola'), 'users', 'mor', 'sharedDocuments', 'd1')));
+    // Album fantes bare i familieproduktet: kan ikke deles på nytt.
+    await assertFails(setDoc(doc(as('ola'), 'users', 'mor', 'sharedAlbums', 'a1'), {
       albumId: 'a1', sharedBy: 'ola', kind: 'album',
     }));
-    await assertFails(setDoc(doc(as('ext'), 'users', 'mor', 'sharedAlbums', 'a2'), {
-      albumId: 'a2', sharedBy: 'ext', kind: 'album',
-    }));
-    await assertSucceeds(deleteDoc(doc(as('ola'), 'users', 'mor', 'sharedAlbums', 'a1')));
     await assertSucceeds(deleteDoc(doc(as('ola'), 'users', 'mor', 'friends', 'ola')));
     await assertFails(deleteDoc(doc(as('ext'), 'users', 'ola', 'friends', 'mor')));
   });
@@ -207,8 +208,10 @@ describe('oppslag', () => {
   });
 
   test('felles kataloger er skrivebeskyttet', async () => {
-    await assertSucceeds(getDocs(collection(as('ext'), 'recipeCatalog')));
-    await assertFails(setDoc(doc(as('ext'), 'recipeCatalog', 'r2'), { title: 'x' }));
+    await assertSucceeds(getDocs(collection(as('ext'), 'templates')));
+    await assertFails(setDoc(doc(as('ext'), 'templates', 't2'), { title: 'x' }));
+    // Oppskriftskatalogen hørte til familieproduktet og er stengt.
+    await assertFails(getDocs(collection(as('ext'), 'recipeCatalog')));
   });
 });
 

@@ -2103,11 +2103,7 @@ service cloud.firestore {
           && request.resource.data.get('inviteeUid', '') == resource.data.get('inviteeUid', '');
       }
 
-      match /gameInvites/{id} {
-        allow create: if isSignedIn()
-          && request.resource.data.get('hostUid', '') == request.auth.uid
-          && request.resource.data.get('inviteeUid', '') == uid;
-      }
+      // Spillinvitasjoner (gameInvites) fantes bare i familieproduktet og kan ikke lenger skrives.
 
       match /friendRequests/{id} {
         allow create: if isSignedIn()
@@ -2122,7 +2118,9 @@ service cloud.firestore {
       }
 
       match /{shared}/{itemId} {
-        allow create, update: if shared in ['sharedAlbums', 'sharedWishlists', 'sharedDocuments', 'sharedShoppingLists', 'sharedEvents']
+        // Venner deler dokumenter og hendelser. Album, ønskelister og handlelister fantes bare i
+        // familieproduktet: eksisterende delinger kan fjernes, men ikke lages på nytt.
+        allow create, update: if shared in ['sharedDocuments', 'sharedEvents']
           && isFriendOf(uid)
           && request.resource.data.get('sharedBy', '') == request.auth.uid;
         allow delete: if shared in ['sharedAlbums', 'sharedWishlists', 'sharedDocuments', 'sharedShoppingLists', 'sharedEvents']
@@ -2304,10 +2302,6 @@ service cloud.firestore {
     }
 
     /* ───────── Felles kataloger (skrives av ProTop) ───────── */
-    match /recipeCatalog/{id} {
-      allow read: if isSignedIn();
-    }
-
     match /templates/{id} {
       allow read: if isSignedIn();
     }

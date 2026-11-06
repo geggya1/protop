@@ -138,6 +138,28 @@ const colors = {
   bg: '#fafafa', danger: '#dc2626', dangerSoft: '#fee2e2', dangerInk: '#991b1b', placeholder: '#999',
 };
 
+/** Alle knapper (Pressable) i treet: nativeID, onPress og om den er slått av. */
+function pressables(element) {
+  const out = [];
+  walk(withHooks(() => element), (node) => {
+    if (node && node.type && node.type.name === 'Host' && node.props && 'onPress' in node.props) {
+      out.push({ id: node.props.nativeID || '', onPress: node.props.onPress, disabled: !!node.props.disabled });
+    }
+  });
+  return out;
+}
+
+/** Hver knapp som ikke er slått av, gjør noe når den trykkes. */
+function assertAllClickable(element, label) {
+  const buttons = pressables(element);
+  assert.ok(buttons.length > 0, `${label}: ingen knapper`);
+  for (const b of buttons) {
+    if (b.disabled) continue;
+    assert.equal(typeof b.onPress, 'function', `${label}: ${b.id || 'knapp uten id'} gjør ingenting`);
+  }
+  return buttons;
+}
+
 const { EMPLOYEE_SUB_TABS } = load(path.join(ROOT, 'src/employees/personTabs.js'));
 const { default: Layout } = load(path.join(ROOT, 'components/employees/PersonSettingsLayout.jsx'));
 const sections = EMPLOYEE_SUB_TABS.settings;
@@ -228,3 +250,60 @@ view = render(React.createElement(WorkViews, { mode: 'settings', sub: 'close', e
 assert.equal(view.ids.has('employee-settings-close'), false);
 
 console.log('personSettingsRender.test.cjs: ok');
+
+// Hver knapp i Innstillinger gjør noe, og fører til riktig seksjon.
+{
+  phone = false;
+  const picked = [];
+  const progress = {
+    pct: 50, filled: 1, total: 2, missing: [{ section: 'settingsKin', label: 'Pårørende' }],
+    bySection: { settingsKin: { filled: 0, total: 1 } },
+  };
+  const props = {
+    sections, colors, summary, progress, person: { initials: 'AN' }, onSelect: (id) => picked.push(id),
+  };
+  for (const active of ['settingsOverview', 'settingsWork', 'settingsProfile', 'settingsAdmin']) {
+    const buttons = assertAllClickable(React.createElement(Layout, { ...props, active }, React.createElement('Text', null, 'X')), active);
+    for (const b of buttons) b.onPress?.();
+  }
+  for (const section of sections.filter((row) => row.id !== 'settingsOverview')) {
+    assert.ok(picked.includes(section.id), `${section.id} kan åpnes`);
+  }
+  // «Gjør profilen komplett»: knappen for pårørende åpner Pårørende.
+  picked.length = 0;
+  const overview = pressables(React.createElement(Layout, { ...props, active: 'settingsOverview' }));
+  overview.find((b) => b.id === 'employee-settings-missing-settingsKin-P-r-rende').onPress();
+  assert.deepEqual(picked, ['settingsKin']);
+  // Forrige/neste fra Arbeidstid.
+  picked.length = 0;
+  const work = pressables(React.createElement(Layout, { ...props, active: 'settingsWork' }));
+  work.find((b) => b.id === 'employee-settings-prev').onPress();
+  work.find((b) => b.id === 'employee-settings-next').onPress();
+  assert.deepEqual(picked, ['settingsEmployment', 'settingsGeneral']);
+  // Mobil: tilbake til oversikten.
+  phone = true;
+  picked.length = 0;
+  const back = pressables(React.createElement(Layout, { ...props, active: 'settingsKin' }));
+  back.find((b) => b.id === 'employee-settings-back').onPress();
+  assert.deepEqual(picked, ['settingsOverview']);
+  assertAllClickable(React.createElement(Layout, { ...props, active: 'settingsOverview' }), 'mobil oversikt');
+  phone = false;
+}
+
+// Flisene på Min side: hver flis er en knapp som fører til sitt område.
+{
+  const { default: AnsattTiles } = load(path.join(ROOT, 'components/employees/AnsattTiles.jsx'));
+  const { ansattTiles } = load(path.join(ROOT, 'src/employees/ansattAreas.js'));
+  const hit = [];
+  const open = Object.fromEntries(['todo', 'hours', 'absence', 'expenses', 'mileage', 'settings'].map((id) => [id, () => hit.push(id)]));
+  const tiles = ansattTiles({ todo: { open: 1, urgent: 0 }, week: { worked: 5, planned: 10 }, absenceDays: 2, profilePct: 90, open });
+  const element = React.createElement(AnsattTiles, { tiles, colors });
+  const buttons = assertAllClickable(element, 'fliser');
+  assert.deepEqual(buttons.map((b) => b.id), tiles.map((t) => `ansatt-tile-${t.id}`));
+  buttons.forEach((b) => b.onPress());
+  assert.deepEqual(hit, ['todo', 'hours', 'absence', 'expenses', 'mileage', 'settings']);
+  const text = render(element).text;
+  assert.match(text, /Timer denne uken/);
+  assert.match(text, /90 %/);
+}
+

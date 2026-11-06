@@ -58,6 +58,11 @@ const today = new Date(2026, 10, 5, 12);
   const work = weekWork(ledger, today);
   assert.equal(work.planned, 30); // 37,5 minus ferie
   assert.equal(work.worked, 17);
+  // Dag for dag til stolpene: sju dager fra mandag, i dag er markert, summen stemmer.
+  assert.deepEqual(work.days.map((d) => d.label), ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn']);
+  assert.equal(work.days[0].key, '2026-11-02');
+  assert.equal(work.days.filter((d) => d.today).length, 1);
+  assert.equal(Math.round(work.days.reduce((n, d) => n + d.worked, 0) * 10) / 10, work.worked);
   const series = productivitySeries(ledger, 'week', { today });
   assert.equal(series.bars.length, 7);
   assert.equal(series.bars[5].future, true);

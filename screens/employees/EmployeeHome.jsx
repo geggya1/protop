@@ -27,6 +27,8 @@ import { aliasSourceIds } from '../../src/project/companyAlias';
 import { BREAKPOINTS } from '../../src/ui/layout';
 import { elevation, radius, space, type } from '../../src/ui/tokens';
 import EmployeeTodo from './EmployeeTodo';
+import AnsattTiles from '../../components/employees/AnsattTiles';
+import { ANSATT_AREAS, ansattTiles } from '../../src/employees/ansattAreas';
 
 const lift = Platform.OS === 'web' ? elevation[1].web : elevation[1].native;
 
@@ -91,11 +93,18 @@ function Card({ colors, children, style, nativeID }) {
   );
 }
 
-function CardHead({ icon, title, colors, badge, link, onLink, right, nativeID }) {
+function CardHead({
+  icon, title, colors, badge, link, onLink, right, nativeID, color,
+}) {
   return (
     <View style={styles.cardHead}>
       <View style={styles.cardHeadLeft}>
-        {icon ? <Ionicons name={icon} size={18} color={colors.brand} /> : null}
+        {icon && color ? (
+          <View style={[styles.headIcon, { backgroundColor: tint(color, 0.14) }]}>
+            <Ionicons name={icon} size={16} color={color} />
+          </View>
+        ) : null}
+        {icon && !color ? <Ionicons name={icon} size={18} color={colors.brand} /> : null}
         <Text style={[styles.cardTitle, { color: colors.ink }]} numberOfLines={1}>{title}</Text>
         {badge ? (
           <View style={[styles.countBadge, { backgroundColor: colors.brand }]}>
@@ -106,8 +115,8 @@ function CardHead({ icon, title, colors, badge, link, onLink, right, nativeID })
       {right}
       {link && onLink ? (
         <Pressable onPress={onLink} accessibilityRole="link" nativeID={nativeID} style={styles.linkRow} hitSlop={6}>
-          <Text style={[styles.link, { color: colors.brand }]}>{link}</Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.brand} />
+          <Text style={[styles.link, { color: color || colors.brand }]}>{link}</Text>
+          <Ionicons name="chevron-forward" size={14} color={color || colors.brand} />
         </Pressable>
       ) : null}
     </View>
@@ -122,7 +131,9 @@ const STATUS = {
   deleted: { label: 'I papirkurven', tone: 'danger' },
 };
 
-function ProfileCard({ employee, colors, onEdit }) {
+function ProfileCard({
+  employee, colors, onEdit, onSettings, profilePct,
+}) {
   const name = displayName(employee);
   const role = [employee.company?.title, employee.company?.projectRole]
     .map((part) => String(part || '').trim()).filter(Boolean).join(' | ');
@@ -195,6 +206,27 @@ function ProfileCard({ employee, colors, onEdit }) {
           ) : null}
         </View>
       ) : null}
+      {onSettings ? (
+        <Pressable
+          nativeID="employee-home-settings"
+          onPress={onSettings}
+          accessibilityRole="button"
+          accessibilityLabel={profilePct == null ? 'Innstillinger' : `Innstillinger, profilen er ${profilePct} % utfylt`}
+          style={({ hovered }) => [styles.profileSettings, { backgroundColor: hovered ? tint(ANSATT_AREAS.settings.color, 0.12) : colors.sunken }]}
+        >
+          <Ionicons name={ANSATT_AREAS.settings.icon} size={16} color={ANSATT_AREAS.settings.color} />
+          <View style={styles.grow}>
+            <Text style={[type.label, { color: colors.ink }]}>Innstillinger</Text>
+            {profilePct != null ? (
+              <View style={[styles.profileTrack, { backgroundColor: tint(ANSATT_AREAS.settings.color, 0.15) }]}>
+                <View style={[styles.profileFill, { width: `${profilePct}%`, backgroundColor: profilePct >= 100 ? colors.success : ANSATT_AREAS.settings.color }]} />
+              </View>
+            ) : null}
+          </View>
+          {profilePct != null ? <Text style={[type.caption, { color: colors.muted }]}>{`${profilePct} % utfylt`}</Text> : null}
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+        </Pressable>
+      ) : null}
     </Card>
   );
 }
@@ -203,7 +235,7 @@ function Shortcuts({ items, colors }) {
   if (!items.length) return null;
   return (
     <Card colors={colors} nativeID="employee-home-shortcuts">
-      <CardHead icon="flash-outline" title="Snarveier" colors={colors} />
+      <CardHead icon="flash" title="Snarveier" colors={colors} color={colors.brand} />
       <View style={styles.shortcutGrid}>
         {items.map((item) => (
           <Pressable
@@ -299,8 +331,9 @@ function niceMax(value) {
 }
 
 function ProductivityCard({
-  series, mode, onMode, target, colors, loading, compact,
+  series, mode, onMode, target, colors, loading, compact, onReport,
 }) {
+  const hoursColor = ANSATT_AREAS.hours.color;
   const bars = series.bars;
   const top = niceMax(Math.max(...bars.map((b) => Math.max(b.worked, (b.capacity || b.planned) * (target / 100))), 1));
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(top * f));
@@ -310,9 +343,17 @@ function ProductivityCard({
     <Card colors={colors} nativeID="employee-home-productivity">
       <View style={[styles.cardHead, compact && styles.cardHeadWrap]}>
         <View style={styles.cardHeadLeft}>
-          <Ionicons name="bar-chart-outline" size={18} color={colors.brand} />
+          <View style={[styles.headIcon, { backgroundColor: tint(hoursColor, 0.14) }]}>
+            <Ionicons name="bar-chart" size={16} color={hoursColor} />
+          </View>
           <Text style={[styles.cardTitle, { color: colors.ink }]} numberOfLines={1}>{`Produktivitet – ${series.title.toLowerCase()}`}</Text>
         </View>
+        {onReport ? (
+          <Pressable onPress={onReport} accessibilityRole="link" nativeID="employee-home-productivity-report" style={styles.linkRow} hitSlop={6}>
+            <Text style={[styles.link, { color: hoursColor }]}>Timerapport</Text>
+            <Ionicons name="chevron-forward" size={14} color={hoursColor} />
+          </Pressable>
+        ) : null}
         <View accessibilityRole="tablist" style={[styles.segment, { borderColor: colors.line }]}>
           {PERIOD_MODES.map((m) => {
             const active = m.id === mode;
@@ -346,9 +387,12 @@ function ProductivityCard({
                 const billH = (bar.billable / top) * chartH;
                 const otherH = (bar.other / top) * chartH;
                 return (
-                  <View
+                  <Pressable
                     key={bar.key}
-                    style={styles.barSlot}
+                    onPress={onReport}
+                    disabled={!onReport}
+                    style={({ hovered }) => [styles.barSlot, hovered && onReport && { opacity: 0.75 }]}
+                    accessibilityRole={onReport ? 'button' : undefined}
                     accessibilityLabel={`${bar.label}: ${formatHoursShort(bar.billable)} fakturerbart, ${formatHoursShort(bar.other)} øvrig, mulig ${formatHoursShort(bar.capacity)}`}
                   >
                     {goalH > 0 ? (
@@ -356,7 +400,7 @@ function ProductivityCard({
                     ) : null}
                     <View style={[styles.bar, { height: Math.max(0, otherH), backgroundColor: tint(colors.brand, 0.3) }]} />
                     <View style={[styles.bar, styles.barBase, { height: Math.max(0, billH), backgroundColor: colors.brand }]} />
-                  </View>
+                  </Pressable>
                 );
               })}
             </View>
@@ -412,7 +456,8 @@ function ProjectsCard({
   return (
     <Card colors={colors} nativeID="employee-home-projects">
       <CardHead
-        icon="layers-outline"
+        icon={ANSATT_AREAS.projects.icon}
+        color={ANSATT_AREAS.projects.color}
         title={own ? 'Mine prosjekter – sist benyttet' : 'Prosjekter – sist benyttet'}
         colors={colors}
         link={onAll ? 'Se alle prosjekter' : null}
@@ -456,7 +501,7 @@ function ProjectsCard({
           )}
           {compact ? null : (
             <View style={[styles.projectTrack, { backgroundColor: colors.sunken }]}>
-              <View style={[styles.projectFill, { width: `${Math.max(4, (row.hours / max) * 100)}%`, backgroundColor: colors.brand }]} />
+              <View style={[styles.projectFill, { width: `${Math.max(4, (row.hours / max) * 100)}%`, backgroundColor: ANSATT_AREAS.projects.color }]} />
             </View>
           )}
           <Text style={[type.body, styles.projectHours, { color: colors.ink }]}>{formatHoursShort(row.hours)}</Text>
@@ -510,7 +555,7 @@ function AbsenceCard({ data, colors, onAll, loading, title = 'Fravær' }) {
   const dayText = (n) => `${String(n).replace('.', ',')} ${n === 1 ? 'dag' : 'dager'}`;
   return (
     <Card colors={colors} nativeID="employee-home-absence">
-      <CardHead icon="calendar-outline" title={title} colors={colors} link={onAll ? 'Se alle' : null} onLink={onAll} nativeID="employee-home-absence-all" />
+      <CardHead icon={ANSATT_AREAS.absence.icon} color={ANSATT_AREAS.absence.color} title={title} colors={colors} link={onAll ? 'Se alle' : null} onLink={onAll} nativeID="employee-home-absence-all" />
       <View style={styles.absenceBody}>
         <Donut groups={data.groups} total={loading ? 0 : data.total} colors={colors} palette={palette} />
         <View style={styles.absenceList}>
@@ -536,11 +581,55 @@ function AbsenceCard({ data, colors, onAll, loading, title = 'Fravær' }) {
 
 function WeekCard({ data, colors, onDetails }) {
   const pct = data.pct == null ? 0 : Math.min(100, data.pct);
+  const color = ANSATT_AREAS.hours.color;
+  const days = data.days || [];
+  const top = Math.max(1, ...days.map((d) => Math.max(d.worked, d.planned)));
   return (
     <Card colors={colors} nativeID="employee-home-week">
-      <CardHead icon="time-outline" title="Arbeidstid denne uken" colors={colors} link={onDetails ? 'Se detaljer' : null} onLink={onDetails} nativeID="employee-home-week-details" />
-      <View style={[styles.weekTrack, { backgroundColor: colors.sunken }]}>
-        <View style={[styles.weekFill, { width: `${pct}%`, backgroundColor: colors.brand }]} />
+      <CardHead
+        icon={ANSATT_AREAS.hours.icon}
+        color={color}
+        title={data.week ? `Arbeidstid uke ${data.week}` : 'Arbeidstid denne uken'}
+        colors={colors}
+        link={onDetails ? 'Timeliste' : null}
+        onLink={onDetails}
+        nativeID="employee-home-week-details"
+      />
+      {days.length ? (
+        <View style={styles.weekDays} nativeID="employee-home-week-days">
+          {days.map((day) => {
+            const plannedH = (day.planned / top) * 64;
+            const workedH = (day.worked / top) * 64;
+            const met = day.planned > 0 && day.worked >= day.planned;
+            return (
+              <Pressable
+                key={day.key}
+                nativeID={`employee-home-week-day-${day.key}`}
+                onPress={onDetails}
+                disabled={!onDetails}
+                accessibilityRole={onDetails ? 'button' : undefined}
+                accessibilityLabel={`${day.label}: ${formatHoursShort(day.worked)} av ${formatHoursShort(day.planned)}`}
+                style={({ hovered }) => [styles.weekDay, hovered && onDetails && { backgroundColor: colors.sunken }]}
+              >
+                <View style={styles.weekDayPlot}>
+                  {day.planned > 0 ? (
+                    <View style={[styles.weekDayPlan, { height: plannedH, borderColor: tint(color, 0.45) }]} />
+                  ) : null}
+                  <View
+                    style={[styles.weekDayBar, {
+                      height: Math.max(day.worked > 0 ? 4 : 0, workedH),
+                      backgroundColor: met ? colors.success : color,
+                    }]}
+                  />
+                </View>
+                <Text style={[type.caption, { color: day.today ? color : colors.muted, fontWeight: day.today ? '700' : '400' }]}>{day.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+      <View style={[styles.weekTrack, { backgroundColor: tint(color, 0.15) }]}>
+        <View style={[styles.weekFill, { width: `${pct}%`, backgroundColor: color }]} />
       </View>
       <View style={styles.weekStats}>
         <WeekStat value={formatHoursShort(data.worked)} label="Registrert" colors={colors} />
@@ -562,7 +651,9 @@ function WeekStat({ value, label, colors }) {
   );
 }
 
-function TodoCard({ colors, companyId, employee, naeringskode, onOpenTodo }) {
+function TodoCard({
+  colors, companyId, employee, naeringskode, onOpenTodo, onCount,
+}) {
   return (
     <Card colors={colors} nativeID="employee-home-todo">
       <EmployeeTodo
@@ -572,6 +663,7 @@ function TodoCard({ colors, companyId, employee, naeringskode, onOpenTodo }) {
         employee={employee}
         naeringskode={naeringskode}
         onOpenTodo={onOpenTodo}
+        onCount={onCount}
       />
     </Card>
   );
@@ -673,8 +765,13 @@ export default function EmployeeHome({
   onOpenReport,
   onOpenProject,
   onOpenProjects,
+  onOpenExpenses,
+  onOpenMileage,
+  onOpenSettings,
+  profilePct = null,
 }) {
   const [width, setWidth] = useState(0);
+  const [todoCount, setTodoCount] = useState(null);
   const [mode, setMode] = useState('weeks12');
   const [projectRange, setProjectRange] = useState(3);
   const {
@@ -708,10 +805,27 @@ export default function EmployeeHome({
   const cols = width >= BREAKPOINTS.desktop ? 3 : width >= BREAKPOINTS.tablet ? 2 : 1;
   const compact = cols === 1;
 
-  const profile = <ProfileCard employee={employee} colors={colors} onEdit={onEditProfile} />;
+  const profile = (
+    <ProfileCard employee={employee} colors={colors} onEdit={onEditProfile} onSettings={onOpenSettings} profilePct={profilePct} />
+  );
+  const tiles = ansattTiles({
+    todo: showTodo ? todoCount : null,
+    week: showWork && !hours.loading ? week : null,
+    absenceDays: showWork && !hours.loading ? absence.total : null,
+    profilePct,
+    open: {
+      todo: showTodo && onOpenTodo ? () => onOpenTodo() : null,
+      hours: onOpenHours || null,
+      absence: onOpenAbsence || null,
+      expenses: onOpenExpenses || null,
+      mileage: onOpenMileage || null,
+      settings: onOpenSettings || null,
+    },
+  });
+  const tileRow = tiles.length ? <AnsattTiles tiles={tiles} colors={colors} /> : null;
   const shortcutCard = <Shortcuts items={shortcuts} colors={colors} />;
   const todo = showTodo ? (
-    <TodoCard colors={colors} companyId={companyId} employee={employee} naeringskode={naeringskode} onOpenTodo={onOpenTodo} />
+    <TodoCard colors={colors} companyId={companyId} employee={employee} naeringskode={naeringskode} onOpenTodo={onOpenTodo} onCount={setTodoCount} />
   ) : null;
 
   const kpis = showWork ? (
@@ -736,7 +850,7 @@ export default function EmployeeHome({
     </View>
   ) : null;
   const chart = showWork ? (
-    <ProductivityCard series={series} mode={mode} onMode={setMode} target={target} colors={colors} loading={hours.loading} compact={compact} />
+    <ProductivityCard series={series} mode={mode} onMode={setMode} target={target} colors={colors} loading={hours.loading} compact={compact} onReport={onOpenReport || onOpenHours} />
   ) : null;
   const projectsCard = showWork ? (
     <ProjectsCard
@@ -780,13 +894,28 @@ export default function EmployeeHome({
 
   return (
     <View nativeID="employee-home" style={styles.root} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-      {width ? body : null}
+      {width ? (
+        <View style={styles.page}>
+          {tileRow}
+          {body}
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { width: '100%' },
+  page: { gap: space.md },
+  headIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  profileSettings: { flexDirection: 'row', alignItems: 'center', gap: space.sm, borderRadius: radius.card, paddingHorizontal: space.sm, paddingVertical: 10 },
+  profileTrack: { height: 4, borderRadius: radius.pill, overflow: 'hidden', marginTop: 4 },
+  profileFill: { height: '100%', borderRadius: radius.pill },
+  weekDays: { flexDirection: 'row', gap: 4, alignItems: 'flex-end' },
+  weekDay: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4, borderRadius: 8 },
+  weekDayPlot: { height: 64, width: '100%', alignItems: 'center', justifyContent: 'flex-end', position: 'relative' },
+  weekDayPlan: { position: 'absolute', bottom: 0, width: 22, borderWidth: 1, borderStyle: 'dashed', borderRadius: 5 },
+  weekDayBar: { width: 14, borderRadius: 4 },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
   stack: { gap: space.sm },
   colSide: { flex: 1, minWidth: 0, gap: space.md },

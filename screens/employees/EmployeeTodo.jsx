@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { parseTodoTarget, todoActionLabel, todoAnchorId, todoTargetOf } from '../../src/employees/todoFocus';
 import { scrollToAnchorSoon } from '../../src/ui/scrollToAnchor';
+import { ANSATT_AREAS } from '../../src/employees/ansattAreas';
 import { documentsForEmployee } from '../../src/doccontrol/model';
 import { loadFilledDocs } from '../../src/forms/filledStore';
 import { hmsCardRequirement, hmsCardStatus, mergeHmsCards } from '../../src/hr/hmsCard';
@@ -157,7 +158,7 @@ const ICONS = { document: 'document-text-outline', kin: 'people-outline', hms: '
 
 /** Type gjøremål: ikon, farge og navn i fordelingen, og hvor et trykk på typen fører. */
 const KIND = {
-  document: { icon: 'document-text', label: 'Dokumenter', color: (c) => c.brand, target: 'documents' },
+  document: { icon: 'document-text', label: 'Dokumenter', color: () => ANSATT_AREAS.todo.color, target: 'documents' },
   kin: { icon: 'people', label: 'Pårørende', color: (c) => c.accent, target: 'kin' },
   hms: { icon: 'card', label: 'HMS-kort', color: (c) => c.warn, target: 'hms' },
   hrTask: { icon: 'checkbox', label: 'Oppgaver fra HR', color: (c) => c.success, target: 'attention' },
@@ -246,6 +247,8 @@ export default function EmployeeTodo({
   aside = null,
   // Fra Min side eller varsel: { target, n } (src/employees/todoFocus.js). Siden ruller dit.
   focus = null,
+  // Antall åpne og om noe haster, til flisen på Min side: ({ open, urgent }) => void.
+  onCount = null,
 }) {
   const [width, setWidth] = useState(0);
   // Oppgave fra HR som er foldet ut, dokumentet som er åpnet og kortet som blinker etter et trykk.
@@ -320,6 +323,12 @@ export default function EmployeeTodo({
     setFlash(anchor);
     return scrollToAnchorSoon(anchor, { block: kind === 'hr' ? 'center' : 'start' });
   }, [focus?.n, focus?.target, !!slice]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openCount = open.length;
+  const urgentCount = open.filter((row) => row.urgent || (row.due && row.due < new Date().toISOString().slice(0, 10))).length;
+  useEffect(() => {
+    if (slice && onCount) onCount({ open: openCount, urgent: urgentCount });
+  }, [!!slice, openCount, urgentCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!flash) return undefined;
@@ -589,12 +598,12 @@ export default function EmployeeTodo({
     <View nativeID="employee-todo-kpis" style={[styles.kpiRow, width && width < BREAKPOINTS.desktop && styles.kpiWrap]}>
       <TodoKpi
         nativeID="employee-todo-kpi-open"
-        icon="list"
+        icon={ANSATT_AREAS.todo.icon}
         label="Åpne gjøremål"
         value={loading ? '…' : String(open.length)}
         hint={loading ? '' : (open.length ? 'Trykk for å se dem' : 'Alt er gjort')}
         colors={colors}
-        color={colors.brand}
+        color={ANSATT_AREAS.todo.color}
         onPress={() => go('attention')}
       />
       <TodoKpi

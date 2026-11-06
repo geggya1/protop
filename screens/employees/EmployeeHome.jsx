@@ -24,6 +24,7 @@ import {
 import { displayName, initials } from '../../src/employees/model';
 import { ownCompanyMatcher } from '../../src/hr/billable';
 import { aliasSourceIds } from '../../src/project/companyAlias';
+import { BREAKPOINTS } from '../../src/ui/layout';
 import { elevation, radius, space, type } from '../../src/ui/tokens';
 import EmployeeTodo from './EmployeeTodo';
 
@@ -607,8 +608,9 @@ export default function EmployeeHome({
   const onGoal = pct != null && pct >= target;
   const loadingText = hours.loading ? '…' : null;
 
-  const cols = width >= 1180 ? 3 : width >= 760 ? 2 : 1;
-  const compact = width < 560;
+  // Bredden på innholdet (onLayout), målt mot de felles brytepunktene.
+  const cols = width >= BREAKPOINTS.desktop ? 3 : width >= BREAKPOINTS.tablet ? 2 : 1;
+  const compact = cols === 1;
 
   const profile = <ProfileCard employee={employee} colors={colors} onEdit={onEditProfile} />;
   const shortcutCard = <Shortcuts items={shortcuts} colors={colors} />;

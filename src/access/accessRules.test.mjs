@@ -39,7 +39,7 @@ assert.match(mileage, /projects: pickableProjects\(state, gearAccess\.viewer, em
 
 // Ansattsiden: prosjektkortet viser bare prosjekter leseren selv er med i.
 const employees = read('../../screens/employees/EmployeesScreen.jsx');
-assert.match(employees, /projectState=\{visibleProjectState\}/);
+assert.match(employees, /projects=\{visibleProjectState\.projects \|\| \[\]\}/);
 assert.match(employees, /const own = myProjectIds\(projectState, projectViewer, rows\);/);
 
 // Kjøretøy: Kalender, hendelsesskjema og kjørebok følger Utstyr i tilgangsstyringen.

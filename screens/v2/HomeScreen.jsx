@@ -13,7 +13,6 @@ import {
 import { resolveEventWriteTarget } from '../../src/utils/eventWriteTarget';
 import { Screen, Loader } from '../../components/ui';
 import CreateShortcutSheet from '../../components/CreateShortcutSheet';
-import ChildHomeScreen from './ChildHomeScreen';
 import DeskHomeDashboard from '../../components/DeskHomeDashboard';
 import KitchenWallDashboard from '../../components/KitchenWallDashboard';
 import KitchenPinModal from '../../components/KitchenPinModal';
@@ -23,7 +22,6 @@ import { buildParentDashboardApps } from '../../src/navigation/shellModules';
 import { openNotifications } from '../../src/navigation/openNotifications';
 import { useHomeWidgetData } from '../../src/hooks/useHomeWidgetData';
 import { useI18n } from '../../src/i18n';
-import { BOOK_OWNER } from '../../src/utils/books';
 import { toggleParentTodo } from '../../src/utils/todos';
 import {
   loadKitchenDisplaySettings,
@@ -32,19 +30,8 @@ import {
   verifyKitchenPin,
 } from '../../src/utils/kitchenDisplay';
 
+// Barnas hjem hørte til familieproduktet (barnekontoer logges ut i ProTop).
 export default function HomeScreen() {
-  const {
-    isParent, isChild, isActingAsChild, activeChild, meChild,
-  } = useApp();
-
-  const viewingChild = isActingAsChild
-    ? activeChild
-    : (isChild ? meChild : null);
-
-  if (viewingChild) {
-    return <ChildHomeScreen child={viewingChild} />;
-  }
-
   return <ParentHomeScreen />;
 }
 
@@ -216,8 +203,6 @@ function ParentHomeScreen() {
     }
   };
 
-  const firstKid = activeKids[0] || null;
-
   const createOptions = useMemo(() => {
     const opts = [
       {
@@ -231,7 +216,7 @@ function ParentHomeScreen() {
         id: 'task',
         icon: 'checkbox',
         label: 'Ny oppgave',
-        sub: 'Oppgave for deg eller andre foresatte',
+        sub: 'Oppgave for deg eller kolleger',
         onPress: () => nav.navigate('ParentTask', { familyId }),
       },
       {
@@ -255,59 +240,10 @@ function ParentHomeScreen() {
         sub: 'Skriv eller ta opp med AI',
         onPress: () => requestShellTab('notes', null, 'create'),
       },
-      {
-        id: 'shop',
-        icon: 'cart',
-        label: 'Ny handleliste',
-        sub: 'Skriv navn og opprett',
-        onPress: () => requestShellTab('more', 'shop', 'create'),
-      },
-      {
-        id: 'wish',
-        icon: 'gift',
-        label: 'Ny ønskeliste',
-        sub: 'Gaveønsker',
-        onPress: () => requestShellTab('more', 'wishes', 'create'),
-      },
-      {
-        id: 'book',
-        icon: 'library',
-        label: 'Ny bok',
-        sub: firstKid ? `I ${firstKid.name?.split(' ')[0] || 'barn'}s bokhylle` : 'I din bokhylle',
-        onPress: () => {
-          if (firstKid) {
-            nav.navigate('AddBook', {
-              familyId,
-              ownerKind: BOOK_OWNER.child,
-              ownerId: firstKid.id,
-              childId: firstKid.id,
-              ownerName: firstKid.name,
-              childName: firstKid.name,
-            });
-            return;
-          }
-          nav.navigate('AddBook', {
-            familyId,
-            ownerKind: BOOK_OWNER.parent,
-            ownerId: uid,
-            ownerName: 'Meg',
-          });
-        },
-      },
     ];
 
-    if (familyId) {
-      opts.push({
-        id: 'activity',
-        icon: 'fitness',
-        label: 'Ny aktivitet',
-        sub: 'Treningsplan / aktivitet',
-        onPress: () => requestShellTab('more', 'activities', 'create'),
-      });
-    }
-
     return opts;
-  }, [familyId, todayKey, firstKid, uid, nav, requestShellTab]);
+  }, [familyId, todayKey, nav, requestShellTab]);
 
   if (!familyId) {
     return (

@@ -1,10 +1,8 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { addDoc, collection, onSnapshot, serverTimestamp, setDoc, doc } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
-import { db } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
 import { useI18n } from '../../src/i18n';
 import { colors, useLayout } from '../../src/theme';
@@ -39,11 +37,9 @@ import {
   useEventsWithExternalVisibility,
 } from '../../src/hooks/useExternalEventVisibility';
 import CalendarSettingsScreen from './CalendarSettingsScreen';
-import { createMeal, familyMealHeadcount } from '../../src/utils/meals';
 import { listenEventsSharedWithMe } from '../../src/utils/friends';
 import MemberAvatarStack, { whoCountLabel, resolveEventMembers } from '../../components/MemberAvatarStack';
-import { Screen, Mute } from '../../components/ui';
-import { DeskBtn } from '../../components/DeskBtn';
+import { Screen } from '../../components/ui';
 import ShellAddButton from '../../components/ShellAddButton';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
@@ -61,7 +57,6 @@ import {
   saveCustodyOverlayPrefs,
 } from '../../src/utils/custodyOverlayPrefs';
 import { isOrganizationType } from '../../src/utils/groupTypes';
-import { isProtopShellModule } from '../../src/navigation/protopShell';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { loadProjectState } from '../../src/project/storage';
 import {
@@ -164,13 +159,6 @@ export default function PlanScreen({ active = true }) {
   const [anchor, setAnchor] = useState(new Date());
   const [events, setEvents] = useState(() => peekFamilyEventsCache(familyId ? [familyId] : []) || []);
   const [friendSharedEvents, setFriendSharedEvents] = useState([]);
-  const [meals, setMeals] = useState([]);
-  const familyCounts = useMemo(() => familyMealHeadcount(members), [members]);
-  const [mealTitle, setMealTitle] = useState('');
-  const [mealAdults, setMealAdults] = useState(() => String(familyMealHeadcount(members).adults));
-  const [mealChildren, setMealChildren] = useState(() => String(familyMealHeadcount(members).children));
-  const [mealDay, setMealDay] = useState(null);
-  const [mealSaving, setMealSaving] = useState(false);
   const [externalEvents, setExternalEvents] = useState([]);
   const externalVisibilityByEventId = useExternalEventVisibilityMap(familyId);
   const visibleExternalEvents = useEventsWithExternalVisibility(
@@ -350,13 +338,6 @@ export default function PlanScreen({ active = true }) {
     });
   }, [familyId, isDesktop, isChild, isActingAsChild, meChild?.id]);
 
-  useEffect(() => {
-    if (!familyId) return undefined;
-    return onSnapshot(collection(db, 'families', familyId, 'meals'), (snap) => {
-      setMeals(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    }, () => setMeals([]));
-  }, [familyId]);
-
   useFocusEffect(useCallback(() => {
     if (!isCompany || !familyId) {
       setProjectState(null);
@@ -427,7 +408,6 @@ export default function PlanScreen({ active = true }) {
   const iso = getISOWeek(anchor);
 
   const rangeKeys = useMemo(() => {
-    if (mode === 'meals') return null;
     if (mode === 'day') {
       const k = dateKey(anchor);
       return { start: k, end: k };
@@ -438,7 +418,7 @@ export default function PlanScreen({ active = true }) {
   }, [mode, grid, weekDays, anchor]);
 
   useFocusEffect(useCallback(() => {
-    if (!isParent || !uid || !rangeKeys || mode === 'meals') {
+    if (!isParent || !uid || !rangeKeys) {
       setExternalLoading(false);
       return undefined;
     }
@@ -914,7 +894,7 @@ export default function PlanScreen({ active = true }) {
   }, [equipmentGroup, shownEquipment]);
 
   const calendarAddBtn = useMemo(() => {
-    if (!canCreateCalendarEvent || mode === 'meals') return null;
+    if (!canCreateCalendarEvent) return null;
     return (
       <ShellAddButton
         label="Ny hendelse"
@@ -935,166 +915,7 @@ export default function PlanScreen({ active = true }) {
     else setAnchor((d) => addDays(d, dir * 7));
   };
 
-  const saveMeal = async () => {
-    if (!familyId || !mealDay || !mealTitle.trim() || mealSaving) return;
-    setMealSaving(true);
-    try {
-      const ref = await createMeal(familyId, {
-        dateKey: mealDay,
-        title: mealTitle.trim(),
-        tag: 'Middag',
-        adults: Number(mealAdults) || 2,
-        children: Number(mealChildren) || 0,
-      });
-      const saved = {
-        id: ref.id,
-        dateKey: mealDay,
-        title: mealTitle.trim(),
-        tag: 'Middag',
-        adults: Number(mealAdults) || 2,
-        children: Number(mealChildren) || 0,
-        ingredientsStatus: 'pending',
-      };
-      setMealTitle('');
-      setMealAdults(String(familyCounts.adults));
-      setMealChildren(String(familyCounts.children));
-      setMealDay(null);
-      nav.navigate('MealDetail', { familyId, mealId: ref.id, meal: saved });
-    } finally {
-      setMealSaving(false);
-    }
-  };
-
-  const openMeal = (meal) => {
-    nav.navigate('MealDetail', { familyId, mealId: meal.id, meal });
-  };
-
-  const shareMeals = async () => {
-    if (!familyId || !uid) return;
-    const lines = weekDays.map((d) => {
-      const meal = meals.find((m) => m.dateKey === dateKey(d));
-      if (!meal) return null;
-      const label = WEEKDAYS_SHORT[(d.getDay() + 6) % 7];
-      return `${label}: ${meal.title}`;
-    }).filter(Boolean);
-    if (!lines.length) return;
-    await setDoc(doc(db, 'families', familyId, 'chats', 'family'), {
-      type: 'family',
-      title: family?.name || 'Familien',
-      memberIds: members.map((m) => m.uid).filter(Boolean),
-    }, { merge: true });
-    await addDoc(collection(db, 'families', familyId, 'chats', 'family', 'messages'), {
-      text: `Ukemeny uke ${iso.week}\n${lines.join('\n')}`,
-      senderId: uid,
-      senderName: 'Ukemeny',
-      createdAt: serverTimestamp(),
-    });
-  };
-
   const dayLabel = `${WEEKDAYS_SHORT[(anchor.getDay() + 6) % 7]} ${anchor.getDate()}. ${MONTHS_NO[anchor.getMonth()]}`;
-
-  const renderMealsList = () => (
-
-          <FlatList
-            data={weekDays}
-            keyExtractor={(d) => dateKey(d)}
-            contentContainerStyle={styles.listPad}
-            numColumns={isDesktop ? 2 : 1}
-            key={isDesktop ? 'meals-2' : 'meals-1'}
-            columnWrapperStyle={isDesktop ? styles.mealCols : undefined}
-            renderItem={({ item: d }) => {
-              const k = dateKey(d);
-              const meal = meals.find((m) => m.dateKey === k);
-              const todayDay = isToday(d);
-              return (
-                <View style={[styles.mealCard, isDesktop && styles.mealCardSplit, todayDay && styles.mealCardToday]}>
-                  <View style={styles.mealDayRow}>
-                    <Text style={[styles.mealDay, todayDay && styles.mealDayToday]}>
-                      {WEEKDAYS_SHORT[(d.getDay() + 6) % 7]} {d.getDate()}.{d.getMonth() + 1}
-                    </Text>
-                    {todayDay ? <Text style={styles.mealTodayBadge}>I dag</Text> : null}
-                  </View>
-                  {meal ? (
-                    <TouchableOpacity style={styles.mealRow} onPress={() => openMeal(meal)} activeOpacity={0.75}>
-                      <View style={styles.pill}><Text style={styles.pillTxt}>{meal.tag || 'Middag'}</Text></View>
-                      <Text style={styles.mealTitle}>{meal.title}</Text>
-                      {(meal.adults != null || meal.children != null) && (
-                        <Text style={styles.mealMeta}>
-                          {meal.adults || 0} voksne{meal.children ? ` · ${meal.children} barn` : ''}
-                        </Text>
-                      )}
-                      {meal.ingredients?.length > 0 && (
-                        <Text style={styles.mealIngredients}>
-                          {meal.ingredients.length} varer i handlelisten
-                        </Text>
-                      )}
-                      <Text style={styles.mealTapHint}>Trykk for handleliste →</Text>
-                    </TouchableOpacity>
-                  ) : isParent ? (
-                    mealDay === k ? (
-                      <View style={{ gap: 8 }}>
-                        <TextInput
-                          value={mealTitle}
-                          onChangeText={setMealTitle}
-                          placeholder="F.eks. fiskesuppe, taco, pasta…"
-                          style={styles.mealInput}
-                          autoFocus
-                        />
-                        <View style={styles.portionRow}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.portionLbl}>Voksne</Text>
-                            <TextInput
-                              value={mealAdults}
-                              onChangeText={setMealAdults}
-                              keyboardType="number-pad"
-                              style={styles.portionInput}
-                            />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.portionLbl}>Barn</Text>
-                            <TextInput
-                              value={mealChildren}
-                              onChangeText={setMealChildren}
-                              keyboardType="number-pad"
-                              style={styles.portionInput}
-                            />
-                          </View>
-                        </View>
-                        <Text style={styles.aiHint}>AI lager handleliste basert på rett og antall personer.</Text>
-                        <View style={styles.mealFormActions}>
-                          <TouchableOpacity onPress={() => { setMealDay(null); setMealTitle(''); }}>
-                            <Text style={styles.cancelTxt}>Avbryt</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={saveMeal} disabled={!mealTitle.trim() || mealSaving}>
-                            <Text style={[styles.link, (!mealTitle.trim() || mealSaving) && { opacity: 0.5 }]}>
-                              {mealSaving ? 'Lagrer…' : 'Lagre og lag handleliste'}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ) : (
-                      <TouchableOpacity onPress={() => setMealDay(k)}><Text style={styles.link}>+ Middag</Text></TouchableOpacity>
-                    )
-                  ) : (
-                    <Mute>Ikke planlagt</Mute>
-                  )}
-                </View>
-              );
-            }}
-            ListFooterComponent={isParent ? (
-              isDesktop ? (
-                <View style={{ marginTop: 8 }}>
-                  <DeskBtn icon="chatbubbles-outline" label="Del ukemeny i chat" onPress={shareMeals} />
-                </View>
-              ) : (
-                <TouchableOpacity style={styles.shareBtn} onPress={shareMeals}>
-                  <Text style={styles.shareTxt}>Del ukemeny i chat</Text>
-                </TouchableOpacity>
-              )
-            ) : null}
-          />
-
-  );
 
   if (showCalendarSettings && parentCalendarSettings) {
     return (
@@ -1142,7 +963,6 @@ export default function PlanScreen({ active = true }) {
           hiddenCals={hiddenCals}
           onToggleCal={toggleCal}
           syncNotice={syncNotice}
-          mealsBody={renderMealsList()}
           paneItemsForDay={paneItemsForDay}
           paneLabel={asChildViewer ? t('tabs.chores') : t('tabs.tasks')}
           paneCreateLabel={asChildViewer ? 'Nytt gjøremål' : 'Ny oppgave'}
@@ -1173,8 +993,7 @@ export default function PlanScreen({ active = true }) {
       <View style={[styles.wrap, { paddingHorizontal: pad }]}>
         <View style={styles.toolbar}>
           <View style={styles.seg}>
-            {/* «Mat» hører til måltidsmodulen, som ProTop ikke har. */}
-            {[['day', 'Dag'], ['week', 'Uke'], ['month', 'Måned'], ...(isProtopShellModule('meals') ? [['meals', 'Mat']] : [])].map(([m, label]) => (
+            {[['day', 'Dag'], ['week', 'Uke'], ['month', 'Måned']].map(([m, label]) => (
               <TouchableOpacity key={m} onPress={() => setMode(m)} style={[styles.segBtn, mode === m && styles.segOn]}>
                 <Text style={[styles.segTxt, mode === m && styles.segTxtOn]}>{label}</Text>
               </TouchableOpacity>
@@ -1283,7 +1102,7 @@ export default function PlanScreen({ active = true }) {
           </TouchableOpacity>
         </View>
 
-        {mode !== 'meals' && !isToday(anchor) && (
+        {!isToday(anchor) && (
           <TouchableOpacity style={styles.todayJump} onPress={() => setAnchor(new Date())}>
             <Text style={styles.todayJumpTxt}>Gå til i dag</Text>
           </TouchableOpacity>
@@ -1295,7 +1114,7 @@ export default function PlanScreen({ active = true }) {
         />
 
         <CustodyLegendBar
-          visible={custodyOverlayActive && mode !== 'meals'}
+          visible={custodyOverlayActive}
           kids={kids}
           viewerUid={uid}
           childFilter={custodyChildFilter}
@@ -1303,95 +1122,93 @@ export default function PlanScreen({ active = true }) {
           viewerIsChild={asChildViewer}
         />
 
-        {mode === 'meals' ? renderMealsList() : (
-          <ScrollView
-            style={styles.dayList}
-            contentContainerStyle={styles.listPad}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {mode === 'month' ? (
-              <View style={styles.monthBlock}>
-                <View style={styles.weekHead}>
-                  {WEEKDAYS_SHORT.map((d, i) => {
-                    const headerToday = (new Date().getDay() + 6) % 7 === i;
-                    return (
-                      <Text key={d} style={[styles.wh, headerToday && styles.whToday]}>{d}</Text>
-                    );
-                  })}
-                </View>
-                <View style={styles.grid}>
-                  {days.map((d) => {
-                    const k = dateKey(d);
-                    const { ev } = itemsForDay(d);
-                    const selectedDay = sameDay(d, anchor);
-                    const todayDay = isToday(d);
-                    const outside = !isSameMonth(d, anchor);
-                    const custodyTint = custodyOverlayActive
-                      ? custodyCellTint(getCustodyOverlay(d), { selected: selectedDay, today: todayDay })
-                      : null;
-                    return (
-                      <TouchableOpacity
-                        key={k}
-                        onPress={() => setAnchor(d)}
-                        style={[
-                          styles.cell,
-                          (isDesktop || isTablet) && styles.cellWide,
-                          custodyTint,
-                          todayDay && !selectedDay && styles.cellToday,
-                          selectedDay && styles.cellOn,
-                          outside && { opacity: 0.35 },
-                        ]}
-                      >
-                        <Text style={[styles.cellNum, selectedDay && styles.cellNumOn, todayDay && !selectedDay && styles.cellNumToday]}>
-                          {d.getDate()}
-                        </Text>
-                        <View style={styles.dots}>
-                          {ev.slice(0, 3).map((e) => (
-                            <View key={e.id} style={[styles.dot, { backgroundColor: e.color || colorForFamilyEvent(e, members) }]} />
-                          ))}
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+        <ScrollView
+          style={styles.dayList}
+          contentContainerStyle={styles.listPad}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {mode === 'month' ? (
+            <View style={styles.monthBlock}>
+              <View style={styles.weekHead}>
+                {WEEKDAYS_SHORT.map((d, i) => {
+                  const headerToday = (new Date().getDay() + 6) % 7 === i;
+                  return (
+                    <Text key={d} style={[styles.wh, headerToday && styles.whToday]}>{d}</Text>
+                  );
+                })}
               </View>
-            ) : null}
-
-            {selected.ev.length === 0 && (
-              externalLoading && isParent && !asChildViewer ? (
-                <View style={styles.dayLoading}>
-                  <ActivityIndicator color={colors.brand} />
-                  <Text style={styles.emptyDay}>Laster kalender…</Text>
-                </View>
-              ) : (
-                <Text style={styles.emptyDay}>
-                  {mode === 'week' && weekEventCount > 0
-                    ? `Ingen hendelser denne dagen. ${weekEventCount} andre denne uken — trykk på dagen med prikker.`
-                    : 'Ingen hendelser denne dagen.'}
-                </Text>
-              )
-            )}
-
-            {selected.ev.length > 0 && (
-              <View style={styles.listCard}>
-                <Text style={styles.listSection}>Hendelser</Text>
-                {selected.ev.map((e) => (
-                  <EventRow
-                    key={`${e.id}-${e.occurrenceDateKey || e.dateKey}`}
-                    item={e}
-                    canOpen={canOpenEvent(e)}
-                    canEdit={canManageEvent(e)}
-                    members={members}
-                    friendPeople={friendPeople}
-                    onPress={() => openEventForm(e)}
-                  />
-                ))}
+              <View style={styles.grid}>
+                {days.map((d) => {
+                  const k = dateKey(d);
+                  const { ev } = itemsForDay(d);
+                  const selectedDay = sameDay(d, anchor);
+                  const todayDay = isToday(d);
+                  const outside = !isSameMonth(d, anchor);
+                  const custodyTint = custodyOverlayActive
+                    ? custodyCellTint(getCustodyOverlay(d), { selected: selectedDay, today: todayDay })
+                    : null;
+                  return (
+                    <TouchableOpacity
+                      key={k}
+                      onPress={() => setAnchor(d)}
+                      style={[
+                        styles.cell,
+                        (isDesktop || isTablet) && styles.cellWide,
+                        custodyTint,
+                        todayDay && !selectedDay && styles.cellToday,
+                        selectedDay && styles.cellOn,
+                        outside && { opacity: 0.35 },
+                      ]}
+                    >
+                      <Text style={[styles.cellNum, selectedDay && styles.cellNumOn, todayDay && !selectedDay && styles.cellNumToday]}>
+                        {d.getDate()}
+                      </Text>
+                      <View style={styles.dots}>
+                        {ev.slice(0, 3).map((e) => (
+                          <View key={e.id} style={[styles.dot, { backgroundColor: e.color || colorForFamilyEvent(e, members) }]} />
+                        ))}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-            )}
-            <View style={{ height: 16 }} />
-          </ScrollView>
-        )}
+            </View>
+          ) : null}
+
+          {selected.ev.length === 0 && (
+            externalLoading && isParent && !asChildViewer ? (
+              <View style={styles.dayLoading}>
+                <ActivityIndicator color={colors.brand} />
+                <Text style={styles.emptyDay}>Laster kalender…</Text>
+              </View>
+            ) : (
+              <Text style={styles.emptyDay}>
+                {mode === 'week' && weekEventCount > 0
+                  ? `Ingen hendelser denne dagen. ${weekEventCount} andre denne uken — trykk på dagen med prikker.`
+                  : 'Ingen hendelser denne dagen.'}
+              </Text>
+            )
+          )}
+
+          {selected.ev.length > 0 && (
+            <View style={styles.listCard}>
+              <Text style={styles.listSection}>Hendelser</Text>
+              {selected.ev.map((e) => (
+                <EventRow
+                  key={`${e.id}-${e.occurrenceDateKey || e.dateKey}`}
+                  item={e}
+                  canOpen={canOpenEvent(e)}
+                  canEdit={canManageEvent(e)}
+                  members={members}
+                  friendPeople={friendPeople}
+                  onPress={() => openEventForm(e)}
+                />
+              ))}
+            </View>
+          )}
+          <View style={{ height: 16 }} />
+        </ScrollView>
       </View>
     </Screen>
   );
@@ -1416,25 +1233,18 @@ const styles = StyleSheet.create({
   },
   homeWeekDowOn: { color: '#fff' },
   toolbar: { marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },  toolbarDesk: { marginBottom: 12, gap: 10, flexWrap: 'wrap' },
-  deskNav: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  deskNavLbl: { fontWeight: '400', color: colors.ink, fontSize: 14, minWidth: 88, textAlign: 'center' },
-  deskActions: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   settingsBtn: {
     width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: colors.line,
     backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center',
   },
   custodyBtnOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
-  settingsBtnDesk: { borderRadius: 8, width: 36, height: 36 },
   seg: { flex: 1, flexDirection: 'row', backgroundColor: colors.card, borderRadius: 12, padding: 3, borderWidth: 1, borderColor: colors.line },
-  segDesk: { borderRadius: 8, flexGrow: 0, flex: 0, width: 280 },
   segBtn: { flex: 1, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 10, alignItems: 'center' },
-  segBtnDesk: { borderRadius: 6 },
   segOn: { backgroundColor: colors.brand },
   segTxt: { fontWeight: '400', color: colors.ink, fontSize: 12 },
   segTxtOn: { color: '#fff' },
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   navBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line },
-  navBtnDesk: { borderRadius: 8 },
   navLbl: { fontWeight: '400', color: colors.ink, fontSize: 12, flex: 1, textAlign: 'center', marginHorizontal: 6 },
   todayJump: { alignSelf: 'center', marginBottom: 8, paddingVertical: 4, paddingHorizontal: 10 },
   todayJumpTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
@@ -1452,51 +1262,6 @@ const styles = StyleSheet.create({
   },
   syncBannerTxt: { flex: 1, color: colors.warnInk, fontWeight: '400', fontSize: 12, lineHeight: 16 },
   syncBannerLink: { color: colors.warnInk, fontWeight: '400', fontSize: 12 },
-  splitRow: { flex: 1, minHeight: 0, flexDirection: 'row', gap: 20 },
-  splitCal: { flex: 1.05, minWidth: 0 },
-  splitList: { flex: 1, minWidth: 280 },
-  weekBoard: {
-    flex: 1, minHeight: 0, flexDirection: 'row', gap: 8,
-  },
-  weekCol: {
-    flex: 1, minWidth: 0, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
-    borderRadius: 8, overflow: 'hidden',
-  },
-  weekColToday: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  weekColHead: {
-    alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.line,
-  },
-  weekColHeadOn: { backgroundColor: colors.brandSoft },
-  weekColDow: { fontSize: 10, fontWeight: '400', color: colors.muted, textTransform: 'uppercase' },
-  weekColDowToday: { color: colors.brand },
-  weekColNum: { fontSize: 16, fontWeight: '400', color: colors.ink, marginTop: 1 },
-  weekColNumToday: { color: colors.brand },
-  weekColBody: { flex: 1, padding: 6 },
-  weekEmpty: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 12 },
-  weekEvent: {
-    backgroundColor: colors.brandSoft, borderLeftWidth: 3, borderRadius: 4,
-    paddingVertical: 5, paddingHorizontal: 6, marginBottom: 5,
-  },
-  weekEventTime: { fontSize: 10, fontWeight: '400', color: colors.brand },
-  weekEventTitle: { fontSize: 12, fontWeight: '400', color: colors.ink, marginTop: 1 },
-  weekAdd: { alignItems: 'center', paddingVertical: 4, marginTop: 2 },
-  weekAddTxt: { color: colors.brand, fontWeight: '400', fontSize: 16 },
-  monthBoard: {
-    flex: 1, flexDirection: 'row', flexWrap: 'wrap', borderTopWidth: 1, borderLeftWidth: 1,
-    borderColor: colors.line, minHeight: 0,
-  },
-  monthCell: {
-    width: `${100 / 7}%`, minHeight: 92, padding: 6,
-    borderRightWidth: 1, borderBottomWidth: 1, borderColor: colors.line, backgroundColor: colors.card,
-  },
-  monthCellToday: { backgroundColor: colors.brandSoft },
-  monthCellOn: { backgroundColor: colors.brandSoft },
-  monthNum: { fontWeight: '400', fontSize: 12, color: colors.ink, marginBottom: 4 },
-  monthNumToday: { color: colors.brand },
-  monthChip: { borderRadius: 3, paddingHorizontal: 4, paddingVertical: 2, marginBottom: 2 },
-  monthChipTxt: { color: '#fff', fontSize: 10, fontWeight: '400' },
-  monthMore: { fontSize: 10, fontWeight: '400', color: colors.muted, marginTop: 2 },
   weekHead: { flexDirection: 'row', marginBottom: 2 },
   wh: { flex: 1, textAlign: 'center', fontWeight: '400', color: colors.muted, fontSize: 10 },
   whToday: { color: colors.brand, fontWeight: '400' },
@@ -1513,8 +1278,6 @@ const styles = StyleSheet.create({
   dot: { width: 4, height: 4, borderRadius: 2 },
   dayList: { flex: 1, minHeight: 0 },
   listPad: { paddingBottom: 8, flexGrow: 1 },
-  mealCols: { gap: 10 },
-  mealCardSplit: { flex: 1 },
   listCard: {
     backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.line, overflow: 'hidden',
   },
@@ -1543,34 +1306,4 @@ const styles = StyleSheet.create({
   avatarSlot: { flexShrink: 0, marginLeft: 2 },
   emptyDay: { textAlign: 'center', color: colors.muted, fontWeight: '400', fontSize: 13, paddingVertical: 16 },
   dayLoading: { alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 20 },
-  mealCard: { backgroundColor: colors.card, borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: colors.line },
-  mealCardToday: { borderColor: colors.brand, borderWidth: 2, backgroundColor: colors.brandSoft },
-  mealDayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  mealDay: { fontWeight: '400', color: colors.ink, fontSize: 14 },
-  mealDayToday: { color: colors.brand },
-  mealTodayBadge: {
-    backgroundColor: colors.brand, color: '#fff', fontSize: 10, fontWeight: '400',
-    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, overflow: 'hidden',
-  },
-  mealRow: { gap: 4, marginTop: 4 },
-  pill: { alignSelf: 'flex-start', backgroundColor: colors.brandSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  pillTxt: { color: colors.brand, fontWeight: '400', fontSize: 11 },
-  mealTitle: { fontWeight: '400', fontSize: 14, color: colors.ink },
-  mealMeta: { color: colors.muted, fontWeight: '400', fontSize: 12 },
-  mealIngredients: { color: colors.brand, fontWeight: '400', fontSize: 12 },
-  mealTapHint: { color: colors.muted, fontWeight: '400', fontSize: 11, marginTop: 2 },
-  mealInput: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, padding: 8, fontSize: 16, backgroundColor: colors.card },
-  portionRow: { flexDirection: 'row', gap: 10 },
-  portionLbl: { fontWeight: '400', fontSize: 11, color: colors.muted, marginBottom: 4 },
-  portionInput: {
-    borderWidth: 1, borderColor: colors.line, borderRadius: 10, padding: 8,
-    fontSize: 14, backgroundColor: colors.card, fontWeight: '400',
-  },
-  aiHint: { color: colors.muted, fontSize: 12, fontWeight: '400', lineHeight: 17 },
-  mealFormActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cancelTxt: { color: colors.muted, fontWeight: '400', fontSize: 13 },
-  link: { color: colors.brand, fontWeight: '400', fontSize: 13 },
-  shareBtn: {
-    alignSelf: 'flex-start', marginTop: 8, backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  shareTxt: { color: '#fff', fontWeight: '400', fontSize: 14 },
 });

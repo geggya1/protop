@@ -38,7 +38,9 @@ test('Kalender: «Alle i bedriften» i en bedrift', () => {
   assert.doesNotMatch(form, />Hele familien</);
   assert.match(form, /wholeGroupLabel\(family\?\.type\)/);
   const plan = read('screens/v2/PlanScreen.jsx');
-  assert.match(plan, /isProtopShellModule\('meals'\) \? \[\['meals', 'Mat'\]\] : \[\]/);
+  // Måltider (Mat) hører til familieproduktet og er fjernet fra Kalender.
+  assert.doesNotMatch(plan, /\['meals', 'Mat'\]|listenMeals|collection\(db, 'families', familyId, 'meals'\)/);
+  assert.doesNotMatch(read('components/OutlookCalendar.jsx'), /id: 'meals'/);
   const settings = read('screens/v2/CalendarSettingsScreen.jsx');
   assert.match(settings, /isParent && activeKids\.length > 0 \? \(/);
 });

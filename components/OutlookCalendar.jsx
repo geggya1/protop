@@ -31,7 +31,6 @@ const VIEWS = [
   { id: 'day', label: 'Dag' },
   { id: 'week', label: 'Uke' },
   { id: 'month', label: 'Måned' },
-  { id: 'meals', label: 'Mat' },
 ];
 
 function eventKey(e) {
@@ -307,7 +306,6 @@ export default function OutlookCalendar({
   hiddenCals,
   onToggleCal,
   syncNotice,
-  mealsBody,
   paneItemsForDay,
   paneLabel,
   paneCreateLabel,
@@ -354,7 +352,7 @@ export default function OutlookCalendar({
     [mode, anchor, weekDays],
   );
   const allTimed = useMemo(() => {
-    const days = mode === 'month' || mode === 'meals' ? [] : viewDays;
+    const days = mode === 'month' ? [] : viewDays;
     const list = [];
     days.forEach((d) => {
       itemsForDay(d).ev.forEach((e) => list.push(e));
@@ -368,7 +366,7 @@ export default function OutlookCalendar({
   );
 
   useEffect(() => {
-    if (didScroll.current || mode === 'month' || mode === 'meals') return;
+    if (didScroll.current || mode === 'month') return;
     const y = Math.max(0, ((now.getHours() * 60 + now.getMinutes()) - startHour * 60) * (HOUR_H / 60) - 72);
     const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 0);
     const caf = typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : clearTimeout;
@@ -385,7 +383,7 @@ export default function OutlookCalendar({
   }, []);
 
   useLayoutEffect(() => {
-    if (mode === 'month' || mode === 'meals') {
+    if (mode === 'month') {
       setScrollInset((prev) => (prev === 0 ? prev : 0));
       return undefined;
     }
@@ -417,7 +415,7 @@ export default function OutlookCalendar({
   }, [paneMonth, itemsForDay]);
 
   const shift = (dir) => {
-    if (mode === 'month' || mode === 'meals') {
+    if (mode === 'month') {
       setAnchor((d) => (mode === 'month'
         ? new Date(d.getFullYear(), d.getMonth() + dir, 1)
         : addDays(d, dir * 7)));
@@ -589,9 +587,7 @@ export default function OutlookCalendar({
 
         {custodyLegend}
 
-        {mode === 'meals' ? (
-          <View style={styles.mealsWrap}>{mealsBody}</View>
-        ) : mode === 'month' ? (
+        {mode === 'month' ? (
           <View style={styles.monthWrap}>
             <View style={styles.monthHead}>
               {WEEKDAYS_LONG.map((d, i) => (
@@ -844,7 +840,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.line,
   },
   custodyBtnOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
-  mealsWrap: { flex: 1, minHeight: 0, paddingHorizontal: 12, paddingTop: 8 },
   weekWrap: { flex: 1, minHeight: 0 },
   dayTrack: { flexDirection: 'row', minWidth: 0, alignItems: 'stretch' },
   dayLanes: { flex: 1, minWidth: 0, flexDirection: 'row' },

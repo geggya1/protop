@@ -53,7 +53,9 @@ import {
 } from '../../../src/economy/invoiceDelivery.js';
 import { invoiceWorkIds, releaseWork } from '../../../src/economy/billingWork.js';
 import { loadTimeEntriesByIds } from '../../../src/economy/timeEntryStorage.js';
-import { creditNeedsAddress, withCustomerAddress, withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
+import { creditNeedsAddress, draftCustomer, withCustomerAddress, withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
+import { upsertCustomer } from '../../../src/anbud/customers.js';
+import { loadAnbudState, saveAnbudState } from '../../../src/anbud/storage';
 import {
   addCollectionStep, buildInterestInvoice, canTakeStep, checkDeadline, collectionLetter, collectionStatus, setCollectionHold,
 } from '../../../src/economy/collection.js';
@@ -122,6 +124,46 @@ export async function fillCreditAddress(ctx, invoice, sources = []) {
     return save(ctx, withEvent(next, { type: 'edit', text: `hentet kundens adresse fra ${source.label} (${line})`, actor: ctx.actor }));
   }
   return null;
+}
+
+/**
+ * Kundens adresse fylt inn i ferdigstillingsvinduet: lagres på kunden i kunderegisteret
+ * (så neste faktura har den) og i utkastet. Kunden uten treff i registeret: bare utkastet.
+ */
+export async function saveCustomerAddress(ctx, invoice, { street = '', postalCode = '', city = '' } = {}) {
+  const customerAddress = {
+    street: String(street).trim(),
+    postalCode: String(postalCode).trim(),
+    city: String(city).trim(),
+    country: invoice?.customerAddress?.country || 'NO',
+  };
+  if (!customerAddress.street || !(customerAddress.postalCode || customerAddress.city)) {
+    throw new Error('Skriv inn gate og postnummer eller sted.');
+  }
+  let registered = false;
+  const customer = draftCustomer(invoice, ctx.customers || []);
+  if (customer?.id && !demo(ctx)) {
+    const loaded = await loadAnbudState(ctx.familyId);
+    const current = (loaded?.customers || []).find((row) => row.id === customer.id) || customer;
+    const result = upsertCustomer(loaded, {
+      ...current,
+      id: customer.id,
+      address: customerAddress.street,
+      postalCode: customerAddress.postalCode,
+      place: customerAddress.city,
+    });
+    if (result.ok) {
+      await saveAnbudState(result.state, ctx.familyId);
+      registered = true;
+    }
+  }
+  const result = updateDraft(invoice, { customerAddress }, { actor: ctx.actor, message: 'la inn kundens adresse' });
+  if (!result.ok) throw new Error(result.error);
+  const saved = result.changed ? await save(ctx, result.invoice) : invoice;
+  return {
+    invoice: saved,
+    message: registered ? 'Adressen er lagret på kunden og i utkastet.' : 'Adressen er lagret i utkastet.',
+  };
 }
 
 /** Lagrer endringer i utkastet. Linjer fra grunnlaget som fjernes, frigjøres. */

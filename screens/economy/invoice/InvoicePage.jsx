@@ -32,7 +32,7 @@ import {
   previewUrl as makePreviewUrl,
 } from '../../../src/economy/invoiceDelivery.js';
 import { canSendFromPowerOffice, POWEROFFICE_GUI, powerOfficeSummary } from '../../../src/economy/powerOfficeView.js';
-import { fetchPowerOfficeDocument, lookupPowerOfficeInvoice } from '../../../src/economy/powerOfficeClient.js';
+import { fetchPowerOfficeDocument } from '../../../src/economy/powerOfficeClient.js';
 import { accountsFrom } from '../../../src/economy/invoiceDraft.js';
 import { creditNeedsAddress, withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
 import { fillCustomerFromBrreg } from '../../../src/anbud/customers.js';
@@ -174,24 +174,16 @@ export default function InvoicePage({
     companyName: companyName || supplier.name,
   }), [familyId, store, supplier, logo, settings, chart, actor, allInvoices, customers, contracts, mode, companyName]);
 
-  // Kreditnota uten kjøpers adresse (fakturaen ligger i PowerOffice og kunden mangler adresse
-  // i registeret): adressen hentes fra kunden i PowerOffice, ellers fra Brønnøysund, og lagres
-  // på utkastet. Én gang per utkast.
+  // Kreditnota uten kjøpers adresse (fakturaen som krediteres og kunden i registeret mangler den):
+  // adressen hentes fra Brønnøysund og lagres på utkastet. Én gang per utkast. Finnes den ikke
+  // der, fylles den inn i ferdigstillingsvinduet. PowerOffice er ikke kilde for kundedata.
   const brregTried = useRef('');
   const needsAddress = canManage && !!familyId && familyId !== '__demo__' && creditNeedsAddress(invoice);
   useEffect(() => {
     const key = needsAddress ? String(invoice?.id || '') : '';
     if (!key || brregTried.current === key) return undefined;
     brregTried.current = key;
-    const original = (allInvoices || []).find((row) => row.id === invoice.creditNoteForId) || null;
-    const poNumber = String(original?.poweroffice?.invoiceNo || (isTransferredToPowerOffice(original) ? original?.invoiceNumber : '') || '').trim();
-    const sources = [
-      ...(poNumber ? [{
-        label: 'PowerOffice',
-        find: async () => (await lookupPowerOfficeInvoice(familyId, poNumber))?.customerAddress || null,
-      }] : []),
-      { label: 'Brønnøysund', find: async (row) => brregAddress(row.orgnr) },
-    ];
+    const sources = [{ label: 'Brønnøysund', find: async (row) => brregAddress(row.orgnr) }];
     let live = true;
     actions.fillCreditAddress(ctx, invoice, sources).then((saved) => {
       if (live && saved) onChanged?.(saved);
@@ -654,6 +646,11 @@ export default function InvoicePage({
         onConfirm={(options) => (dialog === 'finalize'
           ? finalizeAndSend(options)
           : run('send', () => actions.send(ctx, invoice, options)))}
+        onSaveAddress={editable ? async (address) => {
+          const done = await actions.saveCustomerAddress(ctx, invoice, address);
+          onChanged?.(done.invoice);
+          showSaveToast(done.message);
+        } : null}
       />
       <CreditDialog
         visible={dialog === 'credit'}

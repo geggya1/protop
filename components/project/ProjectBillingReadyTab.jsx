@@ -9,14 +9,15 @@ import { buildReadyProjects, PERIOD_OPTIONS, periodEndFor } from '../../src/econ
 import { osloDate } from '../../src/indeksregulering/watch';
 import ConfirmDialog from '../ConfirmDialog';
 import BrandBusyOverlay from '../BrandBusyOverlay';
-import BillingProjectRow from '../../screens/economy/billing/BillingProjectRow';
-import BillingApproveDialog from '../../screens/economy/billing/BillingApproveDialog';
 import useBillingData from '../../screens/economy/billing/useBillingData';
 import useBillingWorkflow from '../../screens/economy/billing/useBillingWorkflow';
-import { Banner } from '../../screens/economy/billing/ui';
 import { withIndexWarnings } from '../../screens/economy/billing/indexWarnings';
 import { forgetBillingChain } from '../../screens/economy/billing/useBillingChain';
 import { postsLabel } from '../../src/economy/billingApproval.js';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const Banner = lazyScreen(() => import('../../screens/economy/billing/ui'), { name: 'Banner', pick: 'Banner', silent: true });
+const BillingApproveDialog = lazyScreen(() => import('../../screens/economy/billing/BillingApproveDialog'), { name: 'BillingApproveDialog', silent: true });
+const BillingProjectRow = lazyScreen(() => import('../../screens/economy/billing/BillingProjectRow'), { name: 'BillingProjectRow', silent: true });
 
 /**
  * Prosjekt · Til fakturering: samme blokk som i Økonomi → Til fakturering, for dette prosjektet.

@@ -38,9 +38,10 @@ import { flushAnbudState, loadAnbudState, saveAnbudState } from '../../src/anbud
 import { useEmployees } from '../../src/context/CompanyDataContext';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { createProject } from '../../src/project/engine';
-import AgreementCustomerField from './AgreementCustomerField';
 import AgreementPersonField from './AgreementPersonField';
 import ProcessTrail from './ProcessTrail';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const AgreementCustomerField = lazyScreen(() => import('./AgreementCustomerField'), { name: 'AgreementCustomerField', silent: true });
 
 function statusTone(status, colors) {
   if (status === 'signert') return { bg: colors.successSoft, ink: colors.success };

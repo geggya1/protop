@@ -16,7 +16,6 @@ import {
   sortAbsenceReport,
 } from '../../src/arbeid/absenceReport.js';
 import { parseDate } from '../../src/economy/invoices.js';
-import AbsenceOrganizePanel from '../../components/arbeid/AbsenceOrganizePanel';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import {
   absenceAudienceLabel, absenceRoster, absenceYears, buildAbsencePeriodGrid, buildAbsenceWebBoard, summarizeAbsenceSpan,
@@ -26,6 +25,8 @@ import { monthDateRange, monthLabel, parseDateKey, shiftMonth, shortDayLabel, to
 import { personnelKind, personnelKindLabel } from '../../src/employees/model.js';
 import Breadcrumb from '../../components/Breadcrumb';
 import { radius } from '../../src/ui/tokens';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const AbsenceOrganizePanel = lazyScreen(() => import('../../components/arbeid/AbsenceOrganizePanel'), { name: 'AbsenceOrganizePanel', silent: true });
 
 const ink = '#152033';
 const muted = '#8B95A6';

@@ -17,7 +17,8 @@ import BackLink from '../../src/ui/BackLink';
 import { SHELL_DETAILS } from '../../src/navigation/shellPaths';
 import { radius, space, type } from '../../src/ui/tokens';
 import PageTabs from '../../components/PageTabs';
-import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const TimesheetEmployeePicker = lazyScreen(() => import('../../components/arbeid/TimesheetEmployeePicker'), { name: 'TimesheetEmployeePicker', silent: true });
 
 export { EMPLOYEE_DETAIL_TABS, employeeViewToTab };
 

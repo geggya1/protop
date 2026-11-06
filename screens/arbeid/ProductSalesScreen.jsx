@@ -1,9 +1,7 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import HoursImportReview from '../../components/arbeid/HoursImportReview';
 import { ImportResult } from '../../components/ImportReview';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
-import ProductSaleSheet from '../../components/sales/ProductSaleSheet';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
@@ -47,8 +45,11 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { BREAKPOINTS } from '../../src/ui/layout.js';
 import { dateKey } from '../../src/utils/dates';
 import { pickDocument } from '../../src/utils/media';
-import { ProductSalesList } from './ProductSalesList';
 import { formatDate } from '../../src/format/nb';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const ProductSalesList = lazyScreen(() => import('./ProductSalesList'), { name: 'ProductSalesList', pick: 'ProductSalesList', silent: true });
+const HoursImportReview = lazyScreen(() => import('../../components/arbeid/HoursImportReview'), { name: 'HoursImportReview', silent: true });
+const ProductSaleSheet = lazyScreen(() => import('../../components/sales/ProductSaleSheet'), { name: 'ProductSaleSheet', silent: true });
 
 // Tabellen tegner en side om gangen. Tusenvis av rader på én gang låser nettleseren.
 const PAGE_SIZE = 100;

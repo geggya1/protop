@@ -5,13 +5,14 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { isSuperAdmin } from '../../src/utils/groups';
-import ChartOfAccountsSettings from '../../components/company/ChartOfAccountsSettings';
 import StandardAccountSettings from '../../components/company/StandardAccountSettings';
-import CompanyInvoiceDefaultsSettings from '../../components/company/CompanyInvoiceDefaultsSettings';
 import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
-import PowerOfficeSettings from './PowerOfficeSettings';
 import CompanyMileageSettings from '../../components/mileage/CompanyMileageSettings';
 import { UnlessShellTitle } from '../../src/ui/ShellTitles';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const ChartOfAccountsSettings = lazyScreen(() => import('../../components/company/ChartOfAccountsSettings'), { name: 'ChartOfAccountsSettings', silent: true });
+const PowerOfficeSettings = lazyScreen(() => import('./PowerOfficeSettings'), { name: 'PowerOfficeSettings', silent: true });
+const CompanyInvoiceDefaultsSettings = lazyScreen(() => import('../../components/company/CompanyInvoiceDefaultsSettings'), { name: 'CompanyInvoiceDefaultsSettings', silent: true });
 
 const TABS = [
   { id: 'kontoplan', label: 'Kontoplan', icon: 'list-outline', hint: 'Salgs- og kjøpskontoer med MVA' },

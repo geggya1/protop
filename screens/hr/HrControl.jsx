@@ -2,8 +2,10 @@ import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import { displayName } from '../../src/employees/model';
 import { hrControlCells } from '../../src/hr/directory';
-import { HrCard, HrSectionTitle } from './HrShared';
 import { HrFilterBar, HrTable, useHrDirectory } from './HrDirectory';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
 
 const PAGES = {
   oppfolging: {

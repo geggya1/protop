@@ -39,8 +39,9 @@ import { useEmployees } from '../../src/context/CompanyDataContext';
 import { dateKey } from '../../src/utils/dates';
 import DirectAgreementForm from './DirectAgreementForm';
 import AgreementDetail from './AgreementDetail';
-import FilterMenu from '../../components/FilterMenu';
 import { companyDisplayName } from '../../src/utils/companyName';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
 
 const PAGE = 50;
 const STATUS_FILTERS = [

@@ -2,7 +2,8 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AssistantChat from '../../components/assistant/AssistantChat';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const AssistantChat = lazyScreen(() => import('../../components/assistant/AssistantChat'), { name: 'AssistantChat', silent: true });
 
 /**
  * ProTop-assistenten på full skjerm (native). Web bruker chat-docken.

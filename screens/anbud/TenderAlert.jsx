@@ -26,10 +26,8 @@ import { radius } from '../../src/ui/tokens';
 import TenderHitCards from './TenderHitCards';
 import NoticeInsight from './NoticeInsight';
 import NextStep from './NextStep';
-import TenderMap from './TenderMap';
 import PhoneMapDock from './PhoneMapDock';
 import RegionCoverage from './RegionCoverage';
-import FilterMenu from '../../components/FilterMenu';
 import OptionPicker from '../../components/OptionPicker';
 import InfoButton from '../../components/InfoButton';
 import {
@@ -45,6 +43,9 @@ import {
   sourceLabel,
 } from '../../src/anbud/noticeText';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
+const TenderMap = lazyScreen(() => import('./TenderMap'), { name: 'TenderMap', silent: true });
 
 const FILTERS = [
   ['nye', 'Nye', 'emphasis'],

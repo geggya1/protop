@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Hjelp og support for brukerne.
  *
@@ -34,12 +35,12 @@ import {
   AttachmentPicker, Btn, Chip, DiagnosticsPreview, Empty, Field, HD, Notice, RemoteImage, SectionTitle, StatusPill, s as ui,
 } from '../../components/helpdesk/HelpdeskUi';
 import { radius, type } from '../../src/ui/tokens';
-import AssistantChat from '../../components/assistant/AssistantChat';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { useHelpAccess } from '../../src/help/useHelpAccess';
 import { condenseStepLocks } from '../../src/help/helpAccess';
 import { formatNewsDate, listHelpNews } from '../../src/utils/helpNews';
 import { groupUpdatesByDay } from '../../src/utils/appUpdatesLogic';
+const AssistantChat = lazyScreen(() => import('../../components/assistant/AssistantChat'), { name: 'AssistantChat', silent: true });
 
 const lang = 'nb';
 const POLL_MS = 30000;

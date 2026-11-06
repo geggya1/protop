@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
+const syncLazyScreen = require('../../tests/helpers/syncLazyScreen.cjs');
 const babel = require('@babel/core');
 const React = require('react');
 const assert = require('node:assert/strict');
@@ -106,6 +107,7 @@ function loadLocal(full) {
   m.paths = Module._nodeModulePaths(path.dirname(full));
   cache.set(full, m);
   m.require = (id) => {
+    if (id.includes('ui/lazyScreen')) return syncLazyScreen(m.require);
     if (id === 'react') return React;
     if (id === 'react-native') {
       return {

@@ -10,17 +10,22 @@ import {
   upcomingPeopleEvents,
   yearsBetween,
 } from '../../src/hr/model';
-import { HrButton, HrCard, HrChip, HrSectionTitle, RowLink } from './HrShared';
 import { HrFilterBar, HrTable, useHrDirectory } from './HrDirectory';
 import HrContracts from './HrContracts';
 import HrSalary from './HrSalary';
-import HrFollowUp from './HrFollowUp';
 import HrCompliance from './HrCompliance';
 import HrHmsCards from './HrHmsCards';
 import HrPayGap from './HrPayGap';
 import HrPayrollSummary from './HrPayrollSummary';
 import HrAccessLog from './HrAccessLog';
 import ControlMeasuresCard from './ControlMeasuresCard';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
+const RowLink = lazyScreen(() => import('./HrShared'), { name: 'RowLink', pick: 'RowLink', silent: true });
+const HrFollowUp = lazyScreen(() => import('./HrFollowUp'), { name: 'HrFollowUp', silent: true });
 
 // Lønn åpnes fra kolonnen i listen, ikke som fane i personellmappen.
 const SHEETS = [

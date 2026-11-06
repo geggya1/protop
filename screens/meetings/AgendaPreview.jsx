@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Kompakt visning av en dagsorden (mal, skjema eller AI-forslag).
  * Med onChange kan punkter og kapitler fjernes før dagsordenen tas i bruk.
@@ -6,7 +7,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { durationLabel } from '../../src/meetings/model';
-import { IconBtn } from './meetingUi';
+const IconBtn = lazyScreen(() => import('./meetingUi'), { name: 'IconBtn', pick: 'IconBtn', silent: true });
 
 export default function AgendaPreview({ chapters = [], onChange, maxItems = 200 }) {
   const colors = useColors();

@@ -21,7 +21,6 @@ import HrDashboard from './HrDashboard';
 import HrPeople from './HrPeople';
 import HrRecruitment from './HrRecruitment';
 import HrControl from './HrControl';
-import HrHandbook from './HrHandbook';
 import HrForms from './HrForms';
 import HrAnnual from './HrAnnual';
 import HrSickLeave from './HrSickLeave';
@@ -37,6 +36,8 @@ import { useDocControl } from '../doccontrol/useDocControl';
 import { useDocReadTasks } from '../doccontrol/useDocReadTasks';
 import { privacyDocState } from '../../src/hr/privacyDoc';
 import { useIsoCompetence } from './useIsoCompetence';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrHandbook = lazyScreen(() => import('./HrHandbook'), { name: 'HrHandbook', silent: true });
 
 function periodWindow(months = 3) {
   const to = new Date();

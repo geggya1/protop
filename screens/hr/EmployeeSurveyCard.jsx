@@ -5,8 +5,12 @@ import { formatNbDate } from '../../src/hr/model';
 import { hasAnswered, loadOpenSurveys, submitSurveyAnswer } from '../../src/hr/surveyStore';
 import { toneColor } from '../../src/hr/uiHelpers';
 import { chartColorsFor } from '../../src/ui/chartColors';
-import { HrButton, HrCard, HrChip, HrSectionTitle } from './HrShared';
 import { radius, space, type } from '../../src/ui/tokens';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
 
 /**
  * Åpen medarbeiderundersøkelse på Min side. Svaret lagres uten navn og bruker-id.

@@ -13,7 +13,11 @@ import { radius, type } from '../../src/ui/tokens';
 import {
   ACCENT, Avatar, KpiTile, Pill, Ring, Segmented, gridItem, gridStyle, tint,
 } from '../hr/HrDashParts';
-import { EmptyHint, HrButton, HrChip, HrField } from '../hr/HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('../hr/HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('../hr/HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('../hr/HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
 
 const STATUS_OPTIONS = [
   { id: 'ok', label: 'OK' },

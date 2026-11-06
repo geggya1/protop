@@ -10,8 +10,9 @@ import { saveFormTemplate } from '../../src/anbud/bidLibrary';
 import { AGREEMENT_IMPORT_ACCEPT } from '../../src/anbud/openDocument';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { pickDocument } from '../../src/utils/media';
-import AgreementCustomerField from './AgreementCustomerField';
 import FileDropZone from './FileDropZone';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const AgreementCustomerField = lazyScreen(() => import('./AgreementCustomerField'), { name: 'AgreementCustomerField', silent: true });
 
 let createPortal = null;
 if (Platform.OS === 'web') {

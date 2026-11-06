@@ -3,7 +3,8 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { auth, db } from '../firebase';
 import { collectionGroup, getDocs, limit, query, where } from 'firebase/firestore';
-import TopNavBar from '../components/TopNavBar';
+import { lazyScreen } from '../src/ui/lazyScreen';
+const TopNavBar = lazyScreen(() => import('../components/TopNavBar'), { name: 'TopNavBar', silent: true });
 
 export default function ProfileScreen() {
   const navigation = useNavigation();

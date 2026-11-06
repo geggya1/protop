@@ -15,11 +15,12 @@ import { calculateAge, isValidBirthday } from '../src/utils/age';
 import { hasContactInfo, isValidEmail } from '../src/utils/account';
 import Wizard, { Choice } from '../components/Wizard';
 import AvatarPicker, { AvatarBubble } from '../components/AvatarPicker';
-import LocationPicker from '../components/LocationPicker';
-import BirthdayPicker from '../components/BirthdayPicker';
 import PhoneInput from '../components/PhoneInput';
 import PasswordFields, { passwordRules } from '../components/PasswordFields';
 import WebImageCropperModal from '../components/WebImageCropperModal';
+import { lazyScreen } from '../src/ui/lazyScreen';
+const LocationPicker = lazyScreen(() => import('../components/LocationPicker'), { name: 'LocationPicker', silent: true });
+const BirthdayPicker = lazyScreen(() => import('../components/BirthdayPicker'), { name: 'BirthdayPicker', silent: true });
 
 export default function AddMemberScreen({
   inShell = false,

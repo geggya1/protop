@@ -27,7 +27,6 @@ import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
 import EmptyState from '../../components/EmptyState';
-import FilterMenu from '../../components/FilterMenu';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
 import {
@@ -97,12 +96,14 @@ import SearchSelect from '../../components/project/SearchSelect';
 import DateInput from '../../components/DateInput';
 import { searchPlaces } from '../../src/utils/location';
 import { addressFieldsFromPlace } from '../../src/mileage/flow';
-import ProjectDetail from '../../components/project/ProjectDetail';
 import { useShellDetail } from '../../src/navigation/shellDetail';
 import { DetailMissing } from '../../src/ui/BackLink';
 import { useEmployees } from '../../src/context/CompanyDataContext';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
 import ProjectPhoneRow from './ProjectPhoneRow';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
+const ProjectDetail = lazyScreen(() => import('../../components/project/ProjectDetail'), { name: 'ProjectDetail', silent: true });
 
 const DOC_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,application/pdf,image/*';
 

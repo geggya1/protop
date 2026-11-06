@@ -5,8 +5,12 @@ import {
   DEFAULT_SURVEY_QUESTIONS, SURVEY_AREAS, SURVEY_MAX_QUESTIONS, addSurveyQuestion, availableBankQuestions,
   moveSurveyQuestion, normalizeSurvey, removeSurveyQuestion, updateSurveyQuestion,
 } from '../../src/hr/survey';
-import { EmptyHint, HrButton, HrChip, HrField } from './HrShared';
 import { radius, space, type } from '../../src/ui/tokens';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
 
 function IconButton({ colors, icon, label, onPress, disabled, nativeID }) {
   return (

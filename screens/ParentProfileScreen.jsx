@@ -1,3 +1,4 @@
+import { lazyScreen } from '../src/ui/lazyScreen';
 // src/screens/ParentProfileScreen.jsx
 import React, { useCallback, useMemo, useState, useLayoutEffect, useEffect } from 'react';
 import {
@@ -13,7 +14,6 @@ import {
   collectionGroup, updateDoc, arrayUnion, arrayRemove, onSnapshot, writeBatch
 } from 'firebase/firestore';
 import { updateProfile, signOut as firebaseSignOut } from 'firebase/auth';
-import TopNavBar from '../components/TopNavBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -24,6 +24,7 @@ import {
 } from '../src/utils/groups';
 import { syncMyInvites } from '../src/utils/invite';
 import { signOutKeepingWork } from '../src/utils/localCache';
+const TopNavBar = lazyScreen(() => import('../components/TopNavBar'), { name: 'TopNavBar', silent: true });
 
 let Cropper = null;
 if (Platform.OS === 'web') {

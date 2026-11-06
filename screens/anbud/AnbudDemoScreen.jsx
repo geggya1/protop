@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Tilbudsbordet uten innlogging, for å teste henting av konkurransegrunnlag og Q&A lokalt.
  * Åpnes på /anbud-demo, bare i utviklingsbygg (__DEV__). Uten selskap lagres alt
@@ -8,8 +9,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { normalizeBidWork } from '../../src/anbud/bidLibrary';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
-import BidDesk from './BidDesk';
-import TenderAlert from './TenderAlert';
+const BidDesk = lazyScreen(() => import('./BidDesk'), { name: 'BidDesk', silent: true });
+const TenderAlert = lazyScreen(() => import('./TenderAlert'), { name: 'TenderAlert', silent: true });
 
 // Ekte Doffin-kunngjøringer: Artifik med og uten Q&A, og EU-Supply.
 const DEMO_NOTICES = [

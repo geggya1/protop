@@ -8,9 +8,10 @@ import { agreementResponsiblePeople } from '../../src/anbud/customers';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { useEmployees } from '../../src/context/CompanyDataContext';
 import ContractFollowUp from './ContractFollowUp';
-import AgreementTreatment from './AgreementTreatment';
 import AgreementCreateWizard from './AgreementCreateWizard';
 import { companyDisplayName } from '../../src/utils/companyName';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const AgreementTreatment = lazyScreen(() => import('./AgreementTreatment'), { name: 'AgreementTreatment', silent: true });
 
 export default function ContractScreen() {
   const colors = useColors();

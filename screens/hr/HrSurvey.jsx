@@ -18,11 +18,17 @@ import { csvFileName, downloadCsv, trendCsvRows } from '../../src/surveys/csv';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { useConfirm } from '../../src/ui/useConfirm';
 import { chartColorsFor } from '../../src/ui/chartColors';
-import SurveyTrend from '../../components/surveys/SurveyTrend';
-import { EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle } from './HrShared';
 import { radius, space, type } from '../../src/ui/tokens';
 import HrSurveyResults from './HrSurveyResults';
 import HrSurveyEditor from './HrSurveyEditor';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
+const SurveyTrend = lazyScreen(() => import('../../components/surveys/SurveyTrend'), { name: 'SurveyTrend', silent: true });
 
 const STATUS_LABEL = { draft: 'Utkast', open: 'Åpen for svar', closed: 'Avsluttet' };
 

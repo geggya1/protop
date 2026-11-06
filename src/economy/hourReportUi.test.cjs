@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
+const syncLazyScreen = require('../../tests/helpers/syncLazyScreen.cjs');
 const babel = require('@babel/core');
 const React = require('react');
 const assert = require('node:assert/strict');
@@ -120,6 +121,7 @@ const companyData = require('../company/companyDataTesting.js').companyDataHooks
 });
 
 function hookedRequire(orig, id) {
+  if (id.includes('ui/lazyScreen')) return syncLazyScreen((p) => hookedRequire(orig, p));
   if (id === 'react') return React;
   if (id.includes('CompanyDataContext')) return companyData;
   if (id === 'react-native') return rnMock;

@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Møter: oversikt, oppfølging og maler, og selve møtet når det er åpnet.
  * Alt det modulen trenger kommer inn som props, så appen og /moter-demo
@@ -10,13 +11,15 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { useRepeatsShellTitle } from '../../src/ui/ShellTitles';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { canSeeMeeting, todayOslo } from '../../src/meetings/model';
-import MeetingList from './MeetingList';
-import MeetingWorkspace from './MeetingWorkspace';
-import NewMeetingDialog from './NewMeetingDialog';
-import FollowUpView from './FollowUpView';
-import TemplatesView from './TemplatesView';
 import * as actions from './meetingActions';
-import { Banner, Btn, Spinner } from './meetingUi';
+const Banner = lazyScreen(() => import('./meetingUi'), { name: 'Banner', pick: 'Banner', silent: true });
+const Btn = lazyScreen(() => import('./meetingUi'), { name: 'Btn', pick: 'Btn', silent: true });
+const Spinner = lazyScreen(() => import('./meetingUi'), { name: 'Spinner', pick: 'Spinner', silent: true });
+const FollowUpView = lazyScreen(() => import('./FollowUpView'), { name: 'FollowUpView', silent: true });
+const MeetingList = lazyScreen(() => import('./MeetingList'), { name: 'MeetingList', silent: true });
+const TemplatesView = lazyScreen(() => import('./TemplatesView'), { name: 'TemplatesView', silent: true });
+const MeetingWorkspace = lazyScreen(() => import('./MeetingWorkspace'), { name: 'MeetingWorkspace', silent: true });
+const NewMeetingDialog = lazyScreen(() => import('./NewMeetingDialog'), { name: 'NewMeetingDialog', silent: true });
 
 const PAGE_TITLES = {
   oversikt: ['Møter', 'Planlegg, gjennomfør og send referat. Faste møter fører åpne punkter videre til neste møte.'],

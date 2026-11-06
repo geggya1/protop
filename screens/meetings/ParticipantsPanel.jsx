@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Deltakere: ansatte og eksterne, rolle (møteleder, referent, deltaker, kopi),
  * oppmøte og om de skal innkalles til neste møte i serien.
@@ -10,9 +11,15 @@ import OptionPicker from '../../components/OptionPicker';
 import {
   PARTICIPANT_ROLES, attendanceCounts, createMeetingId, invitees, text,
 } from '../../src/meetings/model';
-import {
-  Avatar, Banner, Btn, Card, Check, Field, IconBtn, Label, Pill,
-} from './meetingUi';
+const Avatar = lazyScreen(() => import('./meetingUi'), { name: 'Avatar', pick: 'Avatar', silent: true });
+const Banner = lazyScreen(() => import('./meetingUi'), { name: 'Banner', pick: 'Banner', silent: true });
+const Btn = lazyScreen(() => import('./meetingUi'), { name: 'Btn', pick: 'Btn', silent: true });
+const Card = lazyScreen(() => import('./meetingUi'), { name: 'Card', pick: 'Card', silent: true });
+const Check = lazyScreen(() => import('./meetingUi'), { name: 'Check', pick: 'Check', silent: true });
+const Field = lazyScreen(() => import('./meetingUi'), { name: 'Field', pick: 'Field', silent: true });
+const IconBtn = lazyScreen(() => import('./meetingUi'), { name: 'IconBtn', pick: 'IconBtn', silent: true });
+const Label = lazyScreen(() => import('./meetingUi'), { name: 'Label', pick: 'Label', silent: true });
+const Pill = lazyScreen(() => import('./meetingUi'), { name: 'Pill', pick: 'Pill', silent: true });
 
 const MARKS = [
   { id: 'tilstede', short: 'Til stede', color: '#16a34a', bg: '#dcfce7' },

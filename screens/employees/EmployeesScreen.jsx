@@ -104,18 +104,11 @@ import {
   watchEmployees,
 } from '../../src/employees/storage';
 import EmployeeCvView from './EmployeeCvView';
-import EmployeeDetailView from './EmployeeDetailView';
 import { useShellDetail } from '../../src/navigation/shellDetail';
 import { ansattSelfView } from '../../src/navigation/shellModules';
 import { DetailMissing } from '../../src/ui/BackLink';
 import EmployeePersonChrome from './EmployeePersonChrome';
-import ArbeidScreen from '../arbeid/ArbeidScreen';
-import EconomyHours from '../economy/EconomyHours';
-import TimesaldoScreen from '../arbeid/TimesaldoScreen';
-import { AbsenceOverviewScreen, MyOverviewScreen } from '../arbeid/AbsenceScreens';
-import { ProjectExpensesScreen } from '../arbeid/OpsScreens';
 import EmployeeWorkViews from './EmployeeWorkViews';
-import EmployeeFields from './EmployeeFields';
 import EmployeeInvitePanel from './EmployeeInvitePanel';
 import RegisterEmployeeDialog from './RegisterEmployeeDialog';
 import EmployeeUsagePanel from './EmployeeUsagePanel';
@@ -134,9 +127,18 @@ import { loadProjectState } from '../../src/project/storage';
 import {
   EMPLOYEE_DETAIL_TABS, EMPLOYEE_SETTINGS_SUBS, EMPLOYEE_SUB_TABS, PERSON_FILL_VIEWS, PERSON_VIEWS, employeeTabViews, employeeViewToTab,
 } from '../../src/employees/personTabs.js';
-import EmployeeEarningsSheet from '../../components/economy/EmployeeEarningsSheet';
 import { companyDisplayName } from '../../src/utils/companyName';
 import { radius } from '../../src/ui/tokens';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const ProjectExpensesScreen = lazyScreen(() => import('../economy/ProjectExpensesScreen'), { name: 'ProjectExpensesScreen', pick: 'ProjectExpensesScreen' });
+const AbsenceOverviewScreen = lazyScreen(() => import('../arbeid/AbsenceScreens'), { name: 'AbsenceOverviewScreen', pick: 'AbsenceOverviewScreen' });
+const MyOverviewScreen = lazyScreen(() => import('../arbeid/AbsenceScreens'), { name: 'MyOverviewScreen', pick: 'MyOverviewScreen' });
+const TimesaldoScreen = lazyScreen(() => import('../arbeid/TimesaldoScreen'), { name: 'TimesaldoScreen' });
+const EmployeeEarningsSheet = lazyScreen(() => import('../../components/economy/EmployeeEarningsSheet'), { name: 'EmployeeEarningsSheet', silent: true });
+const EmployeeFields = lazyScreen(() => import('./EmployeeFields'), { name: 'EmployeeFields', silent: true });
+const EmployeeDetailView = lazyScreen(() => import('./EmployeeDetailView'), { name: 'EmployeeDetailView', silent: true });
+const EconomyHours = lazyScreen(() => import('../economy/EconomyHours'), { name: 'EconomyHours', silent: true });
+const ArbeidScreen = lazyScreen(() => import('../arbeid/ArbeidScreen'), { name: 'ArbeidScreen' });
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;

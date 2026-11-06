@@ -10,7 +10,6 @@ import {
   addDays, dateKey, startOfWeekMonday, monthGrid, isSameMonth, WEEKDAYS_SHORT, MONTHS_NO, sameDay, isToday, getISOWeek,
 } from '../../src/utils/dates';
 import { formatWeekRangeShortNo, calendarIdOf, isCalendarLayerHidden, calendarConnectionLayerId, calendarSubLayerId, connectionDisplayLabel, icsSidebarLabel, shouldListEventAsCalendarLayer, HIDDEN_CALENDAR_LAYERS_KEY, equipmentGroupLayerId, equipmentLayerId } from '../../src/utils/timeGrid';
-import OutlookCalendar from '../../components/OutlookCalendar';
 import { eventOccursOnDate, eventOnOwnCalendar, eventVisibleToUser } from '../../src/utils/events';
 import {
   listenEventsAcrossPlatforms,
@@ -29,7 +28,6 @@ import {
   useExternalEventVisibilityMap,
   useEventsWithExternalVisibility,
 } from '../../src/hooks/useExternalEventVisibility';
-import CalendarSettingsScreen from './CalendarSettingsScreen';
 import { listenEventsSharedWithMe } from '../../src/utils/friends';
 import MemberAvatarStack, { whoCountLabel, resolveEventMembers } from '../../components/MemberAvatarStack';
 import { Screen } from '../../components/ui';
@@ -48,6 +46,9 @@ import {
   equipmentEventsFromBookings,
   withEquipmentChecks,
 } from '../../src/equipment/calendars';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const CalendarSettingsScreen = lazyScreen(() => import('./CalendarSettingsScreen'), { name: 'CalendarSettingsScreen' });
+const OutlookCalendar = lazyScreen(() => import('../../components/OutlookCalendar'), { name: 'OutlookCalendar', silent: true });
 
 const HIDDEN_CALS_KEY = HIDDEN_CALENDAR_LAYERS_KEY;
 

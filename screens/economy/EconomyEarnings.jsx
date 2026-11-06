@@ -23,11 +23,12 @@ import { fetchGrunnbelop, grunnbelopIsStale } from '../../src/economy/grunnbelop
 import { loadHrState } from '../../src/hr/storage';
 import { useEarningsSettings } from '../../src/economy/useEarningsSettings';
 import { useBreakpoints } from '../../src/theme';
-import EmployeeEarningsSheet from '../../components/economy/EmployeeEarningsSheet';
 import EarningsSettings from '../../components/economy/EarningsSettings';
-import { ActivityTabs } from '../../components/arbeid/TimesheetEmployeePicker';
 import EconomyCustomers from './EconomyCustomers';
 import EconomyContracts from './EconomyContracts';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const ActivityTabs = lazyScreen(() => import('../../components/arbeid/TimesheetEmployeePicker'), { name: 'ActivityTabs', pick: 'ActivityTabs', silent: true });
+const EmployeeEarningsSheet = lazyScreen(() => import('../../components/economy/EmployeeEarningsSheet'), { name: 'EmployeeEarningsSheet', silent: true });
 
 const SECTIONS = [
   { id: 'ansatte', label: 'Interne' },

@@ -87,13 +87,9 @@ import {
   timesheetActivityRange,
   timesheetHourWindows,
 } from '../../src/arbeid/timesheetProjects.js';
-import TimeEntryModal from '../../components/arbeid/TimeEntryModal';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 import MonthJump from '../../components/arbeid/MonthJump';
-import TimesheetGrid from '../../components/arbeid/TimesheetGrid';
-import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
-import SickNoteModal from '../../components/arbeid/SickNoteModal';
 import OvertimePayoutModal from '../../components/arbeid/OvertimePayoutModal';
 import AbsenceNoticeModal from '../../components/arbeid/AbsenceNoticeModal';
 import AbsenceFormModal, { AbsenceFormPrompt } from '../../components/arbeid/AbsenceFormModal';
@@ -140,6 +136,11 @@ import {
 } from '../../src/arbeid/timesheetPrefsStorage.js';
 import { upsertExpense, upsertSale, upsertTrip } from '../../src/economy/opsState.js';
 import { companyDisplayName } from '../../src/utils/companyName';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const TimesheetEmployeePicker = lazyScreen(() => import('../../components/arbeid/TimesheetEmployeePicker'), { name: 'TimesheetEmployeePicker', silent: true });
+const SickNoteModal = lazyScreen(() => import('../../components/arbeid/SickNoteModal'), { name: 'SickNoteModal', silent: true });
+const TimesheetGrid = lazyScreen(() => import('../../components/arbeid/TimesheetGrid'), { name: 'TimesheetGrid', silent: true });
+const TimeEntryModal = lazyScreen(() => import('../../components/arbeid/TimeEntryModal'), { name: 'TimeEntryModal', silent: true });
 
 const DAILY = 8;
 

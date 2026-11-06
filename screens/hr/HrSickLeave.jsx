@@ -4,8 +4,12 @@ import { displayName } from '../../src/employees/model';
 import { formatNbDate } from '../../src/hr/model';
 import { markSickMilestone } from '../../src/hr/sickLeave';
 import { toneColor } from '../../src/hr/uiHelpers';
-import { EmptyHint, HrCard, HrChip, HrSectionTitle } from './HrShared';
 import { radius, space, type } from '../../src/ui/tokens';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
 
 const STATUS = {
   done: { label: 'Gjort', tone: 'good' },

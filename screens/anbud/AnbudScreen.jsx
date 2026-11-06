@@ -8,12 +8,13 @@ import { clearModuleTabBadges, setModuleTabBadges } from '../../src/navigation/m
 import { directQueueItems, noticesAwaitingBid } from '../../src/anbud/processTrail';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { useBreakpoints } from '../../src/theme';
-import TenderAlert from './TenderAlert';
 import TenderInquiry from './TenderInquiry';
 import CurrentReview from './CurrentReview';
-import BidDesk from './BidDesk';
 import WatchSettings from './WatchSettings';
 import { bidListedOnDesk } from '../../src/anbud/model';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const BidDesk = lazyScreen(() => import('./BidDesk'), { name: 'BidDesk', silent: true });
+const TenderAlert = lazyScreen(() => import('./TenderAlert'), { name: 'TenderAlert', silent: true });
 
 export default function AnbudScreen({ company, subView, members = [], units = [], companies = [] }) {
   const colors = useColors();

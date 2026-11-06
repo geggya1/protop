@@ -20,11 +20,8 @@ import { pickImage, uploadImage, alertPhotoError } from '../../src/utils/media';
 import { calculateAge, isValidBirthday, toIsoDate } from '../../src/utils/age';
 import { normalizePhone, defaultDialCode, splitPhone } from '../../src/utils/phone';
 import { Screen, ScrollBody, BigButton } from '../../components/ui';
-import NotificationPrefsPanel from '../../components/NotificationPrefsPanel';
 import CompactBackLink from '../../components/CompactBackLink';
 import AvatarPicker, { AvatarBubble } from '../../components/AvatarPicker';
-import LocationPicker from '../../components/LocationPicker';
-import BirthdayPicker from '../../components/BirthdayPicker';
 import PhoneInput from '../../components/PhoneInput';
 import WebImageCropperModal from '../../components/WebImageCropperModal';
 import { ChoiceGrid } from '../../components/Wizard';
@@ -41,6 +38,10 @@ import {
   loadGreetingPrefs,
   saveGreetingPrefs,
 } from '../../src/utils/greetingPrefs';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const LocationPicker = lazyScreen(() => import('../../components/LocationPicker'), { name: 'LocationPicker', silent: true });
+const NotificationPrefsPanel = lazyScreen(() => import('../../components/NotificationPrefsPanel'), { name: 'NotificationPrefsPanel', silent: true });
+const BirthdayPicker = lazyScreen(() => import('../../components/BirthdayPicker'), { name: 'BirthdayPicker', silent: true });
 
 function SectionHeader({ title }) {
   return <Text style={styles.sectionTitle}>{title}</Text>;

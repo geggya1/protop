@@ -7,7 +7,9 @@ import {
 import { useBreakpoints } from '../../src/theme';
 import { LIKERT_LABELS, chartColorsFor } from '../../src/ui/chartColors';
 import { radius, space, type } from '../../src/ui/tokens';
-import { HrButton, HrChip } from './HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
 
 function signed(n) {
   if (n == null) return '';

@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
+const syncLazyScreen = require('../../tests/helpers/syncLazyScreen.cjs');
 const babel = require('@babel/core');
 const React = require('react');
 const assert = require('node:assert/strict');
@@ -66,6 +67,7 @@ function loadJsx(rel, { phone = false } = {}) {
   m.paths = Module._nodeModulePaths(path.dirname(full));
   const orig = m.require.bind(m);
   m.require = (id) => {
+    if (id.includes('ui/lazyScreen')) return syncLazyScreen(m.require);
     if (id === 'react') return React;
     if (id === 'react/jsx-runtime' || id === 'react/jsx-dev-runtime') return orig(id);
     if (id === 'react-native') return rnMock;

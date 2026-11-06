@@ -38,9 +38,7 @@ import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
 import EmptyState from '../../components/EmptyState';
-import FilterMenu from '../../components/FilterMenu';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
-import ReportTable from '../../components/table/ReportTable';
 import useReportColumns from '../../components/table/useReportColumns';
 import {
   CUSTOMER_INVOICE_FILTERS,
@@ -80,6 +78,9 @@ import IndexLetterTable from '../../components/economy/IndexLetterTable';
 import { lettersForCustomer } from '../../src/indeksregulering/groups';
 import CustomerPhoneRow from './CustomerPhoneRow';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
+const ReportTable = lazyScreen(() => import('../../components/table/ReportTable'), { name: 'ReportTable', silent: true });
 
 // Tabellen tegner en side om gangen. Tusenvis av rader på én gang låser nettleseren.
 const PAGE_SIZE = 100;

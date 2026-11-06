@@ -38,9 +38,10 @@ import { titleFromTranscript } from '../../src/utils/voiceNotes';
 import { summarizeVoiceNote } from '../../src/utils/aiVoiceNoteClient';
 import { structuredNoteBody } from '../../src/utils/noteAi';
 import { useVoiceDictation } from '../../src/hooks/useVoiceDictation';
-import NoteEditorScreen from './NoteEditorScreen';
 import NoteSettingsScreen from './NoteSettingsScreen';
 import { ModulePageFrame, ModuleHubIntro } from '../../components/ModulePageBg';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const NoteEditorScreen = lazyScreen(() => import('./NoteEditorScreen'), { name: 'NoteEditorScreen' });
 
 export default function NotesHubScreen({ compactHeader = false, profileUid = null }) {
   const { t } = useI18n();

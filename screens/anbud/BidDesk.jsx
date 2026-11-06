@@ -32,11 +32,12 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { bidMapRows, mergeWorkGeo } from '../../src/anbud/workMap';
 import MapRail, { activateMapRow, mapCardChrome, MapIndexBadge, revealAnbudRow } from './MapRail';
 import BidWorkspace, { DeadlineField } from './BidWorkspace';
-import FormBuilderScreen from './FormBuilderScreen';
-import FilterMenu from '../../components/FilterMenu';
 import OptionPicker from '../../components/OptionPicker';
 import InfoButton from '../../components/InfoButton';
 import { useBreakpoints } from '../../src/theme';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
+const FormBuilderScreen = lazyScreen(() => import('./FormBuilderScreen'), { name: 'FormBuilderScreen' });
 
 const FILTERS = [
   ['alle', 'Alle'],

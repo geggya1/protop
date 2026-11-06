@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Dokumentstyring for ett dokument: dokumenthode, innsending, godkjenning,
  * eier og godkjenner, lesekrav, lesebekreftelser og revisjonslogg.
@@ -30,8 +31,10 @@ import {
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/forms/highlight';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { type } from '../../src/ui/tokens';
-import { HrButton, HrCard, HrSectionTitle } from '../hr/HrShared';
 import { ChoiceChips, HeaderGrid, Label, OK_INK, PersonChips, StatusChip, dateText, dayText } from './parts';
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('../hr/HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrSectionTitle = lazyScreen(() => import('../hr/HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
 
 const NOTIFY = [
   { id: 'standard', label: 'Som innstillingene' },

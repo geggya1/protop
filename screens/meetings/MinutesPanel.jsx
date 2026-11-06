@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Referat: sammendrag (selv eller med AI), sjekkliste før ferdigstilling,
  * og forhåndsvisning av referatet eller innkallingen slik PDF-en blir.
@@ -10,9 +11,12 @@ import { finalizeChecks } from '../../src/meetings/flow';
 import { isClosed, isLocked } from '../../src/meetings/model';
 import { minutesDocument } from '../../src/meetings/minutesDoc';
 import { summarizeMeeting } from '../../src/meetings/ai';
-import {
-  Banner, Btn, Card, Choice, Label, Pill,
-} from './meetingUi';
+const Banner = lazyScreen(() => import('./meetingUi'), { name: 'Banner', pick: 'Banner', silent: true });
+const Btn = lazyScreen(() => import('./meetingUi'), { name: 'Btn', pick: 'Btn', silent: true });
+const Card = lazyScreen(() => import('./meetingUi'), { name: 'Card', pick: 'Card', silent: true });
+const Choice = lazyScreen(() => import('./meetingUi'), { name: 'Choice', pick: 'Choice', silent: true });
+const Label = lazyScreen(() => import('./meetingUi'), { name: 'Label', pick: 'Label', silent: true });
+const Pill = lazyScreen(() => import('./meetingUi'), { name: 'Pill', pick: 'Pill', silent: true });
 
 const MARK_TONE = {
   T: ['#dcfce7', '#166534'], F: ['#fef3c7', '#92400e'], IM: ['#fee2e2', '#991b1b'], K: ['#eef2f6', '#475569'], '–': ['#f1f5f9', '#94a3b8'],

@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Én undersøkelse eller evaluering i detalj (SurveyDetail) og redigering av utkast og maler
  * (SurveyEditor). Brukes i Kunder → Kundeundersøkelse og i prosjektets Evaluering-fane.
@@ -21,11 +22,12 @@ import { useConfirm } from '../../src/ui/useConfirm';
 import { radius, space, type } from '../../src/ui/tokens';
 import SurveyAnswerForm from '../../components/surveys/SurveyAnswerForm';
 import ResponseMeter from '../../components/surveys/ResponseMeter';
-import {
-  EmptyHint, HrButton, HrChip, HrField,
-} from '../hr/HrShared';
-import CustomerSurveyRecipients from './CustomerSurveyRecipients';
-import CustomerSurveyResults from './CustomerSurveyResults';
+const EmptyHint = lazyScreen(() => import('../hr/HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('../hr/HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('../hr/HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
+const CustomerSurveyRecipients = lazyScreen(() => import('./CustomerSurveyRecipients'), { name: 'CustomerSurveyRecipients', silent: true });
+const CustomerSurveyResults = lazyScreen(() => import('./CustomerSurveyResults'), { name: 'CustomerSurveyResults', silent: true });
 
 export const STATUS_LABEL = { draft: 'Utkast', open: 'Sendt, åpen for svar', closed: 'Avsluttet' };
 const TYPE_LABEL = Object.fromEntries(QUESTION_TYPES.map((t) => [t.id, t.label]));

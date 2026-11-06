@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Utsending av innkalling eller referat: mottakere, emne, melding og vedlegg.
  * Kan også markere som sendt uten e-post (sendt på annen måte).
@@ -11,9 +12,14 @@ import { invitees, minutesRecipients } from '../../src/meetings/model';
 import { invitationSubject, invitationText, minutesSubject, minutesText } from '../../src/meetings/mailText';
 import { minutesFileName } from '../../src/meetings/minutesDoc';
 import { icsFileName } from '../../src/meetings/ics';
-import {
-  Avatar, Banner, Btn, Check, Choice, Field, Label, Pill,
-} from './meetingUi';
+const Avatar = lazyScreen(() => import('./meetingUi'), { name: 'Avatar', pick: 'Avatar', silent: true });
+const Banner = lazyScreen(() => import('./meetingUi'), { name: 'Banner', pick: 'Banner', silent: true });
+const Btn = lazyScreen(() => import('./meetingUi'), { name: 'Btn', pick: 'Btn', silent: true });
+const Check = lazyScreen(() => import('./meetingUi'), { name: 'Check', pick: 'Check', silent: true });
+const Choice = lazyScreen(() => import('./meetingUi'), { name: 'Choice', pick: 'Choice', silent: true });
+const Field = lazyScreen(() => import('./meetingUi'), { name: 'Field', pick: 'Field', silent: true });
+const Label = lazyScreen(() => import('./meetingUi'), { name: 'Label', pick: 'Label', silent: true });
+const Pill = lazyScreen(() => import('./meetingUi'), { name: 'Pill', pick: 'Pill', silent: true });
 
 export default function SendDialog({
   visible, kind = 'innkalling', meeting, onClose, onSend, busy, viewer, company, demo,

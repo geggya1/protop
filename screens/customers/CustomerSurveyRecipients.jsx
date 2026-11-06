@@ -3,7 +3,10 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatNbDate } from '../../src/hr/model';
 import { radius, space, type } from '../../src/ui/tokens';
-import { EmptyHint, HrButton, HrChip } from '../hr/HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('../hr/HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('../hr/HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

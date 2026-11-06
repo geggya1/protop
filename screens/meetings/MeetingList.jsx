@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Møteoversikten: neste møte, det som venter, faner med tall, filtre og listen
  * gruppert per måned. Møteserier vises med neste møte og knapp for å lage det.
@@ -28,21 +29,19 @@ import {
   timeRange,
 } from '../../src/meetings/model';
 import { MEETING_TYPES, meetingType } from '../../src/meetings/templates';
-import {
-  AvatarStack,
-  Btn,
-  Card,
-  DateTile,
-  Empty,
-  NumberChip,
-  PhasePill,
-  Pill,
-  SearchBox,
-  SectionHead,
-  SegTabs,
-  Stat,
-  TypeIcon,
-} from './meetingUi';
+const AvatarStack = lazyScreen(() => import('./meetingUi'), { name: 'AvatarStack', pick: 'AvatarStack', silent: true });
+const Btn = lazyScreen(() => import('./meetingUi'), { name: 'Btn', pick: 'Btn', silent: true });
+const Card = lazyScreen(() => import('./meetingUi'), { name: 'Card', pick: 'Card', silent: true });
+const DateTile = lazyScreen(() => import('./meetingUi'), { name: 'DateTile', pick: 'DateTile', silent: true });
+const Empty = lazyScreen(() => import('./meetingUi'), { name: 'Empty', pick: 'Empty', silent: true });
+const NumberChip = lazyScreen(() => import('./meetingUi'), { name: 'NumberChip', pick: 'NumberChip', silent: true });
+const PhasePill = lazyScreen(() => import('./meetingUi'), { name: 'PhasePill', pick: 'PhasePill', silent: true });
+const Pill = lazyScreen(() => import('./meetingUi'), { name: 'Pill', pick: 'Pill', silent: true });
+const SearchBox = lazyScreen(() => import('./meetingUi'), { name: 'SearchBox', pick: 'SearchBox', silent: true });
+const SectionHead = lazyScreen(() => import('./meetingUi'), { name: 'SectionHead', pick: 'SectionHead', silent: true });
+const SegTabs = lazyScreen(() => import('./meetingUi'), { name: 'SegTabs', pick: 'SegTabs', silent: true });
+const Stat = lazyScreen(() => import('./meetingUi'), { name: 'Stat', pick: 'Stat', silent: true });
+const TypeIcon = lazyScreen(() => import('./meetingUi'), { name: 'TypeIcon', pick: 'TypeIcon', silent: true });
 
 function relativeDay(date, today) {
   const diff = daysBetween(today, date);

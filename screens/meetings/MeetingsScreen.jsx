@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Møter i bedriften: henter ansatte, prosjekter, tilgang og lagring, og viser modulen.
  */
@@ -8,7 +9,7 @@ import { displayName, employeeEmails, ownEmployee, personnelKind } from '../../s
 import { loadProjectState, peekProjectState } from '../../src/project/storage';
 import { pickableProjects } from '../../src/project/myProjects';
 import { createMeetingStore, seesAllMeetings } from '../../src/meetings/storage';
-import MeetingsModule from './MeetingsModule';
+const MeetingsModule = lazyScreen(() => import('./MeetingsModule'), { name: 'MeetingsModule', silent: true });
 
 function personFromEmployee(emp, companyName) {
   const external = personnelKind(emp) !== 'staff';

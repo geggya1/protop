@@ -27,10 +27,7 @@ import EconomyDesk from './EconomyDesk';
 import EconomyIndex from './EconomyIndex';
 import IndexWorkspace from './IndexWorkspace';
 import EconomyIndices from './EconomyIndices';
-import EconomyInvoices from './EconomyInvoices';
-import EconomyBilling from './EconomyBilling';
 import EconomyOps from './EconomyOps';
-import ExpensesScreen from './ProjectExpensesScreen';
 import ProductCatalog from './ProductCatalog';
 import EconomyWelcome from './EconomyWelcome';
 import EconomySettingsScreen from './EconomySettingsScreen';
@@ -38,6 +35,10 @@ import EconomyEarnings from './EconomyEarnings';
 import { supplierFromCompany } from '../../src/economy/ehf.js';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { prefetchBillingData } from './billing/useBillingData';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EconomyBilling = lazyScreen(() => import('./EconomyBilling'), { name: 'EconomyBilling', silent: true });
+const ExpensesScreen = lazyScreen(() => import('./ProjectExpensesScreen'), { name: 'ExpensesScreen' });
+const EconomyInvoices = lazyScreen(() => import('./EconomyInvoices'), { name: 'EconomyInvoices', silent: true });
 
 /** Arbeidsvinduet står i adressen (/hjem/okonomi/indeks?indeksAvtale=…). Fra en annen side blir det en ny oppføring, så tilbake går dit. */
 function rememberIndexUrl(contractId, caseId = '', view = '') {

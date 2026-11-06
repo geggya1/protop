@@ -7,7 +7,10 @@ import {
 import { formatNbDate } from '../../src/hr/model';
 import { useBreakpoints } from '../../src/theme';
 import { radius, space, type } from '../../src/ui/tokens';
-import { HrButton, HrChip, HrField } from './HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
 
 /**
  * Trinnviser for de fem trinnene. Et gjort trinn har hake og dato, trinnet du står på er markert,

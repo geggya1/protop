@@ -3,12 +3,13 @@ import { toDateKey } from '../../src/arbeid/calendar.js';
 import { filterEmployeesForPicker } from '../../src/arbeid/roles.js';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useColors } from '../../src/context/ThemeContext';
-import { ApprovalsBody } from './ApprovalsView';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { useOptionalApp } from '../../src/context/AppContext';
 import { useCompanyAiAllowed } from '../../src/privacy/useCompanyAi';
 import BillingChainLine from '../economy/billing/BillingChainLine';
 import useBillingChain, { forgetBillingChain } from '../economy/billing/useBillingChain';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const ApprovalsBody = lazyScreen(() => import('./ApprovalsView'), { name: 'ApprovalsBody', pick: 'ApprovalsBody', silent: true });
 
 function scanLockedEntries(rows, familyId) {
   return import('../../src/arbeid/timesheetReviewClient.js')

@@ -33,7 +33,6 @@ import {
 import {
   moveStaffOrder, orderStaff, shiftStaffOrder, staffCandidates,
 } from '../../src/project/companyStaff';
-import AccountHistoryCard from './AccountHistoryCard';
 import CompanyArticle from './CompanyArticle';
 import CompanyNewsWall from './CompanyNewsWall';
 import CompanyPageEditor from './CompanyPageEditor';
@@ -51,6 +50,8 @@ import { parentCompanyDisplayName } from '../../src/utils/companyName';
 import { BREAKPOINTS } from '../../src/ui/layout.js';
 import { useBreakpoints } from '../../src/theme';
 import { touchHit } from '../../src/ui/touchTarget';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const AccountHistoryCard = lazyScreen(() => import('./AccountHistoryCard'), { name: 'AccountHistoryCard', silent: true });
 
 const TONES = {
   blue: { bg: '#e8f1ff', fg: '#2563eb' },

@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Utlegg (UX-17): én side for utlegg på prosjekt og interne utlegg, med filteret
  * «Prosjekt / Internt / Alle». Før var dette to sider for de samme radene: Økonomi → Utlegg
@@ -79,9 +80,7 @@ import { createId } from '../../src/project/engine';
 import { pickDocument } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { Button, Field, Sheet, TextIn } from '../../src/ui';
-import ExpenseImportReview from '../../components/economy/ExpenseImportReview';
 import ExpenseWizard from '../../components/economy/ExpenseWizard';
-import PayoutSheet from '../../components/economy/PayoutSheet';
 import {
   markReimbursed,
   markSentToPayroll,
@@ -94,11 +93,13 @@ import { employeePayout, payoutLabel } from '../../src/mileage/compensation';
 import { expenseProjectOptions } from '../../src/economy/expenseForm.js';
 import { myProjectIds } from '../../src/project/myProjects';
 import Breadcrumb from '../../components/Breadcrumb';
-import ReportTable from '../../components/table/ReportTable';
 import DateInput from '../../components/DateInput';
 import InlineError from '../../src/ui/InlineError';
 import Skeleton from '../../src/ui/Skeleton';
 import { radius, space, type } from '../../src/ui/tokens';
+const PayoutSheet = lazyScreen(() => import('../../components/economy/PayoutSheet'), { name: 'PayoutSheet', silent: true });
+const ExpenseImportReview = lazyScreen(() => import('../../components/economy/ExpenseImportReview'), { name: 'ExpenseImportReview', silent: true });
+const ReportTable = lazyScreen(() => import('../../components/table/ReportTable'), { name: 'ReportTable', silent: true });
 
 const UNSURE_APPROVE = 'Avgjør først om kunden skal faktureres: velg Ja eller Nei under «Faktureres kunde».';
 

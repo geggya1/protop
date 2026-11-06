@@ -4,7 +4,6 @@ import {
 } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { colors, useBreakpoints } from '../../src/theme';
-import FilterMenu from '../../components/FilterMenu';
 import {
   addDays, dateKey, startOfWeekMonday, monthGrid, isSameMonth,
   WEEKDAYS_SHORT, MONTHS_NO, sameDay, isToday, getISOWeek,
@@ -33,6 +32,8 @@ import { useShellWide } from '../../components/ModuleAside';
 import { confirmUser } from '../../src/utils/dialog';
 import { showErrorToast } from '../../src/ui/saveToast';
 import { todoActionError } from '../../src/utils/todoStatus.js';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
 
 /** Feil i oppgavehandlinger vises som toast i stedet for å svelges. */
 function toastTodoError(action, err) {

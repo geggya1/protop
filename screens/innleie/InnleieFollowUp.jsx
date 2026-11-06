@@ -14,7 +14,10 @@ import { radius, type } from '../../src/ui/tokens';
 import {
   ACCENT, Avatar, Bar, DashCard, KpiTile, Pill, Segmented, gridItem, gridStyle, tint,
 } from '../hr/HrDashParts';
-import { EmptyHint, HrButton, HrField } from '../hr/HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('../hr/HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrField = lazyScreen(() => import('../hr/HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
 
 /** Fjes og farge per trivselsnivå, 1 til 5. */
 export const TRIVSEL_LOOK = {

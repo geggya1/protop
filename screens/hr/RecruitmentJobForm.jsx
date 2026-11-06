@@ -7,8 +7,11 @@ import {
   JOB_STATUSES, RECRUITMENT_CRITERIA, localIsoDate, normalizeJob,
 } from '../../src/hr/model';
 import OptionPicker from '../../components/OptionPicker';
-import { HrButton, HrChip, HrField } from './HrShared';
 import { radius, type } from '../../src/ui/tokens';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
 
 const EMPTY = {
   title: '', department: '', location: '', description: '', requirements: '',

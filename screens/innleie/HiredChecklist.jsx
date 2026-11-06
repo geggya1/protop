@@ -15,9 +15,11 @@ import { hmsCardFor, hmsCardStatus, upsertHmsCard } from '../../src/hr/hmsCard';
 import { formatNbDate } from '../../src/hr/model';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { radius, type } from '../../src/ui/tokens';
-import HmsCardEditor from '../hr/HmsCardEditor';
 import { ACCENT, Bar, Ring, Segmented, tint } from '../hr/HrDashParts';
-import { HrButton, HrField } from '../hr/HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrField = lazyScreen(() => import('../hr/HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
+const HmsCardEditor = lazyScreen(() => import('../hr/HmsCardEditor'), { name: 'HmsCardEditor', silent: true });
 
 const STATUS_OPTIONS = [
   { id: 'ok', label: 'OK' },

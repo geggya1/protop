@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../../src/ui/lazyScreen';
 /**
  * Hodet på fakturaen: mottaker og fakturainformasjon, lese- og redigeringsvisning.
  */
@@ -10,7 +11,8 @@ import { formatDate } from '../../../src/economy/invoices.js';
 import { DELIVERY_CHANNELS, daysBetween, dueDateFor, isCreditNote } from '../../../src/economy/invoiceFlow.js';
 import { INVOICE_LANGUAGE_OPTIONS } from '../../../src/economy/companyInvoiceDefaults.js';
 import { customerFieldsFrom } from '../../../src/economy/invoiceCustomer.js';
-import { Field, LinkText } from '../billing/ui';
+const Field = lazyScreen(() => import('../billing/ui'), { name: 'Field', pick: 'Field', silent: true });
+const LinkText = lazyScreen(() => import('../billing/ui'), { name: 'LinkText', pick: 'LinkText', silent: true });
 
 function Fact({ label, children, colors }) {
   if (children == null || children === '' || children === '—') return null;

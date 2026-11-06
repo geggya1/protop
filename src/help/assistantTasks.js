@@ -292,7 +292,7 @@ export const ASSISTANT_TASKS = [
     avoid: tx(['kilometerstand', 'tell'], ['odometer']),
     intro: tx('Kjøreturer registreres i Kjørebok, som finner rute, kilometer og bompasseringer for deg.', 'Trips are logged in the Mileage log, which finds the route, kilometres and tolls for you.'),
     steps: [
-      s(tx('Åpne Kjørebok', 'Open the mileage log'), 'Gå til Produkter og driftsressurser → Kjørebok.', 'Go to Products and resources → Mileage log.', { ...gate('okonomi.kjorebok', 0), go: true }),
+      s(tx('Åpne Kjørebok', 'Open the mileage log'), 'Gå til Ansatt → Kjørebok.', 'Go to Employee → Mileage log.', { ...gate('okonomi.kjorebok', 0), go: true }),
       s(tx('Registrer kjøretur', 'Register trip'), 'Trykk «Registrer kjøretur» og velg kjøretøy — firmabil eller egen bil.', 'Tap “Register trip” and pick the vehicle — company car or your own.', gate('okonomi.kjorebok', 0)),
       s(tx('Rute og prosjekt', 'Route and project'),
         'Velg prosjekt — «Til» blir prosjektadressen. «Bruk firmaadressen» eller «Bruk hvor jeg er nå» setter «Fra». Kilometer og bom fylles ut.',

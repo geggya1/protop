@@ -26,6 +26,14 @@ export const NAV_VARIANTS = ['rail', 'drawer'];
  */
 const HEADLESS_SECTION_IDS = new Set(['main']);
 
+/** Gruppen Ansatt i bedriftsmenyen vises som egen seksjon over Bedrift. */
+export const ANSATT_SECTION_ID = 'company-me';
+
+/** Seksjoner med skillelinje over (Ansatt og Bedrift). */
+export function isCompanySectionId(id) {
+  return id === 'company' || id === ANSATT_SECTION_ID;
+}
+
 /** Seksjoner som kan lukkes. Bedriftsgruppene lukkes én og én, ikke hele bedriftsmenyen. */
 function sectionFoldable(id) {
   return isParentAppSection(id) || isChildAppSection(id) || id === 'account' || id === 'skole';
@@ -104,16 +112,24 @@ function narrowItems(items, q) {
 export function navSections(sections, { query = '' } = {}) {
   const q = String(query || '').trim().toLowerCase();
   return (sections || [])
-    .map((section) => {
+    .flatMap((section) => {
       const items = q ? narrowItems(section.items, q) : (section.items || []);
       const appFolder = isParentAppSection(section.id) || isChildAppSection(section.id);
-      return {
+      const shown = {
         ...section,
         heading: HEADLESS_SECTION_IDS.has(section.id) ? '' : (section.title || ''),
         appFolder,
         foldable: sectionFoldable(section.id),
         items: section.id === 'company' ? groupCompanyDrawerItems(items) : items,
       };
+      if (section.id !== 'company') return [shown];
+      // Ansatt (egne sider) er egen seksjon med overskrift, over Bedrift.
+      const me = shown.items.find((item) => item.group && item.id === ANSATT_SECTION_ID);
+      if (!me) return [shown];
+      return [
+        { ...shown, id: ANSATT_SECTION_ID, title: me.label, heading: me.label, items: me.children || [] },
+        { ...shown, items: shown.items.filter((item) => item !== me) },
+      ];
     })
     .filter((section) => section.items.length > 0);
 }

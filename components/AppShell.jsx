@@ -8,7 +8,7 @@ import { useI18n } from '../src/i18n';
 import { radius, useLayout } from '../src/theme';
 import { useApp, useShellNav } from '../src/context/AppContext';
 import { CompanyDataProvider } from '../src/context/CompanyDataContext';
-import { useColors, useThemeMeta } from '../src/context/ThemeContext';
+import { useColors } from '../src/context/ThemeContext';
 import { isTeamType } from '../src/utils/teams';
 import { isClassroomType } from '../src/utils/groupTypes';
 import { openPlatformHome, goPlatformOverview } from '../src/utils/platformNav';
@@ -78,10 +78,6 @@ import AddToHomeBanner from './AddToHomeBanner';
 import AddToHomeGuide from './AddToHomeGuide';
 import { useUnread } from '../src/context/NotificationContext';
 import { countForModule } from '../src/utils/notifications';
-import { useLocationSharing } from '../src/hooks/useLocationSharing';
-import { effectiveLocationSharing } from '../src/utils/familyLocation';
-import { allowedAppsForChild, isChildAppAllowed } from '../src/utils/childApps';
-import { grandparentModulesFor, isGrandparentAppAllowed } from '../src/utils/grandparentAccess';
 import ModuleIntroHost from './ModuleIntroHost';
 import { helpPageId } from '../src/help/protopPageKeys';
 import ModuleHero, { ModuleTitleRow } from './ModuleHero';
@@ -114,17 +110,12 @@ import { hasHomePhoto } from '../src/homeBanners';
 import { HomeImmersiveProvider } from '../src/context/HomeImmersiveContext';
 import { DEFAULT_GLASS_TINT, glassTintForBanner } from '../src/homeBannerTints';
 import { useParentDashboardTheme } from '../src/hooks/useParentDashboardTheme';
-import { useHomeLayout } from '../src/hooks/useHomeLayout';
-import {
-  childHomeStorageAliases,
-  childHomeStorageId,
-} from '../src/utils/childHomeLayout';
 import { shouldShowParentBottomNav } from '../src/utils/parentBottomNav';
 import ShellErrorBoundary from './ShellErrorBoundary';
 import { companyDisplayName } from '../src/utils/companyName';
 import ConfirmHost from './ConfirmHost';
 const IsoAutomation = lazyScreen(() => import('../screens/iso/IsoAutomation'), { name: 'IsoAutomation', silent: true });
-import { FAMILY_PRODUCT_ENABLED, isFamilyProductMoreView } from '../src/navigation/familyProduct';
+import { isFamilyProductMoreView } from '../src/navigation/familyProduct';
 
 function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) {
   const color = active ? colors.brand : colors.muted;
@@ -204,12 +195,10 @@ function AppShellInner() {
   const appearance = useAppearance();
   const companyAccess = useCompanyAccess();
   const companyModules = useCompanyModules();
-  const { highChildFriendliness } = useThemeMeta();
   const {
-    isParent, isChild, isActingAsChild, isGrandparent, family, families, loading,
+    isParent, family, families, loading,
     requestShellTab, clearShellIntent,
-    familyId, uid, userProfile, meChild, meParent, members,
-    activeChild,
+    familyId, uid, userProfile, members,
   } = useApp();
   const { shellNav } = useShellNav();
   const { width, hasRail, isDesktop, isTablet, isPhone, contentMax, railWidth } = useLayout();
@@ -306,56 +295,6 @@ function AppShellInner() {
     }
     exitKitchen();
   };
-
-  // Publiser kun for innlogget identitet — ikke når foresatt bare «ser som barn».
-  const locationSharingEnabled = useMemo(() => {
-    // Familieposisjon er ikke med i ProTop (L-35): ingen posisjon publiseres til bedriften.
-    if (!FAMILY_PRODUCT_ENABLED) return false;
-    if (isActingAsChild && !isChild) return false;
-    return effectiveLocationSharing({
-      userProfile,
-      childRecord: isChild ? meChild : null,
-      parentRecord: isChild ? null : meParent,
-    });
-  }, [userProfile, meChild, meParent, isChild, isActingAsChild]);
-
-  const myMemberName = members.find((m) => m.uid === uid)?.name
-    || userProfile?.displayName
-    || 'Meg';
-  const myRole = isChild ? 'child' : 'parent';
-  const asChildView = isChild || isActingAsChild;
-  const viewingChild = isActingAsChild ? activeChild : (isChild ? meChild : null);
-  const viewingChildId = asChildView
-    ? (childHomeStorageId(viewingChild) || viewingChild?.childId || uid)
-    : null;
-  const viewingChildAliases = useMemo(
-    () => (asChildView
-      ? [...childHomeStorageAliases(viewingChild), uid].filter(Boolean)
-      : []),
-    [asChildView, viewingChild, uid],
-  );
-  const childHome = useHomeLayout(viewingChildId, {
-    role: 'child',
-    aliases: viewingChildAliases,
-  });
-  const simpleChildUi = asChildView && highChildFriendliness;
-  const allowedApps = useMemo(
-    () => (asChildView ? allowedAppsForChild(viewingChild) : null),
-    [asChildView, viewingChild],
-  );
-  const grandparentModules = useMemo(
-    () => (isGrandparent ? grandparentModulesFor(meParent) : null),
-    [isGrandparent, meParent],
-  );
-
-  useLocationSharing({
-    familyId,
-    uid,
-    enabled: locationSharingEnabled,
-    name: myMemberName,
-    role: myRole,
-    notifyUids: (members || []).map((m) => m.uid || m.id).filter(Boolean),
-  });
 
   useEffect(() => {
     if (shellNav?.tab) {
@@ -537,27 +476,12 @@ function AppShellInner() {
       const key = e.key?.toLowerCase();
       if ((e.metaKey || e.ctrlKey) && key === 'k') {
         e.preventDefault();
-        if (simpleChildUi) return;
         window.dispatchEvent(new CustomEvent('protop:focus-tools-search'));
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isDesktop, simpleChildUi]);
-
-  useEffect(() => {
-    if (!simpleChildUi) return;
-    setDrawerOpen(false);
-    // Små barn: skjul «Mer»-hubben, men tillat direkte app-åpning via subView (f.eks. spill, bøker).
-    if (tab === 'more' && !moreSubView) {
-      setTab('home');
-      return;
-    }
-    if (tab === 'more' && moreSubView && !isChildAppAllowed(allowedApps, moreSubView)) {
-      setMoreSubView(null);
-      setTab('home');
-    }
-  }, [simpleChildUi, tab, moreSubView, allowedApps]);
+  }, [isDesktop]);
 
   useEffect(() => {
     if (loading) return;
@@ -595,40 +519,6 @@ function AppShellInner() {
   const selectTab = (id, subView = null) => {
     prevNavRef.current = { tab, subView: moreSubView };
     clearShellIntent?.();
-    if (simpleChildUi && id === 'more' && !subView) {
-      setMoreSubView(null);
-      setTab('home');
-      return;
-    }
-    if (asChildView) {
-      if (id === 'mail' || subView === 'mail') {
-        setMoreSubView(null);
-        setTab('home');
-        return;
-      }
-      if (id !== 'more' && !isChildAppAllowed(allowedApps, id)) {
-        setMoreSubView(null);
-        setTab('home');
-        return;
-      }
-      if (id === 'more' && subView && !isChildAppAllowed(allowedApps, moreSubView || subView)) {
-        setMoreSubView(null);
-        setTab('home');
-        return;
-      }
-    }
-    if (isGrandparent) {
-      if (id !== 'more' && id !== 'home' && !isGrandparentAppAllowed(grandparentModules, id)) {
-        setMoreSubView(null);
-        setTab('home');
-        return;
-      }
-      if (id === 'more' && subView && !isGrandparentAppAllowed(grandparentModules, subView)) {
-        setMoreSubView(null);
-        setTab('home');
-        return;
-      }
-    }
     const picked = normalizeShellSelection(id, subView);
     if (picked.tab !== id || (picked.subView || null) !== (subView || null)) {
       setMoreSubView(picked.subView);
@@ -871,7 +761,7 @@ function AppShellInner() {
       );
     }
     return <HomeScreen />;
-  }, [tab, moreSubView, isChild, isActingAsChild, familyId, family, families, members, colors, companyAccess, companyModules]);
+  }, [tab, moreSubView, familyId, family, families, members, colors, companyAccess, companyModules]);
 
   // Undersidene i modulen (ISO, Økonomi, Arbeid …) ligger i en vannrett meny øverst, ikke i hamburgermenyen.
   const moduleMenu = useMemo(() => {
@@ -957,49 +847,12 @@ function AppShellInner() {
       setTab('home');
       return;
     }
-    if (asChildView && tab === 'mail') {
-      setTab('home');
-      setMoreSubView(null);
-      return;
-    }
-    if (!asChildView && !isGrandparent) return;
-    if (asChildView) {
-      if (tab !== 'home' && tab !== 'more' && !isChildAppAllowed(allowedApps, tab)) {
-        setTab('home');
-        setMoreSubView(null);
-        return;
-      }
-      if (moreSubView && !isChildAppAllowed(allowedApps, moreSubView)) {
-        setTab('home');
-        setMoreSubView(null);
-      }
-      return;
-    }
-    if (isGrandparent) {
-      if (tab !== 'home' && tab !== 'more' && !isGrandparentAppAllowed(grandparentModules, tab)) {
-        setTab('home');
-        setMoreSubView(null);
-        return;
-      }
-      if (moreSubView && !isGrandparentAppAllowed(grandparentModules, moreSubView)) {
-        setTab('home');
-        setMoreSubView(null);
-      }
-    }
-  }, [tab, moreSubView, isChild, isActingAsChild, asChildView, allowedApps, isDesktop, chatDockPreferred, openChatDrawer, isGrandparent, grandparentModules]);
+  }, [tab, moreSubView, isDesktop, chatDockPreferred, openChatDrawer]);
 
   const railTabs = SHELL_TABS
     .filter((item) => {
-      const asChild = isChild || isActingAsChild;
-      if (!asChild && item.id === 'chores') return false;
-      if (asChild && item.id === 'mail') return false;
-      if (asChild && item.id !== 'home' && item.id !== 'more' && !isChildAppAllowed(allowedApps, item.id)) {
-        return false;
-      }
-      if (isGrandparent && item.id !== 'home' && item.id !== 'more'
-        && !isGrandparentAppAllowed(grandparentModules, item.id)) {
-        return false;
-      }
+      // Gjøremål (barnas fane) hørte til familieproduktet.
+      if (item.id === 'chores') return false;
       return true;
     })
     .map((item) => ({
@@ -1011,13 +864,11 @@ function AppShellInner() {
     tab,
     moreSubView,
     t,
-    asChildView,
-    // Barnas hjemtittel (med klokke) hørte til familieproduktet. Skallet tegnes ikke lenger
-    // på nytt hvert minutt for den.
+    asChildView: false,
     childHomeTitle: null,
-    modulesHub: isPhone && !simpleChildUi && asChildView,
-    menuHub: !simpleChildUi && !asChildView && isParent,
-  }), [tab, moreSubView, t, asChildView, isPhone, isParent, simpleChildUi]);
+    modulesHub: false,
+    menuHub: isParent,
+  }), [tab, moreSubView, t, isParent]);
 
   // Hjelpen følger undersiden (anbud.varsling, iso.avvik …), ikke bare fanen.
   const introModuleId = tab === 'more'
@@ -1107,27 +958,25 @@ function AppShellInner() {
     theme: parentDashTheme,
     bottomShortcutIds,
     isParent,
-    asChildView,
+    asChildView: false,
     hasRail,
     kitchenMode,
     bottomNavEnabled,
   });
-  const backdropBannerId = asChildView ? childHome.layout.bannerId : homeBannerId;
+  const backdropBannerId = homeBannerId;
   const immersiveHome = isImmersivePhotoShell({
     isPhone,
     tab,
     moreSubView,
     isParent,
-    asChildView,
+    asChildView: false,
     kitchenMode,
-    simpleChildUi,
+    simpleChildUi: false,
     photo: hasHomePhoto(backdropBannerId),
   });
-  const backdropCustomUri = asChildView ? childHome.layout.customBannerUri : homeCustomBannerUri;
+  const backdropCustomUri = homeCustomBannerUri;
   // Med bakgrunnsbilde: mørkt glass i bildets egen farge med hvit tekst.
-  const glassTint = asChildView
-    ? null
-    : (backdropCustomUri ? DEFAULT_GLASS_TINT : glassTintForBanner(backdropBannerId));
+  const glassTint = backdropCustomUri ? DEFAULT_GLASS_TINT : glassTintForBanner(backdropBannerId);
   // ProTop keeps the safe area inside the chrome, not as a gap outside it.
   // On a phone the header is the top layer: its background covers Safari's
   // top band, and the logo sits just below that band.
@@ -1208,7 +1057,7 @@ function AppShellInner() {
                   ))}
                 </ScrollView>
 
-                {!simpleChildUi && (
+                {(
                   <TouchableOpacity
                     style={[styles.railToolsBtn, { borderColor: colors.line, backgroundColor: colors.sunken }]}
                     onPress={() => setDrawerOpen(true)}
@@ -1254,7 +1103,7 @@ function AppShellInner() {
             <ShellHeader
               title={shellHeaderTitle}
               coverStatusBar={headerCoversStatusBar}
-              onMenuPress={(!hasRail && !simpleChildUi) ? () => setDrawerOpen(true) : null}
+              onMenuPress={!hasRail ? () => setDrawerOpen(true) : null}
               compact={isDesktop}
               dense={false}
               chromeOnly={isImmersivePhotoChromeOnly({
@@ -1262,8 +1111,8 @@ function AppShellInner() {
                 tab,
                 moreSubView,
                 isParent,
-                asChildView,
-                simpleChildUi,
+                asChildView: false,
+                simpleChildUi: false,
               })}
               showFamilyHint={isTablet && tab !== 'mail'}
               titleRight={shellTitleRight}
@@ -1355,7 +1204,7 @@ function AppShellInner() {
 
       <ConfirmHost />
 
-      {!simpleChildUi && !kitchenMode && (
+      {!kitchenMode && (
         <ShellDrawer
           visible={drawerOpen}
           onClose={() => setDrawerOpen(false)}

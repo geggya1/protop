@@ -7,7 +7,6 @@ import {
 import { db } from '../../firebase';
 import { MEMBER_COLORS } from '../theme';
 import { ageBand, profileAge } from '../utils/age';
-import { isChildEmail } from '../utils/session';
 import { dedupeFamilyParents, archiveSupersededParentPlaceholders, isGroupDeleted } from '../utils/groups';
 import { ensureListedOnFamily, isListedOnFamilyData } from '../utils/familyMembership';
 import { canUsePlatformType, visibleGroupsForUser } from '../utils/platformAccess';
@@ -20,7 +19,6 @@ import { listMyFamilies } from '../utils/joinRequests';
 import { resetSharedCollectionListeners } from '../utils/sharedCollectionListeners';
 import { resetCostGuards } from '../utils/costGuards';
 import { listenFriends } from '../utils/friends';
-import { friendProfileOwnerUid } from '../utils/friendsLogic';
 import { preferAuthUid } from '../utils/inviteAuthUid';
 import { isLiveOrganization } from '../project/companyOffer';
 import { aliasFamilyIds, companyWorkspaces, preferHovedenhetWorkspace, resolveLoginLanding } from '../utils/platformSwitch';
@@ -32,7 +30,7 @@ const Ctx = createContext(null);
 const ShellNavCtx = createContext({ shellNav: null, shellIntent: null });
 const FAMILY_KEY = 'protop.familyId';
 const COMPANY_KEY = 'protop.companyId';
-const PROFILE_KEY = 'protop.activeProfile';
+const EMPTY_LIST = Object.freeze([]);
 const PROFILE_CACHE_KEY = 'protop.profileCache';
 
 function familyStorageKey(uid) {
@@ -85,21 +83,20 @@ function colorFor(i) {
   return MEMBER_COLORS[i % MEMBER_COLORS.length];
 }
 
-export function AppProvider({ user, role, childProfile, childFamilyId, children }) {
+export function AppProvider({ user, role, children }) {
   const [families, setFamilies] = useState([]);
   const userRef = useRef(user);
   userRef.current = user;
   const familiesRef = useRef(families);
   familiesRef.current = families;
   const familyPickRef = useRef(false);
-  const [familyId, setFamilyIdState] = useState(childFamilyId || null);
+  const [familyId, setFamilyIdState] = useState(null);
   const [family, setFamily] = useState(null);
   // Konsernets nummerserie for valgt selskap (kunder og prosjekter), se src/intercompany/numberSeries.js.
   useEffect(() => {
     setActiveNumberSeries(family?.numberSeries);
   }, [family?.numberSeries]);
   const [parents, setParents] = useState([]);
-  const [kids, setKids] = useState([]); // alltid tom i ProTop, se lytterne nedenfor
   const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(true);
   /** True after family list query finishes — used so RootNav does not flash ProfileSetup. */
@@ -110,15 +107,10 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
   const [cachedProfile, setCachedProfile] = useState(null);
   const [userProfileReady, setUserProfileReady] = useState(false);
   const uid = user?.uid || null;
-  const isChild = role === 'child' || isChildEmail(user?.email);
-  const isParent = !isChild;
-
-  const [activeProfileKind, setActiveProfileKindState] = useState(() => (
-    role === 'child' || isChildEmail(user?.email) ? 'child' : 'parent'
-  ));
-  const [activeChildId, setActiveChildIdState] = useState(() => (
-    (role === 'child' || isChildEmail(user?.email)) ? (childProfile?.id || null) : null
-  ));
+  // ProTop har ingen barnekontoer eller «vis som barn» (familieproduktet er fjernet). Barnekontoer
+  // logges ut i App.jsx. Feltene under står igjen med faste verdier, så forbrukerne har samme form.
+  const isChild = false;
+  const isParent = true;
   const [shellNav, setShellNav] = useState(null);
   const [shellIntent, setShellIntent] = useState(null);
 
@@ -168,28 +160,6 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
       setFamiliesReady(false);
       setFamiliesLoadError(null);
       try {
-        if (isChild) {
-          const id = childFamilyId || childProfile?.familyId;
-          if (id) {
-            const snapPromise = getDoc(doc(db, 'families', id));
-            const timeout = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error('child-family-timeout')), 15000);
-            });
-            const snap = await Promise.race([snapPromise, timeout]);
-            if (alive && snap.exists() && !isGroupDeleted(snap.data())) {
-              setFamilies([{ id: snap.id, ...snap.data() }]);
-              setFamilyIdState(id);
-            } else if (alive) {
-              setFamilies([]);
-              setFamilyIdState(null);
-            }
-          } else if (alive) {
-            setFamilies([]);
-            setFamilyIdState(null);
-          }
-          return;
-        }
-
         // Vis shell raskt fra cache mens Firestore-søk kjører.
         // Land på bedrift når personen er tilknyttet et firma, ellers privat.
         // Ikke sett familiesReady her — ellers flasher ProfileSetup før listene er hentet.
@@ -385,7 +355,7 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
       }
     })();
     return () => { alive = false; };
-  }, [uid, isChild, childFamilyId, childProfile?.familyId]);
+  }, [uid]);
 
   // Alias med samme navn åpnes alltid som hovednummeret. Dataene lastes inn der.
   useEffect(() => {
@@ -463,7 +433,6 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
     if (!familyId) {
       setFamily(null);
       setParents([]);
-      setKids([]);
       return undefined;
     }
     const unsubFam = onSnapshot(
@@ -480,7 +449,7 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
           setFamilyIdState((cur) => (cur === snap.id ? null : cur));
           return;
         }
-        if (!isChild && !canUsePlatformType(next.type, user)) {
+        if (!canUsePlatformType(next.type, user)) {
           setFamily(null);
           setFamilyIdState((cur) => (cur === snap.id ? null : cur));
           return;
@@ -520,7 +489,7 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
       unsubFam();
       unsubParents();
     };
-  }, [familyId, isChild, user, uid, listedOnFamily]);
+  }, [familyId, user, uid, listedOnFamily]);
 
   // Parent/child docs grant GET, but LIST of chats/messages needs members[]/activeUsers.
   // Heal orphans so inbox/push recipients can actually open the thread.
@@ -571,7 +540,6 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
 
   const members = useMemo(() => {
     const activeP = parents.filter((p) => p.active !== false && p.archived !== true);
-    const activeK = kids.filter((k) => k.active !== false && k.archived !== true);
     const p = activeP.map((x, i) => {
       const age = profileAge(x);
       // Prefer Auth-shaped id: doc id is often the real UID when `uid` is a stale invite key.
@@ -581,8 +549,8 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
       docId: x.id,
       name: x.name || x.displayName || (x.email || '').split('@')[0] || 'Foresatt',
       role: 'parent',
-      adultRole: x.adultRole === 'grandparent' || x.isGrandparent === true ? 'grandparent' : 'parent',
-      isGrandparent: x.adultRole === 'grandparent' || x.isGrandparent === true,
+      adultRole: 'parent',
+      isGrandparent: false,
       uid: authUid || x.uid || x.id,
       photoURL: x.photoURL || x.photoUrl || null,
       avatarId: x.avatarId || null,
@@ -592,25 +560,8 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
       color: colorFor(i),
     };
     });
-    const k = activeK.map((x, i) => {
-      const age = profileAge(x);
-      return {
-      id: x.id,
-      docId: x.id,
-      name: x.name || 'Barn',
-      role: 'child',
-      uid: x.uid || x.id,
-      photoURL: x.photoURL || x.photoUrl || null,
-      avatarId: x.avatarId || null,
-      birthday: x.birthday || null,
-      age,
-      ageBand: ageBand(age),
-      color: colorFor(activeP.length + i),
-      childId: x.id,
-    };
-    });
-    return [...p, ...k];
-  }, [parents, kids]);
+    return p;
+  }, [parents]);
 
   useEffect(() => {
     if (!uid) {
@@ -621,88 +572,24 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
     return listenFriends(uid, setFriends);
   }, [uid]);
 
-  const meChild = useMemo(() => {
-    if (!isChild) return childProfile || null;
-    return kids.find((c) => c.uid === uid || c.id === childProfile?.id) || childProfile || null;
-  }, [isChild, kids, uid, childProfile]);
-
   const meParent = useMemo(() => {
     if (!uid) return null;
     return parents.find((p) => p.uid === uid) || null;
   }, [parents, uid]);
 
-  const isGrandparent = useMemo(
-    () => !!(meParent && (meParent.adultRole === 'grandparent' || meParent.isGrandparent === true)),
-    [meParent],
-  );
-
-  // Keep child id in sync when child account loads profile doc
-  useEffect(() => {
-    if (!isChild || !meChild?.id) return;
-    setActiveChildIdState(meChild.id);
-    setActiveProfileKindState('child');
-  }, [isChild, meChild?.id]);
-
-  // Restore last profile choice for parent admins (not grandparents)
-  useEffect(() => {
-    if (isChild || !uid || !familyId || kids.length === 0) return undefined;
-    if (isGrandparent) {
-      setActiveProfileKindState('parent');
-      setActiveChildIdState(null);
-      return undefined;
-    }
-    let alive = true;
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(`${PROFILE_KEY}.${uid}`);
-        if (!alive || !raw) return;
-        const parsed = JSON.parse(raw);
-        if (parsed?.kind === 'child' && parsed.childId) {
-          const exists = kids.some((k) => k.id === parsed.childId && k.active !== false);
-          if (exists) {
-            setActiveProfileKindState('child');
-            setActiveChildIdState(parsed.childId);
-          }
-        }
-      } catch {}
-    })();
-    return () => { alive = false; };
-  }, [isChild, uid, familyId, kids.length, isGrandparent]);
-
-  const activeChild = useMemo(() => {
-    if (activeProfileKind !== 'child' || !activeChildId) return null;
-    const fromKids = kids.find((k) => k.id === activeChildId);
-    if (fromKids) return fromKids;
-    if (isChild && childProfile?.id === activeChildId) return childProfile;
-    return null;
-  }, [activeProfileKind, activeChildId, kids, isChild, childProfile]);
-
-  const isActingAsChild = isParent && !isGrandparent && activeProfileKind === 'child' && !!activeChild;
-  const viewingChildId = activeProfileKind === 'child' ? activeChildId : null;
-  const viewingChild = activeChild;
-
-  const friendOwnerUid = useMemo(() => friendProfileOwnerUid({
-    authUid: uid,
-    isActingAsChild,
-    childUid: preferAuthUid(activeChild?.uid, activeChild?.id),
-  }), [uid, isActingAsChild, activeChild?.uid, activeChild?.id]);
-
-  const [profileFriends, setProfileFriends] = useState([]);
-  useEffect(() => {
-    if (!isActingAsChild || !friendOwnerUid || !uid) {
-      setProfileFriends([]);
-      return undefined;
-    }
-    return listenFriends(uid, setProfileFriends, {
-      forUid: friendOwnerUid,
-      familyId: familyId || null,
-    });
-  }, [isActingAsChild, friendOwnerUid, uid, familyId]);
+  const meChild = null;
+  const isGrandparent = false;
+  const activeProfileKind = 'parent';
+  const activeChildId = null;
+  const activeChild = null;
+  const isActingAsChild = false;
+  const viewingChildId = null;
+  const viewingChild = null;
+  const kids = EMPTY_LIST;
 
   /** Friends as picker people for the active profile (never family members). */
   const friendPeople = useMemo(() => {
-    const list = isActingAsChild ? profileFriends : friends;
-    return (list || []).map((f, i) => ({
+    return (friends || []).map((f, i) => ({
       id: f.friendUid || f.id,
       uid: f.friendUid || f.id,
       name: f.name || 'Venn',
@@ -713,19 +600,9 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
       color: colorFor(80 + i),
       isFriend: true,
     }));
-  }, [friends, profileFriends, isActingAsChild]);
+  }, [friends]);
 
   const activeProfile = useMemo(() => {
-    if (activeProfileKind === 'child' && activeChild) {
-      return {
-        kind: 'child',
-        id: activeChild.id,
-        name: activeChild.name || 'Barn',
-        avatarId: activeChild.avatarId,
-        photoURL: activeChild.photoURL || activeChild.photoUrl || null,
-        record: activeChild,
-      };
-    }
     const name = meParent?.name || userProfile?.displayName || user?.displayName
       || cachedProfile?.name || (user?.email || '').split('@')[0] || 'Meg';
     return {
@@ -737,45 +614,21 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
         || user?.photoURL || cachedProfile?.photoURL || null,
       record: meParent || userProfile,
     };
-  }, [activeProfileKind, activeChild, meParent, userProfile, user, uid, cachedProfile]);
+  }, [meParent, userProfile, user, uid, cachedProfile]);
 
   useEffect(() => {
-    if (!uid || activeProfileKind === 'child') return;
+    if (!uid) return;
     const { photoURL, avatarId, name } = activeProfile;
     if (!photoURL && !avatarId) return;
     const payload = { photoURL: photoURL || null, avatarId: avatarId || null, name: name || null };
     setCachedProfile(payload);
     AsyncStorage.setItem(`${PROFILE_CACHE_KEY}.${uid}`, JSON.stringify(payload)).catch(() => {});
-  }, [uid, activeProfileKind, activeProfile?.photoURL, activeProfile?.avatarId, activeProfile?.name]);
+  }, [uid, activeProfile?.photoURL, activeProfile?.avatarId, activeProfile?.name]);
 
-  const persistProfile = useCallback(async (kind, childId) => {
-    if (!uid || isChild) return;
-    try {
-      await AsyncStorage.setItem(`${PROFILE_KEY}.${uid}`, JSON.stringify({ kind, childId: childId || null }));
-    } catch {}
-  }, [uid, isChild]);
-
-  const switchToParentProfile = useCallback(() => {
-    setActiveProfileKindState('parent');
-    setActiveChildIdState(null);
-    persistProfile('parent', null);
-  }, [persistProfile]);
-
-  const switchToChildProfile = useCallback((childId) => {
-    if (!childId || isGrandparent) return;
-    setActiveProfileKindState('child');
-    setActiveChildIdState(childId);
-    persistProfile('child', childId);
-  }, [persistProfile, isGrandparent]);
-
-  const setViewingChildId = useCallback((id) => {
-    if (id) switchToChildProfile(id);
-    else switchToParentProfile();
-  }, [switchToChildProfile, switchToParentProfile]);
-
-  const clearViewingChild = useCallback(() => {
-    switchToParentProfile();
-  }, [switchToParentProfile]);
+  const switchToParentProfile = useCallback(() => {}, []);
+  const switchToChildProfile = useCallback(() => {}, []);
+  const setViewingChildId = switchToChildProfile;
+  const clearViewingChild = switchToParentProfile;
 
   const clearFamiliesLoadError = useCallback(() => {
     setFamiliesLoadError(null);
@@ -790,8 +643,8 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
     [families]
   );
   const currentAge = useMemo(
-    () => profileAge(isChild ? (meChild || childProfile || userProfile) : userProfile),
-    [isChild, meChild, childProfile, userProfile]
+    () => profileAge(userProfile),
+    [userProfile]
   );
   const currentAgeBand = useMemo(() => ageBand(currentAge), [currentAge]);
 
@@ -820,7 +673,7 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
     friendPeople,
     meChild,
     meParent,
-    childProfile,
+    childProfile: null,
     activeProfileKind,
     activeChildId,
     activeChild,
@@ -840,11 +693,11 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
     requestShellTab,
     clearShellIntent,
   }), [
-    user, uid, role, isChild, isParent, isGrandparent, isSuperAdmin, isAdmin, loading,
+    user, uid, role, isSuperAdmin, isAdmin, loading,
     familiesReady, familiesLoadError, clearFamiliesLoadError, userProfileReady, families,
-    liveFamilies, familyId, family, parents, kids, members, friends, friendPeople, meChild,
-    meParent, childProfile, activeProfileKind, activeChildId, activeChild, activeProfile,
-    isActingAsChild, viewingChildId, viewingChild, setViewingChildId, clearViewingChild,
+    liveFamilies, familyId, family, parents, members, friends, friendPeople,
+    meParent, activeProfile,
+    setViewingChildId, clearViewingChild,
     switchToParentProfile, switchToChildProfile, userProfile, currentAge, currentAgeBand,
     selectFamily, applyFamilyPatch, requestShellTab, clearShellIntent,
   ]);

@@ -35,21 +35,34 @@ export function aiPersonFor(uid, employees = [], { isAdmin = false, now = new Da
   };
 }
 
+function emailOf(row) {
+  return String(row?.person?.email || row?.company?.email || '').trim();
+}
+
 /**
- * Listene på AI-abonnement-siden: aktive egne ansatte og aktive innleide/eksterne med bruker.
- * Hver rad: { uid, name, external, employeeId }. Sortert på navn.
- * `admins` ([{ uid, name }]) tas med som egne ansatte når de ikke har noen ansattpost.
+ * Listene på AI-abonnement-siden: alle aktive egne ansatte og alle aktive innleide/eksterne.
+ * Hver rad: { key, uid, name, detail, hasUser, external, employeeId }. Sortert på navn.
+ * - hasUser false: personen har ikke akseptert invitasjonen (ingen bruker), og kan ikke få
+ *   tilgang før det. Raden vises likevel, så administrator ser hvem som mangler.
+ * - detail: e-post, så to med samme navn kan skilles.
+ * - `admins` ([{ uid, name, email }]) tas med som egne ansatte når de ikke har noen ansattpost.
  */
 export function aiCandidates(employees = [], { admins = [], now = new Date() } = {}) {
   const seen = new Set();
   const own = [];
   const external = [];
   for (const row of employees || []) {
-    const uid = row?.personUid;
-    if (!uid || seen.has(uid) || !workingNow(row, now)) continue;
-    seen.add(uid);
+    const uid = row?.personUid || '';
+    if (!workingNow(row, now) || (uid && seen.has(uid))) continue;
+    if (uid) seen.add(uid);
     const item = {
-      uid, name: displayName(row), external: isHiredPersonnel(row), employeeId: row.id || '',
+      key: uid || `employee:${row.id || displayName(row)}`,
+      uid,
+      name: displayName(row),
+      detail: emailOf(row),
+      hasUser: !!uid,
+      external: isHiredPersonnel(row),
+      employeeId: row.id || '',
     };
     (item.external ? external : own).push(item);
   }
@@ -57,8 +70,16 @@ export function aiCandidates(employees = [], { admins = [], now = new Date() } =
   for (const admin of admins || []) {
     if (!admin?.uid || seen.has(admin.uid) || withPost.has(admin.uid)) continue;
     seen.add(admin.uid);
-    own.push({ uid: admin.uid, name: admin.name || 'Administrator', external: false, employeeId: '' });
+    own.push({
+      key: admin.uid,
+      uid: admin.uid,
+      name: admin.name || 'Administrator',
+      detail: [admin.email, 'Eier eller administrator, uten ansattpost'].filter(Boolean).join(' · '),
+      hasUser: true,
+      external: false,
+      employeeId: '',
+    });
   }
-  const byName = (a, b) => a.name.localeCompare(b.name, 'nb');
+  const byName = (a, b) => a.name.localeCompare(b.name, 'nb') || a.detail.localeCompare(b.detail, 'nb');
   return { own: own.sort(byName), external: external.sort(byName) };
 }

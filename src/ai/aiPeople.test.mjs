@@ -16,16 +16,23 @@ const staff = [
 ];
 
 describe('aiCandidates', () => {
-  test('bare aktive personer med bruker, egne og innleide hver for seg', () => {
+  test('alle aktive personer, egne og innleide hver for seg; de uten bruker merket', () => {
     const { own, external } = aiCandidates(staff, { now: NOW });
-    assert.deepEqual(own.map((p) => p.uid), ['ola']);
+    assert.deepEqual(own.map((p) => [p.name, p.hasUser]), [['Ola', true], ['Uten bruker', false]]);
     assert.deepEqual(external.map((p) => p.uid), ['kari']);
+    // Hver rad har en egen nøkkel, også de uten bruker.
+    assert.equal(new Set(own.map((p) => p.key)).size, own.length);
   });
 
-  test('administrator uten ansattpost kommer med som egen ansatt', () => {
-    const { own } = aiCandidates(staff, { now: NOW, admins: [{ uid: 'eier', name: 'Eier' }, { uid: 'per', name: 'Per' }] });
+  test('administrator uten ansattpost kommer med, merket så den kan skilles fra en ansattpost', () => {
+    const { own } = aiCandidates(staff, {
+      now: NOW,
+      admins: [{ uid: 'eier', name: 'Ola', email: 'eier@firma.no' }, { uid: 'per', name: 'Per' }],
+    });
     // Per har en ansattpost (deaktivert), så den gjelder.
-    assert.deepEqual(own.map((p) => p.uid), ['eier', 'ola']);
+    assert.deepEqual(own.map((p) => p.uid), ['ola', 'eier', '']);
+    const eier = own.find((p) => p.uid === 'eier');
+    assert.match(eier.detail, /eier@firma\.no · Eier eller administrator, uten ansattpost/);
   });
 });
 

@@ -678,8 +678,13 @@ assert.equal(customerDelivery({ orgnr: '918 269 819' }).InvoiceDeliveryType, 'EH
   const client = fakeClient({
     'GET /OutgoingInvoices': ({ query }) => (query.invoiceNos === '20077' ? [{ Id: 'so-77', InvoiceNo: 20077 }] : []),
     'GET /OutgoingInvoices/so-77': outgoing,
+    'GET /Customers': ({ query }) => (query.customerNos === '10024'
+      ? [{ Number: 10024, MailAddress: { AddressLine1: 'Hillevågsveien 59', ZipCode: '4016', City: 'Stavanger', CountryCode: 'NO' } }]
+      : []),
   });
   const found = await lookupOutgoingInvoice(client, { invoiceNo: ' 20077 ', at: 'x' });
+  // Kundens adresse i Go, til kreditnotaer når ProTop mangler den.
+  assert.deepEqual(found.customerAddress, { street: 'Hillevågsveien 59', postalCode: '4016', city: 'Stavanger', country: 'NO' });
   assert.equal(found.found, true);
   assert.equal(found.readById, true);
   assert.equal(found.outgoing.cid, '200770000012');

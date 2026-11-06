@@ -53,7 +53,7 @@ import {
 } from '../../../src/economy/invoiceDelivery.js';
 import { invoiceWorkIds, releaseWork } from '../../../src/economy/billingWork.js';
 import { loadTimeEntriesByIds } from '../../../src/economy/timeEntryStorage.js';
-import { withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
+import { creditNeedsAddress, withCustomerAddress, withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
 import {
   addCollectionStep, buildInterestInvoice, canTakeStep, checkDeadline, collectionLetter, collectionStatus, setCollectionHold,
 } from '../../../src/economy/collection.js';
@@ -98,6 +98,30 @@ async function fullInvoice(ctx, row) {
 function originalOf(ctx, invoice) {
   if (!isCreditNote(invoice)) return null;
   return (ctx.invoices || []).find((row) => row.id === invoice.creditNoteForId) || null;
+}
+
+/**
+ * Kreditnota uten kjøpers adresse (fakturaen som krediteres og kunderegisteret mangler den):
+ * adressen hentes fra kilde etter kilde og lagres på utkastet. Hver kilde er
+ * { label, find: async (invoice) => { street, postalCode, city, country } | null }.
+ * Gir det lagrede utkastet, eller null.
+ */
+export async function fillCreditAddress(ctx, invoice, sources = []) {
+  if (!creditNeedsAddress(invoice)) return null;
+  for (const source of sources) {
+    let found = null;
+    try {
+      found = await source.find(invoice);
+    } catch {
+      found = null;
+    }
+    const next = found ? withCustomerAddress(invoice, found) : null;
+    if (!next) continue;
+    const addr = next.customerAddress;
+    const line = [addr.street, [addr.postalCode, addr.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    return save(ctx, withEvent(next, { type: 'edit', text: `hentet kundens adresse fra ${source.label} (${line})`, actor: ctx.actor }));
+  }
+  return null;
 }
 
 /** Lagrer endringer i utkastet. Linjer fra grunnlaget som fjernes, frigjøres. */

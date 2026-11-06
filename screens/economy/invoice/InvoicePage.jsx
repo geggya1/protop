@@ -31,9 +31,11 @@ import {
   previewUrl as makePreviewUrl,
 } from '../../../src/economy/invoiceDelivery.js';
 import { canSendFromPowerOffice, POWEROFFICE_GUI, powerOfficeSummary } from '../../../src/economy/powerOfficeView.js';
-import { fetchPowerOfficeDocument } from '../../../src/economy/powerOfficeClient.js';
+import { fetchPowerOfficeDocument, lookupPowerOfficeInvoice } from '../../../src/economy/powerOfficeClient.js';
 import { accountsFrom } from '../../../src/economy/invoiceDraft.js';
-import { withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
+import { creditNeedsAddress, withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
+import { fillCustomerFromBrreg } from '../../../src/anbud/customers.js';
+import { fetchBrregEnhet, searchBrregUnderenheter } from '../../../src/utils/boligmappaApis';
 import { Banner, Button, LinkText, money } from '../billing/ui';
 import { InvoiceHeaderEditor, InvoiceHeaderView, InvoiceTexts } from './InvoiceHeader';
 import { InvoiceLinesView, InvoiceTotalsView } from './InvoiceLinesView';
@@ -62,6 +64,27 @@ function titleOf(invoice) {
   const credit = isCreditNote(invoice);
   if (isDraftInvoice(invoice)) return credit ? 'Kreditnotautkast' : 'Fakturautkast';
   return `${credit ? 'Kreditnota' : 'Faktura'} #${invoice.invoiceNumber || '—'}`;
+}
+
+/** Adressen til en virksomhet i Brønnøysund: hovedenhet, ellers underenhet. Slettede har ingen. */
+async function brregAddress(orgnr) {
+  const id = String(orgnr || '').replace(/\D/g, '');
+  if (id.length !== 9) return null;
+  let hit = null;
+  try {
+    hit = await fetchBrregEnhet(id);
+  } catch {
+    hit = null;
+  }
+  if (!hit?.organisasjonsnummer) {
+    try {
+      hit = (await searchBrregUnderenheter(id, { size: 1 })).results?.[0] || null;
+    } catch {
+      hit = null;
+    }
+  }
+  const row = hit ? fillCustomerFromBrreg({}, hit) : null;
+  return row ? { street: row.address, postalCode: row.postalCode, city: row.place } : null;
 }
 
 export default function InvoicePage({
@@ -144,6 +167,32 @@ export default function InvoicePage({
     mode,
     companyName: companyName || supplier.name,
   }), [familyId, store, supplier, logo, settings, chart, actor, allInvoices, customers, contracts, mode, companyName]);
+
+  // Kreditnota uten kjøpers adresse (fakturaen ligger i PowerOffice og kunden mangler adresse
+  // i registeret): adressen hentes fra kunden i PowerOffice, ellers fra Brønnøysund, og lagres
+  // på utkastet. Én gang per utkast.
+  const brregTried = useRef('');
+  const needsAddress = canManage && !!familyId && familyId !== '__demo__' && creditNeedsAddress(invoice);
+  useEffect(() => {
+    const key = needsAddress ? String(invoice?.id || '') : '';
+    if (!key || brregTried.current === key) return undefined;
+    brregTried.current = key;
+    const original = (allInvoices || []).find((row) => row.id === invoice.creditNoteForId) || null;
+    const poNumber = String(original?.poweroffice?.invoiceNo || (isTransferredToPowerOffice(original) ? original?.invoiceNumber : '') || '').trim();
+    const sources = [
+      ...(poNumber ? [{
+        label: 'PowerOffice',
+        find: async () => (await lookupPowerOfficeInvoice(familyId, poNumber))?.customerAddress || null,
+      }] : []),
+      { label: 'Brønnøysund', find: async (row) => brregAddress(row.orgnr) },
+    ];
+    let live = true;
+    actions.fillCreditAddress(ctx, invoice, sources).then((saved) => {
+      if (live && saved) onChanged?.(saved);
+    }).catch(() => {});
+    return () => { live = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsAddress, invoice?.id]);
 
   const checks = useMemo(() => (isDraftInvoice(shown)
     ? issueChecks(shown, { supplier, settings, mode, indexWarning })

@@ -407,6 +407,26 @@ function amount(value) {
  * Én sendt faktura i Go, slått opp på fakturanummer og lest på id slik synken gjør.
  * Lagrer ingenting. Brukes til å teste tilbakehentingen med en faktura laget i Go.
  */
+/**
+ * Kundens postadresse i Go, slik fakturaen ble sendt med den. Brukes når ProTop mangler
+ * adressen (f.eks. til en kreditnota). null når kunden eller adressen ikke finnes.
+ */
+async function customerAddressFor(client, customerNo) {
+  if (!/^\d+$/.test(customerNo)) return null;
+  try {
+    const list = await client.request('GET', '/Customers', { query: { customerNos: customerNo } });
+    const hit = (Array.isArray(list) ? list : []).find((row) => text(row?.Number) === customerNo);
+    const mail = hit?.MailAddress || {};
+    const street = [text(mail.AddressLine1), text(mail.AddressLine2)].filter(Boolean).join(', ');
+    const postalCode = text(mail.ZipCode);
+    const city = text(mail.City);
+    if (!street || !(postalCode || city)) return null;
+    return { street, postalCode, city, country: text(mail.CountryCode).toUpperCase().slice(0, 2) || 'NO' };
+  } catch {
+    return null;
+  }
+}
+
 export async function lookupOutgoingInvoice(client, { invoiceNo, at = new Date().toISOString() }) {
   const no = text(invoiceNo).replace(/\D/g, '');
   if (!no) throw new Error('Skriv inn fakturanummeret fra PowerOffice.');
@@ -416,8 +436,10 @@ export async function lookupOutgoingInvoice(client, { invoiceNo, at = new Date()
   const byId = row.Id != null ? await client.request('GET', `/OutgoingInvoices/${encodeURIComponent(row.Id)}`) : null;
   const outgoing = byId || row;
   const patch = invoicePatchFromOutgoing({}, outgoing, { at });
+  const customerAddress = await customerAddressFor(client, text(outgoing.CustomerNo));
   return {
     found: true,
+    customerAddress,
     invoiceNo: no,
     readById: !!byId,
     outgoing: {

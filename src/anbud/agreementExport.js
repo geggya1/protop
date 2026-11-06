@@ -1,4 +1,5 @@
 /** Låst avtale som PDF og Word. Teksten er versjonen som er hugget, ikke arbeidskopien. */
+import { escapeHtml } from '../utils/mailHtml.js';
 
 function text(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -91,13 +92,6 @@ export function agreementToPdf(row, versionNumber) {
   }
   body += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
   return body;
-}
-
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }
 
 export function agreementToWordHtml(row, versionNumber) {

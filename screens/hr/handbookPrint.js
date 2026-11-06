@@ -1,13 +1,6 @@
 import { bodyBlocks, placeholderParts } from '../../src/hr/handbook';
 import { fillTokens } from '../../src/forms/tokens';
-
-function esc(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+import { escapeHtml as esc } from '../../src/utils/mailHtml.js';
 
 function cssString(value) {
   return `"${String(value ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ')}"`;

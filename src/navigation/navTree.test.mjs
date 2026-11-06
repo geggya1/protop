@@ -123,6 +123,12 @@ test('bedriftsmenyen grupperes likt fra COMPANY_DRAWER_GROUPS', () => {
       ['ansatt-minside', 'ansatt-gjoremal', 'ansatt-timeliste', 'ansatt-fravaer', 'ansatt-utlegg', 'kjorebok'],
     );
     assert.equal(me.items.some((item) => item.group), false, 'sidene står rett under overskriften');
+    // Ansatt kan lukkes og er lukket til den åpnes, men åpen når en av sidene er åpen.
+    assert.equal(me.foldable, true);
+    assert.equal(navSectionExpanded(me), false);
+    assert.equal(navSectionExpanded(me, { activeTab: 'ansatte', activeSubView: 'min-side' }), true);
+    assert.equal(navSectionExpanded(me, { open: { 'company-me': true } }), true);
+    assert.equal(navSectionExpanded(me, { open: { 'company-me': false }, activeTab: 'ansatte', activeSubView: 'min-side' }), false);
   }
 });
 

@@ -36,7 +36,8 @@ export function isCompanySectionId(id) {
 
 /** Seksjoner som kan lukkes. Bedriftsgruppene lukkes én og én, ikke hele bedriftsmenyen. */
 function sectionFoldable(id) {
-  return isParentAppSection(id) || isChildAppSection(id) || id === 'account' || id === 'skole';
+  return isParentAppSection(id) || isChildAppSection(id) || id === 'account' || id === 'skole'
+    || id === ANSATT_SECTION_ID;
 }
 
 /**
@@ -127,7 +128,7 @@ export function navSections(sections, { query = '' } = {}) {
       const me = shown.items.find((item) => item.group && item.id === ANSATT_SECTION_ID);
       if (!me) return [shown];
       return [
-        { ...shown, id: ANSATT_SECTION_ID, title: me.label, heading: me.label, items: me.children || [] },
+        { ...shown, id: ANSATT_SECTION_ID, title: me.label, heading: me.label, foldable: sectionFoldable(ANSATT_SECTION_ID), items: me.children || [] },
         { ...shown, items: shown.items.filter((item) => item !== me) },
       ];
     })
@@ -146,7 +147,7 @@ export function navSectionHasActive(section, activeTab, activeSubView) {
 
 /**
  * Om seksjonen vises åpen. Et trykk på overskriften lagres i `open` og vinner.
- * Ellers åpen når den har aktiv side; app-mapper og Konto er lukket til de åpnes.
+ * Ellers åpen når den har aktiv side; app-mapper, Konto og Ansatt er lukket til de åpnes.
  */
 export function navSectionExpanded(section, {
   open = {}, query = '', activeTab = null, activeSubView = null,
@@ -156,7 +157,8 @@ export function navSectionExpanded(section, {
   if (!section.foldable) return true;
   if (open && Object.prototype.hasOwnProperty.call(open, section.id)) return open[section.id] !== false;
   if (navSectionHasActive(section, activeTab, activeSubView)) return true;
-  if (section.appFolder || section.id === 'account') return false;
+  // Ansatt er lukket til den åpnes, med mindre en av sidene der er åpen nå.
+  if (section.appFolder || section.id === 'account' || section.id === ANSATT_SECTION_ID) return false;
   return true;
 }
 

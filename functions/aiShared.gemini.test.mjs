@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it, mock } from 'node:test';
-import { callGeminiJson, friendlyGeminiError, preferGeminiError } from './aiShared.js';
+import { callGeminiJson, friendlyGeminiError, preferGeminiError, TUTOR_GEMINI_MODELS } from './aiShared.js';
 
 function geminiOk(payload) {
   return {
@@ -30,6 +30,11 @@ function geminiHttp(status) {
 describe('callGeminiJson race / lite-first', () => {
   afterEach(() => {
     mock.restoreAll();
+  });
+
+  it('TUTOR_GEMINI_MODELS starter med lite', () => {
+    assert.match(TUTOR_GEMINI_MODELS[0], /lite/i);
+    assert.ok(TUTOR_GEMINI_MODELS.length >= 3);
   });
 
   it('parallel:2 returnerer første suksess uten å vente på neste batch', async () => {

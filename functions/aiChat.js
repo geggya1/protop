@@ -1,4 +1,4 @@
-/** Chat med AI for ansatte i ProTop. GEMINI_API_KEY i Functions-miljøet gir fulle svar. */
+/** Optional: set GEMINI_API_KEY in Firebase Functions env for smarter parent replies. */
 import { getFirestore } from 'firebase-admin/firestore';
 import { assertFamilyMember } from './security.js';
 import {
@@ -6,32 +6,33 @@ import {
   checkAndIncrementUsage,
   AI_LIMITS,
   GEMINI_MODEL,
+  childAllowsApp,
   assertCompanyAiAllowed,
 } from './aiShared.js';
+import { childChatLocal } from './childChatLocal.js';
 
 // Et kall som henger skal ikke bruke opp hele funksjonens tidsgrense.
 const GEMINI_TIMEOUT_MS = 45_000;
 
-const SYSTEM_PARENT = `Du er ProTop-assistenten — en dyktig, saklig arbeidskollega for ansatte og ledere i norske bedrifter.
+const SYSTEM_PARENT = `Du er ProTop-assistenten — en dyktig, naturlig samtalepartner for norske foresatte.
 
 Rolle og stil:
-- Skriv klart og profesjonelt på norsk (bokmål). Unngå klisjéer og «AI-snakk».
-- Husk konteksten fra samtalen, still én oppfølging når det hjelper, og gi konkrete neste steg.
-- Tilpass lengden: korte spørsmål gir korte svar; ber brukeren om plan, liste eller utkast, kan svaret bli lengre (opptil ca. 350 ord).
-- Bruk punktlister når det gjør svaret klarere. Marker nøkkelord med **fet skrift**. Ingen # markdown-overskrifter.
+- Skriv klart, vennlig og voksen på norsk (bokmål). Unngå klisjéer og «AI-snakk».
+- Før en god samtale: husk kontekst fra historikken, still én oppfølging når det hjelper, og gi konkrete neste steg.
+- Tilpass lengde: korte spørsmål → korte svar; når brukeren ber om plan, liste eller forklaring → mer utfyllende (opptil ca. 350 ord).
+- Bruk punktlister når det gjør svaret klarere. Marker nøkkelord og ukedager med **fet skrift** (f.eks. **Fredag:**). Ingen # markdown-overskrifter.
 
-Du hjelper med arbeidet i bedriften:
-- Prosjekter, oppgaver, timeføring, fravær og ferie
-- Tilbud, anbud, avtaler, kunder og fakturagrunnlag
-- HMS, internkontroll og ISO: avvik, risikovurderinger, rutiner og sjekklister
-- Møter: agenda, referat og oppfølgingspunkter
-- Tekst: e-poster, meldinger, beskrivelser og oppsummeringer
-- ProTop-appen: hvor ting ligger og hvordan modulene henger sammen
+Du er spesielt god på:
+- Familie-hverdag: ukeplan, kalender, morgen-/kveldsrutiner, søskendynamikk
+- Mat: middag for uka, raske retter, handleliste-tips, allergi/preferanser når oppgitt
+- Barn: gjøremål, belønning, lekser, motivasjon, skjermtid — praktiske tips uten moralisering
+- ProTop-appen: hvordan kalender, gjøremål, chat, notater og ukeplan-import henger sammen
+- Generell produktivitet og planlegging for travle foresatte
 
 Sikkerhet:
-- Gi aldri medisinske diagnoser, bindende juridiske råd eller farlige instruksjoner. Henvis til fagperson eller myndighet når det trengs.
-- Ved alvorlige tema (vold, selvskading, overgrep, rus): vær empatisk og anbefal å snakke med fagfolk, legevakt eller 113 ved akutt fare.
-- Ikke finn på fakta om bedriften, kunder, prosjekter eller personer. Si fra når du ikke vet.`;
+- Gi aldri medisinske diagnoser, juridiske råd eller farlige instruksjoner.
+- Ved alvorlige tema (vold, selvskading, overgrep, rus): vær empatisk og anbefal å snakke med fagfolk / legevakt / alarm 113 ved akutte nødsituasjoner.
+- Oppfinn ikke personlige fakta om familien.`;
 
 const PARENT_MAX_MESSAGE = 2000;
 const PARENT_HISTORY = 12;
@@ -49,13 +50,59 @@ function sanitizeHistory(raw, { limit = 6, maxChars = 400 } = {}) {
     .filter((m) => m.text);
 }
 
+function parseAge(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 4 || n > 18) return null;
+  return Math.round(n);
+}
+
+async function fetchActiveTodoTitles(db, familyId, childId) {
+  if (!familyId || !childId) return [];
+  try {
+    const snap = await db.collection('families').doc(familyId)
+      .collection('children').doc(childId)
+      .collection('todos')
+      .where('active', '==', true)
+      .limit(15)
+      .get();
+    return snap.docs
+      .map((d) => String(d.data()?.title || '').trim())
+      .filter(Boolean)
+      .slice(0, 8);
+  } catch {
+    return [];
+  }
+}
+
 function parentLocalFallback(message, familyName) {
   const q = String(message || '').toLowerCase();
-  const where = familyName ? ` i ${familyName}` : '';
-  if (/hei|hello|hallo|god morgen|god dag/.test(q)) {
-    return `Hei! Jeg kan hjelpe med prosjekter, timer, fravær, HMS, møter og tekster${where}. Hva vil du ta først?`;
+  const fam = familyName ? ` for ${familyName}` : '';
+
+  if (/middag|mat|oppskrift|kveldsmat|handleliste/.test(q)) {
+    return [
+      'Her er et konkret middagsopplegg for en travel uke:',
+      '• **Man:** pasta med kjøttdeig og frosne grønnsaker',
+      '• **Tir:** ovnsbakt fisk med poteter og erter',
+      '• **Ons:** tacofredag midt i uka — tortilla, bønner, salat',
+      '• **Tor:** omelett + brødmat (raskt)',
+      '• **Fre:** gryterett dere kan varme på nytt i helga',
+      '',
+      'Si hvor mange dere er, tidsbudsjett eller allergier — så tilpasser jeg.',
+    ].join('\n');
   }
-  return 'AI-assistenten svarer ikke fullt akkurat nå. Prøv igjen om litt, eller spør mer konkret om prosjekter, timer, fravær, HMS eller et tekstutkast.';
+  if (/gjøremål|oppgave|poeng|belønning/.test(q)) {
+    return `I ProTop legger foresatte inn gjøremål${fam}. Barn krysser av for i dag (eller tidligere dager), og dere kan attestere i ukeoversikten. Tips: start med 2–3 faste gjøremål, synlig belønning, og ros innsats mer enn perfeksjon. Vil du ha et forslag til ukerutine for en bestemt alder?`;
+  }
+  if (/lekse|skole|les/.test(q)) {
+    return 'Lekser som fungerer i praksis: fast tid (f.eks. 16:30), 15–20 min økter, pause, og «start med det letteste». ProTop kan ha rutine-gjøremål som «Lese 15 min». Leksehjelp-modulen hjelper steg for steg uten å gi fasit når dere skrur det av.';
+  }
+  if (/ukeplan|timeplan|kalender|planlegge/.test(q)) {
+    return 'Kalender = hendelser, Ukeplan/Program = barnets faste timer, Gjøremål = daglige oppgaver. Et godt grepp: blokkér «familie-tid» og «leksetid» først, fyll aktiviteter etterpå, og la barna se planen. Vil du ha mal for en typisk skoleuke?';
+  }
+  if (/hei|hello|hallo|god morgen|god kveld/.test(q)) {
+    return `Hei! Jeg kan hjelpe med ukeplan, middager, gjøremål, lekser og hverdagsplanlegging${fam}. Hva vil du ta først — mat, kalender eller barna?`;
+  }
+  return 'Jeg er litt begrenset uten full AI akkurat nå. Prøv å spørre mer konkret om middag, ukeplan, gjøremål, lekser eller rutiner — eller omformuler, så gjør jeg mitt beste.';
 }
 
 async function callGemini(apiKey, systemPrompt, message, history = [], options = {}) {
@@ -110,14 +157,17 @@ export async function handleAiChat(data, auth) {
     throw new Error('Du må være innlogget for å bruke AI-assistenten.');
   }
 
+  const context = data?.context === 'child' ? 'child' : 'parent';
   const message = String(data?.message || '').trim();
   if (!message) throw new Error('Skriv et spørsmål først.');
-  if (message.length > PARENT_MAX_MESSAGE) {
-    throw new Error(`Spørsmålet er for langt (maks ${PARENT_MAX_MESSAGE} tegn).`);
+  const maxLen = context === 'child' ? 500 : PARENT_MAX_MESSAGE;
+  if (message.length > maxLen) {
+    throw new Error(`Spørsmålet er for langt (maks ${maxLen} tegn).`);
   }
 
   const familyName = String(data?.familyName || '').trim();
   const familyId = String(data?.familyId || '').trim() || null;
+  const childId = String(data?.childId || '').trim() || null;
   const db = getFirestore();
 
   if (familyId) {
@@ -125,7 +175,31 @@ export async function handleAiChat(data, auth) {
     await assertCompanyAiAllowed(db, familyId);
   }
 
-  await checkAndIncrementUsage(db, familyId, auth.uid, 'chat', AI_LIMITS.chatPerUserPerDay);
+  if (context === 'child' && familyId && childId) {
+    const childSnap = await db.doc(`families/${familyId}/children/${childId}`).get();
+    if (childSnap.exists && !childAllowsApp(childSnap.data() || {}, 'ai')) {
+      throw new Error('AI er skrudd av for dette barnet.');
+    }
+  }
+
+  const chatLimit = context === 'child'
+    ? AI_LIMITS.chatPerChildPerDay
+    : AI_LIMITS.chatPerUserPerDay;
+  await checkAndIncrementUsage(db, familyId, auth.uid, 'chat', chatLimit);
+
+  if (context === 'child') {
+    const age = parseAge(data?.childAge);
+    const history = sanitizeHistory(data?.history, { limit: 6, maxChars: 400 });
+    const todos = await fetchActiveTodoTitles(db, familyId, childId);
+    const reply = childChatLocal({
+      message,
+      childName: String(data?.childName || '').trim(),
+      age,
+      history,
+      todos,
+    });
+    return { reply, engine: 'local' };
+  }
 
   const apiKey = getGeminiKey();
   if (apiKey) {

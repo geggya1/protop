@@ -6,7 +6,7 @@ import { colors, radius, useLayout } from '../src/theme';
 import {
   STORAGE_NOTICE_TEXT, markStorageNoticeSeen, storageNoticeSeen,
 } from '../src/privacy/storageNotice';
-import LegalDocumentModal from './LegalDocumentModal';
+import LegalDocumentModal from './LegalDocumentModalLazy';
 
 function webStorage() {
   try {

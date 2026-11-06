@@ -8,26 +8,25 @@ import { useCompanyModules } from '../../src/access/useCompanyModules';
 import { useI18n } from '../../src/i18n';
 import { colors, radius, useLayout } from '../../src/theme';
 import { Screen, ScrollBody } from '../../components/ui';
+import { lazyScreen } from '../../src/ui/lazyScreen';
 import ChildProfileHeader from '../../components/ChildProfileHeader';
-import ChatListScreen from './ChatListScreen';
-import SettingsScreen from './SettingsScreen';
-import NotificationsScreen from './NotificationsScreen';
-import DashboardThemeSettingsScreen from './DashboardThemeSettingsScreen';
-import PlanScreen from './PlanScreen';
-import GroupHubScreen from '../GroupHubScreen';
-import FriendsHubScreen from './FriendsHubScreen';
-import DocumentsHubScreen from './DocumentsHubScreen';
-import VoiceNotesHubScreen from './VoiceNotesHubScreen';
-import AiChatScreen from './AiChatScreen';
-import MailHubScreen from './MailHubScreen';
-import PrivacyTermsScreen from './PrivacyTermsScreen';
-import SubscriptionScreen from './SubscriptionScreen';
-import ModuleAccessSettingsScreen from './ModuleAccessSettingsScreen';
-import HelpCenterScreen from '../helpdesk/HelpCenterScreen';
-import HelpdeskPortalScreen from '../helpdesk/HelpdeskPortalScreen';
-import {
-  GroupSettingsScreen,
-} from '../settings/GroupSettingsScreen';
+const ChatListScreen = lazyScreen(() => import('./ChatListScreen'), { name: 'ChatListScreen' });
+const SettingsScreen = lazyScreen(() => import('./SettingsScreen'), { name: 'SettingsScreen' });
+const NotificationsScreen = lazyScreen(() => import('./NotificationsScreen'), { name: 'NotificationsScreen' });
+const DashboardThemeSettingsScreen = lazyScreen(() => import('./DashboardThemeSettingsScreen'), { name: 'DashboardThemeSettingsScreen' });
+const PlanScreen = lazyScreen(() => import('./PlanScreen'), { name: 'PlanScreen' });
+const GroupHubScreen = lazyScreen(() => import('../GroupHubScreen'), { name: 'GroupHubScreen' });
+const FriendsHubScreen = lazyScreen(() => import('./FriendsHubScreen'), { name: 'FriendsHubScreen' });
+const DocumentsHubScreen = lazyScreen(() => import('./DocumentsHubScreen'), { name: 'DocumentsHubScreen' });
+const VoiceNotesHubScreen = lazyScreen(() => import('./VoiceNotesHubScreen'), { name: 'VoiceNotesHubScreen' });
+const AiChatScreen = lazyScreen(() => import('./AiChatScreen'), { name: 'AiChatScreen' });
+const MailHubScreen = lazyScreen(() => import('./MailHubScreen'), { name: 'MailHubScreen' });
+const PrivacyTermsScreen = lazyScreen(() => import('./PrivacyTermsScreen'), { name: 'PrivacyTermsScreen' });
+const SubscriptionScreen = lazyScreen(() => import('./SubscriptionScreen'), { name: 'SubscriptionScreen' });
+const ModuleAccessSettingsScreen = lazyScreen(() => import('./ModuleAccessSettingsScreen'), { name: 'ModuleAccessSettingsScreen' });
+const HelpCenterScreen = lazyScreen(() => import('../helpdesk/HelpCenterScreen'), { name: 'HelpCenterScreen' });
+const HelpdeskPortalScreen = lazyScreen(() => import('../helpdesk/HelpdeskPortalScreen'), { name: 'HelpdeskPortalScreen' });
+const GroupSettingsScreen = lazyScreen(() => import('../settings/GroupSettingsScreen'), { name: 'GroupSettingsScreen', pick: 'GroupSettingsScreen' });
 import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
 import {
   buildChildDashboardApps,

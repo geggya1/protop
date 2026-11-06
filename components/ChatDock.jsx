@@ -54,7 +54,10 @@ import {
   CHAT_WINDOW_BOTTOM,
   chatDrawerBottomInset,
 } from '../src/utils/chatDockLayout';
-import AssistantChat from './assistant/AssistantChat';
+import { lazyScreen } from '../src/ui/lazyScreen';
+
+// Assistenten (motor og oppgavekatalog) lastes først når den åpnes.
+const AssistantChat = lazyScreen(() => import('./assistant/AssistantChat'), { name: 'AssistantChat' });
 import { assistantThread, isAssistantThread } from '../src/help/assistantBridge';
 import { useCompanyChatContacts } from '../src/hooks/useCompanyChatContacts';
 import { STAFF_CHAT_ID, STAFF_CHAT_TITLE, companyChatLabel } from '../src/utils/companyChat';

@@ -9,7 +9,7 @@ import { colors, radius, useLayout } from '../src/theme';
 import {
   acceptLegalConsents, loadLocalConsents, needsLegalUpdate, persistUserConsents,
 } from '../src/utils/consents';
-import LegalDocumentModal from './LegalDocumentModal';
+import LegalDocumentModal from './LegalDocumentModalLazy';
 
 // «Senere» gjelder bare til appen lastes på nytt.
 let dismissedVersion = '';

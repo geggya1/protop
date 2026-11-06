@@ -35,7 +35,8 @@
     "submit:ios": "eas submit --platform ios --profile production",
     "submit:android": "eas submit --platform android --profile production",
     "submit:native": "eas submit --platform all --profile production",
-    "generate:responsive-images": "node scripts/generate-responsive-images.mjs"
+    "generate:responsive-images": "node scripts/generate-responsive-images.mjs",
+    "gen:i18n": "node scripts/gen-i18n-dicts.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

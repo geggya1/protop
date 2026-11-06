@@ -15,19 +15,9 @@ function intro({
   return { icon, accent, soft, hero, title, kicker, pitch, steps };
 }
 
-export function pickIntroText(value, lang = 'nb') {
-  if (value == null) return '';
-  if (typeof value === 'string') return value;
-  if (value[lang]) return value[lang];
-  if ((lang === 'da' || lang === 'sv') && value.nb) return value.nb;
-  return value.en || value.nb || '';
-}
+import { pickIntroText, introStorageKey, MODULE_INTRO_SEEN_PREFIX } from './moduleIntroKeys.js';
 
-export function introStorageKey(scope, moduleId) {
-  return `${String(scope || 'family')}.${String(moduleId || '')}`;
-}
-
-export const MODULE_INTRO_SEEN_PREFIX = 'protop.moduleIntro.seen.v1';
+export { pickIntroText, introStorageKey, MODULE_INTRO_SEEN_PREFIX };
 
 const BLUE = '#1099F4';
 const BLUE_SOFT = '#dbeafe';

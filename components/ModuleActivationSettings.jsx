@@ -5,7 +5,7 @@ import BrandToggle from './BrandToggle';
 import { listModulesByCategory } from '../src/modules/moduleActivationRegistry';
 import { applyProtopActivationSections } from '../src/navigation/protopShell';
 import { useModuleAccess, useModuleWriteScope } from '../src/context/ModuleAccessContext';
-import { localizeModuleFields } from '../src/i18n/moduleCatalog';
+import { localizeModuleFields } from '../src/i18n/moduleCatalogActive';
 import { useI18n } from '../src/i18n';
 
 const CATEGORY_KEYS = {

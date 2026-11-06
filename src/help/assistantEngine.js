@@ -14,7 +14,7 @@ import { ASSISTANT_TOPICS, COMPETITOR_NAMES, OFF_TOPIC_PATTERNS } from './assist
 import { ASSISTANT_TASKS } from './assistantTasks.js';
 import { condenseStepLocks } from './helpAccess.js';
 
-export const ASSISTANT_CHAT_ID = 'protop-assistant';
+export { ASSISTANT_CHAT_ID } from './assistantIds.js';
 export const ASSISTANT_ESCALATE_AFTER = 2;
 
 function pick(value, lang = 'nb') {

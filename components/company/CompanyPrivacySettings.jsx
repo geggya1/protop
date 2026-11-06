@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { serverTimestamp } from 'firebase/firestore';
 import BrandToggle from '../BrandToggle';
-import LegalDocumentModal from '../LegalDocumentModal';
+import LegalDocumentModal from '../LegalDocumentModalLazy';
 import { DPA_VERSION } from '../../src/i18n/langs';
 import {
   USAGE_RETENTION_DAYS, canAcceptDpa, companyPrivacySettings, dpaAccepted, dpaAcceptedLabel, dpaAcceptanceRecord,

@@ -13,14 +13,15 @@ import { isTeamType } from '../src/utils/teams';
 import { isClassroomType } from '../src/utils/groupTypes';
 import { openPlatformHome, goPlatformOverview } from '../src/utils/platformNav';
 import HomeScreen from '../screens/v2/HomeScreen';
-import PlanScreen from '../screens/v2/PlanScreen';
-import RewardsScreen from '../screens/v2/RewardsScreen';
-import NotesHubScreen from '../screens/v2/NotesHubScreen';
-import ChatTabScreen from '../screens/v2/ChatTabScreen';
-import MoreHubScreen from '../screens/v2/MoreHubScreen';
-import MailHubScreen from '../screens/v2/MailHubScreen';
-import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
-import CompanyLanding from '../screens/project/CompanyLanding';
+import { lazyScreen, preloadScreens } from '../src/ui/lazyScreen';
+const PlanScreen = lazyScreen(() => import('../screens/v2/PlanScreen'), { name: 'PlanScreen' });
+const RewardsScreen = lazyScreen(() => import('../screens/v2/RewardsScreen'), { name: 'RewardsScreen' });
+const NotesHubScreen = lazyScreen(() => import('../screens/v2/NotesHubScreen'), { name: 'NotesHubScreen' });
+const ChatTabScreen = lazyScreen(() => import('../screens/v2/ChatTabScreen'), { name: 'ChatTabScreen' });
+const MoreHubScreen = lazyScreen(() => import('../screens/v2/MoreHubScreen'), { name: 'MoreHubScreen' });
+const MailHubScreen = lazyScreen(() => import('../screens/v2/MailHubScreen'), { name: 'MailHubScreen' });
+const ProjectPlatformScreen = lazyScreen(() => import('../screens/project/ProjectPlatformScreen'), { name: 'ProjectPlatformScreen' });
+const CompanyLanding = lazyScreen(() => import('../screens/project/CompanyLanding'), { name: 'CompanyLanding' });
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
 import CompanyAccountEnded from './CompanyAccountEnded';
 import { isActiveEmployee } from '../src/employees/model';
@@ -30,26 +31,26 @@ import ViewAsControl, { ViewAsModulePlaceholder } from './project/ViewAsBar';
 import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
 import { viewAsChromeVisible } from '../src/access/viewAsNav';
-import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
-import IsoScreen from '../screens/iso/IsoScreen';
-import AnbudScreen from '../screens/anbud/AnbudScreen';
-import ContractScreen from '../screens/anbud/ContractScreen';
-import CustomersScreen from '../screens/customers/CustomersScreen';
-import CustomerSurveyScreen from '../screens/customers/CustomerSurveyScreen';
-import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
-import EconomyScreen from '../screens/economy/EconomyScreen';
-import EconomySettingsScreen from '../screens/economy/EconomySettingsScreen';
-import EquipmentScreen from '../screens/equipment/EquipmentScreen';
-import MeetingsScreen from '../screens/meetings/MeetingsScreen';
-import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
-import EmployeesScreen from '../screens/employees/EmployeesScreen';
-import HrScreen from '../screens/hr/HrScreen';
-import InnleieScreen from '../screens/innleie/InnleieScreen';
+const ProjectWorkScreen = lazyScreen(() => import('../screens/project/ProjectWorkScreen'), { name: 'ProjectWorkScreen' });
+const IsoScreen = lazyScreen(() => import('../screens/iso/IsoScreen'), { name: 'IsoScreen' });
+const AnbudScreen = lazyScreen(() => import('../screens/anbud/AnbudScreen'), { name: 'AnbudScreen' });
+const ContractScreen = lazyScreen(() => import('../screens/anbud/ContractScreen'), { name: 'ContractScreen' });
+const CustomersScreen = lazyScreen(() => import('../screens/customers/CustomersScreen'), { name: 'CustomersScreen' });
+const CustomerSurveyScreen = lazyScreen(() => import('../screens/customers/CustomerSurveyScreen'), { name: 'CustomerSurveyScreen' });
+const FormBuilderScreen = lazyScreen(() => import('../screens/anbud/FormBuilderScreen'), { name: 'FormBuilderScreen' });
+const EconomyScreen = lazyScreen(() => import('../screens/economy/EconomyScreen'), { name: 'EconomyScreen' });
+const EconomySettingsScreen = lazyScreen(() => import('../screens/economy/EconomySettingsScreen'), { name: 'EconomySettingsScreen' });
+const EquipmentScreen = lazyScreen(() => import('../screens/equipment/EquipmentScreen'), { name: 'EquipmentScreen' });
+const MeetingsScreen = lazyScreen(() => import('../screens/meetings/MeetingsScreen'), { name: 'MeetingsScreen' });
+const CompanyUnitsScreen = lazyScreen(() => import('../screens/project/CompanyUnitsScreen'), { name: 'CompanyUnitsScreen' });
+const EmployeesScreen = lazyScreen(() => import('../screens/employees/EmployeesScreen'), { name: 'EmployeesScreen' });
+const HrScreen = lazyScreen(() => import('../screens/hr/HrScreen'), { name: 'HrScreen' });
+const InnleieScreen = lazyScreen(() => import('../screens/innleie/InnleieScreen'), { name: 'InnleieScreen' });
 import UsageRecorder from './UsageRecorder';
-import ArbeidHub from '../screens/arbeid/ArbeidHub';
-import ArbeidScreen from '../screens/arbeid/ArbeidScreen';
-import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
-import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
+const ArbeidHub = lazyScreen(() => import('../screens/arbeid/ArbeidHub'), { name: 'ArbeidHub' });
+const ArbeidScreen = lazyScreen(() => import('../screens/arbeid/ArbeidScreen'), { name: 'ArbeidScreen' });
+const AbsenceSettingsScreen = lazyScreen(() => import('../screens/arbeid/AbsenceSettingsScreen'), { name: 'AbsenceSettingsScreen' });
+const PersonalTimesheet = lazyScreen(() => import('../screens/arbeid/PersonalTimesheet'), { name: 'PersonalTimesheet' });
 import { isOrganizationType } from '../src/utils/groupTypes';
 import { companyHasRegisteredUnits, companyMenuItems, defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultInnleieSubView, defaultIsoSubView, defaultMoterSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
 import { moduleTabsFor } from '../src/navigation/moduleTabs';
@@ -81,7 +82,7 @@ import { effectiveLocationSharing } from '../src/utils/familyLocation';
 import { allowedAppsForChild, isChildAppAllowed } from '../src/utils/childApps';
 import { grandparentModulesFor, isGrandparentAppAllowed } from '../src/utils/grandparentAccess';
 import ModuleIntroHost from './ModuleIntroHost';
-import { helpPageId } from '../src/help/protopPages';
+import { helpPageId } from '../src/help/protopPageKeys';
 import ModuleHero, { ModuleTitleRow } from './ModuleHero';
 import HelpTarget from './HelpTarget';
 import ModuleActivationGate from './ModuleActivationGate';
@@ -123,7 +124,7 @@ import { shouldShowParentBottomNav } from '../src/utils/parentBottomNav';
 import ShellErrorBoundary from './ShellErrorBoundary';
 import { companyDisplayName } from '../src/utils/companyName';
 import ConfirmHost from './ConfirmHost';
-import IsoAutomation from '../screens/iso/IsoAutomation';
+const IsoAutomation = lazyScreen(() => import('../screens/iso/IsoAutomation'), { name: 'IsoAutomation', silent: true });
 import { FAMILY_PRODUCT_ENABLED, isFamilyProductMoreView } from '../src/navigation/familyProduct';
 
 function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) {
@@ -1402,6 +1403,11 @@ export default function AppShell() {
     return () => clearTimeout(timer);
   }, [switching]);
   const hold = switching && !waitedOut;
+  // Henter de mest brukte modulene i ledig tid etter oppstart, så de åpner uten venting.
+  useEffect(() => preloadScreens([
+    PlanScreen, RewardsScreen, NotesHubScreen, MailHubScreen, ChatTabScreen, MoreHubScreen,
+    ...(companyId ? [PersonalTimesheet, ArbeidHub, ProjectWorkScreen, CompanyLanding] : []),
+  ]), [companyId]);
   return (
     <CompanyDataProvider companyId={companyId} members={parents} me={me}>
       {/* ISO-automatikk og køen for hurtigmeldinger (ISO-02/03). Tegner ingenting. */}

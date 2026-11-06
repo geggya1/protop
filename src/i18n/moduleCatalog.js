@@ -1,10 +1,7 @@
 /** Module activation catalog copy: every leaf is { nb, en, da, sv, fi, pl, es, fr, de }. */
 const L = (nb, en, da, sv, fi, pl, es, fr, de) => ({ nb, en, da, sv, fi, pl, es, fr, de });
 
-function pick(entry, lang) {
-  if (!entry || typeof entry !== 'object') return entry;
-  return entry[lang] || entry.en || entry.nb || '';
-}
+import { makeLocalizers } from './moduleCatalogLocalize.js';
 
 export const MODULE_CATALOG_I18N = {
   defaults: {
@@ -2735,33 +2732,5 @@ export const MODULE_CATALOG_I18N = {
   },
 };
 
-export function localizeModuleFields(module, lang) {
-  if (!module || !module.id) return module;
-  const entry = MODULE_CATALOG_I18N.modules[module.id];
-  if (!entry) return module;
-  return {
-    ...module,
-    name: pick(entry.name, lang),
-    eyebrow: pick(entry.eyebrow, lang),
-    headline: pick(entry.headline, lang),
-    pitch: pick(entry.pitch, lang),
-    activationLabel: pick(entry.activationLabel, lang),
-    benefits: Array.isArray(entry.benefits)
-      ? entry.benefits.map((b) => pick(b, lang))
-      : module.benefits,
-  };
-}
-
-export function localizeCatalogDefaults(defaults, lang) {
-  const i18nDefaults = MODULE_CATALOG_I18N.defaults;
-  if (!defaults && !i18nDefaults) return defaults;
-  const source = defaults || {};
-  return {
-    ...source,
-    backLabel: pick(i18nDefaults.backLabel, lang) || source.backLabel,
-    reassuranceText: pick(i18nDefaults.reassuranceText, lang) || source.reassuranceText,
-    mobileReassuranceText: pick(i18nDefaults.mobileReassuranceText, lang) || source.mobileReassuranceText,
-    reassuranceTextCompact: pick(i18nDefaults.reassuranceTextCompact, lang) || source.reassuranceTextCompact,
-    childReassuranceText: pick(i18nDefaults.childReassuranceText, lang) || source.childReassuranceText,
-  };
-}
+// Appen bruker moduleCatalogActive.js (bare nb og en, generert fra denne filen).
+export const { localizeModuleFields, localizeCatalogDefaults } = makeLocalizers(MODULE_CATALOG_I18N);

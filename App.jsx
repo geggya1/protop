@@ -22,22 +22,22 @@ import { usePhoneVisualViewport } from './src/shell/usePhoneVisualViewport';
 import { syncParentDocs, isChildEmail } from './src/utils/session';
 
 import LoginScreen from './screens/LoginScreen';
-import RegisterScreen from './screens/RegisterScreen';
-import VerifyEmailScreen from './screens/VerifyEmailScreen';
-import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
-import FamilyOverviewScreen from './screens/FamilyOverviewScreen';
-import TemplateListScreen from './screens/TemplateListScreen';
-import ProfileScreen from './screens/ProfileScreen';
-import ParentProfileScreen from './screens/ParentProfileScreen';
-import ConfirmationScreen from './screens/ConfirmationScreen';
-import SelectFamilyScreen from './screens/SelectFamilyScreen';
-import AddTodoScreen from './screens/AddTodoScreen';
+const RegisterScreen = lazyScreen(() => import('./screens/RegisterScreen'), { name: 'RegisterScreen' });
+const VerifyEmailScreen = lazyScreen(() => import('./screens/VerifyEmailScreen'), { name: 'VerifyEmailScreen' });
+const ForgotPasswordScreen = lazyScreen(() => import('./screens/ForgotPasswordScreen'), { name: 'ForgotPasswordScreen' });
+const FamilyOverviewScreen = lazyScreen(() => import('./screens/FamilyOverviewScreen'), { name: 'FamilyOverviewScreen' });
+const TemplateListScreen = lazyScreen(() => import('./screens/TemplateListScreen'), { name: 'TemplateListScreen' });
+const ProfileScreen = lazyScreen(() => import('./screens/ProfileScreen'), { name: 'ProfileScreen' });
+const ParentProfileScreen = lazyScreen(() => import('./screens/ParentProfileScreen'), { name: 'ParentProfileScreen' });
+const ConfirmationScreen = lazyScreen(() => import('./screens/ConfirmationScreen'), { name: 'ConfirmationScreen' });
+const SelectFamilyScreen = lazyScreen(() => import('./screens/SelectFamilyScreen'), { name: 'SelectFamilyScreen' });
+const AddTodoScreen = lazyScreen(() => import('./screens/AddTodoScreen'), { name: 'AddTodoScreen' });
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { lazyScreen } from './src/ui/lazyScreen';
 import { AppProvider, useApp } from './src/context/AppContext';
 import { HelpProvider } from './src/context/HelpContext';
 import { ModuleAccessProvider } from './src/context/ModuleAccessContext';
-import HelpOverlay from './components/HelpOverlay';
-import HelpModuleCard from './components/HelpModuleCard';
+import HelpOverlay, { HelpModuleCardHost as HelpModuleCard } from './components/HelpOverlayHost';
 import ModuleActivationGate from './components/ModuleActivationGate';
 import StackEdgeSwipe, { withStackEdgeSwipe } from './components/StackEdgeSwipe';
 import { STACK_MODULE_IDS } from './src/modules/moduleActivationRegistry';
@@ -51,55 +51,55 @@ import AppShell from './components/AppShell';
 import SessionOverlays from './components/SessionOverlays';
 import StorageNotice from './components/StorageNotice';
 import { ChatDockProvider } from './src/context/ChatDockContext';
-import { CompanyShell } from './components/SocialPlatformShell';
-import CreateCompanyScreen from './screens/company/CreateCompanyScreen';
-import PlatformJoinScreen from './screens/platform/PlatformJoinScreen';
-import ChatThreadScreen from './screens/v2/ChatThreadScreen';
-import EventFormScreen from './screens/v2/EventFormScreen';
-import ParentTaskScreen from './screens/v2/ParentTaskScreen';
-import NotificationsScreen from './screens/v2/NotificationsScreen';
-import SubscriptionScreen from './screens/v2/SubscriptionScreen';
-import NotificationSettingsScreen from './screens/v2/NotificationSettingsScreen';
-import WeatherSettingsScreen from './screens/v2/WeatherSettingsScreen';
-import AppearanceSettingsScreen from './screens/v2/AppearanceSettingsScreen';
-import DashboardThemeSettingsScreen from './screens/v2/DashboardThemeSettingsScreen';
-import DashboardThemeGalleryScreen from './screens/v2/DashboardThemeGalleryScreen';
-import FakturaDemoScreen from './screens/economy/FakturaDemoScreen';
-import MeetingsDemoScreen from './screens/meetings/MeetingsDemoScreen';
-import AnbudDemoScreen, { anbudDemoAllowed } from './screens/anbud/AnbudDemoScreen';
-import HelpdeskPortalScreen from './screens/helpdesk/HelpdeskPortalScreen';
-import HelpdeskDemoScreen, { helpdeskDemoAllowed } from './screens/helpdesk/HelpdeskDemoScreen';
-import SurveyAnswerScreen from './screens/surveys/SurveyAnswerScreen';
-import CustomerSurveyDemoScreen, { customerSurveyDemoAllowed } from './screens/surveys/CustomerSurveyDemoScreen';
+const CreateCompanyScreen = lazyScreen(() => import('./screens/company/CreateCompanyScreen'), { name: 'CreateCompanyScreen' });
+const PlatformJoinScreen = lazyScreen(() => import('./screens/platform/PlatformJoinScreen'), { name: 'PlatformJoinScreen' });
+const ChatThreadScreen = lazyScreen(() => import('./screens/v2/ChatThreadScreen'), { name: 'ChatThreadScreen' });
+const EventFormScreen = lazyScreen(() => import('./screens/v2/EventFormScreen'), { name: 'EventFormScreen' });
+const ParentTaskScreen = lazyScreen(() => import('./screens/v2/ParentTaskScreen'), { name: 'ParentTaskScreen' });
+const NotificationsScreen = lazyScreen(() => import('./screens/v2/NotificationsScreen'), { name: 'NotificationsScreen' });
+const SubscriptionScreen = lazyScreen(() => import('./screens/v2/SubscriptionScreen'), { name: 'SubscriptionScreen' });
+const NotificationSettingsScreen = lazyScreen(() => import('./screens/v2/NotificationSettingsScreen'), { name: 'NotificationSettingsScreen' });
+const WeatherSettingsScreen = lazyScreen(() => import('./screens/v2/WeatherSettingsScreen'), { name: 'WeatherSettingsScreen' });
+const AppearanceSettingsScreen = lazyScreen(() => import('./screens/v2/AppearanceSettingsScreen'), { name: 'AppearanceSettingsScreen' });
+const DashboardThemeSettingsScreen = lazyScreen(() => import('./screens/v2/DashboardThemeSettingsScreen'), { name: 'DashboardThemeSettingsScreen' });
+const DashboardThemeGalleryScreen = lazyScreen(() => import('./screens/v2/DashboardThemeGalleryScreen'), { name: 'DashboardThemeGalleryScreen' });
+const FakturaDemoScreen = lazyScreen(() => import('./screens/economy/FakturaDemoScreen'), { name: 'FakturaDemoScreen' });
+const MeetingsDemoScreen = lazyScreen(() => import('./screens/meetings/MeetingsDemoScreen'), { name: 'MeetingsDemoScreen' });
+const AnbudDemoScreen = lazyScreen(() => import('./screens/anbud/AnbudDemoScreen'), { name: 'AnbudDemoScreen' });
+const HelpdeskPortalScreen = lazyScreen(() => import('./screens/helpdesk/HelpdeskPortalScreen'), { name: 'HelpdeskPortalScreen' });
+const HelpdeskDemoScreen = lazyScreen(() => import('./screens/helpdesk/HelpdeskDemoScreen'), { name: 'HelpdeskDemoScreen' });
+const SurveyAnswerScreen = lazyScreen(() => import('./screens/surveys/SurveyAnswerScreen'), { name: 'SurveyAnswerScreen' });
+const CustomerSurveyDemoScreen = lazyScreen(() => import('./screens/surveys/CustomerSurveyDemoScreen'), { name: 'CustomerSurveyDemoScreen' });
 import { installDiagnostics } from './src/helpdesk/diagnostics';
-import CalendarSettingsScreen from './screens/v2/CalendarSettingsScreen';
-import CalendarOAuthRedirectScreen from './screens/v2/CalendarOAuthRedirectScreen';
-import AiChatScreen from './screens/v2/AiChatScreen';
-import AssistantScreen from './screens/v2/AssistantScreen';
+const CalendarSettingsScreen = lazyScreen(() => import('./screens/v2/CalendarSettingsScreen'), { name: 'CalendarSettingsScreen' });
+const CalendarOAuthRedirectScreen = lazyScreen(() => import('./screens/v2/CalendarOAuthRedirectScreen'), { name: 'CalendarOAuthRedirectScreen' });
+const AiChatScreen = lazyScreen(() => import('./screens/v2/AiChatScreen'), { name: 'AiChatScreen' });
+const AssistantScreen = lazyScreen(() => import('./screens/v2/AssistantScreen'), { name: 'AssistantScreen' });
 import StackShellChrome from './components/StackShellChrome';
-import EmployeeDetailPreview from './screens/employees/EmployeeDetailPreview';
-import CustomersListPreview from './screens/customers/CustomersListPreview';
-import LanguageScreen from './screens/onboarding/LanguageScreen';
-import WelcomeScreen from './screens/onboarding/WelcomeScreen';
-import LegalWizardScreen from './screens/onboarding/LegalWizardScreen';
-import PrivacyTermsScreen from './screens/v2/PrivacyTermsScreen';
-import LegalDocScreen from './screens/v2/LegalDocScreen';
-import LicensesScreen from './screens/v2/LicensesScreen';
-import AuthChoiceScreen from './screens/onboarding/AuthChoiceScreen';
-import ProfileSetupScreen from './screens/onboarding/ProfileSetupScreen';
-import HomeSetupOnboardingScreen from './screens/onboarding/HomeSetupOnboardingScreen';
-import CreateGroupScreen, { GetStartedScreen } from './screens/onboarding/CreateGroupScreen';
-import GroupHubScreen from './screens/GroupHubScreen';
-import FamilyInviteRespondScreen from './screens/FamilyInviteRespondScreen';
-import EditProfileScreen from './screens/v2/EditProfileScreen';
-import FriendsHubScreen from './screens/v2/FriendsHubScreen';
-import AddFriendScreen from './screens/v2/AddFriendScreen';
-import FriendQrScreen from './screens/v2/FriendQrScreen';
-import FriendChatThreadScreen from './screens/v2/FriendChatThreadScreen';
-import FriendInviteRespondScreen from './screens/v2/FriendInviteRespondScreen';
-import {
-  GroupSettingsScreen, MemberSettingsScreen, ArchiveScreen,
-} from './screens/settings/GroupSettingsScreen';
+const EmployeeDetailPreview = lazyScreen(() => import('./screens/employees/EmployeeDetailPreview'), { name: 'EmployeeDetailPreview' });
+const CustomersListPreview = lazyScreen(() => import('./screens/customers/CustomersListPreview'), { name: 'CustomersListPreview' });
+const LanguageScreen = lazyScreen(() => import('./screens/onboarding/LanguageScreen'), { name: 'LanguageScreen' });
+const WelcomeScreen = lazyScreen(() => import('./screens/onboarding/WelcomeScreen'), { name: 'WelcomeScreen' });
+const LegalWizardScreen = lazyScreen(() => import('./screens/onboarding/LegalWizardScreen'), { name: 'LegalWizardScreen' });
+const PrivacyTermsScreen = lazyScreen(() => import('./screens/v2/PrivacyTermsScreen'), { name: 'PrivacyTermsScreen' });
+const LegalDocScreen = lazyScreen(() => import('./screens/v2/LegalDocScreen'), { name: 'LegalDocScreen' });
+const LicensesScreen = lazyScreen(() => import('./screens/v2/LicensesScreen'), { name: 'LicensesScreen' });
+const AuthChoiceScreen = lazyScreen(() => import('./screens/onboarding/AuthChoiceScreen'), { name: 'AuthChoiceScreen' });
+const ProfileSetupScreen = lazyScreen(() => import('./screens/onboarding/ProfileSetupScreen'), { name: 'ProfileSetupScreen' });
+const HomeSetupOnboardingScreen = lazyScreen(() => import('./screens/onboarding/HomeSetupOnboardingScreen'), { name: 'HomeSetupOnboardingScreen' });
+const CreateGroupScreen = lazyScreen(() => import('./screens/onboarding/CreateGroupScreen'), { name: 'CreateGroupScreen' });
+const GetStartedScreen = lazyScreen(() => import('./screens/onboarding/CreateGroupScreen'), { name: 'GetStartedScreen', pick: 'GetStartedScreen' });
+const GroupHubScreen = lazyScreen(() => import('./screens/GroupHubScreen'), { name: 'GroupHubScreen' });
+const FamilyInviteRespondScreen = lazyScreen(() => import('./screens/FamilyInviteRespondScreen'), { name: 'FamilyInviteRespondScreen' });
+const EditProfileScreen = lazyScreen(() => import('./screens/v2/EditProfileScreen'), { name: 'EditProfileScreen' });
+const FriendsHubScreen = lazyScreen(() => import('./screens/v2/FriendsHubScreen'), { name: 'FriendsHubScreen' });
+const AddFriendScreen = lazyScreen(() => import('./screens/v2/AddFriendScreen'), { name: 'AddFriendScreen' });
+const FriendQrScreen = lazyScreen(() => import('./screens/v2/FriendQrScreen'), { name: 'FriendQrScreen' });
+const FriendChatThreadScreen = lazyScreen(() => import('./screens/v2/FriendChatThreadScreen'), { name: 'FriendChatThreadScreen' });
+const FriendInviteRespondScreen = lazyScreen(() => import('./screens/v2/FriendInviteRespondScreen'), { name: 'FriendInviteRespondScreen' });
+const GroupSettingsScreen = lazyScreen(() => import('./screens/settings/GroupSettingsScreen'), { name: 'GroupSettingsScreen', pick: 'GroupSettingsScreen' });
+const MemberSettingsScreen = lazyScreen(() => import('./screens/settings/GroupSettingsScreen'), { name: 'MemberSettingsScreen', pick: 'MemberSettingsScreen' });
+const ArchiveScreen = lazyScreen(() => import('./screens/settings/GroupSettingsScreen'), { name: 'ArchiveScreen', pick: 'ArchiveScreen' });
 import { consentsComplete, loadLocalConsents, persistUserConsents } from './src/utils/consents';
 import { APP_BUILD_ID } from './src/constants/build';
 import {
@@ -119,6 +119,9 @@ import {
 import { clearSessionData } from './src/utils/localCache';
 import { useInviteLinkJoin } from './src/hooks/useInviteLinkJoin';
 import { blockedFamilyProductRoute, childLoginAllowed } from './src/navigation/familyProduct';
+
+// Demoer og forhåndsvisninger uten innlogging finnes bare i utviklingsbygg (Metro), ikke på protop.no.
+const DEV_DEMOS = typeof __DEV__ !== 'undefined' && __DEV__;
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -771,16 +774,16 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       // /start used to mount the legacy Welcome marketing clone — redirect via /.
       if (p === '/start') return null;
       if (p === '/dashboard-themes') return 'DashboardThemeGallery';
-      if (p === '/faktura-demo') return 'FakturaDemo';
-      if (p === '/helpdesk-demo' && helpdeskDemoAllowed()) return 'HelpdeskDemo';
+      if (p === '/faktura-demo' && DEV_DEMOS) return 'FakturaDemo';
+      if (p === '/helpdesk-demo' && DEV_DEMOS) return 'HelpdeskDemo';
       if (p === '/helpdesk' || p.startsWith('/helpdesk/')) return 'Helpdesk';
       // Kundeundersøkelse: kunden svarer uten innlogging (lenke i e-post).
       if (p.startsWith('/svar/')) return 'SurveyAnswer';
-      if (p === '/kundeundersokelse-demo' && customerSurveyDemoAllowed()) return 'CustomerSurveyDemo';
-      if (p === '/moter-demo') return 'MeetingsDemo';
-      if (p === '/anbud-demo' && anbudDemoAllowed()) return 'AnbudDemo';
-      if (p === '/employee-detail-preview') return 'EmployeeDetailPreview';
-      if (p === '/customers-list-preview') return 'CustomersListPreview';
+      if (p === '/kundeundersokelse-demo' && DEV_DEMOS) return 'CustomerSurveyDemo';
+      if (p === '/moter-demo' && DEV_DEMOS) return 'MeetingsDemo';
+      if (p === '/anbud-demo' && DEV_DEMOS) return 'AnbudDemo';
+      if (p === '/employee-detail-preview' && DEV_DEMOS) return 'EmployeeDetailPreview';
+      if (p === '/customers-list-preview' && DEV_DEMOS) return 'CustomersListPreview';
       return null;
     } catch {
       return null;
@@ -928,15 +931,15 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         <Stack.Screen name="LegalDoc" component={LegalDocScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Licenses" component={LicensesScreen} options={{ headerShown: false }} />
         <Stack.Screen name="DashboardThemeGallery" component={DashboardThemeGalleryScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="FakturaDemo" component={FakturaDemoScreen} options={{ headerShown: false }} />
+        {DEV_DEMOS ? <Stack.Screen name="FakturaDemo" component={FakturaDemoScreen} options={{ headerShown: false }} /> : null}
         <Stack.Screen name="Helpdesk" component={HelpdeskPortalScreen} options={{ headerShown: false, title: 'ProTop Helpdesk' }} />
-        {helpdeskDemoAllowed() ? <Stack.Screen name="HelpdeskDemo" component={HelpdeskDemoScreen} options={{ headerShown: false }} /> : null}
+        {DEV_DEMOS ? <Stack.Screen name="HelpdeskDemo" component={HelpdeskDemoScreen} options={{ headerShown: false }} /> : null}
         <Stack.Screen name="SurveyAnswer" component={SurveyAnswerScreen} options={{ headerShown: false, title: 'Kundeundersøkelse' }} />
-        {customerSurveyDemoAllowed() ? <Stack.Screen name="CustomerSurveyDemo" component={CustomerSurveyDemoScreen} options={{ headerShown: false }} /> : null}
-        <Stack.Screen name="MeetingsDemo" component={MeetingsDemoScreen} options={{ headerShown: false }} />
-        {anbudDemoAllowed() ? <Stack.Screen name="AnbudDemo" component={AnbudDemoScreen} options={{ headerShown: false }} /> : null}
-        <Stack.Screen name="EmployeeDetailPreview" component={EmployeeDetailPreview} options={{ headerShown: false }} />
-        <Stack.Screen name="CustomersListPreview" component={CustomersListPreview} options={{ headerShown: false }} />
+        {DEV_DEMOS ? <Stack.Screen name="CustomerSurveyDemo" component={CustomerSurveyDemoScreen} options={{ headerShown: false }} /> : null}
+        {DEV_DEMOS ? <Stack.Screen name="MeetingsDemo" component={MeetingsDemoScreen} options={{ headerShown: false }} /> : null}
+        {DEV_DEMOS ? <Stack.Screen name="AnbudDemo" component={AnbudDemoScreen} options={{ headerShown: false }} /> : null}
+        {DEV_DEMOS ? <Stack.Screen name="EmployeeDetailPreview" component={EmployeeDetailPreview} options={{ headerShown: false }} /> : null}
+        {DEV_DEMOS ? <Stack.Screen name="CustomersListPreview" component={CustomersListPreview} options={{ headerShown: false }} /> : null}
         <Stack.Screen
           name="CalendarOAuthRedirect"
           component={CalendarOAuthRedirectScreen}
@@ -1016,7 +1019,6 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             <Stack.Screen name="ProfileSettings" component={ProfileSettingsWithSwipe} />
             <Stack.Screen name="CalendarSettings" component={CalendarSettingsScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Home" component={AppShell} />
-            <Stack.Screen name="CompanyHome" component={CompanyShell} options={{ headerShown: false }} />
             <Stack.Screen name="CreateCompany" component={CreateCompanyScreen} options={{ headerShown: false }} />
         {/* Bli med i en bedrift med kode (fra «Bli med i bedrift»). Tidligere rute: GroupJoin. */}
         <Stack.Screen name="CompanyJoin" component={CompanyJoinWithSwipe} options={{ headerShown: false }} initialParams={{ platformType: 'organization' }} />

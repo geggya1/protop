@@ -3,10 +3,10 @@
  * (phone, tablet and desktop). Activation/help still use moduler.json;
  * this is the in-page overlay heading.
  */
-import { pickIntroText } from '../utils/moduleIntros.js';
+import { pickIntroText } from '../utils/moduleIntroKeys.js';
 import { readableCompanyName } from '../utils/companyName.js';
 import { getModuleConfig, SHELL_SKIP_MODULE_IDS, ILLUSTRATION_FILES } from './moduleActivationRegistry.js';
-import { localizeModuleFields } from '../i18n/moduleCatalog.js';
+import { localizeModuleFields } from '../i18n/moduleCatalogActive.js';
 import { COMPANY_HERO, companyHeroGroup, companyHeroId } from './companyHero.js';
 import { GROUP_PALETTE } from './groupPalette.js';
 import { PROTOP_PRODUCT_MODULE_IDS } from '../navigation/protopShell.js';

@@ -11,7 +11,7 @@ import { Screen, Title, Mute, ScrollBody } from '../../components/ui';
 import CompactBackLink from '../../components/CompactBackLink';
 import BrandToggle from '../../components/BrandToggle';
 import CheckBox from '../../components/CheckBox';
-import LegalDocumentModal from '../../components/LegalDocumentModal';
+import LegalDocumentModal from '../../components/LegalDocumentModalLazy';
 import { LEGAL_VERSION } from '../../src/i18n/langs';
 import {
   getTerms, getPrivacy, getDpa, isLegalHeading, APP_LICENSES, LEGAL_ENTITY,

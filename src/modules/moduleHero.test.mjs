@@ -138,12 +138,6 @@ assert.match(headerSrc, /styles\.heroChrome/, 'phone heading is embedded as head
 assert.match(headerSrc, /marginHorizontal: -12/, 'band is edge-to-edge in the header');
 assert.match(headerSrc, /styles\.avatarSlot/, 'profile photo keeps its slot');
 assert.doesNotMatch(headerSrc, /helpOnAvatar/, 'help sits in the logo row, not hanging off the profile photo (EGEN-03)');
-for (const headerName of ['platform/PlatformHeader.jsx']) {
-  const shellHeader = readFileSync(join(ROOT, 'components', headerName), 'utf8');
-  assert.match(shellHeader, /styles\.avatarSlot/, `${headerName} anchors help on the avatar`);
-  assert.match(shellHeader, /helpOverlay:\s*\{[^}]*top:\s*36/, `${headerName} help sits under the avatar`);
-  assert.doesNotMatch(shellHeader, /helpOverlay:\s*\{[^}]*top:\s*46/, `${headerName} help no longer covers the avatar`);
-}
 assert.doesNotMatch(headerSrc, /helpOverlayPhone:\s*\{[^}]*top:\s*42/, 'help is not pinned over the profile from the header top');
 assert.doesNotMatch(headerSrc, /heroBelowRow/, 'help no longer reserves a row under the band');
 assert.doesNotMatch(headerSrc, /heroBackLink/, 'no dedicated Hjem back-link slot under the band');

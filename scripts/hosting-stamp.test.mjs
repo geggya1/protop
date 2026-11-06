@@ -15,5 +15,8 @@ const script = buildRefreshScript('abc');
 assert.match(script, /protop_build_reload_target/);
 assert.match(script, /"abc"/);
 assert.doesNotMatch(script, /location\.reload\(\)\}catch/);
+// Ingen ekstra lasting bare fordi forrige besøk hadde et annet bygg (HTML-en er alltid fersk).
+assert.doesNotMatch(script, /getItem\(k\)|p!==id/);
+assert.match(script, /j\.id!==id/);
 
 console.log('hosting-stamp: ok');

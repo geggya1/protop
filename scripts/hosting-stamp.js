@@ -14,9 +14,15 @@ function bustExpoAssetUrls(html, buildId) {
   );
 }
 
+/**
+ * Inline-skript i index.html. HTML-en hentes alltid fersk (no-cache), og den peker på bundlen
+ * for samme bygg, så siden lastes bare på nytt når serveren har et nyere bygg enn HTML-en selv
+ * (f.eks. en PWA på iOS som viste en gammel kopi). Før lastet den også på nytt hver gang id-en
+ * skilte seg fra forrige besøk, altså én ekstra lasting etter hver deploy.
+ */
 function buildRefreshScript(nextId) {
   const id = JSON.stringify(nextId);
-  return `<script data-protop-build-refresh>(function(){var id=${id};var k='protop_html_build';var tried='protop_build_reload_target';function reloadOnce(target){try{if(!target||sessionStorage.getItem(tried)===target)return;sessionStorage.setItem(tried,target);}catch(e){return;}location.reload();}try{var p=localStorage.getItem(k);localStorage.setItem(k,id);if(p&&p!==id){reloadOnce(id);return;}}catch(e){}if(/^(localhost|127\\.0\\.0\\.1)$/.test(location.hostname))return;fetch('/build.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(j&&j.id&&j.id!==id)reloadOnce(j.id);}).catch(function(){})})();</script>`;
+  return `<script data-protop-build-refresh>(function(){var id=${id};var tried='protop_build_reload_target';function reloadOnce(target){try{if(!target||sessionStorage.getItem(tried)===target)return;sessionStorage.setItem(tried,target);}catch(e){return;}location.reload();}try{localStorage.setItem('protop_html_build',id);}catch(e){}if(/^(localhost|127\\.0\\.0\\.1)$/.test(location.hostname))return;fetch('/build.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(j&&j.id&&j.id!==id)reloadOnce(j.id);}).catch(function(){})})();</script>`;
 }
 
 module.exports = { bustExpoAssetUrls, buildRefreshScript };

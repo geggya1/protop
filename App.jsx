@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { ActivityIndicator, View, StyleSheet, Alert, Platform, Text } from 'react-native';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { onAuthStateChanged, reload, signOut } from 'firebase/auth';
@@ -225,10 +225,10 @@ installDiagnostics();
 
 export default function App() {
   usePhoneVisualViewport();
+  // Bare Ionicons (brukt overalt) lastes før første visning. MaterialCommunityIcons og Feather
+  // brukes noen få steder og lastes av ikonkomponenten første gang de vises (1,4 MB mindre ved oppstart).
   const [fontsLoaded] = useFonts({
     ...Ionicons.font,
-    ...MaterialCommunityIcons.font,
-    ...Feather.font,
   });
   const isWeb = Platform.OS === 'web';
 
@@ -263,18 +263,10 @@ export default function App() {
       window.localStorage.setItem('protop_app_build', APP_BUILD_ID);
       return undefined;
     }
-    const key = 'protop_app_build';
-    const prev = window.localStorage.getItem(key);
-    if (prev && prev !== APP_BUILD_ID) {
-      window.localStorage.setItem(key, APP_BUILD_ID);
-      // Never store the remote id here. That ping-pongs with the check below
-      // when a cached bundle cannot change its own APP_BUILD_ID.
-      if (claimBuildReload(window.sessionStorage, APP_BUILD_ID)) {
-        window.location.reload();
-        return undefined;
-      }
-    }
-    window.localStorage.setItem(key, APP_BUILD_ID);
+    // Bundlen hører alltid til HTML-en som lastet den, så et nytt bygg siden forrige besøk
+    // betyr bare at denne økten allerede kjører det nye. Før ga det en ekstra lasting etter
+    // hver deploy. Lasting på nytt skjer bare når build.json under sier at serveren har et nyere.
+    window.localStorage.setItem('protop_app_build', APP_BUILD_ID);
     // Local Metro (`npm run web`) skips this so hot reload is instant.
     // On protop.no, poll build.json so a new Hosting revision loads without
     // waiting for a stale PWA bundle.

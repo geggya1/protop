@@ -71,6 +71,21 @@ const iconTags = [
 
 html = upsertHeadTags(html, iconTags);
 
+// Skriftene: koble til Google Fonts med en gang og start stilarket parallelt med JS-bundlen.
+// Før ble det først hentet via @import i app-CSS-en (kjede: html → css → fonts-css → font).
+// @import-en står igjen for lokal Metro; nettleseren henter samme adresse bare én gang.
+const FONT_CSS = (fs.readFileSync(path.join(__dirname, '..', 'app.web.css'), 'utf8').match(/@import url\('([^']+fonts\.googleapis\.com[^']+)'\)/) || [])[1];
+if (FONT_CSS && !html.includes('fonts.gstatic.com')) {
+  const fontTags = [
+    '<link rel="preconnect" href="https://fonts.googleapis.com" />',
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />',
+    `<link rel="stylesheet" href="${FONT_CSS}" />`,
+  ].map((t) => `\n    ${t}`).join('');
+  html = /<meta charset="[^"]*"\s*\/?>/.test(html)
+    ? html.replace(/(<meta charset="[^"]*"\s*\/?>)/, `$1${fontTags}`)
+    : html.replace(/<head>/, `<head>${fontTags}`);
+}
+
 const pwaMeta = [
   ['mobile-web-app-capable', 'yes'],
   ['apple-mobile-web-app-capable', 'yes'],

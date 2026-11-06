@@ -658,10 +658,11 @@ export function drawerSubmenuOpen(item, activeTab, overrides = {}, activeSubView
 export const COMPANY_DRAWER_GROUPS = [
   {
     // Det hver ansatt ser for seg selv. Står først, så vanlige ansatte har sitt øverst.
+    // Menyen viser gruppen som egen seksjon «Ansatt» over «Bedrift» (navSections).
     id: 'company-me',
     label: 'Ansatt',
     icon: 'person',
-    itemIds: ANSATT_MENU.map((item) => item.id),
+    itemIds: [...ANSATT_MENU.map((item) => item.id), 'kjorebok'],
   },
   {
     id: 'company-org',
@@ -705,7 +706,7 @@ export const COMPANY_DRAWER_GROUPS = [
     id: 'company-resources',
     label: 'Produkter og driftsressurser',
     icon: 'cube',
-    itemIds: ['produkt', 'utstyr', 'kjorebok'],
+    itemIds: ['produkt', 'utstyr'],
   },
   {
     id: 'company-tenders',

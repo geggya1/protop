@@ -23,6 +23,8 @@ const tx = (nb, en) => ({ nb, en });
 export const HELP_SECTIONS = [
   // Øverst i menyen, uten overskrift; bryteren Privat/Bedrift velger arbeidsområdet (EGEN-04).
   { id: 'personal', icon: 'person-outline', title: tx('Hjem og verktøy', 'Home and tools') },
+  // Ansatt: egne sider over Bedrift (Min side, Gjøremål, Timeliste, Fravær, Utlegg, Kjørebok).
+  { id: 'company-me', icon: 'person-outline', title: tx('Ansatt', 'Employee') },
   { id: 'company-org', icon: 'business-outline', title: tx('Bedrift og organisasjon', 'Company and organisation') },
   { id: 'company-people', icon: 'people-outline', title: tx('Ansatte og arbeidstid', 'Employees and working hours') },
   { id: 'company-hired', icon: 'swap-horizontal-outline', title: tx('Innleie og eksterne', 'Hired-in and external') },
@@ -1692,9 +1694,9 @@ export const PROTOP_PAGES = {
     keywords: ['produkt', 'katalog', 'vare', 'varenummer', 'pris', 'arkiver', 'statistikk'],
   }),
   'okonomi.kjorebok': page({
-    section: 'company-resources',
+    section: 'company-me',
     label: tx('Kjørebok', 'Mileage log'),
-    path: tx('Bedrift → Produkter og driftsressurser → Kjørebok', 'Company → Products and resources → Mileage log'),
+    path: tx('Ansatt → Kjørebok', 'Employee → Mileage log'),
     nav: { tab: 'okonomi', subView: 'kjorebok' },
     icon: 'car',
     kicker: tx('Yrkeskjøring', 'Business driving'),

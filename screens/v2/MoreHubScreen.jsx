@@ -28,9 +28,7 @@ import HelpdeskPortalScreen from '../helpdesk/HelpdeskPortalScreen';
 import {
   GroupSettingsScreen,
 } from '../settings/GroupSettingsScreen';
-import { useAiPlanImport } from '../../src/hooks/useAiPlanImport';
 import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
-import AiImportChildPicker from '../../components/AiImportChildPicker';
 import {
   buildChildDashboardApps,
   buildParentDashboardApps,
@@ -170,11 +168,6 @@ export default function MoreHubScreen({ subView, setSubView }) {
   const [query, setQuery] = useState('');
   const searchRef = useRef(null);
 
-  const {
-    startImport, canImport, activeKids: importKids,
-    childPickerOpen, selectChild, closePicker,
-  } = useAiPlanImport();
-
   const activeKids = useMemo(
     () => (kids || []).filter((k) => k.active !== false),
     [kids],
@@ -226,7 +219,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
       isSuperAdmin,
       familyId,
       family,
-      canImport: asParent && canImport,
+      canImport: false,
       hasKids: activeKids.length > 0,
       childForSchedule,
       aiEnabled,
@@ -241,7 +234,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
     }),
     [
       t, asChild, asParent, isAdmin, isSuperAdmin, familyId, family,
-      canImport, activeKids, childForSchedule, aiEnabled,
+      activeKids, childForSchedule, aiEnabled,
       allowedApps, showChildRestrictions, isGrandparent, grandparentModules,
       companyAccess.grants, companyModules,
     ],
@@ -259,14 +252,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
             item.id,
             ...(item.children || []).flatMap((child) => [child.label, child.id]),
           ].join(' ').toLowerCase();
-          return hay.includes(q)
-            || (q.includes('skrape') && hay.includes('scratch'))
-            || (q.includes('reise') && hay.includes('scratch'))
-            || (q.includes('kart') && hay.includes('scratch'))
-            || (q.includes('besøk') && hay.includes('scratch'))
-            || (q.includes('slekt') && hay.includes('familytree'))
-            || (q.includes('tre') && hay.includes('familytree'))
-            || (q.includes('familietre') && hay.includes('familytree'));
+          return hay.includes(q);
         }),
       }))
       .filter((section) => section.items.length > 0);
@@ -287,10 +273,6 @@ export default function MoreHubScreen({ subView, setSubView }) {
       return;
     }
     if (isGrandparent && appId && !isGrandparentAppAllowed(grandparentModules, appId)) {
-      return;
-    }
-    if (action.type === 'fn' && action.id === 'aiImport') {
-      startImport();
       return;
     }
     if (action.type === 'tab') {
@@ -397,12 +379,6 @@ export default function MoreHubScreen({ subView, setSubView }) {
           title={t('moreHub.modulesTitle')}
           subtitle={t('moreHub.modulesSub')}
         />
-        <AiImportChildPicker
-          visible={childPickerOpen}
-          kids={importKids}
-          onSelect={selectChild}
-          onClose={closePicker}
-        />
       </Screen>
     );
   }
@@ -493,12 +469,6 @@ export default function MoreHubScreen({ subView, setSubView }) {
         ) : null}
         <View style={{ height: 24 }} />
       </ScrollBody>
-      <AiImportChildPicker
-        visible={childPickerOpen}
-        kids={importKids}
-        onSelect={selectChild}
-        onClose={closePicker}
-      />
     </Screen>
   );
 }

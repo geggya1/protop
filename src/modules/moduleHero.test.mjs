@@ -168,14 +168,6 @@ assert.match(headerSrc, /position:\s*'absolute'/, 'help overlay does not push pa
 assert.doesNotMatch(headerSrc, /familyNameHero/, 'family name is not painted on top of the band');
 assert.doesNotMatch(headerSrc, /styles\.pageTitleRow[\s\S]*nativeID="module-hero-slot"/, 'hero is not a detached card below the title row');
 
-const schoolSrc = readFileSync(join(ROOT, 'components/SchoolPageLayout.jsx'), 'utf8');
-assert.match(schoolSrc, /force/, 'SchoolPageLayout still opts into ModuleHero on stack screens');
-assert.match(schoolSrc, /flush/, 'SchoolPageLayout still uses flush heading');
-assert.match(schoolSrc, /heroHosted/, 'SchoolPageLayout skips its own heading when the shell already drew one');
-assert.doesNotMatch(schoolSrc, /const TABS =/, 'school apps no longer render the in-page tab menu');
-assert.doesNotMatch(schoolSrc, /For \$\{firstName\}/, 'school apps no longer show the For-name context line');
-assert.match(schoolSrc, /showBack = typeof onBack === 'function'/, 'only an explicit onBack keeps a back link');
-assert.doesNotMatch(schoolSrc, /backLabel:\s*'Hjem'/, 'school hub no longer shows a Hjem back link');
 
 const asideSrc = readFileSync(join(ROOT, 'components/ModuleAside.jsx'), 'utf8');
 assert.match(asideSrc, /Tips for /, 'tips card kicker must name the module');

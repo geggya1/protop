@@ -57,7 +57,6 @@ import PlatformJoinScreen from './screens/platform/PlatformJoinScreen';
 import ChatThreadScreen from './screens/v2/ChatThreadScreen';
 import EventFormScreen from './screens/v2/EventFormScreen';
 import ParentTaskScreen from './screens/v2/ParentTaskScreen';
-import AddHomeworkScreen from './screens/AddHomeworkScreen';
 import NotificationsScreen from './screens/v2/NotificationsScreen';
 import SubscriptionScreen from './screens/v2/SubscriptionScreen';
 import NotificationSettingsScreen from './screens/v2/NotificationSettingsScreen';
@@ -80,7 +79,6 @@ import AssistantScreen from './screens/v2/AssistantScreen';
 import StackShellChrome from './components/StackShellChrome';
 import EmployeeDetailPreview from './screens/employees/EmployeeDetailPreview';
 import CustomersListPreview from './screens/customers/CustomersListPreview';
-import AiImportReviewScreen from './screens/AiImportReviewScreen';
 import LanguageScreen from './screens/onboarding/LanguageScreen';
 import WelcomeScreen from './screens/onboarding/WelcomeScreen';
 import LegalWizardScreen from './screens/onboarding/LegalWizardScreen';
@@ -201,10 +199,8 @@ function withStackShell(ScreenComponent, title, moduleId) {
 
 const NotificationSettingsWithGate = gatedStackScreen('NotificationSettings', NotificationSettingsScreen);
 const AddTodoWithGate = gatedStackScreen('AddTodo', AddTodoScreen);
-const AddHomeworkWithGate = gatedStackScreen('AddHomework', AddHomeworkScreen);
 const ParentTaskWithGate = gatedStackScreen('ParentTask', ParentTaskScreen);
 
-const AiImportReviewWithShell = withStackShell(AiImportReviewScreen, 'Importer');
 const DashboardThemeSettingsWithShell = withStackShell(DashboardThemeSettingsScreen, 'Tilpass hjem');
 
 const NotificationsWithSwipe = withStackEdgeSwipe(NotificationsScreen);
@@ -1052,17 +1048,6 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             <Stack.Screen name="AddTodo" component={AddTodoWithGate} options={{ headerShown: false }} />
             <Stack.Screen name="AiChat" component={AiChatWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen name="ProtopAssistant" component={AssistantWithSwipe} options={{ headerShown: false }} />
-            <Stack.Screen name="AiImportReview" component={AiImportReviewWithShell} options={{ headerShown: false }} />
-            <Stack.Screen
-              name="AddHomework"
-              component={AddHomeworkWithGate}
-              options={{
-                headerShown: false,
-                presentation: 'transparentModal',
-                animation: 'fade',
-                contentStyle: { backgroundColor: 'transparent' },
-              }}
-            />
             <Stack.Screen
               name="ParentTask"
               component={ParentTaskWithGate}

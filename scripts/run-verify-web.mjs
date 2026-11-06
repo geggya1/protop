@@ -12,6 +12,8 @@ export const TIMEOUT_MS = 60_000;
 
 export const FILES = [
   'scripts/ensure-functions-modules.mjs',
+  // Språkfilene som appen laster genereres fra src/i18n (npm run gen:i18n).
+  'scripts/gen-i18n-dicts.mjs',
   'scripts/resolve-build-id.test.mjs',
   'scripts/check-base.test.mjs',
   'scripts/hosting-stamp.test.mjs',
@@ -394,6 +396,12 @@ export const FILES = [
   // Møter: livsløp, serier, oppfølging, maler, skjema, PDF, kalenderfil og utsending.
   'src/meetings/meetings.test.mjs',
   'functions/meetingDelivery.test.mjs',
+  // Ytelse: bildeutgaver, krasjkontroll, hjelpesider ved behov og genererte språkfiler.
+  'src/utils/imageVariants.test.mjs',
+  'functions/imageVariants.test.mjs',
+  'src/helpdesk/crashReport.test.mjs',
+  'src/help/protopPageKeys.test.mjs',
+  'src/i18n/dictsGenerated.test.mjs',
 ];
 
 function runFile(file) {

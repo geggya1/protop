@@ -37,6 +37,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
 
       - run: npm ci
 
@@ -117,6 +120,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
 
       - run: npm ci
 
@@ -133,9 +139,7 @@ jobs:
         # og slim functions likevel deployes. CV-opplasting feiler til bucketen finnes
         # (opprett via Firebase Console → Storage → Get started, eller eier-innlogging).
         continue-on-error: true
-        run: |
-          npm ci --prefix functions
-          NODE_PATH="$PWD/functions/node_modules" node scripts/apply-storage-cors.mjs
+        run: NODE_PATH="$PWD/functions/node_modules" node scripts/apply-storage-cors.mjs
 
       - name: Deploy slim Cloud Functions
         continue-on-error: true

@@ -61,10 +61,31 @@ firebase_deploy_only() {
   fi
   if [ "$deploy_status" -eq 124 ]; then
     echo "::warning::Timed out deploying $only"
+    FAILED_DEPLOYS+=("$only (tidsavbrudd)")
   else
     echo "::warning::Failed to deploy $only"
+    FAILED_DEPLOYS+=("$only")
   fi
   return 0
+}
+
+# Feilede deployer samles og vises til slutt (også i jobbsammendraget på GitHub),
+# så de ikke forsvinner blant advarslene når resten går bra.
+FAILED_DEPLOYS=()
+
+report_failed_deploys() {
+  if [ "${#FAILED_DEPLOYS[@]}" -eq 0 ]; then
+    echo "Alle valgte funksjoner er deployet."
+    return 0
+  fi
+  echo "::error title=Funksjoner ble ikke deployet::${#FAILED_DEPLOYS[@]} deploykall feilet. Se jobbsammendraget."
+  {
+    echo "### Cloud Functions som ikke ble deployet"
+    local item
+    for item in "${FAILED_DEPLOYS[@]}"; do echo "- \`${item//functions:/}\`"; done
+    echo
+    echo "Triggere og planlagte jobber krever ofte eierinnlogging: \`npx firebase deploy --only functions:<navn>\`."
+  } >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 }
 
 deploy_entry() {
@@ -263,3 +284,4 @@ writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
 rm -f firebase.functions.json
 restore_src
 trap - EXIT
+report_failed_deploys

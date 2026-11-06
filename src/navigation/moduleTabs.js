@@ -36,6 +36,7 @@ const SHORT = {
   'selskapsinnstillinger-moduler': 'Moduler',
   'selskapsinnstillinger-tilgang': 'Tilgang',
   'selskapsinnstillinger-tilknyttede': 'Tilknyttede',
+  'selskapsinnstillinger-ai': 'AI',
   'iso-lovkrav': 'Lovkrav',
   'iso-organisasjon': 'Roller',
   'iso-ledelse': 'Ledelse',

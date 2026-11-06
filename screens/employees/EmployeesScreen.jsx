@@ -120,6 +120,7 @@ import EmployeeInvitePanel from './EmployeeInvitePanel';
 import RegisterEmployeeDialog from './RegisterEmployeeDialog';
 import EmployeeUsagePanel from './EmployeeUsagePanel';
 import EmployeeAccountView from './EmployeeAccountView';
+import EmployeeAiAccessCard from '../../components/company/EmployeeAiAccessCard';
 import EmployeeFilesView from './EmployeeFilesView';
 import EmployeeHrSelfService from '../hr/EmployeeHrSelfService';
 import EmployeeTodo from './EmployeeTodo';
@@ -181,6 +182,11 @@ export default function EmployeesScreen({ subView = null } = {}) {
   // Rettighetene settes bare i Tilgangsstyring. Brukerkonto lenker dit for den som kan åpne siden.
   const canOpenAccessPage = (isSuperAdmin(family, uid) && !access.previewLocks('accessControl'))
     || (access.ready && access.canView('accessControl'));
+  // AI-assistent på Brukerkonto: samme rettighet som Selskapsinnstillinger → AI-abonnement.
+  const canViewAi = (isSuperAdmin(family, uid) && !access.previewLocks('aiSubscription'))
+    || (access.ready && access.canView('aiSubscription'));
+  const canEditAi = (isSuperAdmin(family, uid) && !access.previewLocks('aiSubscription'))
+    || (access.ready && access.canAdmin('aiSubscription'));
   const accessLocked = canEditAccess ? [] : ['company.accessRole'];
   const companyName = companyDisplayName(family);
   const departments = useMemo(
@@ -2114,6 +2120,16 @@ export default function EmployeesScreen({ subView = null } = {}) {
               onInvite={() => inviteEmployee(personEmployee)}
               onWithdrawInvite={() => withdrawInvite(personEmployee)}
               onOpenAccess={canOpenAccessPage ? () => openAccessPage(personEmployee) : undefined}
+              aiCard={canViewAi ? (
+                <EmployeeAiAccessCard
+                  familyId={familyId}
+                  employee={personEmployee}
+                  actorUid={uid}
+                  canEdit={canEditAi}
+                  colors={colors}
+                  onOpenSettings={() => requestShellTab?.('selskap', 'ai')}
+                />
+              ) : null}
             />
           ) : null}
 

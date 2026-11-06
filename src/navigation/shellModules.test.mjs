@@ -140,7 +140,7 @@ function idsIn(sections) {
   assert.equal(settings.action.subView, 'innstillinger');
   assert.deepEqual(
     settings.children.map((i) => i.label),
-    ['Modulinnstillinger', 'Tilgangsstyring', 'Tilknyttede selskaper'],
+    ['Modulinnstillinger', 'Tilgangsstyring', 'Tilknyttede selskaper', 'AI-abonnement'],
   );
   assert.equal(settings.children[1].action.subView, 'tilgang');
   assert.equal(settings.children[2].action.subView, 'tilknyttede');
@@ -747,7 +747,7 @@ function collectPresented(items, acc = []) {
   assert.equal(companySettings.children, undefined);
   assert.deepEqual(
     companySettings.pages.map((item) => item.id),
-    ['selskapsinnstillinger-moduler', 'selskapsinnstillinger-tilgang', 'selskapsinnstillinger-tilknyttede'],
+    ['selskapsinnstillinger-moduler', 'selskapsinnstillinger-tilgang', 'selskapsinnstillinger-tilknyttede', 'selskapsinnstillinger-ai'],
   );
   const tenders = presented.find((item) => item.id === 'company-tenders');
   assert.equal(customers.children.some((item) => item.id === 'anbud'), false);

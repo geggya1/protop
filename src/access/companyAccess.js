@@ -53,6 +53,7 @@ const ACCESS_MENU = [
         children: [
           { id: 'moduleSettings', label: 'Modulinnstillinger', icon: 'apps', hint: 'Hvilke moduler bedriften har slått på.' },
           { id: 'accessControl', label: 'Tilgangsstyring', icon: 'key', hint: 'Nivåer, personer og rettighetsmatrise.' },
+          { id: 'aiSubscription', label: 'AI-abonnement', icon: 'sparkles', hint: 'Budsjett og rammer for AI-assistenten. Lese: se forbruket. Admin: endre rammene og se hvert kall.' },
         ],
       },
     ],
@@ -659,6 +660,7 @@ const STANDARD = {
     companyPublic: 'see',
     companyProfile: 'see',
     moduleSettings: 'see',
+    aiSubscription: 'see',
     // Begrenset redigering: kan endre medlemmenes tilgang, aldri over eget nivå (se accessCeiling.js).
     accessControl: 'read',
     absenceSettings: 'write',
@@ -1188,6 +1190,7 @@ const NAV_RESOURCE = {
   moduler: 'moduleSettings',
   'selskapsinnstillinger-tilgang': 'accessControl',
   tilgang: 'accessControl',
+  'selskapsinnstillinger-ai': 'aiSubscription',
   ansatte: 'employees',
   hr: 'hr',
   'hr-oversikt': 'hr',
@@ -1281,6 +1284,7 @@ export function companyTabAllowed(tab, subView, grants) {
   if (tab === 'selskap' && subView === 'underenheter') return seeResource(grants, 'units');
   if (tab === 'selskap' && subView === 'moduler') return seeResource(grants, 'moduleSettings');
   if (tab === 'selskap' && subView === 'tilgang') return seeResource(grants, 'accessControl');
+  if (tab === 'selskap' && subView === 'ai') return seeResource(grants, 'aiSubscription');
   if (tab === 'selskap' && subView === 'tilknyttede') return seeResource(grants, 'units');
   if (tab === 'selskap' && subView === 'innstillinger') return seeResource(grants, 'companyProfile');
   if (tab === 'selskap' && (subView === 'fravaerstyper' || subView === 'fridager' || subView === 'sykefravaer')) {

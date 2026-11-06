@@ -35,6 +35,10 @@ export const FILES = [
   'src/privacy/companyPrivacy.test.mjs',
   'functions/usageLog.test.mjs',
   'functions/aiCompanyGate.test.mjs',
+  // AI-abonnement: budsjett, pris og forbrukslogg for AI-assistenten.
+  'src/ai/aiPlan.test.mjs',
+  'src/ai/aiPeople.test.mjs',
+  'functions/aiAssistent/gateway.test.mjs',
   'src/privacy/myDataExport.test.mjs',
   'functions/deleteAccount.test.mjs',
   'functions/helpKnowledge.test.mjs',

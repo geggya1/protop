@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
@@ -18,6 +18,7 @@ import CompanyAccessSettings, { CompanyAccessDenied } from '../../components/pro
 import CompanyModuleSettings from '../../components/project/CompanyModuleSettings';
 import ModuleActivationSettings from '../../components/ModuleActivationSettings';
 import CompanyPrivacySettings from '../../components/company/CompanyPrivacySettings';
+import CompanyAiSettings from '../../components/company/CompanyAiSettings';
 import CompanyClosure from '../../components/company/CompanyClosure';
 import { saveEmployee } from '../../src/employees/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
@@ -35,6 +36,7 @@ function initialCompanyPage(startPage) {
   if (startPage === 'tilgang') return 'tilgang';
   if (startPage === 'moduler') return 'moduler';
   if (startPage === 'tilknyttede') return 'tilknyttede';
+  if (startPage === 'ai') return 'ai';
   return 'innstillinger';
 }
 
@@ -101,6 +103,15 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   const canEditAccessLevels = (owner && !access.previewLocks('accessControl'))
     || (access.ready && access.canAdmin('accessControl'));
   const accessActor = { uid: uid || '', grants: access.actorGrants || access.grants || {}, bypass: owner && !access.previewing };
+  // AI-abonnement: Lese ser forbruket, Admin endrer rammene og ser hvert kall.
+  const canOpenAi = (owner && !access.previewLocks('aiSubscription')) || (access.ready && access.canView('aiSubscription'));
+  const canEditAi = (owner && !access.previewLocks('aiSubscription')) || (access.ready && access.canAdmin('aiSubscription'));
+  // Eier og administratorer uten ansattpost kan også få AI-tilgang (src/ai/aiPeople.js).
+  const aiAdmins = useMemo(() => {
+    const ids = [family?.ownerUid, ...(Array.isArray(family?.adminUids) ? family.adminUids : [])].filter(Boolean);
+    const myName = userProfile?.displayName || userProfile?.name || '';
+    return [...new Set(ids)].map((id) => ({ uid: id, name: id === uid ? (myName || 'Deg') : '' }));
+  }, [family?.ownerUid, family?.adminUids, uid, userProfile?.displayName, userProfile?.name]);
   const canOpenAccess = (owner && !access.previewLocks('accessControl'))
     || (access.ready && access.canView('accessControl'));
   const contextLabel = companyContextLabel(family);
@@ -381,7 +392,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   return (
     <View nativeID="company-page" id="company-page" dataSet={{ companyPage: '1' }} style={styles.fill}>
     <ScrollView
-      contentContainerStyle={[styles.body, page === 'tilgang' || page === 'moduler' || page === 'tilknyttede' || settingsCols > 1 ? styles.bodyAccess : null]}
+      contentContainerStyle={[styles.body, page === 'tilgang' || page === 'moduler' || page === 'tilknyttede' || page === 'ai' || settingsCols > 1 ? styles.bodyAccess : null]}
       keyboardShouldPersistTaps="handled"
       onLayout={(event) => setBodyWidth(Math.round(event.nativeEvent.layout.width))}
     >
@@ -390,7 +401,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
           <Text style={{ color: colors.brand, fontWeight: '600' }}>‹ {returnTo.label || 'Tilbake'}</Text>
         </TouchableOpacity>
       ) : null}
-      {page === 'tilgang' || page === 'moduler' || page === 'tilknyttede' ? (
+      {page === 'tilgang' || page === 'moduler' || page === 'tilknyttede' || page === 'ai' ? (
         <TouchableOpacity onPress={() => requestShellTab?.('selskap', 'innstillinger')} accessibilityRole="button">
           <Text style={{ color: colors.brand, fontWeight: '400' }}>Tilbake til selskapsinnstillinger</Text>
         </TouchableOpacity>
@@ -493,6 +504,32 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
               </Text>
             </UnlessShellTitle>
             <LinkedCompaniesSettings colors={colors} />
+          </>
+        ) : (
+          <CompanyAccessDenied colors={colors} />
+        )
+      ) : null}
+
+      {page === 'ai' ? (
+        !access.ready && !owner ? (
+          <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
+        ) : canOpenAi ? (
+          <>
+            <UnlessShellTitle title="AI-abonnement">
+              <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
+                AI-abonnement
+              </Text>
+            </UnlessShellTitle>
+            <CompanyAiSettings
+              familyId={familyId}
+              company={company}
+              uid={uid}
+              employees={access.employees}
+              admins={aiAdmins}
+              canEdit={canEditAi}
+              colors={colors}
+              onOpenPrivacy={() => requestShellTab?.('selskap', 'innstillinger')}
+            />
           </>
         ) : (
           <CompanyAccessDenied colors={colors} />

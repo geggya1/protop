@@ -1,13 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import BrandToggle from '../BrandToggle';
 import {
-  AI_DOWNGRADE_CEILING, DEFAULT_AI_PLAN, aiMonthKey, aiUsageSummary, formatNok, normalizeAiPlan, withAiAccess,
+  AI_DOWNGRADE_CEILING, DEFAULT_AI_PLAN, aiMonthKey, aiUsageSummary, formatNok, mergeAiPlan, normalizeAiPlan,
 } from '../../src/ai/aiPlan';
 import { aiCandidates } from '../../src/ai/aiPeople';
-import { loadAiPlan, loadAiUsage, saveAiPlan } from '../../src/ai/aiPlanStore';
+import { loadAiUsage, saveAiPlan, subscribeAiPlan } from '../../src/ai/aiPlanStore';
 import { companyAiAllowed } from '../../src/privacy/companyPrivacy';
 
 const FILE_MB_CHOICES = [10, 20, 50, 100];
@@ -109,44 +109,51 @@ export default function CompanyAiSettings({
 }) {
   const month = useMemo(() => aiMonthKey(), []);
   const people = useMemo(() => aiCandidates(employees, { admins }), [employees, admins]);
-  const [plan, setPlan] = useState(() => normalizeAiPlan(null));
+  // Lagret plan (lyttes på, så endringer fra personsiden vises med en gang), og det som er
+  // endret her og ikke lagret ennå: innstillinger og tilgang per person hver for seg.
+  const [serverPlan, setServerPlan] = useState(() => normalizeAiPlan(null));
+  const [draft, setDraft] = useState({});
+  const [changes, setChanges] = useState({});
   const [budgetText, setBudgetText] = useState('');
   const [userCapText, setUserCapText] = useState('');
+  const [textDirty, setTextDirty] = useState(false);
   const [usage, setUsage] = useState({ month: null, users: [] });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const aiAllowed = companyAiAllowed(company);
+  const plan = useMemo(() => mergeAiPlan(serverPlan, draft, Object.values(changes)), [serverPlan, draft, changes]);
+  const dirty = textDirty || Object.keys(draft).length > 0 || Object.keys(changes).length > 0;
 
-  const load = useCallback(async () => {
-    if (!familyId) return;
+  useEffect(() => {
+    if (!familyId) return undefined;
     setLoading(true);
-    setError('');
-    try {
-      const [{ plan: stored }, used] = await Promise.all([
-        loadAiPlan(familyId),
-        loadAiUsage(familyId, month).catch(() => ({ month: null, users: [] })),
-      ]);
-      setPlan(stored);
-      setBudgetText(stored.monthlyBudgetNok ? String(stored.monthlyBudgetNok) : '');
-      setUserCapText(stored.perUserMonthlyNok ? String(stored.perUserMonthlyNok) : '');
-      setUsage(used);
-      setDirty(false);
-    } catch (e) {
-      setError(e?.message || 'Kunne ikke hente AI-abonnementet.');
-    } finally {
+    const stop = subscribeAiPlan(familyId, (next) => {
+      setServerPlan(next);
       setLoading(false);
-    }
+    }, (e) => {
+      setError(e?.message || 'Kunne ikke hente AI-abonnementet.');
+      setLoading(false);
+    });
+    loadAiUsage(familyId, month).then(setUsage).catch(() => {});
+    return stop;
   }, [familyId, month]);
 
-  useEffect(() => { load(); }, [load]);
+  // Beløpsfeltene følger det lagrede så lenge de ikke er endret her.
+  useEffect(() => {
+    if (textDirty) return;
+    setBudgetText(serverPlan.monthlyBudgetNok ? String(serverPlan.monthlyBudgetNok) : '');
+    setUserCapText(serverPlan.perUserMonthlyNok ? String(serverPlan.perUserMonthlyNok) : '');
+  }, [serverPlan.monthlyBudgetNok, serverPlan.perUserMonthlyNok, textDirty]);
+
+  function touched() {
+    setSaved(false);
+  }
 
   function patch(next) {
-    setPlan((prev) => ({ ...prev, ...next }));
-    setDirty(true);
-    setSaved(false);
+    setDraft((prev) => ({ ...prev, ...next }));
+    touched();
   }
 
   async function save() {
@@ -154,13 +161,17 @@ export default function CompanyAiSettings({
     setBusy(true);
     setError('');
     try {
-      const next = await saveAiPlan(familyId, uid, {
-        ...plan,
-        monthlyBudgetNok: Number(budgetText) || 0,
-        perUserMonthlyNok: Number(userCapText) || 0,
+      await saveAiPlan(familyId, uid, {
+        settings: {
+          ...draft,
+          monthlyBudgetNok: Number(budgetText) || 0,
+          perUserMonthlyNok: Number(userCapText) || 0,
+        },
+        accessChanges: Object.values(changes),
       });
-      setPlan(next);
-      setDirty(false);
+      setDraft({});
+      setChanges({});
+      setTextDirty(false);
       setSaved(true);
     } catch (e) {
       setError(e?.message || 'Kunne ikke lagre AI-abonnementet.');
@@ -171,16 +182,17 @@ export default function CompanyAiSettings({
 
   // Gi eller ta tilgang for én person. Innleide og eksterne havner alltid i sin egen liste.
   function grant(person, on) {
-    setPlan((prev) => withAiAccess(prev, person.uid, on, { external: person.external }));
-    setDirty(true);
-    setSaved(false);
+    setChanges((prev) => ({ ...prev, [person.uid]: { uid: person.uid, on, external: person.external } }));
+    touched();
   }
 
   const allOwnOn = people.own.length > 0 && people.own.every((p) => plan.allowedUids.includes(p.uid));
   function setOwnAll(on) {
-    setPlan((prev) => people.own.reduce((acc, person) => withAiAccess(acc, person.uid, on), prev));
-    setDirty(true);
-    setSaved(false);
+    setChanges((prev) => people.own.reduce(
+      (acc, person) => ({ ...acc, [person.uid]: { uid: person.uid, on, external: false } }),
+      prev,
+    ));
+    touched();
   }
   // Bare de som står i listene nå og fortsatt er aktive, telles.
   const grantedCount = people.own.filter((p) => plan.allowedUids.includes(p.uid)).length
@@ -235,7 +247,7 @@ export default function CompanyAiSettings({
             label="Månedsbudsjett"
             hint="Kroner per måned for hele bedriften. Må settes før assistenten kan slås på."
             value={budgetText}
-            onChange={(text) => { setBudgetText(text); setDirty(true); setSaved(false); }}
+            onChange={(text) => { setBudgetText(text); setTextDirty(true); touched(); }}
             disabled={off}
             colors={colors}
           />
@@ -244,7 +256,7 @@ export default function CompanyAiSettings({
             label="Tak per person"
             hint="Kroner per person per måned. Tomt eller 0 betyr ingen egen grense."
             value={userCapText}
-            onChange={(text) => { setUserCapText(text); setDirty(true); setSaved(false); }}
+            onChange={(text) => { setUserCapText(text); setTextDirty(true); touched(); }}
             disabled={off}
             colors={colors}
           />

@@ -2,7 +2,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   AI_DOWNGRADE_CEILING, DEFAULT_AI_PLAN, aiAccessDecision, aiMonthKey, aiUsageSummary,
-  crossedAlertThresholds, formatNok, normalizeAiPlan, withAiAccess,
+  crossedAlertThresholds, formatNok, mergeAiPlan, normalizeAiPlan, withAiAccess,
 } from './aiPlan.js';
 
 const ON = { enabled: true, monthlyBudgetNok: 1000, allowedUids: ['ola'] };
@@ -96,6 +96,24 @@ describe('aiAccessDecision', () => {
     assert.equal(decide({ plan, userSpentNok: 100 }).reason, 'user-limit');
     assert.equal(decide({ plan, userSpentNok: 95, estimateNok: 10 }).reason, 'user-limit');
     assert.equal(decide({ plan, userSpentNok: 50, estimateNok: 10 }).allowed, true);
+  });
+});
+
+describe('mergeAiPlan: to steder endrer samme abonnement', () => {
+  test('personsiden og selskapssiden overskriver ikke hverandre', () => {
+    // Lagret: Ola har tilgang. Personsiden har nettopp gitt Kari (innleid) tilgang.
+    const stored = { ...ON, allowedUids: ['ola'], externalUids: ['kari'] };
+    // Selskapssiden endrer budsjettet og tar Ola av, men vet ikke om Kari.
+    const next = mergeAiPlan(stored, { monthlyBudgetNok: 2000 }, [{ uid: 'ola', on: false }]);
+    assert.equal(next.monthlyBudgetNok, 2000);
+    assert.deepEqual(next.allowedUids, []);
+    assert.deepEqual(next.externalUids, ['kari']);
+  });
+
+  test('innstillinger kan ikke sende med tilgangslister', () => {
+    const next = mergeAiPlan({ ...ON }, { allowedUids: ['mallory'], externalUids: ['eve'] });
+    assert.deepEqual(next.allowedUids, ['ola']);
+    assert.deepEqual(next.externalUids, []);
   });
 });
 

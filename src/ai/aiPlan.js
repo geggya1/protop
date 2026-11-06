@@ -108,6 +108,28 @@ export function normalizeAiPlan(raw) {
   };
 }
 
+/** Feltene som settes i selskapsinnstillingene. Tilgangslistene endres bare via accessChanges. */
+const AI_SETTING_KEYS = [
+  'enabled', 'monthlyBudgetNok', 'onLimit', 'perUserMonthlyNok', 'deepModelEnabled',
+  'maxFileMb', 'maxFilesPerMessage', 'chatRetentionDays', 'emailDraftsEnabled',
+];
+
+/**
+ * Bygg neste plan fra den lagrede: `settings` (bare AI_SETTING_KEYS) og tilgangsendringer
+ * [{ uid, on, external }]. Ren funksjon, testes uten Firebase.
+ */
+export function mergeAiPlan(current, settings = null, accessChanges = []) {
+  let next = normalizeAiPlan(current);
+  if (settings) {
+    const picked = Object.fromEntries(AI_SETTING_KEYS.filter((key) => key in settings).map((key) => [key, settings[key]]));
+    next = normalizeAiPlan({ ...next, ...picked });
+  }
+  for (const change of accessChanges || []) {
+    if (change?.uid) next = withAiAccess(next, change.uid, !!change.on, { external: !!change.external });
+  }
+  return next;
+}
+
 /** Måneden forbruket føres på, i norsk tid (2026-11). */
 export function aiMonthKey(date = new Date()) {
   try {

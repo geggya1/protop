@@ -97,6 +97,8 @@ export default function EmployeeAccountView({
   onInvite,
   onWithdrawInvite,
   onOpenAccess,
+  // AI-assistent (EmployeeAiAccessCard), bare for den som kan se AI-abonnementet.
+  aiCard = null,
 }) {
   if (!employee) return null;
   const danger = colors.danger;
@@ -248,6 +250,8 @@ export default function EmployeeAccountView({
           </TouchableOpacity>
         ) : null}
       </Card>
+
+      {aiCard}
     </View>
   );
 }

@@ -3,6 +3,9 @@ import {
 } from './aiShared.js';
 import { getFirestore } from 'firebase-admin/firestore';
 
+// Et kall som henger skal ikke bruke opp hele funksjonens tidsgrense.
+const GEMINI_TIMEOUT_MS = 45_000;
+
 const SYSTEM_SUMMARIZE = `Du er en norsk notatassistent.
 Oppgaven din: skriv om det som ble sagt til et klart, fint og naturlig notat på norsk.
 Du skal GJENGI / OMSKRIVE det som ble sagt — ikke lage sammendrag med nøkkelpunkter.
@@ -29,10 +32,11 @@ async function callGeminiJson(apiKey, systemPrompt, userText) {
   const models = [GEMINI_MODEL, 'gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-flash-lite-latest'];
   for (const model of models) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systemPrompt }] },
           contents: [{ role: 'user', parts: [{ text: userText.slice(0, 12000) }] }],
@@ -55,10 +59,11 @@ async function callGeminiText(apiKey, systemPrompt, userText) {
   const models = [GEMINI_MODEL, 'gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-flash-lite-latest'];
   for (const model of models) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systemPrompt }] },
           contents: [{ role: 'user', parts: [{ text: userText.slice(0, 8000) }] }],

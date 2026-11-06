@@ -2199,7 +2199,10 @@ service cloud.firestore {
     // Bare eieren kan ta et ledig navn til seg selv. Et navn til et barn kan bare tas av en
     // foresatt til barnet (barneprofilen finnes), ikke av hvem som helst til en vilkårlig uid.
     match /usernames/{name} {
-      allow get: if true;
+      // Bare innloggede kan slå opp et brukernavn (venneforespørsel, ledig navn i profilen).
+      // Før kunne hvem som helst slå opp uid for et navn. Innlogging med brukernavn gjaldt
+      // barnekontoene, som ikke finnes i ProTop.
+      allow get: if isSignedIn();
       allow create: if isSignedIn() && usernameDocOk(name) && legacyUsernameCreate()
         && (request.resource.data.uid == request.auth.uid
           || (request.resource.data.type == 'child' && isGuardianOf(request.resource.data.uid)));

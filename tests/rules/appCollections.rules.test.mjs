@@ -187,8 +187,9 @@ describe('grupper', () => {
 });
 
 describe('oppslag', () => {
-  test('brukernavn: oppslag før innlogging, ingen kan ta andres navn', async () => {
-    await assertSucceeds(getDoc(doc(anon(), 'usernames', 'mormor')));
+  test('brukernavn: oppslag krever innlogging, ingen kan ta andres navn', async () => {
+    await assertFails(getDoc(doc(anon(), 'usernames', 'mormor')));
+    await assertSucceeds(getDoc(doc(as('ext'), 'usernames', 'mormor')));
     await assertFails(getDocs(collection(anon(), 'usernames')));
     await assertSucceeds(setDoc(doc(as('ext'), 'usernames', 'extern'), { uid: 'ext', type: 'adult', username: 'extern' }));
     await assertFails(setDoc(doc(as('ext'), 'usernames', 'mormor'), { uid: 'ext', type: 'adult', username: 'mormor' }));

@@ -54,6 +54,7 @@ export function selskapMenuTitle(subView) {
   if (subView === 'moduler') return 'Modulinnstillinger';
   if (subView === 'tilgang') return 'Tilgangsstyring';
   if (subView === 'tilknyttede') return 'Tilknyttede selskaper';
+  if (subView === 'ai') return 'AI-abonnement';
   if (subView === 'innstillinger') return 'Bedriftsinnstillinger';
   if (subView === 'fravaerstyper' || subView === 'fridager' || subView === 'sykefravaer') return 'Fraværsinnstillinger';
   if (subView === 'kontoplan' || subView === 'regnskapskontoer') return 'Økonomiinnstillinger';
@@ -489,7 +490,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
       icon: 'settings-outline',
       label: 'Bedriftsinnstillinger',
       action: { type: 'tab', tab: 'selskap', subView: 'innstillinger' },
-      activeSubViews: ['innstillinger', 'moduler', 'tilgang', 'tilknyttede'],
+      activeSubViews: ['innstillinger', 'moduler', 'tilgang', 'tilknyttede', 'ai'],
       children: [
         {
           id: 'selskapsinnstillinger-moduler',
@@ -508,6 +509,12 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
           icon: 'git-merge',
           label: 'Tilknyttede selskaper',
           action: { type: 'tab', tab: 'selskap', subView: 'tilknyttede' },
+        },
+        {
+          id: 'selskapsinnstillinger-ai',
+          icon: 'sparkles',
+          label: 'AI-abonnement',
+          action: { type: 'tab', tab: 'selskap', subView: 'ai' },
         },
       ],
     },

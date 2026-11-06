@@ -358,6 +358,48 @@ service cloud.firestore {
       return isFamilyAdmin(familyId) || aclRank(familyId, 'accessControl') >= 3;
     }
 
+    /* ───────── AI-abonnement (AI-assistenten) ─────────
+     * Rammene (aiSettings/plan) leses med Lese og endres med Admin på AI-abonnement, eller av
+     * eier og administratorer. Forbruket (aiLedger, aiLedgerEntries) skrives bare av serveren
+     * (functions/aiAssistent/ledger.js). Bare i bedrifter. Samme felt som src/ai/aiPlan.js.
+     */
+    function aiSubscriptionReader(familyId) {
+      return isCompanyGroup(familyId)
+        && (isFamilyAdmin(familyId) || aclRank(familyId, 'aiSubscription') >= 1);
+    }
+
+    function aiSubscriptionAdmin(familyId) {
+      return isCompanyGroup(familyId)
+        && (isFamilyAdmin(familyId) || aclRank(familyId, 'aiSubscription') >= 3);
+    }
+
+    function aiIntIn(d, key, lo, hi) {
+      return d[key] is int && d[key] >= lo && d[key] <= hi;
+    }
+
+    function aiNumIn(d, key, lo, hi) {
+      return (d[key] is int || d[key] is float) && d[key] >= lo && d[key] <= hi;
+    }
+
+    function aiPlanShapeOk(d) {
+      return d.keys().hasOnly(['enabled', 'monthlyBudgetNok', 'onLimit', 'perUserMonthlyNok', 'deepModelEnabled',
+          'allowInnleide', 'maxFileMb', 'maxFilesPerMessage', 'chatRetentionDays', 'emailDraftsEnabled',
+          'updatedAt', 'updatedBy'])
+        && d.keys().hasAll(['enabled', 'monthlyBudgetNok', 'onLimit', 'updatedAt', 'updatedBy'])
+        && d.enabled is bool
+        && aiNumIn(d, 'monthlyBudgetNok', 0, 1000000)
+        && d.onLimit in ['stop', 'downgrade']
+        && (!('perUserMonthlyNok' in d) || aiNumIn(d, 'perUserMonthlyNok', 0, 100000))
+        && (!('deepModelEnabled' in d) || d.deepModelEnabled is bool)
+        && (!('allowInnleide' in d) || d.allowInnleide is bool)
+        && (!('maxFileMb' in d) || aiIntIn(d, 'maxFileMb', 1, 100))
+        && (!('maxFilesPerMessage' in d) || aiIntIn(d, 'maxFilesPerMessage', 1, 20))
+        && (!('chatRetentionDays' in d) || aiIntIn(d, 'chatRetentionDays', 1, 3650))
+        && (!('emailDraftsEnabled' in d) || d.emailDraftsEnabled is bool)
+        && d.updatedAt == request.time
+        && d.updatedBy == request.auth.uid;
+    }
+
     /* ───────── Skjermede personopplysninger (HR, fravær, personnummer) ─────────
      * Rettighetene leses fra speilet (accessAcl/{uid}.grants), samme matrise som appen.
      * Eier og administratorer (adminUids) har alltid tilgang. Mangler speilet eller er det
@@ -732,7 +774,8 @@ service cloud.firestore {
         || coll == 'hrSurveyResults' || coll == 'hrSurveyReceipts' || coll == 'hrReviewPrep'
         || coll == 'absences' || coll == 'childAbsences' || coll == 'employeesPrivate'
         || coll == 'notes' || coll == 'timeEntries' || coll == 'projectExpenses' || coll == 'events'
-        || coll == 'timeEntryDeletions' || coll == 'accessLog' || coll == 'sickCases';
+        || coll == 'timeEntryDeletions' || coll == 'accessLog' || coll == 'sickCases'
+        || coll == 'aiSettings' || coll == 'aiLedger' || coll == 'aiLedgerEntries';
     }
 
     // Kalenderhendelse i en bedrift: «bare utvalgte» (audience 'selected') leses av den som laget
@@ -1706,6 +1749,32 @@ service cloud.firestore {
           && request.resource.data.get('last', 0) >= 1;
         allow update: if isFamilyMember(familyId) && invoiceManager(familyId) && invoiceSeriesStepOk();
         allow delete: if false;
+      }
+
+      // AI-abonnement: rammene for AI-assistenten (se aiPlanShapeOk). Bare dokumentet «plan».
+      match /aiSettings/{docId} {
+        allow get: if aiSubscriptionReader(familyId);
+        allow list: if false;
+        allow create, update: if docId == 'plan'
+          && aiSubscriptionAdmin(familyId)
+          && aiPlanShapeOk(request.resource.data);
+        allow delete: if false;
+      }
+
+      // Forbruket per måned og per person. Bare serveren skriver.
+      match /aiLedger/{month} {
+        allow get, list: if aiSubscriptionReader(familyId);
+        allow write: if false;
+        match /users/{userId} {
+          allow get, list: if aiSubscriptionReader(familyId);
+          allow write: if false;
+        }
+      }
+
+      // Én rad per AI-kall (uten innhold). Til kontroll og fakturering, bare for Admin.
+      match /aiLedgerEntries/{entryId} {
+        allow get, list: if aiSubscriptionAdmin(familyId);
+        allow write: if false;
       }
 
       match /meetings/{meetingId} {

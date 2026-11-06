@@ -346,7 +346,7 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
   assert.ok(adminNav.some((item) => item.id === 'selskapsinnstillinger'));
   assert.ok(adminNav.some((item) => item.id === 'hr'));
   const adminSettings = adminNav.find((item) => item.id === 'selskapsinnstillinger');
-  assert.deepEqual(adminSettings.children.map((child) => child.id), ['selskapsinnstillinger-moduler', 'selskapsinnstillinger-tilgang', 'selskapsinnstillinger-tilknyttede']);
+  assert.deepEqual(adminSettings.children.map((child) => child.id), ['selskapsinnstillinger-moduler', 'selskapsinnstillinger-tilgang', 'selskapsinnstillinger-tilknyttede', 'selskapsinnstillinger-ai']);
   const adminOkonomi = adminNav.find((item) => item.id === 'okonomi');
   assert.ok(adminOkonomi.children.some((child) => child.id === 'okonomi-innstillinger'));
   assert.ok(adminOkonomi.children.some((child) => child.id === 'okonomi-oversikt'));

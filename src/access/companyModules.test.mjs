@@ -61,10 +61,10 @@ assert.equal(locked.find((row) => row.id === 'selskap').locked, undefined);
 const settingsKids = (items) => items.find((row) => row.id === 'selskapsinnstillinger').children.map((row) => row.id);
 assert.deepEqual(
   settingsKids(companyMenuItems({ grants: standardGrants('administrator') })),
-  ['selskapsinnstillinger-moduler', 'selskapsinnstillinger-tilgang', 'selskapsinnstillinger-tilknyttede'],
+  ['selskapsinnstillinger-moduler', 'selskapsinnstillinger-tilgang', 'selskapsinnstillinger-tilknyttede', 'selskapsinnstillinger-ai'],
 );
 const utenModuler = { ...standardGrants('administrator'), moduleSettings: 'none' };
-assert.deepEqual(settingsKids(companyMenuItems({ grants: utenModuler })), ['selskapsinnstillinger-tilgang', 'selskapsinnstillinger-tilknyttede']);
+assert.deepEqual(settingsKids(companyMenuItems({ grants: utenModuler })), ['selskapsinnstillinger-tilgang', 'selskapsinnstillinger-tilknyttede', 'selskapsinnstillinger-ai']);
 
 assert.equal(moduleLockedLabel([]), 'Ikke aktivert · kontakt administrator');
 assert.equal(moduleLockedLabel(['Kari Nordmann']), 'Ikke aktivert · kontakt Kari Nordmann');

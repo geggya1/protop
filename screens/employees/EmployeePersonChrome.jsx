@@ -12,12 +12,13 @@ import {
   statusLabel,
 } from '../../src/employees/model';
 import { EMPLOYEE_DETAIL_TABS, employeeViewToTab } from '../../src/employees/personTabs.js';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import BackLink from '../../src/ui/BackLink';
 import { SHELL_DETAILS } from '../../src/navigation/shellPaths';
 import { radius, space, type } from '../../src/ui/tokens';
 import PageTabs from '../../components/PageTabs';
-import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const TimesheetEmployeePicker = lazyScreen(() => import('../../components/arbeid/TimesheetEmployeePicker'), { name: 'TimesheetEmployeePicker', silent: true });
 
 export { EMPLOYEE_DETAIL_TABS, employeeViewToTab };
 
@@ -50,7 +51,7 @@ export default function EmployeePersonChrome({
   tabs = EMPLOYEE_DETAIL_TABS,
   children,
 }) {
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState('');
   const searchRef = useRef(null);

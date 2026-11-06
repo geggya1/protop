@@ -19,11 +19,11 @@ assert.equal(deployNeededForPaths(['README.md'], closure), false);
 
 const digest = entriesForChanges(['src/anbud/model.js']);
 assert.ok(digest.includes('anbudDigestIndex.js'));
-assert.equal(digest.includes('stravaIndex.js'), false);
-assert.equal(digest.includes('hospitalityIndex.js'), false);
+assert.equal(digest.includes('vegvesenIndex.js'), false);
 
-const strava = entriesForChanges(['functions/strava.js']);
-assert.deepEqual(strava, ['stravaIndex.js']);
+const vegvesen = entriesForChanges(['functions/vegvesenLookup.js']);
+assert.deepEqual(vegvesen, ['vegvesenIndex.js']);
+assert.deepEqual(entriesForChanges(['functions/imageVariants.js']), ['imageVariantsIndex.js']);
 
 assert.equal(entriesForChanges(['src/economy/hoursImport.js']).length, 0);
 assert.equal(entriesForChanges(['scripts/deploy-slim-functions.sh']).length, DEPLOY_ENTRIES.length);

@@ -4,7 +4,8 @@ import { useNavigation } from '@react-navigation/native';
 import { colors } from '../../src/theme';
 import { Screen } from '../../components/ui';
 import CompactBackLink from '../../components/CompactBackLink';
-import NotificationPrefsPanel from '../../components/NotificationPrefsPanel';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const NotificationPrefsPanel = lazyScreen(() => import('../../components/NotificationPrefsPanel'), { name: 'NotificationPrefsPanel', silent: true });
 
 /** Varselinnstillinger: push og e-post per varseltype. Lenket fra e-poster (settings/notifications). */
 export default function NotificationSettingsScreen() {

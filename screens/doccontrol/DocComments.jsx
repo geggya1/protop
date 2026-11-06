@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Merknader til et dokument. Marker tekst og skriv en merknad. Den er bare synlig
  * for den som skrev den, dokumentets eier og godkjenner, godkjennere og utpekte lesere
@@ -8,9 +9,11 @@ import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COMMENT_STATUSES, newComment, resolveComment } from '../../src/doccontrol/model';
 import { showSaveToast } from '../../src/ui/saveToast';
-import { HrButton, HrCard, HrSectionTitle } from '../hr/HrShared';
 import { COMMENT_BG, COMMENT_INK } from '../hr/HandbookText';
 import { ChoiceChips, Label, OK_INK, dateText } from './parts';
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('../hr/HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrSectionTitle = lazyScreen(() => import('../hr/HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
 
 // Fast nederst i vinduet. Bare på nett, der position: fixed finnes.
 const FLOATING = Platform.OS === 'web'

@@ -13,6 +13,7 @@
 import {
   auditEvent, bump, checksum, fail, newId, nowIso, pushHistory, text, uniq,
 } from './core.js';
+import { escapeHtml as esc } from '../utils/mailHtml.js';
 
 export const NODE_TYPES = [
   { id: 'start', label: 'Start', icon: 'play-circle', shape: 'pill', human: false, group: 'Flyt' },
@@ -866,10 +867,6 @@ export function focusView(instance, proc) {
 }
 
 /* ───────────────────────── Eksport ───────────────────────── */
-
-function esc(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
 
 export function diagramBounds(diagram) {
   const d = normalizeDiagram(diagram);

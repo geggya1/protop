@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
 import { useI18n } from '../../src/i18n';
-import { colors, deskType, radius, useLayout } from '../../src/theme';
+import { colors, deskType, radius, useBreakpoints } from '../../src/theme';
 import { Screen, Title, Mute, ScrollBody } from '../../components/ui';
 import CompactBackLink from '../../components/CompactBackLink';
 import { updateGroup } from '../../src/utils/groups';
@@ -65,7 +65,7 @@ function MethodCard({ method, selected, onPress, compact, chosenLabel }) {
 export default function SubscriptionScreen({ inShell = false, onBack }) {
   const nav = useNavigation();
   const { t } = useI18n();
-  const { isDesktop, hasRail, pad } = useLayout();
+  const { isDesktop, hasRail, pad } = useBreakpoints();
   const { isSuperAdmin, family, familyId, requestShellTab } = useApp();
   const compact = isDesktop;
   const [selected, setSelected] = useState(family?.billingPreferredMethod || null);

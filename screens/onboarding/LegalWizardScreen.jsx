@@ -5,7 +5,7 @@ import { acceptedConsentRecord, emptyConsents, saveLocalConsents } from '../../s
 import { LEGAL_VERSION } from '../../src/i18n/langs';
 import Wizard from '../../components/Wizard';
 import CheckBox from '../../components/CheckBox';
-import LegalDocumentModal from '../../components/LegalDocumentModal';
+import LegalDocumentModal from '../../components/LegalDocumentModalLazy';
 import { colors, radius } from '../../src/theme';
 
 export default function LegalWizardScreen({ navigation, onDone, existing, nextLabel }) {

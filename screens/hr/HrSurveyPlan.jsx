@@ -5,16 +5,19 @@ import {
   ACTION_STATUSES, addAction, planProgress, removeAction, suggestedActions, toggleStep, updateAction,
 } from '../../src/hr/surveyPlan';
 import { formatNbDate } from '../../src/hr/model';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { radius, space, type } from '../../src/ui/tokens';
-import { HrButton, HrChip, HrField } from './HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
 
 /**
  * Trinnviser for de fem trinnene. Et gjort trinn har hake og dato, trinnet du står på er markert,
  * og linjen mellom trinnene fylles etter hvert. På telefon står trinnene under hverandre.
  */
 function Stepper({ colors, progress, canWrite, onToggle }) {
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   return (
     <View style={[styles.stepper, isPhone && styles.stepperPhone]} nativeID="hr-survey-plan-steps" accessibilityRole="list">
       {progress.steps.map((s, i) => {

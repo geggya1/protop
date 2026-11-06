@@ -9,7 +9,10 @@ import {
   formatMoney, formatNbDate, localIsoDate, salaryBaseFor, SALARY_KINDS,
 } from '../../src/hr/model';
 import { radius, type } from '../../src/ui/tokens';
-import { HrButton, HrChip, HrField } from './HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
 
 function draftFrom(entry) {
   if (!entry) {

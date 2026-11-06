@@ -33,14 +33,15 @@ import { loadCases, saveCases } from '../../src/indeksregulering/storage';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useApp } from '../../src/context/AppContext';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { type } from '../../src/ui/tokens';
 import { useEmployees } from '../../src/context/CompanyDataContext';
 import { dateKey } from '../../src/utils/dates';
 import DirectAgreementForm from './DirectAgreementForm';
 import AgreementDetail from './AgreementDetail';
-import FilterMenu from '../../components/FilterMenu';
 import { companyDisplayName } from '../../src/utils/companyName';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
 
 const PAGE = 50;
 const STATUS_FILTERS = [
@@ -91,7 +92,7 @@ export default function ContractFollowUp({
     access.bypass
     || (access.ready && access.levelId === 'administrator')
   );
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const [state, setState] = useState(null);
   const [note, setNote] = useState('');
   const [projects, setProjects] = useState([]);

@@ -14,7 +14,6 @@ import { useChatUnread } from '../hooks/useChatUnread';
 import { useChatSelfNotify } from '../hooks/useChatSelfNotify';
 import { useFriendChatUnread } from '../hooks/useFriendChatUnread';
 import { useFriendChatSelfNotify } from '../hooks/useFriendChatSelfNotify';
-import { useGameInviteSelfNotify } from '../hooks/useGameInviteSelfNotify';
 import { useModuleActivity } from '../hooks/useModuleActivity';
 import {
   loadMailInboxUnread,
@@ -94,11 +93,6 @@ export function NotificationProvider({ children }) {
   const friendChatUnread = useFriendChatUnread(uid);
   useChatSelfNotify(familyId, uid, userProfile?.notificationPrefs);
   useFriendChatSelfNotify(uid, userProfile?.notificationPrefs);
-  const pendingGameInvites = useGameInviteSelfNotify(
-    familyId,
-    uid,
-    userProfile?.notificationPrefs,
-  );
   const activityCounts = useModuleActivity();
   const [mailUnread, setMailUnread] = useState(() => peekMailInboxUnread(uid));
 
@@ -230,11 +224,11 @@ export function NotificationProvider({ children }) {
   const docChat = (Number(chatUnread.total) || 0) + (Number(friendChatUnread.total) || 0);
   // Alltid ta det høyeste — unreadCounts kan mangle mens inbox finnes, og omvendt.
   const chatCount = Math.max(inboxChat, docChat);
+  // Spillinvitasjoner hørte til familieproduktet og telles ikke i ProTop.
   const inboxGames = Number(summary.counts.games) || 0;
-  const gamesCount = Math.max(inboxGames, Number(pendingGameInvites) || 0);
   const unreadByModule = useMemo(() => {
     const merged = mergeBadgeCounts(
-      { ...summary.counts, chat: chatCount, games: gamesCount },
+      { ...summary.counts, chat: chatCount, games: 0 },
       activityCounts,
       { asChild },
     );
@@ -242,7 +236,7 @@ export function NotificationProvider({ children }) {
       merged.mail = Math.max(Number(merged.mail) || 0, mailUnread);
     }
     return merged;
-  }, [summary.counts, chatCount, gamesCount, activityCounts, asChild, mailUnread]);
+  }, [summary.counts, chatCount, activityCounts, asChild, mailUnread]);
   const unreadByChat = useMemo(() => {
     const out = { ...summary.byChat };
     Object.entries(chatUnread.byChat || {}).forEach(([id, n]) => {
@@ -254,7 +248,7 @@ export function NotificationProvider({ children }) {
     return out;
   }, [summary.byChat, chatUnread.byChat, friendChatUnread.byChat]);
   // Bjelle = inbox/chat/spillinvitasjoner, ikke «oppgaver i dag».
-  const unreadTotal = summary.total - inboxChat + chatCount - inboxGames + gamesCount;
+  const unreadTotal = summary.total - inboxChat + chatCount - inboxGames;
 
   const markSeen = useCallback(async (ids) => {
     if (!uid) return;

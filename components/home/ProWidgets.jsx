@@ -23,7 +23,9 @@ import { dayRibbon, daySentence, weekBars } from '../../src/utils/proHomeMore';
 import {
   useMyWeekHours, useHomeProjects, useTeamToday, useCompanyNewsPeek, useMyMileage,
 } from '../../src/hooks/useProHomeData';
-import QuickReportButton from '../../screens/iso/QuickReport';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+// Hurtigrapporten drar med ISO-motoren; den lastes når knappen vises.
+const QuickReportButton = lazyScreen(() => import('../../screens/iso/QuickReport'), { name: 'QuickReportButton', silent: true });
 
 const FONT = Platform.OS === 'web' ? 'Inter, system-ui, -apple-system, sans-serif' : undefined;
 

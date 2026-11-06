@@ -1,19 +1,12 @@
 import { DOC_INFO_FIELDS, hasDocInfo, needsInput, normalizeDocInfo, tableRows } from '../../src/anbud/formBuilder';
 import { fillTokens, formWithTokens } from '../../src/forms/tokens';
+import { escapeHtml as esc } from '../../src/utils/mailHtml.js';
 
 /** Samme gulfarge som avtalemodulen bruker på felt som må fylles ut. */
 const NEED_BG = '#fff4cc';
 const NEED_BORDER = '#d4a017';
 const NAVY = '#1f3b5c';
 const BAR = '#dce6f1';
-
-function esc(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 function cssString(value) {
   return `"${String(value ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ')}"`;

@@ -3,14 +3,9 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from './AppContext';
-import {
-  MODULE_INTRO_SEEN_PREFIX,
-  getModuleIntro,
-  introStorageKey,
-  localizeIntro,
-} from '../utils/moduleIntros';
+import { MODULE_INTRO_SEEN_PREFIX, introStorageKey } from '../utils/moduleIntroKeys';
 import { shouldAutoWelcome } from '../utils/helpLayout';
-import { resolvePageKey } from '../help/protopPages';
+import { resolvePageKey } from '../help/protopPageKeys';
 import { currentRouteName } from '../navigation/navRef';
 import { useI18n } from '../i18n';
 
@@ -44,6 +39,20 @@ async function writeJson(key, value) {
 
 const HelpContext = createContext(null);
 
+// Hjelpetekstene (moduleIntros + hjelpekatalogen, ca. 300 KB) lastes når hjelpen trengs:
+// når den åpnes, eller i ledig tid etter oppstart så den åpner uten venting.
+let introsPromise = null;
+function loadIntros() {
+  if (!introsPromise) {
+    introsPromise = import('../utils/moduleIntros').catch((err) => {
+      introsPromise = null;
+      throw err;
+    });
+  }
+  return introsPromise;
+}
+const INTROS_IDLE_DELAY_MS = 4000;
+
 export function HelpProvider({ children }) {
   const { uid } = useApp();
   const { lang } = useI18n();
@@ -54,6 +63,10 @@ export function HelpProvider({ children }) {
   const [ready, setReady] = useState(false);
   const [moduleSeenMap, setModuleSeenMap] = useState({});
   const [welcomeMap, setWelcomeMap] = useState({});
+  const [intros, setIntros] = useState(null);
+  // Målene (HelpTarget) registreres hele tiden, men publiseres bare mens hjelpen er åpen.
+  // Før ga hver layout en ny kontekstverdi og nye renders av hele skjermer.
+  const targetsRef = useRef({});
   const [targets, setTargets] = useState({});
   const [targetsVersion, setTargetsVersion] = useState(0);
   const [scene, setScene] = useState('hub');
@@ -64,6 +77,37 @@ export function HelpProvider({ children }) {
   const advanceRef = useRef({});
   const retreatRef = useRef(null);
   const pendingPageTourRef = useRef(null);
+  const pendingOpenRef = useRef(null);
+  const modeRef = useRef(null);
+  modeRef.current = mode;
+  const publishRef = useRef(0);
+
+  const ensureIntros = useCallback(() => {
+    if (intros) return Promise.resolve(intros);
+    return loadIntros().then((mod) => {
+      setIntros((cur) => cur || mod);
+      return mod;
+    });
+  }, [intros]);
+
+  useEffect(() => {
+    if (intros) return undefined;
+    const t = setTimeout(() => { ensureIntros().catch(() => {}); }, INTROS_IDLE_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [intros, ensureIntros]);
+
+  const publishTargets = useCallback(() => {
+    if (publishRef.current) return;
+    const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
+    publishRef.current = raf(() => {
+      publishRef.current = 0;
+      setTargets({ ...targetsRef.current });
+    }) || 1;
+  }, []);
+
+  useEffect(() => {
+    if (mode) setTargets({ ...targetsRef.current });
+  }, [mode]);
 
   useEffect(() => {
     moduleRef.current = { scope, moduleId, enabled };
@@ -109,20 +153,19 @@ export function HelpProvider({ children }) {
 
   const registerTarget = useCallback((id, rect) => {
     if (!id || !rect) return;
-    setTargets((prev) => {
-      const prevRect = prev[id];
-      if (
-        prevRect
-        && Math.abs(prevRect.x - rect.x) < 2
-        && Math.abs(prevRect.y - rect.y) < 2
-        && Math.abs(prevRect.w - rect.w) < 2
-        && Math.abs(prevRect.h - rect.h) < 2
-      ) {
-        return prev;
-      }
-      return { ...prev, [id]: rect };
-    });
-  }, []);
+    const prevRect = targetsRef.current[id];
+    if (
+      prevRect
+      && Math.abs(prevRect.x - rect.x) < 2
+      && Math.abs(prevRect.y - rect.y) < 2
+      && Math.abs(prevRect.w - rect.w) < 2
+      && Math.abs(prevRect.h - rect.h) < 2
+    ) {
+      return;
+    }
+    targetsRef.current = { ...targetsRef.current, [id]: rect };
+    if (modeRef.current) publishTargets();
+  }, [publishTargets]);
 
   const registerAdvance = useCallback((id, fn) => {
     if (!id) return;
@@ -132,13 +175,12 @@ export function HelpProvider({ children }) {
 
   const unregisterTarget = useCallback((id) => {
     if (id) delete advanceRef.current[id];
-    setTargets((prev) => {
-      if (!prev[id]) return prev;
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-  }, []);
+    if (!targetsRef.current[id]) return;
+    const next = { ...targetsRef.current };
+    delete next[id];
+    targetsRef.current = next;
+    if (modeRef.current) publishTargets();
+  }, [publishTargets]);
 
   const runTargetAdvance = useCallback((id) => {
     const fn = id ? advanceRef.current[id] : null;
@@ -166,8 +208,8 @@ export function HelpProvider({ children }) {
     setTargetsVersion((n) => n + 1);
   }, []);
 
-  const entry = moduleId ? getModuleIntro(scope, moduleId) : null;
-  const liveCopy = useMemo(() => localizeIntro(entry, lang), [entry, lang]);
+  const entry = moduleId && intros ? intros.getModuleIntro(scope, moduleId) : null;
+  const liveCopy = useMemo(() => (intros ? intros.localizeIntro(entry, lang) : null), [intros, entry, lang]);
   // En startet rundtur holder på sin side, også når et steg åpner en annen
   // (f.eks. en ansatt fra HR-tabellen) — så går turen videre der.
   const [tourCopy, setTourCopy] = useState(null);
@@ -177,7 +219,8 @@ export function HelpProvider({ children }) {
   const copy = mode === 'module' && tourCopy ? tourCopy : liveCopy;
   const liveCopyRef = useRef(liveCopy);
   liveCopyRef.current = liveCopy;
-  const hasHelp = !!copy;
+  // Før tekstene er lastet: ProTop-sidene finnes i den lette nøkkellisten.
+  const hasHelp = intros ? !!copy : !!(moduleId && (scope || 'family') === 'family' && resolvePageKey(moduleId));
   const introKey = introStorageKey(scope, moduleId);
   const moduleSeen = !!(introKey && moduleSeenMap[introKey]);
   const welcomeSeen = !!(scope && welcomeMap[scope]);
@@ -203,12 +246,18 @@ export function HelpProvider({ children }) {
   }, [uid, scope]);
 
   const openWelcome = useCallback(() => {
+    ensureIntros().catch(() => {});
     requestRemeasure();
     setTourIndex(0);
     setMode('welcome');
   }, [requestRemeasure]);
 
   const openModuleHelp = useCallback(() => {
+    if (!intros) {
+      pendingOpenRef.current = 'moduleHelp';
+      ensureIntros().catch(() => { pendingOpenRef.current = null; });
+      return;
+    }
     if (!copy) {
       // Module registered but no dedicated tour yet — still offer the welcome tips.
       requestRemeasure();
@@ -219,15 +268,21 @@ export function HelpProvider({ children }) {
     requestRemeasure();
     setTourIndex(0);
     setMode('moduleCard');
-  }, [copy, requestRemeasure]);
+  }, [intros, ensureIntros, copy, requestRemeasure]);
 
   const startModuleTour = useCallback(() => {
-    if (!liveCopy) return;
+    if (!liveCopy) {
+      if (!intros) {
+        pendingOpenRef.current = 'moduleTour';
+        ensureIntros().catch(() => { pendingOpenRef.current = null; });
+      }
+      return;
+    }
     requestRemeasure();
     setTourCopy(liveCopy);
     setTourIndex(0);
     setMode('module');
-  }, [liveCopy, requestRemeasure]);
+  }, [liveCopy, intros, ensureIntros, requestRemeasure]);
 
   /**
    * Rundtur for en bestemt side (fra assistenten eller hjelpesenteret).
@@ -237,6 +292,7 @@ export function HelpProvider({ children }) {
   const startPageTour = useCallback((pageId, fromIndex = 0) => {
     const wanted = resolvePageKey(pageId);
     if (!wanted) return;
+    ensureIntros().catch(() => {});
     const start = (steps) => Math.min(Math.max(0, Number(fromIndex) || 0), Math.max(0, (steps?.length || 1) - 1));
     if (liveCopy?.pageKey === wanted) {
       pendingPageTourRef.current = null;
@@ -247,7 +303,7 @@ export function HelpProvider({ children }) {
       return;
     }
     pendingPageTourRef.current = { key: wanted, at: Date.now(), start };
-  }, [liveCopy, requestRemeasure]);
+  }, [liveCopy, ensureIntros, requestRemeasure]);
 
   useEffect(() => {
     const pending = pendingPageTourRef.current;
@@ -271,11 +327,21 @@ export function HelpProvider({ children }) {
   /** Arbeidsflyt på tvers av sider (src/help/protopProcesses.js). */
   const startProcessTour = useCallback((id, fromIndex = 0) => {
     if (!id) return;
+    ensureIntros().catch(() => {});
     requestRemeasure();
     setProcessId(id);
     setTourIndex(Math.max(0, Number(fromIndex) || 0));
     setMode('process');
-  }, [requestRemeasure]);
+  }, [ensureIntros, requestRemeasure]);
+
+  // Hjelp som ble åpnet før tekstene var lastet, åpnes når de kommer.
+  useEffect(() => {
+    if (!intros || !pendingOpenRef.current) return;
+    const what = pendingOpenRef.current;
+    pendingOpenRef.current = null;
+    if (what === 'moduleHelp') openModuleHelp();
+    else if (what === 'moduleTour') startModuleTour();
+  }, [intros, openModuleHelp, startModuleTour]);
 
   const dismiss = useCallback((opts = {}) => {
     const current = mode;
@@ -294,11 +360,12 @@ export function HelpProvider({ children }) {
     if (!shouldAutoWelcome(welcomeMap, moduleSeenMap, scope)) return undefined;
     const timer = setTimeout(() => {
       autoShownRef.current = true;
+      ensureIntros().catch(() => {});
       requestRemeasure();
       setMode('welcome');
     }, AUTO_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [ready, uid, enabled, moduleId, scope, welcomeMap, moduleSeenMap, requestRemeasure, mode]);
+  }, [ready, uid, enabled, moduleId, scope, welcomeMap, moduleSeenMap, requestRemeasure, ensureIntros, mode]);
 
   const value = useMemo(() => ({
     scope,

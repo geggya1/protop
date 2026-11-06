@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Medarbeidersamtalen på Min side: forbered deg (frivillig), les gjennom og signer, og last ned
  * den signerte kopien. Svar og signatur går gjennom serveren (reviewAction). Se src/hr/reviewPrep.js.
@@ -15,7 +16,9 @@ import { companyLogoOf } from '../../src/project/companyLogo';
 import { useOptionalApp } from '../../src/context/AppContext';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { radius, type } from '../../src/ui/tokens';
-import { HrButton, HrCard, HrSectionTitle } from './HrShared';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
 
 const RECENT_DAYS = 120;
 

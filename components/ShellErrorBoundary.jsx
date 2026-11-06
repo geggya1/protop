@@ -1,4 +1,5 @@
 import React from 'react';
+import { reportCrash } from '../src/helpdesk/crashReporter';
 import { Pressable, Text, View } from 'react-native';
 
 /**
@@ -20,6 +21,7 @@ export default class ShellErrorBoundary extends React.Component {
     const name = error?.name || 'Error';
     const message = error?.message || String(error);
     console.error('[ShellErrorBoundary]', name, message, info?.componentStack);
+    reportCrash(error, { kind: 'render', fatal: false, componentStack: info?.componentStack });
   }
 
   retry = () => {

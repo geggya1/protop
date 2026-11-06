@@ -1,14 +1,15 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Møter i bedriften: henter ansatte, prosjekter, tilgang og lagring, og viser modulen.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { displayName, employeeEmails, ownEmployee, personnelKind } from '../../src/employees/model';
 import { loadProjectState, peekProjectState } from '../../src/project/storage';
 import { pickableProjects } from '../../src/project/myProjects';
 import { createMeetingStore, seesAllMeetings } from '../../src/meetings/storage';
-import MeetingsModule from './MeetingsModule';
+const MeetingsModule = lazyScreen(() => import('./MeetingsModule'), { name: 'MeetingsModule', silent: true });
 
 function personFromEmployee(emp, companyName) {
   const external = personnelKind(emp) !== 'staff';
@@ -26,8 +27,9 @@ function personFromEmployee(emp, companyName) {
 
 export default function MeetingsScreen({ subView = 'oversikt' }) {
   const {
-    familyId, family, user, uid, activeProfile, requestShellTab, shellIntent, clearShellIntent,
+    familyId, family, user, uid, activeProfile, requestShellTab, clearShellIntent,
   } = useApp();
+  const { shellIntent } = useShellNav();
   const access = useCompanyAccess();
   const employees = access.employees || [];
   const companyName = family?.company?.name || family?.name || '';

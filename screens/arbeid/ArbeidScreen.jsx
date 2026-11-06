@@ -1,6 +1,6 @@
 import React, { startTransition, useEffect, useMemo, useRef, useState } from 'react';
+import StorageImage from '../../components/StorageImage';
 import {
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -12,12 +12,12 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { grantsForEmployee, hoursOnAssignedOnly } from '../../src/access/companyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import { radius } from '../../src/ui/tokens';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { showSaveError, showSaveToast } from '../../src/ui/saveToast';
 import { watchEmployees } from '../../src/employees/storage';
 import { isActiveEmployee, isHiredPersonnel, ownEmployee } from '../../src/employees/model';
@@ -28,7 +28,6 @@ import {
   addAbsence,
   addProjectMember,
   emptyProjectState,
-  mergeMemberLists,
   projectsForEmployee,
   upsertTimeEntry,
   deleteAbsence,
@@ -88,13 +87,9 @@ import {
   timesheetActivityRange,
   timesheetHourWindows,
 } from '../../src/arbeid/timesheetProjects.js';
-import TimeEntryModal from '../../components/arbeid/TimeEntryModal';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 import MonthJump from '../../components/arbeid/MonthJump';
-import TimesheetGrid from '../../components/arbeid/TimesheetGrid';
-import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
-import SickNoteModal from '../../components/arbeid/SickNoteModal';
 import OvertimePayoutModal from '../../components/arbeid/OvertimePayoutModal';
 import AbsenceNoticeModal from '../../components/arbeid/AbsenceNoticeModal';
 import AbsenceFormModal, { AbsenceFormPrompt } from '../../components/arbeid/AbsenceFormModal';
@@ -141,6 +136,11 @@ import {
 } from '../../src/arbeid/timesheetPrefsStorage.js';
 import { upsertExpense, upsertSale, upsertTrip } from '../../src/economy/opsState.js';
 import { companyDisplayName } from '../../src/utils/companyName';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const TimesheetEmployeePicker = lazyScreen(() => import('../../components/arbeid/TimesheetEmployeePicker'), { name: 'TimesheetEmployeePicker', silent: true });
+const SickNoteModal = lazyScreen(() => import('../../components/arbeid/SickNoteModal'), { name: 'SickNoteModal', silent: true });
+const TimesheetGrid = lazyScreen(() => import('../../components/arbeid/TimesheetGrid'), { name: 'TimesheetGrid', silent: true });
+const TimeEntryModal = lazyScreen(() => import('../../components/arbeid/TimeEntryModal'), { name: 'TimeEntryModal', silent: true });
 
 const DAILY = 8;
 
@@ -175,8 +175,9 @@ export default function ArbeidScreen({
   personScope = '',
 } = {}) {
   const colors = useColors();
-  const { isPhone } = useLayout();
-  const { familyId, family, user, isAdmin, requestShellTab, shellIntent, clearShellIntent } = useApp();
+  const { isPhone } = useBreakpoints();
+  const { familyId, family, user, isAdmin, requestShellTab, clearShellIntent } = useApp();
+  const { shellIntent } = useShellNav();
   const access = useCompanyAccess();
   const uid = user?.uid || null;
   const lockedId = String(lockedEmployeeId || '').trim();
@@ -1705,8 +1706,8 @@ export default function ArbeidScreen({
             nativeID="arbeid-employee-name"
           >
             {selectedEmployee?.person?.photoUrl ? (
-              <Image
-                source={{ uri: selectedEmployee.person.photoUrl }}
+              <StorageImage
+                uri={selectedEmployee.person.photoUrl}
                 style={[styles.avatar, { width: identity.avatar, height: identity.avatar, borderRadius: identity.avatar / 2 }]}
               />
             ) : (

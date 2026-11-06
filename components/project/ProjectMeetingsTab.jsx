@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Møter på prosjektet: møtene som er knyttet til prosjektet, åpne oppfølgingspunkter,
  * og snarvei til nytt møte. Selve møtet åpnes i Møter.
@@ -12,9 +13,13 @@ import {
 } from '../../src/meetings/model';
 import { createMeetingStore, seesAllMeetings } from '../../src/meetings/storage';
 import { meetingType } from '../../src/meetings/templates';
-import {
-  Btn, DateTile, Empty, NumberChip, PhasePill, Pill, SectionHead,
-} from '../../screens/meetings/meetingUi';
+const Btn = lazyScreen(() => import('../../screens/meetings/meetingUi'), { name: 'Btn', pick: 'Btn', silent: true });
+const DateTile = lazyScreen(() => import('../../screens/meetings/meetingUi'), { name: 'DateTile', pick: 'DateTile', silent: true });
+const Empty = lazyScreen(() => import('../../screens/meetings/meetingUi'), { name: 'Empty', pick: 'Empty', silent: true });
+const NumberChip = lazyScreen(() => import('../../screens/meetings/meetingUi'), { name: 'NumberChip', pick: 'NumberChip', silent: true });
+const PhasePill = lazyScreen(() => import('../../screens/meetings/meetingUi'), { name: 'PhasePill', pick: 'PhasePill', silent: true });
+const Pill = lazyScreen(() => import('../../screens/meetings/meetingUi'), { name: 'Pill', pick: 'Pill', silent: true });
+const SectionHead = lazyScreen(() => import('../../screens/meetings/meetingUi'), { name: 'SectionHead', pick: 'SectionHead', silent: true });
 
 export default function ProjectMeetingsTab({ familyId, project, colors, uid }) {
   const { requestShellTab, user, family } = useApp();

@@ -6,7 +6,7 @@ import {
   Platform, ActivityIndicator, Modal, useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import { Screen } from '../../components/ui';
 import { useApp } from '../../src/context/AppContext';
 import ShellAddButton from '../../components/ShellAddButton';
@@ -323,7 +323,7 @@ function Toast({ toast, onClose }) {
 }
 
 export default function MailHubScreen() {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const win = useWindowDimensions();
   const { uid } = useApp();
   const [accounts, setAccounts] = useState(() => peekCalendarConnectionsCache(uid)?.connections || []);

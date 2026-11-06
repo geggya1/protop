@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Auth-fri demo for manuell/automatisk UI-test av Faktura-modulen.
  * Åpnes på /faktura-demo (samme mønster som /dashboard-themes).
@@ -9,8 +10,8 @@ import { emptyInvoice, normalizeInvoice, sortInvoices } from '../../src/economy/
 import { normalizeLine } from '../../src/economy/invoiceLines.js';
 import { issueInvoice, recalcInvoice, recordDelivery } from '../../src/economy/invoiceFlow.js';
 import { emptyProjectState } from '../../src/project/engine';
-import EconomyInvoices from './EconomyInvoices';
-import EconomyBilling from './EconomyBilling';
+const EconomyBilling = lazyScreen(() => import('./EconomyBilling'), { name: 'EconomyBilling', silent: true });
+const EconomyInvoices = lazyScreen(() => import('./EconomyInvoices'), { name: 'EconomyInvoices', silent: true });
 
 const DEMO_STORE_KEY = 'protop.fakturaDemo.invoiceIndex';
 

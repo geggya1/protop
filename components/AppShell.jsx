@@ -6,23 +6,24 @@ import { useOptionalRoute } from '../src/hooks/useOptionalRoute';
 import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../src/i18n';
 import { radius, useLayout } from '../src/theme';
-import { useApp } from '../src/context/AppContext';
+import { useApp, useShellNav } from '../src/context/AppContext';
 import { CompanyDataProvider } from '../src/context/CompanyDataContext';
-import { useColors, useThemeMeta } from '../src/context/ThemeContext';
+import { useColors } from '../src/context/ThemeContext';
 import { isTeamType } from '../src/utils/teams';
 import { isClassroomType } from '../src/utils/groupTypes';
 import { openPlatformHome, goPlatformOverview } from '../src/utils/platformNav';
 import HomeScreen from '../screens/v2/HomeScreen';
-import PlanScreen from '../screens/v2/PlanScreen';
-import RewardsScreen from '../screens/v2/RewardsScreen';
-import ChoresScreen from '../screens/v2/ChoresScreen';
-import NotesHubScreen from '../screens/v2/NotesHubScreen';
-import ChatTabScreen from '../screens/v2/ChatTabScreen';
-import MoreHubScreen from '../screens/v2/MoreHubScreen';
-import MailHubScreen from '../screens/v2/MailHubScreen';
-import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
-import CompanyLanding from '../screens/project/CompanyLanding';
-import { CompanyAccessDenied } from './project/CompanyAccessSettings';
+import { lazyScreen, preloadScreens } from '../src/ui/lazyScreen';
+import { setCrashCompany } from '../src/helpdesk/crashReporter';
+const PlanScreen = lazyScreen(() => import('../screens/v2/PlanScreen'), { name: 'PlanScreen' });
+const RewardsScreen = lazyScreen(() => import('../screens/v2/RewardsScreen'), { name: 'RewardsScreen' });
+const NotesHubScreen = lazyScreen(() => import('../screens/v2/NotesHubScreen'), { name: 'NotesHubScreen' });
+const ChatTabScreen = lazyScreen(() => import('../screens/v2/ChatTabScreen'), { name: 'ChatTabScreen' });
+const MoreHubScreen = lazyScreen(() => import('../screens/v2/MoreHubScreen'), { name: 'MoreHubScreen' });
+const MailHubScreen = lazyScreen(() => import('../screens/v2/MailHubScreen'), { name: 'MailHubScreen' });
+const ProjectPlatformScreen = lazyScreen(() => import('../screens/project/ProjectPlatformScreen'), { name: 'ProjectPlatformScreen' });
+const CompanyLanding = lazyScreen(() => import('../screens/project/CompanyLanding'), { name: 'CompanyLanding' });
+import CompanyAccessDenied from './project/CompanyAccessDenied';
 import CompanyAccountEnded from './CompanyAccountEnded';
 import { isActiveEmployee } from '../src/employees/model';
 import { CompanyModuleLocked } from './project/CompanyModuleSettings';
@@ -31,32 +32,32 @@ import ViewAsControl, { ViewAsModulePlaceholder } from './project/ViewAsBar';
 import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
 import { viewAsChromeVisible } from '../src/access/viewAsNav';
-import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
-import IsoScreen from '../screens/iso/IsoScreen';
-import AnbudScreen from '../screens/anbud/AnbudScreen';
-import ContractScreen from '../screens/anbud/ContractScreen';
-import CustomersScreen from '../screens/customers/CustomersScreen';
-import CustomerSurveyScreen from '../screens/customers/CustomerSurveyScreen';
-import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
-import EconomyScreen from '../screens/economy/EconomyScreen';
-import EconomySettingsScreen from '../screens/economy/EconomySettingsScreen';
-import EquipmentScreen from '../screens/equipment/EquipmentScreen';
-import MeetingsScreen from '../screens/meetings/MeetingsScreen';
-import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
-import EmployeesScreen from '../screens/employees/EmployeesScreen';
-import HrScreen from '../screens/hr/HrScreen';
-import InnleieScreen from '../screens/innleie/InnleieScreen';
+const ProjectWorkScreen = lazyScreen(() => import('../screens/project/ProjectWorkScreen'), { name: 'ProjectWorkScreen' });
+const IsoScreen = lazyScreen(() => import('../screens/iso/IsoScreen'), { name: 'IsoScreen' });
+const AnbudScreen = lazyScreen(() => import('../screens/anbud/AnbudScreen'), { name: 'AnbudScreen' });
+const ContractScreen = lazyScreen(() => import('../screens/anbud/ContractScreen'), { name: 'ContractScreen' });
+const CustomersScreen = lazyScreen(() => import('../screens/customers/CustomersScreen'), { name: 'CustomersScreen' });
+const CustomerSurveyScreen = lazyScreen(() => import('../screens/customers/CustomerSurveyScreen'), { name: 'CustomerSurveyScreen' });
+const FormBuilderScreen = lazyScreen(() => import('../screens/anbud/FormBuilderScreen'), { name: 'FormBuilderScreen' });
+const EconomyScreen = lazyScreen(() => import('../screens/economy/EconomyScreen'), { name: 'EconomyScreen' });
+const EconomySettingsScreen = lazyScreen(() => import('../screens/economy/EconomySettingsScreen'), { name: 'EconomySettingsScreen' });
+const EquipmentScreen = lazyScreen(() => import('../screens/equipment/EquipmentScreen'), { name: 'EquipmentScreen' });
+const MeetingsScreen = lazyScreen(() => import('../screens/meetings/MeetingsScreen'), { name: 'MeetingsScreen' });
+const CompanyUnitsScreen = lazyScreen(() => import('../screens/project/CompanyUnitsScreen'), { name: 'CompanyUnitsScreen' });
+const EmployeesScreen = lazyScreen(() => import('../screens/employees/EmployeesScreen'), { name: 'EmployeesScreen' });
+const HrScreen = lazyScreen(() => import('../screens/hr/HrScreen'), { name: 'HrScreen' });
+const InnleieScreen = lazyScreen(() => import('../screens/innleie/InnleieScreen'), { name: 'InnleieScreen' });
 import UsageRecorder from './UsageRecorder';
-import ArbeidHub from '../screens/arbeid/ArbeidHub';
-import ArbeidScreen from '../screens/arbeid/ArbeidScreen';
-import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
-import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
+const ArbeidHub = lazyScreen(() => import('../screens/arbeid/ArbeidHub'), { name: 'ArbeidHub' });
+const ArbeidScreen = lazyScreen(() => import('../screens/arbeid/ArbeidScreen'), { name: 'ArbeidScreen' });
+const AbsenceSettingsScreen = lazyScreen(() => import('../screens/arbeid/AbsenceSettingsScreen'), { name: 'AbsenceSettingsScreen' });
+const PersonalTimesheet = lazyScreen(() => import('../screens/arbeid/PersonalTimesheet'), { name: 'PersonalTimesheet' });
 import { isOrganizationType } from '../src/utils/groupTypes';
 import { companyHasRegisteredUnits, companyMenuItems, defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultInnleieSubView, defaultIsoSubView, defaultMoterSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
 import { moduleTabsFor } from '../src/navigation/moduleTabs';
 import ModuleTabs from './ModuleTabs';
 import { companyLandingTab, isShellPath, parseShellPath, setHomeRouteKey, setShellLocation, shellPathFor, shellSearchFor } from '../src/navigation/shellPaths';
-import { movedExpensePage } from '../src/economy/expenseScope';
+import { movedExpensePage } from '../src/economy/expensePages';
 import { ShellDetailContext } from '../src/navigation/shellDetail';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
@@ -77,12 +78,8 @@ import AddToHomeBanner from './AddToHomeBanner';
 import AddToHomeGuide from './AddToHomeGuide';
 import { useUnread } from '../src/context/NotificationContext';
 import { countForModule } from '../src/utils/notifications';
-import { useLocationSharing } from '../src/hooks/useLocationSharing';
-import { effectiveLocationSharing } from '../src/utils/familyLocation';
-import { allowedAppsForChild, isChildAppAllowed } from '../src/utils/childApps';
-import { grandparentModulesFor, isGrandparentAppAllowed } from '../src/utils/grandparentAccess';
 import ModuleIntroHost from './ModuleIntroHost';
-import { helpPageId } from '../src/help/protopPages';
+import { helpPageId } from '../src/help/protopPageKeys';
 import ModuleHero, { ModuleTitleRow } from './ModuleHero';
 import HelpTarget from './HelpTarget';
 import ModuleActivationGate from './ModuleActivationGate';
@@ -95,37 +92,23 @@ import { ShellTitlesProvider } from '../src/ui/ShellTitles';
 import { shellPageTitles } from '../src/navigation/shellPageTitles';
 import { useChatDock, useChatDockPreferred } from '../src/context/ChatDockContext';
 import { useModuleAccess } from '../src/context/ModuleAccessContext';
-import { useNow } from '../src/hooks/useNow';
-import { childShellTitle } from '../src/utils/childHome';
 import { resolveShellHeaderTitle } from '../src/navigation/shellHeaderTitle';
 import {
   isImmersivePhotoChromeOnly,
   isImmersivePhotoShell,
 } from '../src/navigation/immersivePhotoShell';
-import {
-  loadKitchenDisplaySettings,
-  saveKitchenDisplaySettings,
-  subscribeKitchenDisplay,
-  verifyKitchenPin,
-} from '../src/utils/kitchenDisplay';
-import KitchenPinModal from './KitchenPinModal';
 import ParentShellBottomNav from './parentHome/ParentShellBottomNav';
 import HomeBackdrop from './home/HomeBackdrop';
 import { hasHomePhoto } from '../src/homeBanners';
 import { HomeImmersiveProvider } from '../src/context/HomeImmersiveContext';
 import { DEFAULT_GLASS_TINT, glassTintForBanner } from '../src/homeBannerTints';
 import { useParentDashboardTheme } from '../src/hooks/useParentDashboardTheme';
-import { useHomeLayout } from '../src/hooks/useHomeLayout';
-import {
-  childHomeStorageAliases,
-  childHomeStorageId,
-} from '../src/utils/childHomeLayout';
 import { shouldShowParentBottomNav } from '../src/utils/parentBottomNav';
 import ShellErrorBoundary from './ShellErrorBoundary';
 import { companyDisplayName } from '../src/utils/companyName';
 import ConfirmHost from './ConfirmHost';
-import IsoAutomation from '../screens/iso/IsoAutomation';
-import { FAMILY_PRODUCT_ENABLED, isFamilyProductMoreView } from '../src/navigation/familyProduct';
+const IsoAutomation = lazyScreen(() => import('../screens/iso/IsoAutomation'), { name: 'IsoAutomation', silent: true });
+import { isFamilyProductMoreView } from '../src/navigation/familyProduct';
 
 function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) {
   const color = active ? colors.brand : colors.muted;
@@ -205,20 +188,18 @@ function AppShellInner() {
   const appearance = useAppearance();
   const companyAccess = useCompanyAccess();
   const companyModules = useCompanyModules();
-  const { highChildFriendliness } = useThemeMeta();
   const {
-    isParent, isChild, isActingAsChild, isGrandparent, family, families, loading,
-    shellNav, requestShellTab, clearShellIntent,
-    familyId, uid, userProfile, meChild, meParent, members,
-    activeChild,
+    isParent, family, families, loading,
+    requestShellTab, clearShellIntent,
+    familyId, userProfile, members,
   } = useApp();
+  const { shellNav } = useShellNav();
   const { width, hasRail, isDesktop, isTablet, isPhone, contentMax, railWidth } = useLayout();
   const showPageHero = useShowModuleHero();
   const { unreadByModule } = useUnread();
   const { needsWelcome } = useModuleAccess();
   const chatDockPreferred = useChatDockPreferred();
   const { openDrawer: openChatDrawer } = useChatDock();
-  const now = useNow();
   const {
     ready: parentThemeReady,
     theme: parentDashTheme,
@@ -266,97 +247,6 @@ function AppShellInner() {
   const [addHomeOpen, setAddHomeOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [planMounted, setPlanMounted] = useState(false);
-  const [kitchenMode, setKitchenMode] = useState(false);
-  const [kitchenPinEnabled, setKitchenPinEnabled] = useState(false);
-  const [kitchenPinOpen, setKitchenPinOpen] = useState(false);
-
-  useEffect(() => {
-    if (!uid) {
-      setKitchenMode(false);
-      setKitchenPinEnabled(false);
-      return undefined;
-    }
-    let alive = true;
-    loadKitchenDisplaySettings(uid).then((s) => {
-      if (!alive) return;
-      setKitchenMode(!!s.enabled);
-      setKitchenPinEnabled(!!s.pinEnabled);
-    });
-    const unsub = subscribeKitchenDisplay((s) => {
-      if (!alive) return;
-      const next = typeof s === 'object' && s ? s : { enabled: !!s };
-      setKitchenMode(!!next.enabled);
-      if (next.pinEnabled != null) setKitchenPinEnabled(!!next.pinEnabled);
-    });
-    return () => { alive = false; unsub(); };
-  }, [uid]);
-
-  useEffect(() => {
-    if (kitchenMode) setTab('home');
-  }, [kitchenMode]);
-
-  const exitKitchen = async () => {
-    setKitchenMode(false);
-    if (uid) await saveKitchenDisplaySettings(uid, { enabled: false });
-  };
-
-  const requestExitKitchen = () => {
-    if (kitchenPinEnabled) {
-      setKitchenPinOpen(true);
-      return;
-    }
-    exitKitchen();
-  };
-
-  // Publiser kun for innlogget identitet — ikke når foresatt bare «ser som barn».
-  const locationSharingEnabled = useMemo(() => {
-    // Familieposisjon er ikke med i ProTop (L-35): ingen posisjon publiseres til bedriften.
-    if (!FAMILY_PRODUCT_ENABLED) return false;
-    if (isActingAsChild && !isChild) return false;
-    return effectiveLocationSharing({
-      userProfile,
-      childRecord: isChild ? meChild : null,
-      parentRecord: isChild ? null : meParent,
-    });
-  }, [userProfile, meChild, meParent, isChild, isActingAsChild]);
-
-  const myMemberName = members.find((m) => m.uid === uid)?.name
-    || userProfile?.displayName
-    || 'Meg';
-  const myRole = isChild ? 'child' : 'parent';
-  const asChildView = isChild || isActingAsChild;
-  const viewingChild = isActingAsChild ? activeChild : (isChild ? meChild : null);
-  const viewingChildId = asChildView
-    ? (childHomeStorageId(viewingChild) || viewingChild?.childId || uid)
-    : null;
-  const viewingChildAliases = useMemo(
-    () => (asChildView
-      ? [...childHomeStorageAliases(viewingChild), uid].filter(Boolean)
-      : []),
-    [asChildView, viewingChild, uid],
-  );
-  const childHome = useHomeLayout(viewingChildId, {
-    role: 'child',
-    aliases: viewingChildAliases,
-  });
-  const simpleChildUi = asChildView && highChildFriendliness;
-  const allowedApps = useMemo(
-    () => (asChildView ? allowedAppsForChild(viewingChild) : null),
-    [asChildView, viewingChild],
-  );
-  const grandparentModules = useMemo(
-    () => (isGrandparent ? grandparentModulesFor(meParent) : null),
-    [isGrandparent, meParent],
-  );
-
-  useLocationSharing({
-    familyId,
-    uid,
-    enabled: locationSharingEnabled,
-    name: myMemberName,
-    role: myRole,
-    notifyUids: (members || []).map((m) => m.uid || m.id).filter(Boolean),
-  });
 
   useEffect(() => {
     if (shellNav?.tab) {
@@ -506,7 +396,7 @@ function AppShellInner() {
     const company = isOrganizationType(family.type);
     if (company && companyAccess.active && !companyAccess.ready) return;
     landedRef.current = true;
-    if (inputAtRef.current || kitchenMode || route?.params?.editHome || tab !== 'home' || moreSubView) return;
+    if (inputAtRef.current || route?.params?.editHome || tab !== 'home' || moreSubView) return;
     const open = route?.params?.openShell?.tab;
     if (open && open !== 'home') return;
     const next = companyLandingTab(window.location.pathname, {
@@ -538,27 +428,12 @@ function AppShellInner() {
       const key = e.key?.toLowerCase();
       if ((e.metaKey || e.ctrlKey) && key === 'k') {
         e.preventDefault();
-        if (simpleChildUi) return;
         window.dispatchEvent(new CustomEvent('protop:focus-tools-search'));
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isDesktop, simpleChildUi]);
-
-  useEffect(() => {
-    if (!simpleChildUi) return;
-    setDrawerOpen(false);
-    // Små barn: skjul «Mer»-hubben, men tillat direkte app-åpning via subView (f.eks. spill, bøker).
-    if (tab === 'more' && !moreSubView) {
-      setTab('home');
-      return;
-    }
-    if (tab === 'more' && moreSubView && !isChildAppAllowed(allowedApps, moreSubView)) {
-      setMoreSubView(null);
-      setTab('home');
-    }
-  }, [simpleChildUi, tab, moreSubView, allowedApps]);
+  }, [isDesktop]);
 
   useEffect(() => {
     if (loading) return;
@@ -596,40 +471,6 @@ function AppShellInner() {
   const selectTab = (id, subView = null) => {
     prevNavRef.current = { tab, subView: moreSubView };
     clearShellIntent?.();
-    if (simpleChildUi && id === 'more' && !subView) {
-      setMoreSubView(null);
-      setTab('home');
-      return;
-    }
-    if (asChildView) {
-      if (id === 'mail' || subView === 'mail') {
-        setMoreSubView(null);
-        setTab('home');
-        return;
-      }
-      if (id !== 'more' && !isChildAppAllowed(allowedApps, id)) {
-        setMoreSubView(null);
-        setTab('home');
-        return;
-      }
-      if (id === 'more' && subView && !isChildAppAllowed(allowedApps, moreSubView || subView)) {
-        setMoreSubView(null);
-        setTab('home');
-        return;
-      }
-    }
-    if (isGrandparent) {
-      if (id !== 'more' && id !== 'home' && !isGrandparentAppAllowed(grandparentModules, id)) {
-        setMoreSubView(null);
-        setTab('home');
-        return;
-      }
-      if (id === 'more' && subView && !isGrandparentAppAllowed(grandparentModules, subView)) {
-        setMoreSubView(null);
-        setTab('home');
-        return;
-      }
-    }
     const picked = normalizeShellSelection(id, subView);
     if (picked.tab !== id || (picked.subView || null) !== (subView || null)) {
       setMoreSubView(picked.subView);
@@ -741,7 +582,7 @@ function AppShellInner() {
     goHome();
   };
   // Kant-sveip på telefon uten rail: modul/innstilling → ett skritt tilbake; ellers underside → Hjem.
-  const edgeSwipeEnabled = !isDesktop && !hasRail && !kitchenMode && (!!moreSubView || tab !== 'home');
+  const edgeSwipeEnabled = !isDesktop && !hasRail && (!!moreSubView || tab !== 'home');
   const onEdgeSwipeBack = moreSubView ? goBackFromGate : goHome;
 
   const otherBody = useMemo(() => {
@@ -785,10 +626,8 @@ function AppShellInner() {
       return <CompanyAccessDenied colors={colors} />;
     }
     if (tab === 'plan') return null;
-    if (tab === 'chores') {
-      if (isChild || isActingAsChild) return <ChoresScreen />;
-      return <HomeScreen />;
-    }
+    // Barnas gjøremål hørte til familieproduktet; fanen viser Hjem i ProTop.
+    if (tab === 'chores') return <HomeScreen />;
     if (tab === 'stars') return <RewardsScreen variant="tasks" />;
     if (tab === 'chat') return <ChatTabScreen />;
     if (tab === 'notes') return <NotesHubScreen />;
@@ -874,11 +713,11 @@ function AppShellInner() {
       );
     }
     return <HomeScreen />;
-  }, [tab, moreSubView, isChild, isActingAsChild, familyId, family, families, members, colors, companyAccess, companyModules]);
+  }, [tab, moreSubView, familyId, family, families, members, colors, companyAccess, companyModules]);
 
   // Undersidene i modulen (ISO, Økonomi, Arbeid …) ligger i en vannrett meny øverst, ikke i hamburgermenyen.
   const moduleMenu = useMemo(() => {
-    if (kitchenMode || !isOrganizationType(family?.type)) return null;
+    if (!isOrganizationType(family?.type)) return null;
     const items = companyMenuItems({
       includeUnderenheter: companyHasRegisteredUnits(family?.company),
       grants: companyAccess.grants,
@@ -886,7 +725,7 @@ function AppShellInner() {
       lockedNote: companyModules.lockedLabel,
     });
     return moduleTabsFor(tab, moreSubView, items);
-  }, [kitchenMode, family?.type, family?.company, companyAccess.grants, companyModules.state, companyModules.lockedLabel, tab, moreSubView]);
+  }, [family?.type, family?.company, companyAccess.grants, companyModules.state, companyModules.lockedLabel, tab, moreSubView]);
 
   const detailContext = useMemo(() => ({
     tab,
@@ -951,7 +790,7 @@ function AppShellInner() {
       setMoreSubView(null);
       return;
     }
-    if (tab === 'chores' && !(isChild || isActingAsChild)) {
+    if (tab === 'chores') {
       setTab('home');
       return;
     }
@@ -960,49 +799,12 @@ function AppShellInner() {
       setTab('home');
       return;
     }
-    if (asChildView && tab === 'mail') {
-      setTab('home');
-      setMoreSubView(null);
-      return;
-    }
-    if (!asChildView && !isGrandparent) return;
-    if (asChildView) {
-      if (tab !== 'home' && tab !== 'more' && !isChildAppAllowed(allowedApps, tab)) {
-        setTab('home');
-        setMoreSubView(null);
-        return;
-      }
-      if (moreSubView && !isChildAppAllowed(allowedApps, moreSubView)) {
-        setTab('home');
-        setMoreSubView(null);
-      }
-      return;
-    }
-    if (isGrandparent) {
-      if (tab !== 'home' && tab !== 'more' && !isGrandparentAppAllowed(grandparentModules, tab)) {
-        setTab('home');
-        setMoreSubView(null);
-        return;
-      }
-      if (moreSubView && !isGrandparentAppAllowed(grandparentModules, moreSubView)) {
-        setTab('home');
-        setMoreSubView(null);
-      }
-    }
-  }, [tab, moreSubView, isChild, isActingAsChild, asChildView, allowedApps, isDesktop, chatDockPreferred, openChatDrawer, isGrandparent, grandparentModules]);
+  }, [tab, moreSubView, isDesktop, chatDockPreferred, openChatDrawer]);
 
   const railTabs = SHELL_TABS
     .filter((item) => {
-      const asChild = isChild || isActingAsChild;
-      if (!asChild && item.id === 'chores') return false;
-      if (asChild && item.id === 'mail') return false;
-      if (asChild && item.id !== 'home' && item.id !== 'more' && !isChildAppAllowed(allowedApps, item.id)) {
-        return false;
-      }
-      if (isGrandparent && item.id !== 'home' && item.id !== 'more'
-        && !isGrandparentAppAllowed(grandparentModules, item.id)) {
-        return false;
-      }
+      // Gjøremål (barnas fane) hørte til familieproduktet.
+      if (item.id === 'chores') return false;
       return true;
     })
     .map((item) => ({
@@ -1014,20 +816,20 @@ function AppShellInner() {
     tab,
     moreSubView,
     t,
-    asChildView,
-    childHomeTitle: asChildView ? childShellTitle(now, { child: viewingChild }) : null,
-    modulesHub: isPhone && !simpleChildUi && asChildView,
-    menuHub: !simpleChildUi && !asChildView && isParent,
-  }), [tab, moreSubView, t, asChildView, now, viewingChild, isPhone, isParent, simpleChildUi]);
+    asChildView: false,
+    childHomeTitle: null,
+    modulesHub: false,
+    menuHub: isParent,
+  }), [tab, moreSubView, t, isParent]);
 
   // Hjelpen følger undersiden (anbud.varsling, iso.avvik …), ikke bare fanen.
   const introModuleId = tab === 'more'
     ? (moreSubView || (isDesktop ? null : 'more'))
     : helpPageId(tab, moreSubView);
-  const pageHeroId = (!kitchenMode && showPageHero)
+  const pageHeroId = (showPageHero)
     ? shellHeroModuleId(tab, moreSubView)
     : null;
-  const headerHeroId = (!kitchenMode && showPageHero)
+  const headerHeroId = (showPageHero)
     ? phoneChromeHeroId(tab, moreSubView, isPhone)
     : null;
   // Undersider: kompakt tittelrad i stedet for båndet (telefon: toppfeltet viser tittelen).
@@ -1040,7 +842,7 @@ function AppShellInner() {
   const activeModuleTab = tab !== 'plan' ? moduleMenu?.pages?.find((p) => p.id === moduleMenu.activeId) : null;
   const tabLabels = activeModuleTab ? [activeModuleTab.label, activeModuleTab.short].filter(Boolean) : [];
   const tabLabelsKey = tabLabels.join('|');
-  const shellTitles = useMemo(() => (kitchenMode ? null : shellPageTitles({
+  const shellTitles = useMemo(() => shellPageTitles({
     tab,
     subView: moreSubView,
     headerTitle: headerShowsTitle ? shellHeaderTitle : '',
@@ -1048,11 +850,11 @@ function AppShellInner() {
     heroId: heroCompact ? null : pageHeroId,
     lang,
     tabLabels: tabLabelsKey ? tabLabelsKey.split('|') : [],
-  })), [kitchenMode, tab, moreSubView, headerShowsTitle, shellHeaderTitle, heroCompact, pageHeroId, lang, tabLabelsKey]);
+  }), [tab, moreSubView, headerShowsTitle, shellHeaderTitle, heroCompact, pageHeroId, lang, tabLabelsKey]);
 
   // Familiesidene under Meny er ikke med i ProTop (L-35): ingen «Aktiver …» for dem.
   const familyViewBlocked = tab === 'more' && isFamilyProductMoreView(moreSubView);
-  const activationModuleId = kitchenMode || familyViewBlocked
+  const activationModuleId = familyViewBlocked
     ? null
     : activationModuleIdForShell(tab, moreSubView);
   const blockingWelcome = needsWelcome(activationModuleId);
@@ -1066,7 +868,7 @@ function AppShellInner() {
     goBackFromGate();
   };
 
-  const showViewAs = !kitchenMode && viewAsChromeVisible({
+  const showViewAs = viewAsChromeVisible({
     canViewAs: companyAccess?.canViewAs,
     tab,
     previewing: companyAccess?.previewing,
@@ -1081,7 +883,7 @@ function AppShellInner() {
         <ModuleActivationGate
           moduleId={activationModuleId}
           onBack={onActivationBack}
-          enabled={!kitchenMode}
+          enabled
         >
           {body}
         </ModuleActivationGate>
@@ -1094,9 +896,9 @@ function AppShellInner() {
   // feltet, så innholdet ikke flytter seg mellom oversikten og undersidene.
   // HR › Ansatte er registeret, som har hele bredden slik det hadde under Ansatte.
   const hrRegister = tab === 'hr' && moreSubView === 'ansatte';
-  const subDesk = !!SUBPAGE_ASIDE[tab] && isDesktop && !kitchenMode && !hrRegister;
+  const subDesk = !!SUBPAGE_ASIDE[tab] && isDesktop && !hrRegister;
   const subAside = subDesk && width >= SUBPAGE_ASIDE_MIN_WIDTH && SUBPAGE_ASIDE[tab](moreSubView) !== 'oversikt';
-  const showDeskAside = isDesktop && !kitchenMode && (subDesk || (
+  const showDeskAside = isDesktop && (subDesk || (
     tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud' && tab !== 'kunder' && tab !== 'kontrakt' && tab !== 'skjema' && tab !== 'okonomi' && tab !== 'selskap' && tab !== 'underenheter'
     && tab !== 'projects' && tab !== 'arbeid' && tab !== 'timeliste' && tab !== 'ansatte' && tab !== 'moter' && !hrRegister));
 
@@ -1108,31 +910,29 @@ function AppShellInner() {
     theme: parentDashTheme,
     bottomShortcutIds,
     isParent,
-    asChildView,
+    asChildView: false,
     hasRail,
-    kitchenMode,
+    kitchenMode: false,
     bottomNavEnabled,
   });
-  const backdropBannerId = asChildView ? childHome.layout.bannerId : homeBannerId;
+  const backdropBannerId = homeBannerId;
   const immersiveHome = isImmersivePhotoShell({
     isPhone,
     tab,
     moreSubView,
     isParent,
-    asChildView,
-    kitchenMode,
-    simpleChildUi,
+    asChildView: false,
+    kitchenMode: false,
+    simpleChildUi: false,
     photo: hasHomePhoto(backdropBannerId),
   });
-  const backdropCustomUri = asChildView ? childHome.layout.customBannerUri : homeCustomBannerUri;
+  const backdropCustomUri = homeCustomBannerUri;
   // Med bakgrunnsbilde: mørkt glass i bildets egen farge med hvit tekst.
-  const glassTint = asChildView
-    ? null
-    : (backdropCustomUri ? DEFAULT_GLASS_TINT : glassTintForBanner(backdropBannerId));
+  const glassTint = backdropCustomUri ? DEFAULT_GLASS_TINT : glassTintForBanner(backdropBannerId);
   // ProTop keeps the safe area inside the chrome, not as a gap outside it.
   // On a phone the header is the top layer: its background covers Safari's
   // top band, and the logo sits just below that band.
-  const headerCoversStatusBar = Platform.OS === 'web' && isPhone && !kitchenMode;
+  const headerCoversStatusBar = Platform.OS === 'web' && isPhone;
   const safeEdges = {
     top: headerCoversStatusBar ? 'off' : 'additive',
     right: 'additive',
@@ -1153,8 +953,8 @@ function AppShellInner() {
         <HomeBackdrop bannerId={backdropBannerId} customUri={backdropCustomUri} />
       ) : null}
       <SafeAreaView edges={safeEdges} style={[styles.safe, styles.shellAboveBackdrop]}>
-      <View style={[styles.wrap, hasRail && !kitchenMode && styles.wrapRow, immersiveHome && styles.immersiveLayer]}>
-        {hasRail && !kitchenMode && (
+      <View style={[styles.wrap, hasRail && styles.wrapRow, immersiveHome && styles.immersiveLayer]}>
+        {hasRail && (
           <View
             role="navigation"
             aria-label="Hovedmeny"
@@ -1209,97 +1009,69 @@ function AppShellInner() {
                   ))}
                 </ScrollView>
 
-                {!simpleChildUi && (
-                  <TouchableOpacity
-                    style={[styles.railToolsBtn, { borderColor: colors.line, backgroundColor: colors.sunken }]}
-                    onPress={() => setDrawerOpen(true)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Mer"
-                  >
-                    <IconBadge count={countForModule(unreadByModule, 'more')} size={15} offset={-6}>
-                      <Ionicons name="grid-outline" size={18} color={colors.brand} />
-                    </IconBadge>
-                    <Text style={[styles.railToolsTxt, { color: colors.brandInk }]}>Mer</Text>
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  style={[styles.railToolsBtn, { borderColor: colors.line, backgroundColor: colors.sunken }]}
+                  onPress={() => setDrawerOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Mer"
+                >
+                  <IconBadge count={countForModule(unreadByModule, 'more')} size={15} offset={-6}>
+                    <Ionicons name="grid-outline" size={18} color={colors.brand} />
+                  </IconBadge>
+                  <Text style={[styles.railToolsTxt, { color: colors.brandInk }]}>Mer</Text>
+                </TouchableOpacity>
               </HelpTarget>
             )}
           </View>
         )}
 
         <View style={[styles.main, immersiveHome && styles.immersiveLayer]}>
-          {!kitchenMode ? <AddToHomeBanner onOpenGuide={() => setAddHomeOpen(true)} /> : null}
-          {kitchenMode && tab !== 'home' ? (
-            <View style={[styles.kitchenNav, { borderBottomColor: colors.line, backgroundColor: colors.brandSoft }]}>
-              <TouchableOpacity
-                onPress={() => selectTab('home')}
-                style={styles.kitchenNavBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Tilbake til kjøkkenvisning"
-              >
-                <Ionicons name="arrow-back" size={18} color={colors.brand} />
-                <Text style={[styles.kitchenNavTxt, { color: colors.brand }]}>Kjøkkenvisning</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={requestExitKitchen}
-                accessibilityRole="button"
-                accessibilityLabel="Avslutt kjøkkenvisning"
-              >
-                <Text style={[styles.kitchenNavExit, { color: colors.muted }]}>Avslutt</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
+          <AddToHomeBanner onOpenGuide={() => setAddHomeOpen(true)} />
           <ModuleHeroHostProvider hosted={!!pageHeroId}>
           <ShellTitlesProvider titles={shellTitles}>
-          {!kitchenMode ? (
-            <ShellHeader
-              title={shellHeaderTitle}
-              coverStatusBar={headerCoversStatusBar}
-              onMenuPress={(!hasRail && !simpleChildUi) ? () => setDrawerOpen(true) : null}
-              compact={isDesktop}
-              dense={false}
-              chromeOnly={isImmersivePhotoChromeOnly({
-                isPhone,
-                tab,
-                moreSubView,
-                isParent,
-                asChildView,
-                simpleChildUi,
-              })}
-              showFamilyHint={isTablet && tab !== 'mail'}
-              titleRight={shellTitleRight}
-              viewAs={viewAsControl}
-              onLogoHome={goHome}
-              meta={heroCompact && isPhone ? navTrailParentText(tab, moreSubView) : ''}
-              titleInPage={titleInContent}
-              helpdeskActive={tab === 'more' && moreSubView === 'helpdesk'}
-              hero={shellPageHero || (headerHeroId ? (
-                <ModuleHero moduleId={headerHeroId} flush chrome />
-              ) : null)}
-            />
-          ) : null}
-          {!kitchenMode ? <PushEnableBanner /> : null}
-          {!kitchenMode ? (
-            <AddToHomeGuide visible={addHomeOpen} onClose={() => setAddHomeOpen(false)} />
-          ) : null}
+          <ShellHeader
+            title={shellHeaderTitle}
+            coverStatusBar={headerCoversStatusBar}
+            onMenuPress={!hasRail ? () => setDrawerOpen(true) : null}
+            compact={isDesktop}
+            dense={false}
+            chromeOnly={isImmersivePhotoChromeOnly({
+              isPhone,
+              tab,
+              moreSubView,
+              isParent,
+              asChildView: false,
+              simpleChildUi: false,
+            })}
+            showFamilyHint={isTablet && tab !== 'mail'}
+            titleRight={shellTitleRight}
+            viewAs={viewAsControl}
+            onLogoHome={goHome}
+            meta={heroCompact && isPhone ? navTrailParentText(tab, moreSubView) : ''}
+            titleInPage={titleInContent}
+            helpdeskActive={tab === 'more' && moreSubView === 'helpdesk'}
+            hero={shellPageHero || (headerHeroId ? (
+              <ModuleHero moduleId={headerHeroId} flush chrome />
+            ) : null)}
+          />
+          <PushEnableBanner />
+          <AddToHomeGuide visible={addHomeOpen} onClose={() => setAddHomeOpen(false)} />
           <View
             nativeID="shell-scroll"
             role="main"
             style={[
             styles.contentArea,
             !isDesktop && styles.contentClip,
-            hasRail && !isDesktop && !kitchenMode && styles.contentAreaCentered,
-            isDesktop && !kitchenMode && styles.contentAreaDesktop,
-            kitchenMode && styles.contentAreaKitchen,
+            hasRail && !isDesktop && styles.contentAreaCentered,
+            isDesktop && styles.contentAreaDesktop,
             immersiveHome && styles.immersiveLayer,
           ]}
           >
             <View style={[
               styles.contentInner,
               !isDesktop && styles.contentClip,
-              hasRail && !isDesktop && !kitchenMode && { maxWidth: contentMax, width: '100%' },
-              isDesktop && !kitchenMode && styles.contentInnerDesktop,
-              kitchenMode && styles.contentInnerKitchen,
+              hasRail && !isDesktop && { maxWidth: contentMax, width: '100%' },
+              isDesktop && styles.contentInnerDesktop,
               immersiveHome && styles.immersiveLayer,
             ]}
             >
@@ -1333,13 +1105,11 @@ function AppShellInner() {
                     </EdgeSwipeBack>
                   </View>
                 )}
-              {!kitchenMode ? (
-                <ModuleIntroHost
-                  scope="family"
-                  moduleId={introModuleId}
-                  enabled={!loading && !!introModuleId && !blockingWelcome}
-                />
-              ) : null}
+              <ModuleIntroHost
+                scope="family"
+                moduleId={introModuleId}
+                enabled={!loading && !!introModuleId && !blockingWelcome}
+              />
             </View>
           </View>
           </ShellTitlesProvider>
@@ -1348,7 +1118,6 @@ function AppShellInner() {
         <ParentShellBottomNav
           tab={tab}
           moreSubView={moreSubView}
-          kitchenMode={kitchenMode}
           onSelectTab={selectTab}
           glass={immersiveHome}
         />
@@ -1356,28 +1125,14 @@ function AppShellInner() {
 
       <ConfirmHost />
 
-      {!simpleChildUi && !kitchenMode && (
-        <ShellDrawer
-          visible={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          activeTab={tab}
-          activeSubView={moreSubView}
-          onSelectTab={selectTab}
-        />
-      )}
-
-      <KitchenPinModal
-        visible={kitchenPinOpen}
-        mode="unlock"
-        onCancel={() => setKitchenPinOpen(false)}
-        onSubmit={async (pin) => {
-          const full = await loadKitchenDisplaySettings(uid);
-          if (!(await verifyKitchenPin(full, pin))) return false;
-          setKitchenPinOpen(false);
-          await exitKitchen();
-          return true;
-        }}
+      <ShellDrawer
+        visible={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        activeTab={tab}
+        activeSubView={moreSubView}
+        onSelectTab={selectTab}
       />
+
 
     </SafeAreaView>
     </View>
@@ -1406,6 +1161,12 @@ export default function AppShell() {
     return () => clearTimeout(timer);
   }, [switching]);
   const hold = switching && !waitedOut;
+  useEffect(() => { setCrashCompany(companyId); }, [companyId]);
+  // Henter de mest brukte modulene i ledig tid etter oppstart, så de åpner uten venting.
+  useEffect(() => preloadScreens([
+    PlanScreen, RewardsScreen, NotesHubScreen, MailHubScreen, ChatTabScreen, MoreHubScreen,
+    ...(companyId ? [PersonalTimesheet, ArbeidHub, ProjectWorkScreen, CompanyLanding] : []),
+  ]), [companyId]);
   return (
     <CompanyDataProvider companyId={companyId} members={parents} me={me}>
       {/* ISO-automatikk og køen for hurtigmeldinger (ISO-02/03). Tegner ingenting. */}
@@ -1538,18 +1299,4 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   deskAsideFlush: { paddingTop: 16 },
-  contentAreaKitchen: { alignItems: 'stretch' },
-  contentInnerKitchen: { maxWidth: '100%', width: '100%' },
-  kitchenNav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  kitchenNavBtn: {
-    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6 },
-  kitchenNavTxt: { fontWeight: '400', fontSize: 14 },
-  kitchenNavExit: { fontWeight: '400', fontSize: 13 },
 });

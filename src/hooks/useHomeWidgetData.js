@@ -6,9 +6,6 @@ import {
   parentTaskVisibleToUser,
 } from '../utils/todos';
 import { listenAccessibleNotes } from '../utils/familyNotes';
-import { listenMeals } from '../utils/meals';
-import { listenAccessibleLists, listenListItems, filterListsForProfile, scopeFromList } from '../utils/shoppingLists';
-import { useShopFamilyIds } from './useShopFamilyIds';
 import {
   summarizeEvents, summarizeTasks, summarizeMeals, summarizeNotes,
   summarizeShopping, buildHomeDigest,
@@ -17,9 +14,14 @@ import {
 /**
  * Live-sammendrag for desktop-hjem-widgets.
  * Kalenderhendelser kommer fra HomeScreen (allerede lyttet) for å unngå dobbelt-abonnement.
+ *
+ * Måltider og handlelister hørte til familieproduktet. ProTop lytter ikke på dem lenger;
+ * feltene leveres tomme, så widgetene får samme form som før.
  */
+const EMPTY_MEALS = summarizeMeals([], '');
+const EMPTY_SHOPPING = { ...summarizeShopping([], {}), openItems: [] };
 export function useHomeWidgetData({ todayEvents = [], tomorrowEvents = [], enabled = true } = {}) {
-  const { familyId, uid, families } = useApp();
+  const { familyId, uid } = useApp();
   const todayKey = dateKey(new Date());
   const today = useMemo(() => {
     const [y, m, d] = todayKey.split('-').map(Number);
@@ -27,15 +29,9 @@ export function useHomeWidgetData({ todayEvents = [], tomorrowEvents = [], enabl
   }, [todayKey]);
 
   const [parentTodos, setParentTodos] = useState([]);
-  const [meals, setMeals] = useState([]);
   const [notes, setNotes] = useState([]);
-  const [lists, setLists] = useState([]);
-  const [openByList, setOpenByList] = useState({});
-  const [openItemSamples, setOpenItemSamples] = useState([]);
 
   const ids = useMemo(() => new Set([uid].filter(Boolean)), [uid]);
-
-  const shopPlatformIds = useShopFamilyIds(families, familyId);
 
   useEffect(() => {
     if (!enabled || !familyId) {
@@ -46,83 +42,12 @@ export function useHomeWidgetData({ todayEvents = [], tomorrowEvents = [], enabl
   }, [enabled, familyId]);
 
   useEffect(() => {
-    if (!enabled || !familyId) {
-      setMeals([]);
-      return undefined;
-    }
-    return listenMeals(familyId, setMeals);
-  }, [enabled, familyId]);
-
-  useEffect(() => {
     if (!enabled || !familyId || !uid) {
       setNotes([]);
       return undefined;
     }
     return listenAccessibleNotes(familyId, uid, {}, setNotes);
   }, [enabled, familyId, uid]);
-
-  useEffect(() => {
-    if (!enabled || !uid || !shopPlatformIds.length) {
-      setLists([]);
-      setOpenByList({});
-      setOpenItemSamples([]);
-      return undefined;
-    }
-    let listIds = [];
-    const openMap = {};
-    const sampleMap = {};
-    const itemUnsubs = {};
-
-    const refresh = () => {
-      setOpenByList({ ...openMap });
-      const samples = [];
-      Object.values(sampleMap).forEach((arr) => {
-        (arr || []).forEach((it) => {
-          if (samples.length < 6) samples.push(it);
-        });
-      });
-      setOpenItemSamples(samples);
-    };
-
-    const unsubLists = listenAccessibleLists(shopPlatformIds, uid, {
-      platforms: families,
-    }, (next) => {
-      const visible = filterListsForProfile(next, null).filter((l) => !l.deleted);
-      setLists(visible);
-      const nextIds = visible.map((l) => l.id).slice(0, 8);
-      const nextSet = new Set(nextIds);
-      listIds.forEach((id) => {
-        if (!nextSet.has(id)) {
-          itemUnsubs[id]?.();
-          delete itemUnsubs[id];
-          delete openMap[id];
-          delete sampleMap[id];
-        }
-      });
-      nextIds.forEach((id) => {
-        if (itemUnsubs[id]) return;
-        const list = visible.find((l) => l.id === id);
-        const scope = scopeFromList(list || { id, personal: false, familyId }, { familyId, uid });
-        if (!scope) return;
-        itemUnsubs[id] = listenListItems(scope, (items) => {
-          const open = (items || []).filter((i) => !i.done && !i.deleted);
-          openMap[id] = open.length;
-          sampleMap[id] = open.slice(0, 3).map((i) => ({
-            id: i.id,
-            title: i.name || i.title || i.text || 'Vare',
-          }));
-          refresh();
-        });
-      });
-      listIds = nextIds;
-      refresh();
-    });
-
-    return () => {
-      unsubLists();
-      Object.values(itemUnsubs).forEach((u) => u?.());
-    };
-  }, [enabled, shopPlatformIds, familyId, uid]);
 
   return useMemo(() => {
     const visibleToday = (parentTodos || [])
@@ -141,12 +66,9 @@ export function useHomeWidgetData({ todayEvents = [], tomorrowEvents = [], enabl
       doneToday,
       totalToday: myOpen.length + doneToday,
     };
-    const mealSum = summarizeMeals(meals, todayKey);
+    const mealSum = EMPTY_MEALS;
     const noteSum = summarizeNotes(notes);
-    const shopping = {
-      ...summarizeShopping(lists, openByList),
-      openItems: openItemSamples,
-    };
+    const shopping = EMPTY_SHOPPING;
     return {
       events,
       tasks,
@@ -158,7 +80,6 @@ export function useHomeWidgetData({ todayEvents = [], tomorrowEvents = [], enabl
       }),
     };
   }, [
-    parentTodos, meals, notes, lists, openByList, openItemSamples,
-    todayEvents, tomorrowEvents, today, todayKey, uid, ids,
+    parentTodos, notes, todayEvents, tomorrowEvents, today, uid, ids,
   ]);
 }

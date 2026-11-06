@@ -1,21 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import CreateMenu from '../../components/CreateMenu';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { agreementResponsiblePeople } from '../../src/anbud/customers';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { useEmployees } from '../../src/context/CompanyDataContext';
 import ContractFollowUp from './ContractFollowUp';
-import AgreementTreatment from './AgreementTreatment';
 import AgreementCreateWizard from './AgreementCreateWizard';
 import { companyDisplayName } from '../../src/utils/companyName';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const AgreementTreatment = lazyScreen(() => import('./AgreementTreatment'), { name: 'AgreementTreatment', silent: true });
 
 export default function ContractScreen() {
   const colors = useColors();
-  const { isPhone } = useLayout();
-  const { requestShellTab, familyId, family, shellIntent, clearShellIntent, members } = useApp();
+  const { isPhone } = useBreakpoints();
+  const { requestShellTab, familyId, family, clearShellIntent, members } = useApp();
+  const { shellIntent } = useShellNav();
   const [part, setPart] = useState(() => (
     shellIntent?.type === 'agreementTemplateReady' || shellIntent?.type === 'composeAgreementTreatment'
       ? 'behandling'

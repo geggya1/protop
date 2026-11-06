@@ -2,17 +2,14 @@ import React from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView,
 } from 'react-native';
-import { colors as baseColors, radius, space, useLayout } from '../src/theme';
-import { useColors, useThemeMeta } from '../src/context/ThemeContext';
+import { colors as baseColors, radius, space, useBreakpoints } from '../src/theme';
+import { useColors } from '../src/context/ThemeContext';
 import { useHomeImmersive } from '../src/context/HomeImmersiveContext';
-import ChildThemeBackdrop from './ChildThemeBackdrop';
 
 export function Screen({ children, style }) {
   const themeColors = useColors();
-  const { isChildTheme, theme } = useThemeMeta();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const immersive = useHomeImmersive();
-  const showPattern = isChildTheme && !!theme?.pattern && !immersive;
   return (
     <View style={[
       styles.screen,
@@ -21,7 +18,6 @@ export function Screen({ children, style }) {
       style,
     ]}
     >
-      {showPattern ? <ChildThemeBackdrop /> : null}
       <View style={[styles.screenContent, !isDesktop && styles.screenClip]}>{children}</View>
     </View>
   );
@@ -29,7 +25,7 @@ export function Screen({ children, style }) {
 
 export function Card({ children, style }) {
   const colors = useColors();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   return (
     <View style={[
       styles.card,
@@ -45,7 +41,7 @@ export function Card({ children, style }) {
 
 export function Title({ children, size = 20, style }) {
   const colors = useColors();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const fontSize = isDesktop ? Math.min(size, 17) : size;
   return (
     <Text accessibilityRole="header" aria-level={2} style={[styles.title, isDesktop && styles.titleDesktop, { fontSize, color: colors.ink }, style]}>
@@ -56,13 +52,13 @@ export function Title({ children, size = 20, style }) {
 
 export function Mute({ children, style }) {
   const colors = useColors();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   return <Text style={[styles.mute, isDesktop && styles.muteDesktop, { color: colors.muted }, style]}>{children}</Text>;
 }
 
 export function BigButton({ label, onPress, color, icon, disabled }) {
   const themeColors = useColors();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   // Standardknappen er brandInk med onBrand-tekst (4,5:1). Egen farge beholder hvit tekst.
   const bg = color || themeColors.brandInk;
   const fg = color ? '#fff' : themeColors.onBrand;
@@ -105,7 +101,7 @@ export function Loader() {
 }
 
 export function ScrollBody({ children, pad = space.md }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const gap = isDesktop ? 8 : space.md;
   const bottom = isDesktop ? 28 : 48;
   return (

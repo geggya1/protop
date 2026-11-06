@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import { Screen, Title, Mute } from '../../components/ui';
 import { ModulePageFrame, ModuleBgSpacer } from '../../components/ModulePageBg';
 import { AvatarBubble } from '../../components/AvatarPicker';
@@ -68,7 +68,7 @@ function sectionSummary(section, folders, fileCounts, uid, childId = null) {
 }
 
 export default function DocumentsHubScreen({ inShell = false, onBack = null }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { familyId, uid, members, kids, isParent, isActingAsChild } = useApp();
   const [folders, setFolders] = useState([]);
   const [fileCounts, setFileCounts] = useState({});

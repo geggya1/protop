@@ -30,11 +30,14 @@ import {
 import { formatHours, parseHours } from '../../src/arbeid/hours.js';
 import { employeeDisplayName } from '../../src/arbeid/roles.js';
 import { formatNbDate } from '../../src/hr/model';
-import {
-  EmptyHint, HrButton, HrCard, HrField, HrSectionTitle,
-} from './HrShared';
 import { radius, type } from '../../src/ui/tokens';
 import { companyDisplayName } from '../../src/utils/companyName';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
 
 function shiftMonth(month, delta) {
   const [y, m] = month.split('-').map(Number);

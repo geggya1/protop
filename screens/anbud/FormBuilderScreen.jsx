@@ -55,21 +55,22 @@ import {
 } from '../../src/doccontrol/templates';
 import { pickDocument, pickImage } from '../../src/utils/media';
 import { useColors } from '../../src/context/ThemeContext';
-import { useApp } from '../../src/context/AppContext';
-import FormStudio from './FormStudio';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import FormFill, { FilledStatusIcon } from './FormFill';
 import { useFormContext } from './useFormContext';
 import PageTabs from '../../components/PageTabs';
 import CreateMenu from '../../components/CreateMenu';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { useDocControl } from '../doccontrol/useDocControl';
-import DocControlPanel from '../doccontrol/DocControlPanel';
-import DocComments from '../doccontrol/DocComments';
-import DocOverview from '../doccontrol/DocOverview';
 import { StatusChip } from '../doccontrol/parts';
 import KsLibraryList, { NOT_CONTROLLED } from './KsLibraryList';
 import { printHandbook } from '../hr/handbookPrint';
 import { printForm } from './formPrint';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const DocComments = lazyScreen(() => import('../doccontrol/DocComments'), { name: 'DocComments', silent: true });
+const DocOverview = lazyScreen(() => import('../doccontrol/DocOverview'), { name: 'DocOverview', silent: true });
+const DocControlPanel = lazyScreen(() => import('../doccontrol/DocControlPanel'), { name: 'DocControlPanel', silent: true });
+const FormStudio = lazyScreen(() => import('./FormStudio'), { name: 'FormStudio', silent: true });
 
 const STARTERS = [
   { id: 'blank', title: 'Tomt skjema', icon: 'document-outline', kind: 'blank' },
@@ -126,7 +127,8 @@ export default function FormBuilderScreen({
 }) {
   const themeColors = useColors();
   const colors = colorsProp || themeColors;
-  const { shellIntent, clearShellIntent, requestShellTab } = useApp();
+  const { clearShellIntent, requestShellTab } = useApp();
+  const { shellIntent } = useShellNav();
   const { familyId, actor, company, logo: companyLogo } = useFormContext();
   const dc = useDocControl();
   const logoUrl = companyLogo?.dataUrl || '';

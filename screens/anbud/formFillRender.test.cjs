@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
+const syncLazyScreen = require('../../tests/helpers/syncLazyScreen.cjs');
 const babel = require('@babel/core');
 const React = require('react');
 const assert = require('node:assert/strict');
@@ -47,7 +48,7 @@ const MOCKS = {
   'src/access/useCompanyAccess': { useCompanyAccess: () => ({ levelId: 'leder', bypass: false, canView: () => true, canEdit: () => true }) },
   'src/employees/cvImport': { textFromDocx: async () => '' },
   'src/ui/saveToast': { showSaveToast: () => {} },
-  'src/context/AppContext': {
+  'src/context/AppContext': ((m) => ({ ...m, useShellNav: () => { const a = (m.useApp && m.useApp()) || {}; return { shellIntent: a.shellIntent ?? null, shellNav: a.shellNav ?? null }; } }))({
     useApp: () => ({
       family: { company: { navn: 'Eksempel AS', organisasjonsnummer: '123456789' }, ownerUid: 'u1' },
       familyId: 'f1',
@@ -57,9 +58,9 @@ const MOCKS = {
       clearShellIntent() {},
       requestShellTab() {},
     }),
-  },
+  }),
   'src/context/ThemeContext': { useColors: () => colors },
-  'src/theme': { useLayout: () => LAYOUT },
+  'src/theme': ((m) => ({ ...m, useBreakpoints: m.useLayout }))({ useLayout: () => LAYOUT }),
   'src/anbud/storage': { loadAnbudState: async () => ({ formTemplates: [] }), saveAnbudState: async () => {}, peekAnbudState: () => null },
   'src/forms/filledStore': {
     loadFilledDocs: async () => [],
@@ -106,6 +107,7 @@ function loadLocal(full) {
   m.paths = Module._nodeModulePaths(path.dirname(full));
   cache.set(full, m);
   m.require = (id) => {
+    if (id.includes('ui/lazyScreen')) return syncLazyScreen(m.require);
     if (id === 'react') return React;
     if (id === 'react-native') {
       return {

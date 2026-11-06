@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { chartColorsFor } from '../../src/ui/chartColors';
 import { radius, space, type } from '../../src/ui/tokens';
 import { MONTHS_NB } from '../../src/hr/annualWheel';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { statusColor } from './HrAnnualWheel';
 
 const MONTH_LETTER = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
@@ -43,7 +43,7 @@ export default function HrAnnualTimeline({
 }) {
   const chart = chartColorsFor(colors);
   const colorOf = itemColor || ((i) => statusColor(i.status, chart));
-  const { isWide } = useLayout();
+  const { isWide } = useBreakpoints();
   // Hele navnet når det er plass, ellers «Sep», og bokstav på telefon.
   const label = (name, m) => (compact ? MONTH_LETTER[m] : isWide ? name : name.slice(0, 3));
   const head = (

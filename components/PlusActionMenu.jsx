@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, Pressable, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, useLayout } from '../src/theme';
+import { colors, useBreakpoints } from '../src/theme';
 import { desktopOverlay, desktopSheet } from '../src/desktop';
 
 /**
@@ -15,7 +15,7 @@ export default function PlusActionMenu({
   items = [],
   onClose,
 }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable

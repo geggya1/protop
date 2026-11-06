@@ -107,7 +107,8 @@ export function ClockTile({
   const cardSurface = useGlassCard();
   const spec = widgetVariant('clock', variant || (compact ? 'small' : 'wide'));
   const look = spec.id;
-  const now = useNow(1000);
+  // Flisen viser tt:mm; den analoge skiven har egen sekundklokke.
+  const now = useNow(60_000, { align: true });
   const label = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
   const face = look === 'wide' ? 72 : 56;
 

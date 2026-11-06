@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Historikk: de andre møtene i serien, utsendelser og endringslogg.
  */
@@ -8,7 +9,12 @@ import { useColors } from '../../src/context/ThemeContext';
 import {
   agendaStats, meetingPhase, recurrenceLabel, seriesMeetings, shortDate, timeRange,
 } from '../../src/meetings/model';
-import { Btn, Card, DateTile, Empty, PhasePill, SectionHead } from './meetingUi';
+const Btn = lazyScreen(() => import('./meetingUi'), { name: 'Btn', pick: 'Btn', silent: true });
+const Card = lazyScreen(() => import('./meetingUi'), { name: 'Card', pick: 'Card', silent: true });
+const DateTile = lazyScreen(() => import('./meetingUi'), { name: 'DateTile', pick: 'DateTile', silent: true });
+const Empty = lazyScreen(() => import('./meetingUi'), { name: 'Empty', pick: 'Empty', silent: true });
+const PhasePill = lazyScreen(() => import('./meetingUi'), { name: 'PhasePill', pick: 'PhasePill', silent: true });
+const SectionHead = lazyScreen(() => import('./meetingUi'), { name: 'SectionHead', pick: 'SectionHead', silent: true });
 
 function stamp(iso) {
   const d = new Date(iso);

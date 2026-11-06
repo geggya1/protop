@@ -9,7 +9,7 @@ import {
   shouldOfferAddToHome,
   wasAddHomeDismissed,
 } from '../src/utils/addToHome';
-import { useLayout } from '../src/theme';
+import { useBreakpoints } from '../src/theme';
 import { touchHit } from '../src/ui/touchTarget';
 
 /**
@@ -17,7 +17,7 @@ import { touchHit } from '../src/ui/touchTarget';
  */
 export default function AddToHomeBanner({ onOpenGuide }) {
   const [visible, setVisible] = useState(false);
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
   // Krysset er en 28 px boks uten bakgrunn; 44 px på berøringsskjerm (UX-26).
   const closeHit = touchHit(28, 28, { touch: isTouch, os: Platform.OS, fixed: true });
 

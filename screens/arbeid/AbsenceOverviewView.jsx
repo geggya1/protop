@@ -34,10 +34,11 @@ import {
 import { PAGE_ART_SCALE } from '../../src/appearance/pageArtScale';
 import { useLayout } from '../../src/theme';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
-import { CompanyAbsenceView } from './CompanyAbsenceView';
-import { CompanyAbsenceDesktop } from './CompanyAbsenceDesktop';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { companyDisplayName } from '../../src/utils/companyName';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const CompanyAbsenceView = lazyScreen(() => import('./CompanyAbsenceView'), { name: 'CompanyAbsenceView', pick: 'CompanyAbsenceView', silent: true });
+const CompanyAbsenceDesktop = lazyScreen(() => import('./CompanyAbsenceDesktop'), { name: 'CompanyAbsenceDesktop', pick: 'CompanyAbsenceDesktop', silent: true });
 
 const HERO = require('../../assets/absence/hero-construction.png');
 const BEACH = require('../../assets/absence/beach-illustration.png');

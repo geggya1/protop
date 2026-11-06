@@ -5,7 +5,7 @@
  *
  * Til fakturering bruker i dag de to første trinnene (billingReady.hourlyRateFor).
  */
-import { rateOnDate } from '../indeksregulering/cases.js';
+import { rateOnDate } from '../indeksregulering/rateOnDate.js';
 
 export const RATE_SOURCES = [
   { id: 'contract', label: 'fra avtalen' },

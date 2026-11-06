@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Dokumentstyring i Skjemabygger: det som venter på godkjenning, gjennomgang
  * (for eksempel i ledelsens årlige gjennomgang), merknader, dokumentlisten og innstillingene.
@@ -15,11 +16,13 @@ import {
   workingRevision,
 } from '../../src/doccontrol/model';
 import { showSaveToast } from '../../src/ui/saveToast';
-import { HrButton, HrCard, HrSectionTitle } from '../hr/HrShared';
-import DocControlPanel from './DocControlPanel';
-import DocComments from './DocComments';
 import { ChoiceChips, Label, OK_INK, PersonChips, StatusChip, dateText, dayText } from './parts';
 import { printDocList } from './docListPrint';
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('../hr/HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrSectionTitle = lazyScreen(() => import('../hr/HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
+const DocComments = lazyScreen(() => import('./DocComments'), { name: 'DocComments', silent: true });
+const DocControlPanel = lazyScreen(() => import('./DocControlPanel'), { name: 'DocControlPanel', silent: true });
 
 const MONTHS = [6, 12, 24, 36].map((months) => ({ id: String(months), label: months === 12 ? '12 måneder' : `${months} måneder` }));
 

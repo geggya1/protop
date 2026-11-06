@@ -78,15 +78,16 @@ import { noticeMapScope, noticePlaceBucket } from '../../src/anbud/noticePlace';
 import { pickDocument } from '../../src/utils/media';
 import { processStepsForBid } from '../../src/anbud/processTrail';
 import { bidCanLeaveDesk, bidCanReturnToReview } from '../../src/anbud/model';
-import FormAnswer from './FormAnswer';
 import ProcessTrail from './ProcessTrail';
-import BidOverview from './BidOverview';
 import BidSymbolButton from './BidSymbolButton';
 import ReviewNotes from './ReviewNotes';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 import DateInput from '../../components/DateInput';
 import TimeField from '../../components/TimeField';
 import { detectDateFormat } from '../../src/utils/dateInput';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FormAnswer = lazyScreen(() => import('./FormAnswer'), { name: 'FormAnswer', silent: true });
+const BidOverview = lazyScreen(() => import('./BidOverview'), { name: 'BidOverview', silent: true });
 
 const TABS = [
   { id: 'oversikt', label: 'Oversikt', icon: 'grid-outline' },

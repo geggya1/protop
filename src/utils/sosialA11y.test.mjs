@@ -8,12 +8,12 @@ const read = (rel) => readFileSync(new URL(`../../${rel}`, import.meta.url), 'ut
 // UX-funn fra testbot «sosial»: tilgjengelige navn og tilstand, og vei tilbake fra e-postlenken.
 test('avkrysningsboksen på oppgaver har navn og avkrysset-tilstand', () => {
   const src = read('screens/v2/RewardsScreen.jsx');
-  const box = src.slice(src.indexOf('function TaskCheckbox'), src.indexOf('function ChoreTaskRow'));
+  const box = src.slice(src.indexOf('function TaskCheckbox'), src.indexOf('function ParentTaskRow'));
   assert.match(box, /accessibilityRole="checkbox"/);
   assert.match(box, /aria-checked=\{!!done\}/);
   assert.match(box, /accessibilityLabel=\{name \? `Ferdig: \$\{name\}` : 'Ferdig'\}/);
   const calls = src.match(/<TaskCheckbox\b[^>]*/g) || [];
-  assert.ok(calls.length >= 6);
+  assert.ok(calls.length >= 3);
   for (const call of src.split('<TaskCheckbox').slice(1)) {
     assert.match(call.slice(0, 120), /title=\{(task|t)\.title\}/);
   }

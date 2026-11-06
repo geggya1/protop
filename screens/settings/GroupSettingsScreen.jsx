@@ -9,7 +9,7 @@ import { doc, getDoc, updateDoc, serverTimestamp, setDoc } from 'firebase/firest
 import { db, auth } from '../../firebase';
 import { useI18n } from '../../src/i18n';
 import { useApp } from '../../src/context/AppContext';
-import { colors, radius, useLayout } from '../../src/theme';
+import { colors, radius, useBreakpoints } from '../../src/theme';
 import {
   isSuperAdmin,
   isGroupAdmin,
@@ -40,19 +40,20 @@ import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
 import { pickImage, uploadImage, alertPhotoError } from '../../src/utils/media';
 import Wizard, { Choice } from '../../components/Wizard';
 import AvatarPicker, { AvatarBubble } from '../../components/AvatarPicker';
-import LocationPicker from '../../components/LocationPicker';
 import { Screen, Title, Mute, ScrollBody, BigButton } from '../../components/ui';
 import { DeskBtn } from '../../components/DeskBtn';
 import { hasContactAccount } from '../../src/utils/account';
 import { setMemberPassword } from '../../src/utils/setMemberPassword';
 import { sendPasswordResetV2 } from '../../src/utils/sendPasswordReset';
 import { calculateAge, isValidBirthday, toIsoDate } from '../../src/utils/age';
-import NotificationPrefsPanel from '../../components/NotificationPrefsPanel';
-import BirthdayPicker from '../../components/BirthdayPicker';
 import PhoneInput from '../../components/PhoneInput';
 import WebImageCropperModal from '../../components/WebImageCropperModal';
 import ConfirmActionModal from '../../components/ConfirmActionModal';
 import { notifyUser } from '../../src/utils/dialog';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const LocationPicker = lazyScreen(() => import('../../components/LocationPicker'), { name: 'LocationPicker', silent: true });
+const NotificationPrefsPanel = lazyScreen(() => import('../../components/NotificationPrefsPanel'), { name: 'NotificationPrefsPanel', silent: true });
+const BirthdayPicker = lazyScreen(() => import('../../components/BirthdayPicker'), { name: 'BirthdayPicker', silent: true });
 
 function groupLifecycleCopy(t, { isClassroom, isTeam }) {
   if (isClassroom) {
@@ -100,7 +101,7 @@ function groupLifecycleCopy(t, { isClassroom, isTeam }) {
 export function GroupSettingsScreen({ inShell = false }) {
   const { t } = useI18n();
   const nav = useNavigation();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { family, familyId, uid, families, selectFamily, applyFamilyPatch, requestShellTab } = useApp();
   const route = useOptionalRoute();
   const { switching } = useRouteFamily(route?.params?.familyId);

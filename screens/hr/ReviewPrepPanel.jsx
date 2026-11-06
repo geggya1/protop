@@ -5,7 +5,12 @@ import {
 } from '../../src/hr/reviewPrep';
 import { formatNbDate, localIsoDate } from '../../src/hr/model';
 import { radius, type } from '../../src/ui/tokens';
-import { HrButton, HrCard, HrChip, HrField, HrSectionTitle } from './HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
 
 /** Bakgrunn og tekst per tone, fra paletten (lys og mørk). */
 function toneColors(tone, colors) {

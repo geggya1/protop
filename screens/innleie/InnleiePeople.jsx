@@ -9,13 +9,15 @@ import { hiredCatalogItem } from '../../src/hr/hired';
 import { awayRows, innleieDashboard } from '../../src/innleie/dashboard';
 import { formatNbDate } from '../../src/hr/model';
 import { radius, type } from '../../src/ui/tokens';
-import HrFollowUp from '../hr/HrFollowUp';
 import {
   ACCENT, Avatar, Pill, Segmented, gridItem, gridStyle,
 } from '../hr/HrDashParts';
-import { EmptyHint, HrButton } from '../hr/HrShared';
 import HiredChecklist from './HiredChecklist';
 import { PersonCard } from './InnleieDashboard';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('../hr/HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrFollowUp = lazyScreen(() => import('../hr/HrFollowUp'), { name: 'HrFollowUp', silent: true });
 
 const SHEETS = [
   { id: 'krav', label: 'Krav', icon: 'shield-checkmark-outline' },

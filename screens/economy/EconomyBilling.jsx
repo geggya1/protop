@@ -18,16 +18,17 @@ import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import DateField from '../../components/DateField';
-import BillingProjectRow from './billing/BillingProjectRow';
 import useBillingData from './billing/useBillingData';
 import useBillingWorkflow from './billing/useBillingWorkflow';
 import { Banner, Button, Check, money } from './billing/ui';
 import { withIndexWarnings } from './billing/indexWarnings';
 import { useSeesBillingChain } from './billing/BillingChainLine';
-import BillingApproveDialog from './billing/BillingApproveDialog';
 import useBillingChain, { forgetBillingChain } from './billing/useBillingChain';
 import { approvalsBackLabel } from '../../src/economy/billingChain.js';
 import { postsLabel } from '../../src/economy/billingApproval.js';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const BillingApproveDialog = lazyScreen(() => import('./billing/BillingApproveDialog'), { name: 'BillingApproveDialog', silent: true });
+const BillingProjectRow = lazyScreen(() => import('./billing/BillingProjectRow'), { name: 'BillingProjectRow', silent: true });
 
 const SCOPES = [
   { id: 'all', label: 'Alle prosjekter' },

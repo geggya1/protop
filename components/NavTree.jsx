@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, useLayout } from '../src/theme';
+import { colors, useBreakpoints } from '../src/theme';
 import { touch } from '../src/ui/tokens';
 import { useColors } from '../src/context/ThemeContext';
 import {
@@ -92,7 +92,7 @@ export function NavRow({
 }) {
   const colors = useColors();
   const tone = useMemo(() => paint(colors), [colors]);
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
   const rail = variant === 'rail';
   const s = rail ? railStyles : drawerStyles;
   const t = isTouch ? touchStyles : null;
@@ -230,7 +230,7 @@ export default function NavTree({
 }) {
   const colors = useColors();
   const tone = useMemo(() => paint(colors), [colors]);
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
   const rail = variant === 'rail';
   const s = rail ? railStyles : drawerStyles;
   const t = isTouch ? touchStyles : null;

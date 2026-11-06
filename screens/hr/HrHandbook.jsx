@@ -29,13 +29,16 @@ import { textFromDocx } from '../../src/employees/cvImport';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/forms/highlight';
 import { pickDocument } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
-import { HrButton, HrCard, HrSectionTitle } from './HrShared';
 import HandbookText, { COMMENT_BG, COMMENT_INK } from './HandbookText';
 import { printHandbook } from './handbookPrint';
 import { useDocControl } from '../doccontrol/useDocControl';
-import DocControlPanel from '../doccontrol/DocControlPanel';
 import DocComments, { CommentComposer, SelectionBar, anchorProps, quotesFor, useSelectionCapture } from '../doccontrol/DocComments';
 import { StatusChip } from '../doccontrol/parts';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
+const DocControlPanel = lazyScreen(() => import('../doccontrol/DocControlPanel'), { name: 'DocControlPanel', silent: true });
 
 export const HANDBOOK_KEY = 'handbook';
 

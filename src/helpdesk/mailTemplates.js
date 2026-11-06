@@ -6,17 +6,10 @@
 import {
   categoryLabel, moduleLabel, priorityLabel, statusLabel,
 } from './model.js';
+import { escapeHtml as esc } from '../utils/mailHtml.js';
 
 export const HELP_BASE_URL = 'https://protop.no';
 const BRAND = '#0b6bcb';
-
-function esc(text) {
-  return String(text == null ? '' : text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 function para(text) {
   return esc(text).replace(/\r?\n/g, '<br>');

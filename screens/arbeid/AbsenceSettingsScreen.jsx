@@ -5,11 +5,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { isSuperAdmin } from '../../src/utils/groups';
-import AbsenceTypeSettings from '../../components/company/AbsenceTypeSettings';
-import HolidaySettings from '../../components/company/HolidaySettings';
-import VacationPlanPanel from '../../components/arbeid/VacationPlanPanel';
-import SickRulesSettings from '../../components/arbeid/SickRulesSettings';
-import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
+import CompanyAccessDenied from '../../components/project/CompanyAccessDenied';
 import { employeeDisplayName } from '../../src/arbeid/roles.js';
 import { employeeActivityTab } from '../../src/employees/model.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
@@ -21,6 +17,11 @@ import { saveProjectState } from '../../src/project/storage';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { companyDisplayName } from '../../src/utils/companyName';
 import { UnlessShellTitle } from '../../src/ui/ShellTitles';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const AbsenceTypeSettings = lazyScreen(() => import('../../components/company/AbsenceTypeSettings'), { name: 'AbsenceTypeSettings', silent: true });
+const HolidaySettings = lazyScreen(() => import('../../components/company/HolidaySettings'), { name: 'HolidaySettings', silent: true });
+const SickRulesSettings = lazyScreen(() => import('../../components/arbeid/SickRulesSettings'), { name: 'SickRulesSettings', silent: true });
+const VacationPlanPanel = lazyScreen(() => import('../../components/arbeid/VacationPlanPanel'), { name: 'VacationPlanPanel', silent: true });
 
 const TABS = [
   { id: 'fravaerstyper', label: 'Fraværstyper', icon: 'sunny-outline', hint: 'Betalt fravær, timebalanse og fakturerbart arbeid' },

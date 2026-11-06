@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../src/context/AppContext';
 import { useColors, useThemeMeta } from '../src/context/ThemeContext';
-import { useLayout } from '../src/theme';
+import { useBreakpoints } from '../src/theme';
 import { canShowModuleHero } from '../src/modules/moduleHero';
 import ShellHeader, { ShellTitleRightContext } from './ShellHeader';
 import ShellDrawer from './ShellDrawer';
@@ -24,7 +24,7 @@ export default function StackShellChrome({ title = 'Hjem', moduleId = null, chil
   const nav = useNavigation();
   const colors = useColors();
   const { highChildFriendliness, scheme } = useThemeMeta();
-  const { isDesktop, isPhone, railWidth } = useLayout();
+  const { isDesktop, isPhone, railWidth } = useBreakpoints();
   const { requestShellTab } = useApp();
   const simpleChildUi = !!highChildFriendliness;
   const [drawerOpen, setDrawerOpen] = useState(false);

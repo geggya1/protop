@@ -36,13 +36,7 @@ import { mergeIndexSnapshot } from '../../src/indeksregulering/indexLedger';
 import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
-import ProjectOverviewTab from './ProjectOverviewTab';
-import ProjectSettingsTab from './ProjectSettingsTab';
 import IntercompanyTag from '../intercompany/IntercompanyTag';
-import ProjectTeamTab from './ProjectTeamTab';
-import ProjectExpensesTab from './ProjectExpensesTab';
-import ProjectSalesTab from './ProjectSalesTab';
-import ProjectBillingTab from './ProjectBillingTab';
 import ProjectBillingReadyTab from './ProjectBillingReadyTab';
 import ProjectIndexArchive from './ProjectIndexArchive';
 import ProjectEarningsTab from './ProjectEarningsTab';
@@ -51,6 +45,13 @@ import ProjectEvaluationTab from './ProjectEvaluationTab';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { teamWithHourParticipants } from '../../src/project/myProjects';
 import { projectStatusLabel } from '../../src/project/statusFilter';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const ProjectSalesTab = lazyScreen(() => import('./ProjectSalesTab'), { name: 'ProjectSalesTab', silent: true });
+const ProjectSettingsTab = lazyScreen(() => import('./ProjectSettingsTab'), { name: 'ProjectSettingsTab', silent: true });
+const ProjectTeamTab = lazyScreen(() => import('./ProjectTeamTab'), { name: 'ProjectTeamTab', silent: true });
+const ProjectOverviewTab = lazyScreen(() => import('./ProjectOverviewTab'), { name: 'ProjectOverviewTab', silent: true });
+const ProjectExpensesTab = lazyScreen(() => import('./ProjectExpensesTab'), { name: 'ProjectExpensesTab', silent: true });
+const ProjectBillingTab = lazyScreen(() => import('./ProjectBillingTab'), { name: 'ProjectBillingTab', silent: true });
 
 const SALES_MAX_AGE_MS = 2 * 60 * 1000;
 

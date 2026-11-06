@@ -1,13 +1,6 @@
 /** Dokumentlisten (KS C1-A-01-001) som PDF: alle styrte dokumenter med versjon og godkjenning. */
 import { READ_RULES } from '../../src/doccontrol/model';
-
-function esc(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+import { escapeHtml as esc } from '../../src/utils/mailHtml.js';
 
 function dateText(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));

@@ -27,11 +27,15 @@ import { saveFormTemplate } from '../../src/anbud/bidLibrary';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { DEFAULT_DOCUMENT_ACCEPT, pickDocument, uploadFile } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
-import {
-  EmptyHint, HrButton, HrCard, HrField, HrSectionTitle, RowLink,
-} from './HrShared';
 import { useCompanyAiAllowed } from '../../src/privacy/useCompanyAi';
 import AiNotice from '../../components/privacy/AiNotice';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
+const RowLink = lazyScreen(() => import('./HrShared'), { name: 'RowLink', pick: 'RowLink', silent: true });
 
 /** Alle punktene i AML § 14-6 (fra 1.7.2024) kan fylles ut i skjemaet. */
 const KEY_FIELDS = AML_CONTRACT_FIELDS.map((field) => field.key);

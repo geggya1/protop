@@ -46,20 +46,46 @@ function requestMeta(req) {
   };
 }
 
+const INACTIVE = ['deleted', 'inactive', 'former'];
+
+/**
+ * Bedriften og den innloggedes ansattpost. Hele ansattlisten lastes bare når den trengs
+ * (allEmployees, f.eks. når tilgangsspeilet må skrives på nytt); før ble den lest ved hver
+ * hendelse, også sidevisninger.
+ */
 async function companyContext(companyId, uid) {
-  const fam = await assertFamilyMember(db, companyId, uid);
+  const [fam, ownSnap] = await Promise.all([
+    assertFamilyMember(db, companyId, uid),
+    db.collection(`families/${companyId}/employees`).where('personUid', '==', uid).limit(10).get(),
+  ]);
   const data = fam.data() || {};
   const adminUids = Array.isArray(data.adminUids) ? data.adminUids : [];
   const owner = data.ownerUid === uid || data.ownerId === uid || data.createdBy === uid;
   const admin = owner || adminUids.includes(uid);
-  const snap = await db.collection(`families/${companyId}/employees`).get();
-  const employees = snap.docs.map((item) => ({ id: item.id, ...item.data() }));
-  const linked = employees.find((row) => (
-    row.personUid === uid
-    && !['deleted', 'inactive', 'former'].includes(row.company?.status)
-  )) || null;
+  const own = ownSnap.docs.map((item) => ({ id: item.id, ...item.data() }));
+  const linked = own.find((row) => !INACTIVE.includes(row.company?.status)) || null;
   const grants = linked ? grantsForEmployee(data.company?.accessPolicy, linked) : null;
-  return { data, admin, employees, linked, grants };
+  let all = null;
+  return {
+    data,
+    admin,
+    linked,
+    grants,
+    async employee(id) {
+      if (!id) return null;
+      const hit = own.find((row) => row.id === id);
+      if (hit) return hit;
+      const snap = await db.doc(`families/${companyId}/employees/${id}`).get();
+      return snap.exists ? { id: snap.id, ...snap.data() } : null;
+    },
+    async allEmployees() {
+      if (!all) {
+        const snap = await db.collection(`families/${companyId}/employees`).get();
+        all = snap.docs.map((item) => ({ id: item.id, ...item.data() }));
+      }
+      return all;
+    },
+  };
 }
 
 function canWriteEmployees(ctx) {
@@ -98,13 +124,15 @@ export async function writeUsageEvent(database, input, { trusted = false } = {})
   if (!event?.actorUid) return null;
   const stamp = event.at;
   const userLog = database.collection(`users/${event.actorUid}/usage`);
-  await userLog.add({
-    ...event,
-    createdAt: FieldValue.serverTimestamp(),
-  });
-  if (event.type === 'login') await pruneQuietly(userLog);
   const userRef = database.doc(`users/${event.actorUid}`);
-  const userSnap = await userRef.get();
+  const [, userSnap] = await Promise.all([
+    userLog.add({
+      ...event,
+      createdAt: FieldValue.serverTimestamp(),
+    }),
+    userRef.get(),
+  ]);
+  if (event.type === 'login') await pruneQuietly(userLog);
   const userSummary = applyUsageSummary(userSnap.data()?.usage, event);
   await userRef.set({ usage: userSummary, updatedAt: stamp }, { merge: true });
 
@@ -140,7 +168,8 @@ export async function refreshCallerAcl(database, companyId, uid, ctx, now = new 
   const ref = database.doc(`families/${companyId}/accessAcl/${uid}`);
   const snap = await ref.get();
   if (snap.exists && aclIsFresh(snap.data(), new Date(now.getTime() + ACL_REFRESH_MS))) return false;
-  await ref.set({ ...aclFor({ family, employees: ctx.employees || [], uid, now }), source: 'function' });
+  const employees = typeof ctx?.allEmployees === 'function' ? await ctx.allEmployees() : (ctx?.employees || []);
+  await ref.set({ ...aclFor({ family, employees, uid, now }), source: 'function' });
   return true;
 }
 
@@ -151,29 +180,32 @@ export const recordUsage = onCall(CALL, async (req) => {
   const uid = requireAuth(req.auth);
   const type = String(req.data?.type || '');
   const change = CHANGE_TYPES.has(type);
-  await assertRateLimit(db, {
-    key: hashRateKey([change ? 'usage-change' : 'usage', uid]),
-    limit: change ? 600 : 180,
-    windowMs: 60 * 60 * 1000,
-  });
   const meta = requestMeta(req);
   const companyId = String(req.data?.companyId || '').trim();
   let employeeId = String(req.data?.employeeId || '').trim();
   let trusted = false;
+  // Grensen og bedriftsoppslaget kjøres samtidig.
+  const [, ctx] = await Promise.all([
+    assertRateLimit(db, {
+      key: hashRateKey([change ? 'usage-change' : 'usage', uid]),
+      limit: change ? 600 : 180,
+      windowMs: 60 * 60 * 1000,
+    }),
+    companyId ? companyContext(companyId, uid) : null,
+  ]);
   if (companyId) {
-    const ctx = await companyContext(companyId, uid);
     // Eldre apper fornyer ikke tilgangsspeilet selv (REV-13). Feil her stopper ikke loggingen.
     await refreshCallerAcl(db, companyId, uid, ctx).catch(() => false);
     // Bedriften har slått av aktivitetsloggen: lagre ingenting, verken hos brukeren eller den ansatte.
     if (!usageEventAllowed(ctx.data.company, type)) return { ok: true, skipped: 'company-off' };
     if (type === 'hour' || type === 'hour_deleted') {
-      const employee = ctx.employees.find((row) => row.id === employeeId);
+      const employee = await ctx.employee(employeeId);
       if (!canLogHoursOn(ctx, employee, uid)) {
         throw new HttpsError('permission-denied', 'Du kan ikke logge timer for denne medarbeideren.');
       }
       trusted = true;
     } else if (type === 'invite_sent') {
-      const employee = ctx.employees.find((row) => row.id === employeeId);
+      const employee = await ctx.employee(employeeId);
       if (!employee || !canWriteEmployees(ctx)) {
         throw new HttpsError('permission-denied', 'Du kan ikke logge invitasjonen.');
       }
@@ -207,7 +239,7 @@ export const listEmployeeUsage = onCall(CALL, async (req) => {
   const employeeId = String(req.data?.employeeId || '').trim();
   if (!companyId || !employeeId) throw new HttpsError('invalid-argument', 'Mangler medarbeider.');
   const ctx = await companyContext(companyId, uid);
-  const employee = ctx.employees.find((row) => row.id === employeeId);
+  const employee = await ctx.employee(employeeId);
   if (!employee) throw new HttpsError('not-found', 'Fant ikke medarbeideren.');
   const self = employee.personUid === uid;
   if (!self && !canWriteEmployees(ctx)) {

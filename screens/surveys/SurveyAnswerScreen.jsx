@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Svarsiden for kundeundersøkelsen: protop.no/svar/{lenke}. Kunden er ikke innlogget.
  * Lenken er personlig (én per mottaker), og serveren godtar ett svar per lenke.
@@ -14,7 +15,7 @@ import { cleanCustomerAnswer } from '../../src/surveys/customerSurvey';
 import { formatNbDate } from '../../src/hr/model';
 import { radius, space, type } from '../../src/ui/tokens';
 import SurveyAnswerForm, { answeredCount } from '../../components/surveys/SurveyAnswerForm';
-import { HrButton } from '../hr/HrShared';
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
 
 /** Lenken fra adressen (/svar/abc) eller fra navigasjonen. */
 export function tokenFromPath(path) {

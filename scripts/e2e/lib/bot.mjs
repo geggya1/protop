@@ -75,6 +75,10 @@ export class Bot {
       await this.ctx.addInitScript(() => { if (window.top === window) localStorage.setItem('protop.lang', 'nb'); });
     }
     this.page = await this.ctx.newPage();
+    // E2E_COVERAGE=<mappe>: JS-dekning (Chromium) per bot, til kartlegging av kode som faktisk kjøres.
+    if (process.env.E2E_COVERAGE) {
+      await this.page.coverage.startJSCoverage({ resetOnNavigation: false, reportAnonymousScripts: false }).catch(() => {});
+    }
     this.page.on('pageerror', (e) => {
       const m = String(e?.message || e);
       if (ENV_NOISE.test(m)) return;
@@ -220,6 +224,19 @@ export class Bot {
   }
 
   async stop() {
+    if (process.env.E2E_COVERAGE && this.page) {
+      try {
+        const entries = await this.page.coverage.stopJSCoverage();
+        const { mkdirSync, writeFileSync } = await import('node:fs');
+        mkdirSync(process.env.E2E_COVERAGE, { recursive: true });
+        const slim = entries.filter((e) => /\/_expo\//.test(e.url)).map((e) => ({
+          url: e.url.split('/').pop().split('?')[0],
+          fns: e.functions.filter((f) => f.ranges[0]?.count > 0).map((f) => f.ranges[0].startOffset),
+        }));
+        const file = `${process.env.E2E_COVERAGE}/${this.name}-${this.view}-${Date.now()}.json`.replace(/[^\w./-]/g, '_');
+        writeFileSync(file, JSON.stringify(slim));
+      } catch { /* dekning er bare et hjelpemiddel */ }
+    }
     await this.ctx?.close().catch(() => {});
   }
 }

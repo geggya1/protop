@@ -7,8 +7,9 @@ import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/f
 import { formWithTokens } from '../../src/forms/tokens';
 import { fileToDataUrl } from '../../src/anbud/intakeClient';
 import { pickDocument, pickImage } from '../../src/utils/media';
-import FormAnswer from './FormAnswer';
 import { formPrintHtml, printForm } from './formPrint';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FormAnswer = lazyScreen(() => import('./FormAnswer'), { name: 'FormAnswer', silent: true });
 
 function sectionsOf(fields) {
   const sections = [];

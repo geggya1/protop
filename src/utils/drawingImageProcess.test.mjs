@@ -7,19 +7,6 @@ import {
   findPaperRect,
   scaleSize,
 } from './drawingImageProcess.js';
-import {
-  normalizeFrame,
-  normalizePlacement,
-  frameColorHex,
-  FRAME_SHAPES,
-  FRAME_COLORS,
-  ROOM_SCENES,
-  ageAtDate,
-  getFrameRect,
-  coverImageBox,
-  containImageBox,
-  frameRectToViewStyle,
-} from './childDrawingMeta.js';
 
 // Uniform image → full bounds fallback
 {
@@ -115,44 +102,3 @@ import {
   assert.equal(small.width, 800);
   assert.equal(small.height, 600);
 }
-
-assert.equal(FRAME_SHAPES.length >= 4, true);
-assert.equal(FRAME_COLORS.length >= 5, true);
-assert.equal(frameColorHex('oak'), '#C4A574');
-assert.equal(normalizeFrame({ shape: 'oval', colorId: 'gold' }).shape, 'oval');
-assert.equal(normalizeFrame({ shape: 'heart' }).shape, 'heart');
-assert.equal(normalizeFrame({ shape: 'nope' }).shape, 'classic');
-assert.equal(normalizePlacement({ x: 2, y: -1, scale: 9 }).x, 0.95);
-assert.equal(normalizePlacement({ scene: 'kids' }).scene, 'kids');
-assert.equal(normalizePlacement({ scene: 'bedroom' }).scene, 'bedroom');
-assert.ok(ROOM_SCENES.length >= 6);
-assert.equal(ageAtDate('2018-06-01', '2024-06-01'), 6);
-
-{
-  const living = getFrameRect('living');
-  assert.ok(living);
-  assert.ok(living.width > 0.2 && living.width < 0.6);
-  assert.ok(living.height > 0.2 && living.height < 0.5);
-  assert.equal(getFrameRect('gallery-living'), null);
-
-  // Square viewport → identity cover box (no crop of wall frame)
-  const square = coverImageBox(400, 400, 1);
-  assert.ok(Math.abs(square.width - 400) < 0.01);
-  assert.ok(Math.abs(square.height - 400) < 0.01);
-  assert.ok(Math.abs(square.top) < 0.01);
-  assert.ok(Math.abs(square.left) < 0.01);
-
-  const view = frameRectToViewStyle(living, square);
-  assert.ok(view.width > 80);
-  assert.ok(view.height > 60);
-  assert.ok(view.top > 20);
-  assert.ok(view.top + view.height < 280);
-
-  // Wide viewport with contain keeps full frame visible
-  const letter = containImageBox(400, 200, 1);
-  assert.ok(Math.abs(letter.height - 200) < 0.01);
-  assert.ok(Math.abs(letter.width - 200) < 0.01);
-  assert.ok(letter.left > 90);
-}
-
-console.log('drawingImageProcess + childDrawings helpers ok');

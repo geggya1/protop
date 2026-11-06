@@ -16,7 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { db, storage, auth } from '../../firebase';
 import { ref as sref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useApp } from '../../src/context/AppContext';
-import { colors, radius, useLayout } from '../../src/theme';
+import { colors, radius, useBreakpoints } from '../../src/theme';
 import { Screen, Title, BigButton } from '../../components/ui';
 import DesktopFormShell from '../../components/DesktopFormShell';
 import DateInput from '../../components/DateInput';
@@ -46,7 +46,7 @@ function recurrenceStateFromTask(task) {
 export default function ParentTaskScreen() {
   const nav = useNavigation();
   const route = useRoute();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { familyId, members, uid, isChild } = useApp();
   const existing = route.params?.task || null;
   const isNew = !existing;

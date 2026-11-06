@@ -1,6 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import StorageImage from '../StorageImage';
 import {
-  Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
 } from 'react-native';
 import { createPortal } from 'react-dom';
 import { Ionicons } from '@expo/vector-icons';
@@ -351,7 +359,7 @@ function AvatarFace({ employee, colors, active }) {
     >
       <View style={styles.avatarClip}>
         {photo ? (
-          <Image source={{ uri: photo }} accessibilityIgnoresInvertColors style={styles.avatarImg} />
+          <StorageImage uri={photo} accessibilityIgnoresInvertColors style={styles.avatarImg} />
         ) : (
           <Text style={[styles.avatarText, { color: colors.ink }]}>{initials(employee)}</Text>
         )}
@@ -735,16 +743,7 @@ function PersonAccessPopup(props) {
   );
 }
 
-export function CompanyAccessDenied({ colors }) {
-  return (
-    <View style={styles.denied}>
-      <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>Ingen tilgang</Text>
-      <Text style={[styles.lead, { color: colors.muted }]}>
-        Du har ikke tilgang til denne delen av bedriften. Tilgangen styres under Selskap, Tilgang.
-      </Text>
-    </View>
-  );
-}
+export { default as CompanyAccessDenied } from './CompanyAccessDenied';
 
 export default function CompanyAccessSettings({
   company,

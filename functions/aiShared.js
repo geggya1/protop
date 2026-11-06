@@ -3,6 +3,10 @@ import { salvageTruncatedJson } from './timetableParse.js';
 import { mediaBucket } from './storageBucket.js';
 import { AI_OFF_MESSAGE, companyAiAllowed } from '../src/privacy/companyPrivacy.js';
 
+// Et kall som henger skal ikke bruke opp hele funksjonens tidsgrense. Store dokumenter (anbud,
+// avtaler) kan ta et par minutter; perModelTimeoutMs overstyrer for raske kall.
+const GEMINI_TIMEOUT_MS = 150_000;
+
 /** Gratis-nivå grenser — juster ved kommersialisering / betalt tier. */
 export const AI_LIMITS = {
   /** Maks AI-import analyser per familie per dag (kun vellykkede / fullførte analyser) */
@@ -290,11 +294,12 @@ function normalizeUserParts(userParts) {
 }
 
 async function callGeminiJsonOnce(apiKey, model, systemPrompt, userParts, options = {}) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   const perModelMs = Number(options.perModelTimeoutMs) || 0;
   const fetchOpts = {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: 'user', parts: normalizeUserParts(userParts) }],
@@ -415,11 +420,12 @@ function extractTextResponse(data) {
 }
 
 async function callGeminiTextOnce(apiKey, model, systemPrompt, userParts, options = {}) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   const perModelMs = Number(options.perModelTimeoutMs) || 0;
   const fetchOpts = {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: 'user', parts: normalizeUserParts(userParts) }],

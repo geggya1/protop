@@ -32,10 +32,13 @@ import FileDropZone from '../anbud/FileDropZone';
 import RecruitmentBoard from './RecruitmentBoard';
 import RecruitmentApplicant from './RecruitmentApplicant';
 import RecruitmentJobForm from './RecruitmentJobForm';
-import {
-  EmptyHint, HrButton, HrCard, HrChip, HrField,
-} from './HrShared';
 import { radius, type } from '../../src/ui/tokens';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
 
 const isWeb = Platform.OS === 'web';
 const MAX_FILES = 15;

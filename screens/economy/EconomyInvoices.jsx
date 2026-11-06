@@ -19,12 +19,9 @@ import { touchHit } from '../../src/ui/touchTarget';
 import { showSaveToast } from '../../src/ui/saveToast';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import FilterMenu from '../../components/FilterMenu';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { ImportResult } from '../../components/ImportReview';
-import InvoiceImportReview from '../../components/InvoiceImportReview';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
-import ReportTable from '../../components/table/ReportTable';
 import useReportColumns from '../../components/table/useReportColumns';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
@@ -74,10 +71,8 @@ import { mergeIndexSnapshot } from '../../src/indeksregulering/indexLedger';
 import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
-import InvoicePage from './invoice/InvoicePage';
 import { useShellDetail } from '../../src/navigation/shellDetail';
 import { DetailMissing } from '../../src/ui/BackLink';
-import { DeleteDraftDialog, PaymentDialog } from './invoice/InvoiceDialogs';
 import { deleteDraft, payment } from './invoice/invoiceActions';
 import PowerOfficeSyncLine from './PowerOfficeSyncLine';
 import { loadPowerOfficeStatus, syncPowerOfficeInvoices, transferInvoiceToPowerOffice } from '../../src/economy/powerOfficeClient.js';
@@ -87,6 +82,13 @@ import { resolveProjectInvoiceSettings } from '../../src/project/invoiceSettings
 import { resolveCompanyInvoiceDefaults } from '../../src/economy/companyInvoiceDefaults.js';
 import { resolveCompanyAccounts } from '../../src/economy/companyChart.js';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const DeleteDraftDialog = lazyScreen(() => import('./invoice/InvoiceDialogs'), { name: 'DeleteDraftDialog', pick: 'DeleteDraftDialog', silent: true });
+const PaymentDialog = lazyScreen(() => import('./invoice/InvoiceDialogs'), { name: 'PaymentDialog', pick: 'PaymentDialog', silent: true });
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
+const InvoiceImportReview = lazyScreen(() => import('../../components/InvoiceImportReview'), { name: 'InvoiceImportReview', silent: true });
+const ReportTable = lazyScreen(() => import('../../components/table/ReportTable'), { name: 'ReportTable', silent: true });
+const InvoicePage = lazyScreen(() => import('./invoice/InvoicePage'), { name: 'InvoicePage', silent: true });
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;

@@ -22,6 +22,7 @@ import {
   yearCapacity,
 } from '../../src/economy/earnings';
 import { useEarningsSettings } from '../../src/economy/useEarningsSettings';
+import { BREAKPOINTS } from '../../src/ui/layout';
 
 function parsePlain(text) {
   const n = Number(String(text ?? '').replace(/\s/g, '').replace(',', '.'));
@@ -133,7 +134,7 @@ export default function EmployeeEarningsSheet({
 }) {
   const { width: screenWidth } = useWindowDimensions();
   // Bred skjerm: fakta om personen i en marg til høyre, tallene får hovedplassen.
-  const wide = screenWidth >= 1100;
+  const wide = screenWidth >= BREAKPOINTS.desktop;
   const owned = useEarningsSettings(settingsProp ? '' : companyId);
   const settings = settingsProp || owned.settings;
   const change = onChange || owned.update;

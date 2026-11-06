@@ -177,7 +177,7 @@ export default function EmployeeInvitePanel({
           title="Tilgang i bedriften"
           clearable={false}
         />
-        {!!formError && <Text style={{ color: colors.danger || '#b42318' }}>{formError}</Text>}
+        {!!formError && <Text style={{ color: colors.danger }}>{formError}</Text>}
         <TouchableOpacity
           nativeID="employee-invite-add"
           onPress={addPerson}
@@ -227,7 +227,7 @@ export default function EmployeeInvitePanel({
               <View style={styles.grow}>
                 <Text style={{ color: colors.ink, fontWeight: '600' }}>{displayName(row)}</Text>
                 <Text style={{ color: colors.muted }}>{employeeContactEmail(row)}</Text>
-                {!!row.invite?.error && <Text style={{ color: colors.danger || '#b42318' }}>{row.invite.error}</Text>}
+                {!!row.invite?.error && <Text style={{ color: colors.danger }}>{row.invite.error}</Text>}
               </View>
               <TouchableOpacity onPress={() => onResend?.(row)} disabled={busy} accessibilityRole="button">
                 <Text style={{ color: colors.brand }}>Send på nytt</Text>
@@ -377,7 +377,7 @@ function NotInvitedSection({ colors, employees, busy, progress, onInvite }) {
       })}
       {needle && !shown.length ? <Text style={{ color: colors.muted }}>Ingen treff.</Text> : null}
       {missing.length ? (
-        <Text nativeID="employee-invite-missing-email" style={{ color: colors.danger || '#b42318' }}>
+        <Text nativeID="employee-invite-missing-email" style={{ color: colors.danger }}>
           {`Mangler e-post (${missing.length}): ${missingNames.join(', ')}${missingRest > 0 ? ` og ${missingRest} til` : ''}. Åpne personen i ansattlisten og legg inn e-post for å kunne invitere.`}
         </Text>
       ) : null}

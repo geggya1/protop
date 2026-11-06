@@ -99,7 +99,7 @@ export default function EmployeeAccountView({
   onOpenAccess,
 }) {
   if (!employee) return null;
-  const danger = colors.danger || '#b42318';
+  const danger = colors.danger;
   const success = colors.success || '#16a34a';
   const deleted = isDeletedEmployee(employee);
   const deactivated = accountDeactivated(employee);

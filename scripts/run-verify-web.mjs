@@ -249,6 +249,7 @@ export const FILES = [
   // Innstillinger på personen: seksjonene, oversikten og familiekortet på Gjøremål.
   'src/employees/settingsSummary.test.mjs',
   'src/employees/personSettingsRender.test.cjs',
+  'src/employees/todoFocus.test.mjs',
   'src/employees/employeeAccount.test.mjs',
   'src/employees/membership.test.mjs',
   'src/project/projectAccess.test.mjs',

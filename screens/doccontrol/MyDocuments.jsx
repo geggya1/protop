@@ -45,7 +45,7 @@ function ruleLabel(id) {
   return READ_RULES.find((row) => row.id === id)?.label || '';
 }
 
-export default function MyDocuments({ colors, employeeId, employeeName = '', self = true }) {
+export default function MyDocuments({ colors, employeeId, employeeName = '', self = true, openId = '', openToken = 0 }) {
   const dc = useDocControl();
   const { familyId, actor, company, logo } = dc;
   const [filled, setFilled] = useState(() => (peekFilledDocs(familyId) || []).filter((row) => row.scope === 'hr'));
@@ -55,6 +55,11 @@ export default function MyDocuments({ colors, employeeId, employeeName = '', sel
   const [note, setNote] = useState('');
   const [composing, setComposing] = useState(null);
   const [picked, setPicked] = useSelectionCapture(dc.canComment && openKey === 'handbook');
+
+  // Fra Gjøremål: et trykk på «Les og bekreft: …» åpner akkurat det dokumentet.
+  useEffect(() => {
+    if (openId) setOpenKey(openId);
+  }, [openId, openToken]);
 
   useEffect(() => {
     let live = true;
@@ -149,7 +154,7 @@ export default function MyDocuments({ colors, employeeId, employeeName = '', sel
         const form = control.kind === 'template' && control.readRule !== 'signeres' && isOpen ? formFromControl(control) : null;
         const tone = row.done ? OK_INK : row.required ? FOCUS_FIELD_INK : colors.muted;
         return (
-          <View key={control.id} style={[styles.doc, { borderColor: row.required && !row.done ? FOCUS_FIELD_BORDER : colors.line, backgroundColor: row.required && !row.done ? FOCUS_FIELD_BG : 'transparent' }]}>
+          <View key={control.id} nativeID={`my-doc-${String(control.id).replace(/[^A-Za-z0-9_-]/g, '-')}`} style={[styles.doc, { borderColor: row.required && !row.done ? FOCUS_FIELD_BORDER : colors.line, backgroundColor: row.required && !row.done ? FOCUS_FIELD_BG : 'transparent' }]}>
             <TouchableOpacity onPress={() => setOpenKey(isOpen ? '' : control.id)} accessibilityRole="button" accessibilityLabel={`Åpne ${control.title}`} style={styles.head}>
               <Ionicons name={row.done ? 'checkmark-circle' : row.required ? 'alert-circle-outline' : 'document-text-outline'} size={20} color={tone} />
               <View style={{ flex: 1, gap: 2 }}>

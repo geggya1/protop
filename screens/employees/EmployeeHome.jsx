@@ -9,7 +9,7 @@
  * uten røde dager. Interntid og fravær er ikke fakturerbart (src/employees/homeStats.js).
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import StorageImage from '../../components/StorageImage';
@@ -166,20 +166,32 @@ function ProfileCard({ employee, colors, onEdit }) {
       {phone || email ? (
         <View style={styles.contactRow}>
           {phone ? (
-            <View style={styles.contactItem}>
+            <Pressable
+              nativeID="employee-home-phone"
+              onPress={() => Linking.openURL(`tel:${phone.replace(/\s+/g, '')}`).catch(() => {})}
+              accessibilityRole="link"
+              accessibilityLabel={`Ring ${phone}`}
+              style={({ hovered }) => [styles.contactItem, hovered && { opacity: 0.8 }]}
+            >
               <View style={[styles.contactIcon, { backgroundColor: colors.brandSoft }]}>
                 <Ionicons name="call-outline" size={16} color={colors.brand} />
               </View>
-              <Text style={[type.body, { color: colors.ink }]} numberOfLines={1} selectable>{phone}</Text>
-            </View>
+              <Text style={[type.body, { color: colors.ink }]} numberOfLines={1}>{phone}</Text>
+            </Pressable>
           ) : null}
           {email ? (
-            <View style={[styles.contactItem, styles.contactGrow]}>
+            <Pressable
+              nativeID="employee-home-email"
+              onPress={() => Linking.openURL(`mailto:${email}`).catch(() => {})}
+              accessibilityRole="link"
+              accessibilityLabel={`Send e-post til ${email}`}
+              style={({ hovered }) => [styles.contactItem, styles.contactGrow, hovered && { opacity: 0.8 }]}
+            >
               <View style={[styles.contactIcon, { backgroundColor: colors.brandSoft }]}>
                 <Ionicons name="mail-outline" size={16} color={colors.brand} />
               </View>
-              <Text style={[type.body, styles.shrink, { color: colors.ink }]} numberOfLines={1} selectable>{email}</Text>
-            </View>
+              <Text style={[type.body, styles.shrink, { color: colors.ink }]} numberOfLines={1}>{email}</Text>
+            </Pressable>
           ) : null}
         </View>
       ) : null}
@@ -213,9 +225,11 @@ function Shortcuts({ items, colors }) {
   );
 }
 
-function Kpi({ icon, label, value, hint, colors, tone, aside }) {
-  return (
-    <Card colors={colors} style={[styles.kpi, tone ? { backgroundColor: tone.bg } : null]}>
+function Kpi({
+  icon, label, value, hint, colors, tone, aside, onPress, nativeID,
+}) {
+  const body = (
+    <>
       <View style={[styles.kpiIcon, { backgroundColor: tone ? colors.card : colors.brandSoft }]}>
         <Ionicons name={icon} size={18} color={tone ? tone.ink : colors.brand} />
       </View>
@@ -225,7 +239,27 @@ function Kpi({ icon, label, value, hint, colors, tone, aside }) {
         {hint ? <Text style={[type.caption, { color: colors.muted }]} numberOfLines={1}>{hint}</Text> : null}
       </View>
       {aside}
-    </Card>
+      {onPress ? <Ionicons name="chevron-forward" size={16} color={colors.muted} /> : null}
+    </>
+  );
+  if (!onPress) {
+    return <Card colors={colors} style={[styles.kpi, tone ? { backgroundColor: tone.bg } : null]}>{body}</Card>;
+  }
+  return (
+    <Pressable
+      nativeID={nativeID}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${value}`}
+      style={({ hovered }) => [
+        styles.card,
+        lift,
+        styles.kpi,
+        { backgroundColor: tone ? tone.bg : colors.card, borderColor: hovered ? colors.brand : colors.line },
+      ]}
+    >
+      {body}
+    </Pressable>
   );
 }
 
@@ -481,11 +515,18 @@ function AbsenceCard({ data, colors, onAll, loading, title = 'Fravær' }) {
         <Donut groups={data.groups} total={loading ? 0 : data.total} colors={colors} palette={palette} />
         <View style={styles.absenceList}>
           {groups.map((g) => (
-            <View key={g.id} style={styles.absenceRow}>
+            <Pressable
+              key={g.id}
+              nativeID={`employee-home-absence-${g.id}`}
+              onPress={onAll}
+              disabled={!onAll}
+              accessibilityRole={onAll ? 'button' : undefined}
+              style={({ hovered }) => [styles.absenceRow, hovered && onAll && { backgroundColor: colors.sunken }]}
+            >
               <View style={[styles.legendDot, { backgroundColor: palette[g.id] }]} />
               <Text style={[type.body, styles.grow, { color: colors.ink }]} numberOfLines={1}>{g.label}</Text>
               <Text style={[type.body, { color: colors.ink }]}>{dayText(g.days)}</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
       </View>
@@ -629,6 +670,7 @@ export default function EmployeeHome({
   onOpenTodo,
   onOpenAbsence,
   onOpenHours,
+  onOpenReport,
   onOpenProject,
   onOpenProjects,
 }) {
@@ -674,9 +716,11 @@ export default function EmployeeHome({
 
   const kpis = showWork ? (
     <View style={[styles.kpiRow, compact && styles.kpiRowStack]}>
-      <Kpi icon="calendar-outline" label="Tilgjengelige timer" value={loadingText || formatHoursShort(series.total.capacity)} hint="i perioden" colors={colors} />
-      <Kpi icon="layers-outline" label="Fakturerbare timer" value={loadingText || formatHoursShort(series.total.billable)} hint="i perioden" colors={colors} />
+      <Kpi nativeID="employee-home-kpi-capacity" onPress={onOpenHours} icon="calendar-outline" label="Tilgjengelige timer" value={loadingText || formatHoursShort(series.total.capacity)} hint="i perioden" colors={colors} />
+      <Kpi nativeID="employee-home-kpi-billable" onPress={onOpenReport || onOpenHours} icon="layers-outline" label="Fakturerbare timer" value={loadingText || formatHoursShort(series.total.billable)} hint="i perioden" colors={colors} />
       <Kpi
+        nativeID="employee-home-kpi-rate"
+        onPress={onOpenReport || onOpenHours}
         icon="locate-outline"
         label="Faktureringsgrad"
         value={loadingText || (pct == null ? '–' : `${pct} %`)}
@@ -807,7 +851,7 @@ const styles = StyleSheet.create({
   projectHours: { width: 56, textAlign: 'right' },
   absenceBody: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexWrap: 'wrap' },
   absenceList: { flex: 1, minWidth: 150, gap: space.xs },
-  absenceRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, justifyContent: 'space-between' },
+  absenceRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, justifyContent: 'space-between', paddingVertical: 3, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 6 },
   weekTrack: { height: 12, borderRadius: radius.pill, overflow: 'hidden' },
   weekFill: { height: '100%', borderRadius: radius.pill },
   weekStats: { flexDirection: 'row', alignItems: 'stretch' },

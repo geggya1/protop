@@ -26,20 +26,30 @@ export const EMPLOYEE_SUB_TABS = {
   // Innstillinger: en meny til venstre (på mobil en oversikt) med én side per seksjon.
   // Rettighetene settes bare i Tilgangsstyring. Tilgang og rettigheter viser dem som en oppsummering.
   settings: [
-    { id: 'settingsOverview', label: 'Oversikt', icon: 'grid-outline', hint: 'Alle innstillingene for personen samlet' },
-    { id: 'settingsProfile', label: 'Min profil', icon: 'person-circle-outline', hint: 'Bilde, navn, stilling og kontakt' },
-    { id: 'settingsPersonal', label: 'Personopplysninger', icon: 'id-card-outline', hint: 'Fødselsdato, adresse og personnummer' },
-    { id: 'settingsKin', label: 'Pårørende', icon: 'people-outline', hint: 'Nærmeste pårørende og barn' },
-    { id: 'settingsEmployment', label: 'Ansettelsesforhold', icon: 'briefcase-outline', hint: 'Ansettelsestype, lønnsform, stillingsprosent og periode' },
-    { id: 'settingsWork', label: 'Arbeidstid', icon: 'time-outline', hint: 'Ukeplan og perioder med egen arbeidstid' },
-    { id: 'settingsGeneral', label: 'Timeføring og produktivitet', icon: 'stats-chart-outline', hint: 'Regler for timelisten, mål for faktureringsgrad og timepris' },
-    { id: 'settingsHms', label: 'HMS og dokumentasjon', icon: 'shield-checkmark-outline', hint: 'HMS-kort og dokumenter som skal leses eller signeres' },
-    { id: 'settings', label: 'Konto og sikkerhet', icon: 'lock-closed-outline', hint: 'Brukerkonto, invitasjon og passord' },
-    { id: 'settingsNotify', label: 'Varslinger', icon: 'notifications-outline', hint: 'Varsler om timeliste og godkjenning' },
-    { id: 'settingsAccess', label: 'Tilgang og rettigheter', icon: 'key-outline', hint: 'Nivå i Tilgangsstyring og AI-assistent' },
-    { id: 'settingsAdmin', label: 'Administrasjon', icon: 'construct-outline', hint: 'Brukerlogg, tagger, papirkurv og avslutning' },
+    { id: 'settingsOverview', group: 'overview', color: '#0284c7', label: 'Oversikt', icon: 'grid-outline', hint: 'Alle innstillingene for personen samlet' },
+    { id: 'settingsProfile', group: 'me', color: '#0284c7', label: 'Min profil', icon: 'person-circle-outline', hint: 'Bilde, navn, stilling og kontakt' },
+    { id: 'settingsPersonal', group: 'me', color: '#4f46e5', label: 'Personopplysninger', icon: 'id-card-outline', hint: 'Fødselsdato, adresse og personnummer' },
+    { id: 'settingsKin', group: 'me', color: '#db2777', label: 'Pårørende', icon: 'people-outline', hint: 'Nærmeste pårørende og barn' },
+    { id: 'settingsEmployment', group: 'work', color: '#7c3aed', label: 'Ansettelsesforhold', icon: 'briefcase-outline', hint: 'Ansettelsestype, lønnsform, stillingsprosent og periode' },
+    { id: 'settingsWork', group: 'work', color: '#0891b2', label: 'Arbeidstid', icon: 'time-outline', hint: 'Ukeplan og perioder med egen arbeidstid' },
+    { id: 'settingsGeneral', group: 'work', color: '#16a34a', label: 'Timeføring og produktivitet', icon: 'stats-chart-outline', hint: 'Regler for timelisten, mål for faktureringsgrad og timepris' },
+    { id: 'settingsHms', group: 'work', color: '#d97706', label: 'HMS og dokumentasjon', icon: 'shield-checkmark-outline', hint: 'HMS-kort og dokumenter som skal leses eller signeres' },
+    { id: 'settings', group: 'system', color: '#475569', label: 'Konto og sikkerhet', icon: 'lock-closed-outline', hint: 'Brukerkonto, invitasjon og passord' },
+    { id: 'settingsNotify', group: 'system', color: '#ea580c', label: 'Varslinger', icon: 'notifications-outline', hint: 'Varsler om timeliste og godkjenning' },
+    { id: 'settingsAccess', group: 'system', color: '#e11d48', label: 'Tilgang og rettigheter', icon: 'key-outline', hint: 'Nivå i Tilgangsstyring og AI-assistent' },
+    { id: 'settingsAdmin', group: 'system', color: '#0f766e', label: 'Administrasjon', icon: 'construct-outline', hint: 'Brukerlogg, tagger, papirkurv og avslutning' },
   ],
 };
+
+/**
+ * Gruppene i Innstillinger, i rekkefølge. Seksjonene over har `group` og en egen farge (`color`),
+ * så menyen og oversikten kan vise dem gruppert med fargede ikoner.
+ */
+export const SETTINGS_GROUPS = [
+  { id: 'me', label: 'Om meg', icon: 'person-outline', hint: 'Profil, personopplysninger og pårørende' },
+  { id: 'work', label: 'Arbeid', icon: 'briefcase-outline', hint: 'Ansettelse, arbeidstid, timeføring og HMS' },
+  { id: 'system', label: 'Konto og system', icon: 'settings-outline', hint: 'Konto, varsler, tilgang og administrasjon' },
+];
 
 /** Brukerinnstillingene under Innstillinger: view-id → del i EmployeeWorkViews. */
 export const EMPLOYEE_SETTINGS_SUBS = {

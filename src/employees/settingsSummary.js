@@ -106,3 +106,36 @@ export function settingsSummary(employee, { companyName = '', reveal = false, to
     ],
   };
 }
+
+/** Seksjonene som teller når profilen måles: det personen (eller HR) fyller inn om seg. */
+export const PROGRESS_SECTIONS = ['settingsProfile', 'settingsPersonal', 'settingsKin', 'settingsEmployment'];
+
+/**
+ * Hvor mye som er fylt ut, fra linjene i settingsSummary.
+ * Gir { pct, filled, total, missing: [{ section, label }], bySection: { id: { filled, total } } }.
+ * bySection gjelder alle seksjoner; pct og missing bare PROGRESS_SECTIONS.
+ */
+export function settingsProgress(summary = {}, { sections = PROGRESS_SECTIONS } = {}) {
+  const bySection = {};
+  for (const [id, rows] of Object.entries(summary || {})) {
+    const list = Array.isArray(rows) ? rows : [];
+    bySection[id] = { filled: list.filter((r) => !r.missing).length, total: list.length };
+  }
+  const missing = [];
+  let filled = 0;
+  let total = 0;
+  for (const id of sections) {
+    for (const r of summary?.[id] || []) {
+      total += 1;
+      if (r.missing) missing.push({ section: id, label: r.label });
+      else filled += 1;
+    }
+  }
+  return {
+    pct: total ? Math.round((filled / total) * 100) : 100,
+    filled,
+    total,
+    missing,
+    bySection,
+  };
+}

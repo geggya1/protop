@@ -854,6 +854,7 @@ function AppShellInner() {
     if (tab === 'selskap' && moreSubView === 'moduler') return <ProjectPlatformScreen startPage="moduler" />;
     if (tab === 'selskap' && moreSubView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && moreSubView === 'tilknyttede') return <ProjectPlatformScreen startPage="tilknyttede" />;
+    if (tab === 'selskap' && moreSubView === 'ai') return <ProjectPlatformScreen startPage="ai" />;
     if (tab === 'selskap' && moreSubView === 'innstillinger') return <ProjectPlatformScreen />;
     if (tab === 'selskap' && (moreSubView === 'fravaerstyper' || moreSubView === 'fridager' || moreSubView === 'sykefravaer')) {
       return <AbsenceSettingsScreen startTab={moreSubView} />;

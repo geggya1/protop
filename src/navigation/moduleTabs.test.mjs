@@ -34,7 +34,7 @@ test('modulmeny: Økonomi, Arbeid, Fravær, Produkt og Selskapsinnstillinger', (
   assert.equal(moduleTabsFor('okonomi', 'produkter').moduleId, 'produkt');
   const settings = moduleTabsFor('selskap', 'tilgang');
   assert.equal(settings.moduleId, 'selskapsinnstillinger');
-  assert.deepEqual(settings.pages.map((p) => p.label), ['Generelt', 'Modulinnstillinger', 'Tilgangsstyring', 'Tilknyttede selskaper']);
+  assert.deepEqual(settings.pages.map((p) => p.label), ['Generelt', 'Modulinnstillinger', 'Tilgangsstyring', 'Tilknyttede selskaper', 'AI-abonnement']);
   assert.equal(settings.activeId, 'selskapsinnstillinger-tilgang');
 });
 
@@ -101,8 +101,8 @@ test('modulmeny: telefon viser 3–4 faner og «Mer» med resten', () => {
   assert.deepEqual(iso.visible.map((p) => p.short || p.label), ['Oversikt', 'Avvik', 'Risiko', 'HMS']);
   assert.deepEqual(iso.more.map((g) => g.label), ['Styring', 'Drift', 'Evaluering', 'Innstillinger'], 'ISO-delene er titler i arket');
   const settings = splitModuleTabs(moduleTabsFor('selskap', 'tilgang'), PHONE);
-  assert.deepEqual(settings.visible.map((p) => p.short || p.label), ['Generelt', 'Moduler', 'Tilgang', 'Tilknyttede'], 'fire korte faner, ingen «Mer»');
-  assert.deepEqual(settings.more[0]?.pages || [], []);
+  assert.deepEqual(settings.visible.map((p) => p.short || p.label), ['Generelt', 'Moduler', 'Tilgang'], 'tre korte faner og «Mer»');
+  assert.deepEqual((settings.more[0]?.pages || []).map((p) => p.label), ['Tilknyttede selskaper', 'AI-abonnement']);
   const companyModules = companyNavItems({ includeUnderenheter: true }).filter((item) => (item.children || []).length);
   for (const item of companyModules) {
     for (const child of item.children) {

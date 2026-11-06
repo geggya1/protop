@@ -32,7 +32,13 @@ function Card({ children, style }) {
 function CardHead({ icon, title, meta, onPress, extra, large }) {
   const label = (
     <>
-      <Ionicons name={icon} size={large ? 16 : 15} color={colors.brand} />
+      {large ? (
+        <View style={styles.iconTile}>
+          <Ionicons name={icon} size={18} color={colors.brand} />
+        </View>
+      ) : (
+        <Ionicons name={icon} size={15} color={colors.brand} />
+      )}
       <Text style={[styles.cardTitle, large && styles.cardTitleLarge]} numberOfLines={1}>{title}</Text>
       {meta ? <Text style={styles.cardMeta} numberOfLines={1}>{meta}</Text> : null}
     </>
@@ -559,7 +565,7 @@ const styles = StyleSheet.create({
   wrap: { marginTop: 8, marginBottom: 8 },
   wrapFlush: { marginTop: 0, marginBottom: 0 },
   headActions: { flexDirection: 'row', alignItems: 'center', gap: 12, marginLeft: 8, flexShrink: 0 },
-  customize: { fontSize: 13, fontWeight: '500', color: colors.brandInk },
+  customize: { fontSize: 13, fontWeight: '400', color: colors.brandInk },
   toolbarOnly: {
     width: '100%',
     flexDirection: 'row',
@@ -583,12 +589,16 @@ const styles = StyleSheet.create({
   cardHeadMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
   cardTitle: { flexShrink: 1, fontWeight: '600', fontSize: 13, color: colors.ink },
   cardTitleLarge: { fontSize: 17, letterSpacing: -0.2 },
+  iconTile: {
+    width: 36, height: 36, borderRadius: 10, backgroundColor: colors.brandSoft,
+    alignItems: 'center', justifyContent: 'center', marginRight: 4,
+  },
   cardMeta: { marginLeft: 'auto', fontSize: 11, color: colors.muted, fontWeight: '400' },
   big: { fontSize: 26, fontWeight: '400', color: colors.ink, letterSpacing: -0.4 },
   unit: { fontSize: 14, fontWeight: '400', color: colors.muted },
   delta: { fontSize: 12, color: colors.muted, marginTop: 2 },
   attr: { fontSize: 10, color: colors.muted, marginTop: 6 },
-  error: { color: colors.dangerInk, fontSize: 12, fontWeight: '500', paddingVertical: 4 },
+  error: { color: colors.dangerInk, fontSize: 12, fontWeight: '400', paddingVertical: 4 },
   loadingRow: { paddingVertical: 10, alignItems: 'flex-start' },
   newsRow: { paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   newsTitle: { fontSize: 14, fontWeight: '400', color: colors.ink, lineHeight: 18 },
@@ -639,5 +649,5 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     backgroundColor: colors.brandInk, borderRadius: radius.sm, paddingHorizontal: 12, justifyContent: 'center',
   },
-  followTxt: { color: colors.onBrand, fontWeight: '600', fontSize: 13 },
+  followTxt: { color: colors.onBrand, fontWeight: '400', fontSize: 13 },
 });

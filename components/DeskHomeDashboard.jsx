@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform, Image,
   useWindowDimensions, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,6 +46,18 @@ function Card({ children, style, onPress, fill }) {
     >
       {inner}
     </TouchableOpacity>
+  );
+}
+
+const HERO_IMAGE = require('../assets/home-desk-hero.webp');
+const AGENDA_ART = require('../assets/home-desk-illustration.webp');
+
+/** Ikon i en lys, avrundet flis, som i designmanualen. */
+function IconTile({ name, size = 18 }) {
+  return (
+    <View style={styles.iconTile}>
+      <Ionicons name={name} size={size} color={colors.brand} />
+    </View>
   );
 }
 
@@ -139,6 +151,7 @@ export default function DeskHomeDashboard({
     () => mergeDeskDayEvents(familyEventsTomorrow, externalEvents, tomorrow),
     [familyEventsTomorrow, externalEvents, tomorrow],
   );
+  const showAgendaArt = eventsToday.length + eventsTomorrow.length <= 3;
   const firstNameMe = firstNameFromProfile(activeProfile, 'du');
   const dateLabel = formatGreetingDate(now);
   const temp = forecast?.current?.temp ?? forecast?.today?.temp;
@@ -178,8 +191,17 @@ export default function DeskHomeDashboard({
 
   return (
     <View style={[styles.page, short && styles.pageShort]}>
-      <View style={styles.hero}>
-        <View style={{ flex: 1, minWidth: 0 }}>
+      <View style={[styles.hero, short && styles.heroShort]}>
+        <Image
+          source={HERO_IMAGE}
+          style={styles.heroImg}
+          resizeMode="cover"
+          accessibilityIgnoresInvertColors
+        />
+        <View style={styles.heroFade} pointerEvents="none" />
+        <View style={styles.heroCopy}>
+          <View style={styles.heroAccent} />
+          <View style={{ flex: 1, minWidth: 0 }}>
           {/* Samme hilsen som Hjem på telefon (UX-05), uten emoji. Skallet eier sidetittelen «Hjem». */}
           <Text style={[styles.hello, short && styles.helloShort]} numberOfLines={1}>
             {deskGreetingTitle(now, firstNameMe)}
@@ -197,6 +219,7 @@ export default function DeskHomeDashboard({
                 <Text style={styles.heroWeatherTxt} numberOfLines={1}>{weatherBit}</Text>
               </TouchableOpacity>
             ) : null}
+          </View>
           </View>
         </View>
         <View style={styles.heroActions}>
@@ -226,6 +249,7 @@ export default function DeskHomeDashboard({
         <View style={styles.agendaCol}>
           <HelpTarget id="timeline" style={[styles.card, styles.cardFill]}>
             <View style={styles.cardHeadRow}>
+              <IconTile name="calendar-outline" />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.cardTitle}>Dagens agenda</Text>
                 <Text style={styles.cardHint}>
@@ -239,14 +263,14 @@ export default function DeskHomeDashboard({
               </TouchableOpacity>
             </View>
             <ScrollView
-              style={styles.agendaScroll}
+              style={[styles.agendaScroll, showAgendaArt && styles.agendaScrollFit]}
               contentContainerStyle={styles.agendaScrollInner}
               showsVerticalScrollIndicator
               nestedScrollEnabled
             >
               {eventsToday.length === 0 ? (
                 <TouchableOpacity style={styles.emptyCta} onPress={() => onTab?.('plan')} activeOpacity={0.85}>
-                  <Ionicons name="calendar-outline" size={18} color={colors.brand} />
+                  <Ionicons name="calendar-clear-outline" size={18} color={colors.brand} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.emptyCtaTitle}>Ingen hendelser i dag</Text>
                     <Text style={styles.statSub}>Åpne kalenderen for å legge til eller synke Outlook.</Text>
@@ -287,6 +311,17 @@ export default function DeskHomeDashboard({
                 </View>
               ) : null}
             </ScrollView>
+            {/* Rolig illustrasjon i den ledige plassen når dagen er lett. */}
+            {showAgendaArt ? (
+              <View style={styles.agendaArt} pointerEvents="none">
+                <Image
+                  source={AGENDA_ART}
+                  style={styles.agendaArtImg}
+                  resizeMode="cover"
+                  accessibilityIgnoresInvertColors
+                />
+              </View>
+            ) : null}
           </HelpTarget>
         </View>
 
@@ -300,6 +335,7 @@ export default function DeskHomeDashboard({
 
           <View style={[styles.card, styles.tasksCard]}>
             <View style={styles.cardHeadRow}>
+              <IconTile name="checkbox-outline" />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.cardTitle}>Oppgaver</Text>
                 <Text style={styles.cardHint}>
@@ -308,8 +344,9 @@ export default function DeskHomeDashboard({
                     : 'Ingen åpne i dag'}
                 </Text>
               </View>
-              <TouchableOpacity onPress={() => onTab?.('stars')}>
+              <TouchableOpacity onPress={() => onTab?.('stars')} style={styles.linkRow} accessibilityRole="link">
                 <Text style={styles.link}>Alle</Text>
+                <Ionicons name="arrow-forward" size={14} color={colors.brandInk} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.tasksScroll} nestedScrollEnabled showsVerticalScrollIndicator>
@@ -356,11 +393,19 @@ export default function DeskHomeDashboard({
           </View>
 
           <Card onPress={() => onTab?.('notes')}>
-            <Text style={styles.noteKicker}>Notat</Text>
-            <Text style={styles.noteTitle} numberOfLines={2}>{note?.title || 'Ingen notater ennå'}</Text>
-            <Text style={styles.noteBody} numberOfLines={3}>
-              {note?.meta || 'Skriv et notat du finner igjen.'}
-            </Text>
+            <View style={styles.noteRow}>
+              <IconTile name="create-outline" />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.cardTitle}>Notat</Text>
+                <Text style={styles.noteTitle} numberOfLines={2}>{note?.title || 'Ingen notater ennå'}</Text>
+                <Text style={styles.noteBody} numberOfLines={3}>
+                  {note?.meta || 'Skriv et notat du finner igjen.'}
+                </Text>
+              </View>
+              <View style={styles.noteEdit}>
+                <Ionicons name="pencil-outline" size={16} color={colors.brandInk} />
+              </View>
+            </View>
           </Card>
 
           <View style={styles.card}>
@@ -370,7 +415,8 @@ export default function DeskHomeDashboard({
               accessibilityLabel="Vis været i dag og i morgen"
             >
               <View style={styles.cardHeadRow}>
-                <Text style={styles.cardTitle}>Været{placeName ? ` i ${placeName}` : ''}</Text>
+                <IconTile name="partly-sunny-outline" />
+                <Text style={[styles.cardTitle, { flex: 1, alignSelf: 'center' }]}>Været{placeName ? ` i ${placeName}` : ''}</Text>
                 <Ionicons name={weatherOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
               </View>
               <View style={styles.weatherNow}>
@@ -466,20 +512,74 @@ const styles = StyleSheet.create({
   },
   pageShort: { padding: 10, paddingBottom: 8, gap: 8 },
   startCard: { maxWidth: 880 },
+  // Hero (designmanualen): bilde i et avrundet kort, tonet ut mot venstre der hilsenen står.
   hero: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+    position: 'relative',
+    overflow: 'hidden',
+    height: 168,
+    flexShrink: 0,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.brandSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    paddingHorizontal: 24,
+    ...webShadow,
   },
+  heroShort: { height: 128, paddingHorizontal: 18 },
+  heroImg: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+    ...(Platform.OS === 'web' ? { objectPosition: 'center 32%' } : null),
+  },
+  heroFade: {
+    ...StyleSheet.absoluteFillObject,
+    ...(Platform.OS === 'web'
+      ? {
+        backgroundImage: 'linear-gradient(90deg, var(--wp-c-card) 0%, color-mix(in srgb, var(--wp-c-card) 92%, transparent) 26%, color-mix(in srgb, var(--wp-c-card) 40%, transparent) 46%, transparent 64%)',
+      }
+      : { backgroundColor: 'rgba(255,255,255,0.55)' }),
+  },
+  heroCopy: {
+    flex: 1, minWidth: 0, maxWidth: 520, flexDirection: 'row', alignItems: 'stretch', gap: 12,
+  },
+  heroAccent: { width: 4, borderRadius: 2, backgroundColor: colors.brand },
   hello: { ...type.h1, color: colors.ink },
   helloShort: { fontSize: 22, lineHeight: 28 },
-  heroSubRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4, flexWrap: 'wrap' },
-  heroSub: { fontSize: 13, color: colors.muted, fontWeight: '500' },
+  heroSubRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' },
+  heroSub: { fontSize: 13, color: colors.muted, fontWeight: '400' },
   heroWeather: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
-    borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
   },
   heroWeatherTxt: { fontSize: 12, fontWeight: '400', color: colors.ink },
-  heroActions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
+  heroActions: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0, alignSelf: 'flex-start', marginTop: 16,
+  },
+  iconTile: {
+    width: 36, height: 36, borderRadius: 10, backgroundColor: colors.brandSoft,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  agendaScrollFit: { flex: 0, flexGrow: 0, flexShrink: 1 },
+  agendaArt: {
+    flex: 1, minHeight: 0, marginTop: 10, borderRadius: radius.card, overflow: 'hidden',
+    backgroundColor: colors.brandSoft,
+  },
+  agendaArtImg: {
+    width: '100%', height: '100%',
+    ...(Platform.OS === 'web' ? { objectPosition: 'center 60%' } : null),
+  },
+  noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  noteEdit: {
+    width: 34, height: 34, borderRadius: radius.control, borderWidth: 1, borderColor: colors.line,
+    backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
   iconBtn: {
     width: 36, height: 36, borderRadius: radius.control, backgroundColor: colors.card,
     borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center',
@@ -494,14 +594,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: colors.brandInk, height: 36, paddingHorizontal: 12, borderRadius: radius.control,
   },
-  primaryBtnTxt: { color: colors.onBrand, fontWeight: '600', fontSize: 13 },
+  primaryBtnTxt: { color: colors.onBrand, fontWeight: '400', fontSize: 13 },
   ghostBtn: {
     alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: colors.card, height: 36, paddingHorizontal: 11, borderRadius: radius.control,
     borderWidth: 1, borderColor: colors.line,
   },
-  ghostBtnTxt: { color: colors.ink, fontWeight: '600', fontSize: 13 },
+  ghostBtnTxt: { color: colors.ink, fontWeight: '400', fontSize: 13 },
   main: Platform.OS === 'web'
     ? {
       flex: 1,
@@ -520,12 +620,12 @@ const styles = StyleSheet.create({
   },
   cardFill: { flex: 1, minHeight: 0 },
   cardHeadRow: {
-    flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10,
   },
   cardTitle: { ...type.title, color: colors.ink },
-  cardHint: { fontSize: 12, color: colors.muted, fontWeight: '500', marginTop: 2 },
-  link: { color: colors.brandInk, fontWeight: '500', fontSize: 13, marginTop: 2 },
-  empty: { color: colors.muted, fontSize: 12, fontWeight: '500', paddingVertical: 4 },
+  cardHint: { fontSize: 12, color: colors.muted, fontWeight: '400', marginTop: 2 },
+  link: { color: colors.brandInk, fontWeight: '400', fontSize: 13, marginTop: 2 },
+  empty: { color: colors.muted, fontSize: 12, fontWeight: '400', paddingVertical: 4 },
   emptyCta: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: colors.bg, borderRadius: radius.card, paddingVertical: 10, paddingHorizontal: 10,
@@ -561,9 +661,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', marginBottom: 6,
   },
   tmRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  noteKicker: { fontSize: 11, fontWeight: '500', color: colors.muted, letterSpacing: 0.3, textTransform: 'uppercase' },
-  noteTitle: { fontSize: 15, fontWeight: '600', color: colors.ink, marginTop: 6, letterSpacing: -0.2 },
-  noteBody: { fontSize: 13, color: colors.muted, fontWeight: '400', lineHeight: 19, marginTop: 6 },
+  noteTitle: { fontSize: 13, fontWeight: '400', color: colors.ink, marginTop: 4 },
+  noteBody: { fontSize: 13, color: colors.muted, fontWeight: '400', lineHeight: 19, marginTop: 2 },
   weatherNow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   weatherTemp: { fontSize: 28, fontWeight: '400', color: colors.ink, letterSpacing: -0.6 },
   forecastRow: { flexDirection: 'row', gap: 6 },
@@ -582,7 +681,7 @@ const styles = StyleSheet.create({
   weatherDayHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 4 },
   weatherDayTemp: { fontSize: 22, fontWeight: '400', color: colors.ink, letterSpacing: -0.4 },
   weatherDayBit: { fontSize: 11, fontWeight: '400', color: colors.muted, lineHeight: 15 },
-  statSub: { fontSize: 11, color: colors.muted, marginTop: 1, fontWeight: '500' },
+  statSub: { fontSize: 11, color: colors.muted, marginTop: 1, fontWeight: '400' },
   upsell: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12,
     backgroundColor: '#eef2ff', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 14,

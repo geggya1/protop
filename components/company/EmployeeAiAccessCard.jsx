@@ -88,7 +88,7 @@ export default function EmployeeAiAccessCard({
             <Text style={[styles.hint, { color: colors.muted }]}>Innleid eller ekstern: tilgangen gjelder bare denne personen.</Text>
           ) : null}
         </View>
-        <BrandToggle value={granted} onValueChange={toggle} disabled={disabled} />
+        <BrandToggle value={granted} onValueChange={toggle} disabled={disabled} compact />
       </View>
       {error ? <Text style={[styles.hint, { color: colors.danger }]}>{error}</Text> : null}
       <Text style={[styles.hint, { color: colors.muted }]}>

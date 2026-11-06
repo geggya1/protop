@@ -109,8 +109,11 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   const aiAdmins = useMemo(() => {
     const ids = [family?.ownerUid, ...(Array.isArray(family?.adminUids) ? family.adminUids : [])].filter(Boolean);
     const myName = userProfile?.displayName || userProfile?.name || '';
-    return [...new Set(ids)].map((id) => ({ uid: id, name: id === uid ? (myName || 'Deg') : '' }));
-  }, [family?.ownerUid, family?.adminUids, uid, userProfile?.displayName, userProfile?.name]);
+    const myEmail = userProfile?.email || '';
+    return [...new Set(ids)].map((id) => (id === uid
+      ? { uid: id, name: myName || 'Deg', email: myEmail }
+      : { uid: id, name: '', email: '' }));
+  }, [family?.ownerUid, family?.adminUids, uid, userProfile?.displayName, userProfile?.name, userProfile?.email]);
   const canOpenAccess = (owner && !access.previewLocks('accessControl'))
     || (access.ready && access.canView('accessControl'));
   const contextLabel = companyContextLabel(family);

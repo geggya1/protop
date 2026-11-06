@@ -31,7 +31,6 @@ import { PRICING_VISIBLE } from '../src/utils/billingMethods';
 import { lazyScreen } from '../src/ui/lazyScreen';
 // Startsjekklisten og hurtigrapporten drar med anbud og ISO; de lastes når hjem tegnes.
 const CompanyStartChecklist = lazyScreen(() => import('./home/CompanyStartChecklist'), { name: 'CompanyStartChecklist', silent: true });
-const CompanyQuickReport = lazyScreen(() => import('./home/CompanyQuickReport'), { name: 'CompanyQuickReport', silent: true });
 
 function Card({ children, style, onPress, fill }) {
   const inner = (
@@ -222,7 +221,6 @@ export default function DeskHomeDashboard({
 
       <CompanyOfferCard style={styles.startCard} />
       <CompanyStartChecklist />
-      <CompanyQuickReport style={styles.startCard} />
 
       <View style={styles.main}>
         <View style={styles.agendaCol}>

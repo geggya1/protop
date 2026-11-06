@@ -64,8 +64,9 @@ try {
   await guard(R, '4.01', 'RUH fra telefon', async () => {
     const skip = B.page.getByText('Hopp over rundturen', { exact: true });
     if (await skip.count()) await skip.first().click({ force: true }).catch(() => {});
-    await go(B, 'home', null, 3000);
-    // ISO-03: «Meld RUH» ligger på bedriftens Hjem og åpner hurtigmeldingen (type → tekst/foto → Send).
+    await go(B, 'iso', 'oversikt', 6000);
+    // ISO-03: «Meld RUH» står i knapperaden i ISO og åpner hurtigmeldingen (type → tekst/foto → Send).
+    // Den ligger ikke lenger som eget felt på Hjem; der kan brukeren legge den til som widget.
     let taps = 0;
     await B.shot('hjem');
     await B.click('Meld RUH', { timeout: 60000 }); taps += 1;
@@ -82,7 +83,7 @@ try {
     const f = (await findings()).find((x) => String(x.title || '').startsWith(TITLE));
     dump('4-01-ruh', f || null);
     R.check('4.01a', 'Ansatt melder RUH fra telefon (lagres som registrert sak)', !!f && f.state === 'registrert', { actual: f ? `${f.number} ${f.type} ${f.state} skjermet=${f.restricted} prosjekt=${f.projectName || '-'} kvittering=${thanks}` : `ikke lagret (kvittering=${thanks})`, shot: await B.shot('ruh-sendt') });
-    R.check('4.01', 'ISO-03: RUH kan meldes med høyst 5 trykk fra hjem-skjermen på telefon', taps <= 5, {
+    R.check('4.01', 'ISO-03: RUH kan meldes med høyst 5 trykk fra ISO på telefon', taps <= 5, {
       expected: '≤ 5 trykk (hurtigskjema)', actual: `${taps} trykk/felt (Meld RUH → RUH / nestenulykke → tekst → Send)`,
     });
     R.check('4.01b', 'ISO-03: Skjemaet for avvik/RUH lar deg legge ved foto', photo, { actual: photo ? '«Ta bilde» i hurtigmeldingen' : 'ingen mulighet for foto/vedlegg i skjemaet' });

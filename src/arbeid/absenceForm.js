@@ -585,6 +585,23 @@ export const WIZARD_GROUPS = [
   { id: 'annet', icon: 'ellipsis-horizontal-circle-outline', label: 'Annet', help: 'Interntid, reisetid, permittering og bedriftens egne fraværstyper.', kind: 'pick', options: 'types' },
 ];
 
+/**
+ * Første side i «Registrer fravær»: noen få overordnede valg. Neste side viser valgene
+ * (WIZARD_GROUPS) under temaet.
+ */
+export const WIZARD_TOPICS = [
+  { id: 'sykdom', icon: 'medkit-outline', label: 'Sykdom og legetime', help: 'Syk selv, sykt barn, lege eller tannlege.', groups: ['syk', 'sykt_barn', 'lege'] },
+  { id: 'fri', icon: 'sunny-outline', label: 'Ferie og avspasering', help: 'Ferie fra feriesaldoen eller fri fra timebanken.', groups: ['ferie', 'avspasering'] },
+  { id: 'permisjoner', icon: 'briefcase-outline', label: 'Permisjon', help: 'Graviditet, fødsel og småbarn, velferd og annen permisjon.', groups: ['familie', 'permisjon'] },
+  { id: 'kurs_annet', icon: 'ellipsis-horizontal-circle-outline', label: 'Kurs og annet', help: 'Kurs, seminar, interntid, reisetid og bedriftens egne typer.', groups: ['kurs', 'annet'] },
+];
+
+/** Valgene under et tema, i rekkefølgen fra WIZARD_GROUPS. */
+export function wizardTopicGroups(topic, filter = () => true) {
+  const ids = new Set(topic?.groups || []);
+  return WIZARD_GROUPS.filter((row) => ids.has(row.id) && filter(row));
+}
+
 const WIZARD_TYPES_SKIP = new Set(['ferie', 'avspasering', 'foreldre', 'lege_med', 'lege_uten', 'seminar_med', 'seminar_uten', NOTICE_TYPE_ID]);
 
 /** Bedriftens øvrige fraværstyper under «Annet» (ikke sykdom og ikke typer som har egne valg over). */

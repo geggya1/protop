@@ -508,7 +508,7 @@ export default function HrPayrollSummary({ colors, familyId, canWrite = false })
                 nativeID="lonn-autosend"
               >
                 <View style={[styles.box, { borderColor: settingsDraft.autoSend ? colors.brand : colors.line, backgroundColor: settingsDraft.autoSend ? colors.brand : 'transparent' }]}>
-                  {settingsDraft.autoSend ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+                  {settingsDraft.autoSend ? <Ionicons name="checkmark" size={14} color={colors.onBrand} /> : null}
                 </View>
                 <Text style={[styles.body, styles.flex, { color: colors.ink }]}>Send automatisk når lønnsgrunnlaget godkjennes</Text>
               </Pressable>

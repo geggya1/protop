@@ -16,6 +16,7 @@ import { employeeVisibleSlice } from '../../src/hr/model';
 import { loadEmployeeHrSlice } from '../../src/hr/storage';
 import { employeeTodos, openTodoCount } from '../../src/employees/todo';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { radius, type } from '../../src/ui/tokens';
 import { HrButton, HrCard, HrSectionTitle, RowLink } from '../hr/HrShared';
 import HmsCardEditor from '../hr/HmsCardEditor';
 import MyDocuments from '../doccontrol/MyDocuments';
@@ -89,15 +90,15 @@ export default function EmployeeTodo({
         <View style={styles.sideHead}>
           <Text style={[styles.sideTitle, { color: colors.muted }]}>Gjøremål</Text>
           {slice && open.length ? (
-            <View style={[styles.badge, { backgroundColor: open.some((row) => row.urgent || (row.due && row.due < today)) ? (colors.danger || '#b42318') : colors.brand }]}>
-              <Text style={styles.badgeText}>{open.length}</Text>
+            <View style={[styles.badge, { backgroundColor: open.some((row) => row.urgent || (row.due && row.due < today)) ? colors.danger : colors.brand }]}>
+              <Text style={[styles.badgeText, { color: colors.onBrand }]}>{open.length}</Text>
             </View>
           ) : null}
         </View>
         {!slice ? <Text style={[styles.sideMeta, { color: colors.muted }]}>Henter …</Text> : null}
         {slice && !open.length ? (
           <View style={styles.sideRow}>
-            <Ionicons name="checkmark-circle" size={16} color="#2f8f5b" />
+            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
             <Text style={[styles.sideText, { color: colors.muted }]}>Alt er på plass.</Text>
           </View>
         ) : null}
@@ -113,11 +114,11 @@ export default function EmployeeTodo({
               accessibilityLabel={`${row.title}${row.due ? `, frist ${row.due}` : ''}`}
               style={({ hovered }) => [styles.sideRow, hovered && { backgroundColor: colors.bg }]}
             >
-              <Ionicons name="ellipse-outline" size={14} color={red ? (colors.danger || '#b42318') : colors.muted} style={{ marginTop: 2 }} />
+              <Ionicons name="ellipse-outline" size={14} color={red ? colors.danger : colors.muted} style={{ marginTop: 2 }} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.sideText, { color: red ? (colors.danger || '#b42318') : colors.ink }]} numberOfLines={2}>{row.title}</Text>
+                <Text style={[styles.sideText, { color: red ? colors.danger : colors.ink }]} numberOfLines={2}>{row.title}</Text>
                 {row.due ? (
-                  <Text style={[styles.sideMeta, { color: red ? (colors.danger || '#b42318') : colors.muted }]}>
+                  <Text style={[styles.sideMeta, { color: red ? colors.danger : colors.muted }]}>
                     {`${late ? 'Frist passert' : 'Frist'} ${row.due.split('-').reverse().join('.')}`}
                   </Text>
                 ) : null}
@@ -225,15 +226,15 @@ const styles = StyleSheet.create({
   stack: { gap: 8 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   doneRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, gap: 2 },
-  doneTitle: { fontSize: 14 },
+  doneTitle: { fontSize: type.body.fontSize },
   side: { gap: 6 },
   sideHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
   sideTitle: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 },
-  badge: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { color: '#fff', fontSize: 11, lineHeight: 14 },
-  sideRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: 6 },
-  sideText: { fontSize: 13, lineHeight: 18 },
-  sideMeta: { fontSize: 12, lineHeight: 16 },
-  sideLink: { fontSize: 13, marginTop: 4 },
+  badge: { minWidth: 18, height: 18, borderRadius: radius.pill, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontSize: 11, lineHeight: 14 },
+  sideRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4, paddingHorizontal: 4, marginHorizontal: -4, borderRadius: radius.control },
+  sideText: { fontSize: type.label.fontSize, lineHeight: type.label.lineHeight },
+  sideMeta: { fontSize: type.caption.fontSize, lineHeight: type.caption.lineHeight },
+  sideLink: { fontSize: type.label.fontSize, marginTop: 4 },
   doneText: { fontSize: 12, lineHeight: 17 },
 });

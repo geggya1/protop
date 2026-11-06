@@ -26,6 +26,7 @@ import { toDateKey } from '../../src/arbeid/calendar.js';
 import { sendPasswordResetV2 } from '../../src/utils/sendPasswordReset';
 import { formatDate } from '../../src/format/nb';
 import DateInput from '../../components/DateInput';
+import { radius } from '../../src/ui/tokens';
 
 // «Kan logge inn» er ikke et eget valg: innlogging følger kobling og om ansettelsen er aktiv.
 const CHECKS = [
@@ -195,7 +196,7 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, sub = 'general' }
                       accessibilityRole="radio"
                       accessibilityState={{ selected: on, disabled: !canEdit }}
                     >
-                      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13 }}>{form}</Text>
+                      <Text style={{ color: on ? colors.onBrand : colors.ink, fontSize: 13 }}>{form}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -608,7 +609,7 @@ const styles = StyleSheet.create({
   checks: { gap: 10, maxWidth: 560 },
   payForm: { gap: 6 },
   payChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  payChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  payChip: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6 },
   check: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   box: { width: 18, height: 18, borderWidth: 1, borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },

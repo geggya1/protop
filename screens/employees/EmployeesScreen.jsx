@@ -126,6 +126,7 @@ import {
 } from '../../src/employees/personTabs.js';
 import EmployeeEarningsSheet from '../../components/economy/EmployeeEarningsSheet';
 import { companyDisplayName } from '../../src/utils/companyName';
+import { radius } from '../../src/ui/tokens';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -2687,7 +2688,7 @@ const styles = StyleSheet.create({
   homeMain: { flex: 1, minWidth: 0, order: 1 },
   homeSide: { width: 260, order: 2 },
   homeStack: { gap: 12 },
-  homeSideTop: { borderWidth: 1, borderRadius: 12, padding: 12 },
+  homeSideTop: { borderWidth: 1, borderRadius: radius.card, padding: 12 },
   screen: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', alignSelf: 'stretch' },
   selfPending: { alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
   screenScroll: { flex: 1, minWidth: 0, alignSelf: 'stretch' },

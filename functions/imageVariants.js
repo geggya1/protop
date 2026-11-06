@@ -35,7 +35,9 @@ export function wantsVariants({ name = '', contentType = '', size = 0 } = {}) {
 export const imageVariants = onObjectFinalized(
   {
     bucket: STORAGE_BUCKET,
-    region: process.env.STORAGE_TRIGGER_REGION || 'europe-west1',
+    // Storage-triggeren må ligge i samme region som bøtta (protop-c189c.firebasestorage.app er i
+    // us-west1). europe-west1 ga «cannot listen to a bucket in region us-west1» ved deploy.
+    region: process.env.STORAGE_TRIGGER_REGION || 'us-west1',
     memory: '1GiB',
     cpu: 1,
     timeoutSeconds: 120,

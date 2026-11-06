@@ -35,3 +35,9 @@ test('utgavene blir mindre og beholder forholdet', async () => {
     assert.equal(Math.round(meta.width / meta.height * 10), 15);
   }
 });
+
+test('triggeren ligger i samme region som Storage-bøtta (us-west1)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('./imageVariants.js', import.meta.url), 'utf8');
+  assert.match(src, /region: process\.env\.STORAGE_TRIGGER_REGION \|\| 'us-west1'/);
+});

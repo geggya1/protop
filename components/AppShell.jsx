@@ -6,7 +6,7 @@ import { useOptionalRoute } from '../src/hooks/useOptionalRoute';
 import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../src/i18n';
 import { radius, useLayout } from '../src/theme';
-import { useApp } from '../src/context/AppContext';
+import { useApp, useShellNav } from '../src/context/AppContext';
 import { CompanyDataProvider } from '../src/context/CompanyDataContext';
 import { useColors, useThemeMeta } from '../src/context/ThemeContext';
 import { isTeamType } from '../src/utils/teams';
@@ -14,6 +14,7 @@ import { isClassroomType } from '../src/utils/groupTypes';
 import { openPlatformHome, goPlatformOverview } from '../src/utils/platformNav';
 import HomeScreen from '../screens/v2/HomeScreen';
 import { lazyScreen, preloadScreens } from '../src/ui/lazyScreen';
+import { setCrashCompany } from '../src/helpdesk/crashReporter';
 const PlanScreen = lazyScreen(() => import('../screens/v2/PlanScreen'), { name: 'PlanScreen' });
 const RewardsScreen = lazyScreen(() => import('../screens/v2/RewardsScreen'), { name: 'RewardsScreen' });
 const NotesHubScreen = lazyScreen(() => import('../screens/v2/NotesHubScreen'), { name: 'NotesHubScreen' });
@@ -95,8 +96,6 @@ import { ShellTitlesProvider } from '../src/ui/ShellTitles';
 import { shellPageTitles } from '../src/navigation/shellPageTitles';
 import { useChatDock, useChatDockPreferred } from '../src/context/ChatDockContext';
 import { useModuleAccess } from '../src/context/ModuleAccessContext';
-import { useNow } from '../src/hooks/useNow';
-import { childShellTitle } from '../src/utils/childHome';
 import { resolveShellHeaderTitle } from '../src/navigation/shellHeaderTitle';
 import {
   isImmersivePhotoChromeOnly,
@@ -208,17 +207,17 @@ function AppShellInner() {
   const { highChildFriendliness } = useThemeMeta();
   const {
     isParent, isChild, isActingAsChild, isGrandparent, family, families, loading,
-    shellNav, requestShellTab, clearShellIntent,
+    requestShellTab, clearShellIntent,
     familyId, uid, userProfile, meChild, meParent, members,
     activeChild,
   } = useApp();
+  const { shellNav } = useShellNav();
   const { width, hasRail, isDesktop, isTablet, isPhone, contentMax, railWidth } = useLayout();
   const showPageHero = useShowModuleHero();
   const { unreadByModule } = useUnread();
   const { needsWelcome } = useModuleAccess();
   const chatDockPreferred = useChatDockPreferred();
   const { openDrawer: openChatDrawer } = useChatDock();
-  const now = useNow();
   const {
     ready: parentThemeReady,
     theme: parentDashTheme,
@@ -1012,10 +1011,12 @@ function AppShellInner() {
     moreSubView,
     t,
     asChildView,
-    childHomeTitle: asChildView ? childShellTitle(now, { child: viewingChild }) : null,
+    // Barnas hjemtittel (med klokke) hørte til familieproduktet. Skallet tegnes ikke lenger
+    // på nytt hvert minutt for den.
+    childHomeTitle: null,
     modulesHub: isPhone && !simpleChildUi && asChildView,
     menuHub: !simpleChildUi && !asChildView && isParent,
-  }), [tab, moreSubView, t, asChildView, now, viewingChild, isPhone, isParent, simpleChildUi]);
+  }), [tab, moreSubView, t, asChildView, isPhone, isParent, simpleChildUi]);
 
   // Hjelpen følger undersiden (anbud.varsling, iso.avvik …), ikke bare fanen.
   const introModuleId = tab === 'more'
@@ -1403,6 +1404,7 @@ export default function AppShell() {
     return () => clearTimeout(timer);
   }, [switching]);
   const hold = switching && !waitedOut;
+  useEffect(() => { setCrashCompany(companyId); }, [companyId]);
   // Henter de mest brukte modulene i ledig tid etter oppstart, så de åpner uten venting.
   useEffect(() => preloadScreens([
     PlanScreen, RewardsScreen, NotesHubScreen, MailHubScreen, ChatTabScreen, MoreHubScreen,

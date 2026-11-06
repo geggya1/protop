@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { canImportList } from '../../src/access/companyAccess';
@@ -527,7 +527,8 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
 export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
-  const { shellIntent, clearShellIntent, familyId, family, user } = useApp();
+  const { clearShellIntent, familyId, family, user } = useApp();
+  const { shellIntent } = useShellNav();
   const { workspace, activeId, setEmployeeId } = usePeople(lockedEmployeeId);
   const [focusEmployeeId, setFocusEmployeeId] = useState('');
   const [plan, setPlan] = useState(null);

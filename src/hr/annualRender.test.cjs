@@ -74,7 +74,7 @@ function load(rel) {
     if (id === 'react-native-svg') {
       return { __esModule: true, default: host('Svg'), G: host('G'), Path: host('Path'), Line: host('Line'), Circle: host('Circle'), Text: host('SvgText') };
     }
-    if (/src\/theme$/.test(id)) return { useLayout: () => ({ isPhone: false, isWide: true, width: 1280 }) };
+    if (/src\/theme$/.test(id)) return ((m) => ({ ...m, useBreakpoints: m.useLayout }))({ useLayout: () => ({ isPhone: false, isWide: true, width: 1280 }) });
     if (id.includes('filledStore')) return { peekFilledDocs: () => [], loadFilledDocs: async () => [] };
     if (id.includes('saveToast')) return { showSaveToast() {} };
     if (id.includes('ShellTitles')) return { useRepeatsShellTitle: () => false };

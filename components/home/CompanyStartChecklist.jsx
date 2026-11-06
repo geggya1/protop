@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { watchEmployees } from '../../src/employees/storage';
 import { loadCustomerList } from '../../src/anbud/storage';
@@ -57,7 +57,7 @@ function useStartFacts(familyId, enabled) {
  */
 export default function CompanyStartChecklist({ style }) {
   const colors = useColors();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { uid, familyId, family, isAdmin, requestShellTab } = useApp();
   const canSetup = !!isAdmin && isOrganizationType(family?.type);
   const [hidden, setHidden] = useState(null);

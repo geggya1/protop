@@ -71,6 +71,7 @@ const HelpdeskDemoScreen = lazyScreen(() => import('./screens/helpdesk/HelpdeskD
 const SurveyAnswerScreen = lazyScreen(() => import('./screens/surveys/SurveyAnswerScreen'), { name: 'SurveyAnswerScreen' });
 const CustomerSurveyDemoScreen = lazyScreen(() => import('./screens/surveys/CustomerSurveyDemoScreen'), { name: 'CustomerSurveyDemoScreen' });
 import { installDiagnostics } from './src/helpdesk/diagnostics';
+import { installCrashReporter } from './src/helpdesk/crashReporter';
 const CalendarSettingsScreen = lazyScreen(() => import('./screens/v2/CalendarSettingsScreen'), { name: 'CalendarSettingsScreen' });
 const CalendarOAuthRedirectScreen = lazyScreen(() => import('./screens/v2/CalendarOAuthRedirectScreen'), { name: 'CalendarOAuthRedirectScreen' });
 const AiChatScreen = lazyScreen(() => import('./screens/v2/AiChatScreen'), { name: 'AiChatScreen' });
@@ -143,6 +144,18 @@ if (Platform.OS === 'web') {
 
 const Stack = createNativeStackNavigator();
 
+// Stabilt objekt (ikke nytt ved hver render av navigatoren). freezeOnBlur: skjermer som ligger
+// under en annen (f.eks. Hjem med alle modulene under en åpnet hendelse) tegnes ikke på nytt i
+// bakgrunnen. De oppdateres når de vises igjen.
+const STACK_SCREEN_OPTIONS = {
+  headerShown: false,
+  title: 'ProTop',
+  contentStyle: { flex: 1 },
+  gestureEnabled: true,
+  fullScreenGestureEnabled: true,
+  freezeOnBlur: true,
+};
+
 function LoadingView({ label } = {}) {
   return (
     <View style={styles.centered}>
@@ -152,6 +165,10 @@ function LoadingView({ label } = {}) {
       ) : null}
     </View>
   );
+}
+
+function KeepAliveScreen() {
+  return <LoadingView />;
 }
 
 function GatedStackScreen({ moduleId, children }) {
@@ -222,6 +239,8 @@ const FriendsHubWithSwipe = withStackEdgeSwipe(FriendsHubScreen);
 
 // Teknisk info til supportsaker (konsollfeil, feilede kall, siste steg). Se src/helpdesk/diagnostics.js.
 installDiagnostics();
+// Krasjkontroll: uventede feil lagres i crashReports og vises i helpdesken (Krasjrapporter).
+installCrashReporter();
 
 export default function App() {
   usePhoneVisualViewport();
@@ -791,7 +810,10 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     else if (forceVerify) stage = 'verify';
     else if (!user && !justRegisteredEmail) stage = 'welcome';
     else if (needsVerify) stage = 'verify';
-    else if (user && userRole === 'parent' && !bootTimedOut && (!familiesReady || (!userProfileReady && !hasGroups))) stage = 'boot';
+    // Returnerende bruker med arbeidsområdene i hurtigbufferen og ferdig profil: vis appen med en
+    // gang og oppdater listen i bakgrunnen, i stedet for å vente på at alle oppslagene er ferdige.
+    else if (user && userRole === 'parent' && !bootTimedOut && (!familiesReady || (!userProfileReady && !hasGroups))
+      && !(hasGroups && (family?.id || familyId) && userProfileReady && userProfile?.profileComplete)) stage = 'boot';
     else if (!langPicked && user) stage = 'language';
     else if (inviteJoin.joining) stage = 'boot';
     // Never eject incomplete profiles to GetStarted — bootTimedOut only clears the
@@ -877,7 +899,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         }
       }}
     >
-      <Stack.Navigator initialRouteName={initial} screenOptions={{ headerShown: false, title: 'ProTop', contentStyle: { flex: 1 }, gestureEnabled: true, fullScreenGestureEnabled: true }}>
+      <Stack.Navigator initialRouteName={initial} screenOptions={STACK_SCREEN_OPTIONS}>
         <Stack.Screen name="Welcome">
           {(props) => (
             <WelcomeScreen
@@ -1061,7 +1083,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
           </>
         )}
 
-        <Stack.Screen name="__KeepAlive" component={() => <LoadingView />} />
+        <Stack.Screen name="__KeepAlive" component={KeepAliveScreen} />
       </Stack.Navigator>
       {user ? <SessionOverlays /> : null}
     </NavigationContainer>

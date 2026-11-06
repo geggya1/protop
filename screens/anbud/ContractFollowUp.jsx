@@ -33,7 +33,7 @@ import { loadCases, saveCases } from '../../src/indeksregulering/storage';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useApp } from '../../src/context/AppContext';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { type } from '../../src/ui/tokens';
 import { useEmployees } from '../../src/context/CompanyDataContext';
 import { dateKey } from '../../src/utils/dates';
@@ -91,7 +91,7 @@ export default function ContractFollowUp({
     access.bypass
     || (access.ready && access.levelId === 'administrator')
   );
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const [state, setState] = useState(null);
   const [note, setNote] = useState('');
   const [projects, setProjects] = useState([]);

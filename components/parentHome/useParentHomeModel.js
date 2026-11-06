@@ -68,7 +68,8 @@ export function useParentHomeModel({
   const {
     activeProfile, uid, familyId, isParent, kids, parents, members,
   } = useApp();
-  const now = useNow(30000);
+  // Hjem regnes om ved minuttskiftet (før hvert 30. sekund, uavhengig av minuttet).
+  const now = useNow(60_000, { align: true });
   const { forecast, place } = useWeather();
   const todayKey = dateKey(now);
   const tomorrowDate = useMemo(() => addDays(now, 1), [now]);

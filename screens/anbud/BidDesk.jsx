@@ -36,7 +36,7 @@ import FormBuilderScreen from './FormBuilderScreen';
 import FilterMenu from '../../components/FilterMenu';
 import OptionPicker from '../../components/OptionPicker';
 import InfoButton from '../../components/InfoButton';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 
 const FILTERS = [
   ['alle', 'Alle'],
@@ -69,7 +69,7 @@ export default function BidDesk({
   const [draftDeadline, setDraftDeadline] = useState('');
   const [draftUnitId, setDraftUnitId] = useState('');
   const [draftPersonId, setDraftPersonId] = useState('');
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const { applyFamilyPatch, family } = useApp();
   const [mapFocusId, setMapFocusId] = useState('');
   const [focusTick, setFocusTick] = useState(0);

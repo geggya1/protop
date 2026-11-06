@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
 import { dateKey, addDays } from '../../src/utils/dates';
 import { eventOccursOnDate } from '../../src/utils/events';
@@ -38,7 +38,7 @@ export default function HomeScreen() {
 function ParentHomeScreen() {
   const nav = useNavigation();
   const { t } = useI18n();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const immersive = useHomeImmersive();
   const {
     familyId, families, kids, members, parents, isParent, uid,

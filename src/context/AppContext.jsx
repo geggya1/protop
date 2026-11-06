@@ -27,6 +27,9 @@ import { aliasFamilyIds, companyWorkspaces, preferHovedenhetWorkspace, resolveLo
 import { bindCompanyAliases } from '../project/companyAlias';
 
 const Ctx = createContext(null);
+// Navigering i skallet fra kode (requestShellTab) og «intent» til modulen som åpnes.
+// Egen kontekst, så et fanebytte ikke gir nye renders av alle som leser useApp().
+const ShellNavCtx = createContext({ shellNav: null, shellIntent: null });
 const FAMILY_KEY = 'protop.familyId';
 const COMPANY_KEY = 'protop.companyId';
 const PROFILE_KEY = 'protop.activeProfile';
@@ -218,32 +221,37 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
           });
         };
 
-        try {
-          const familyQueries = Promise.all([
-            getDocs(query(collection(db, 'families'), where('members', 'array-contains', uid))),
-            getDocs(query(collection(db, 'families'), where('adminUids', 'array-contains', uid))),
-            getDocs(query(collection(db, 'families'), where('ownerUid', '==', uid))),
-          ]);
-          const timeout = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('family-list-timeout')), 15000);
-          });
-          const [mSnap, aSnap, oSnap] = await Promise.race([familyQueries, timeout]);
+        // Spørringene, profilen (users/{uid}), foresatt-posten (parents/{uid}) og de lagrede
+        // id-ene hentes samtidig. Før gikk de etter hverandre (5–6 rundturer før Hjem).
+        const withTimeout = (promise, ms, label) => Promise.race([
+          promise,
+          new Promise((_, reject) => { setTimeout(() => reject(new Error(label)), ms); }),
+        ]);
+        const familyQueries = withTimeout(Promise.all([
+          getDocs(query(collection(db, 'families'), where('members', 'array-contains', uid))),
+          getDocs(query(collection(db, 'families'), where('adminUids', 'array-contains', uid))),
+          getDocs(query(collection(db, 'families'), where('ownerUid', '==', uid))),
+        ]), 15000, 'family-list-timeout');
+        const [listResult, scopedId, legacyIdEarly, userSnap, parentSnap] = await Promise.all([
+          familyQueries.then((v) => ({ ok: true, v }), (err) => ({ ok: false, err })),
+          AsyncStorage.getItem(familyStorageKey(uid)).catch(() => null),
+          AsyncStorage.getItem(FAMILY_KEY).catch(() => null),
+          getDoc(doc(db, 'users', uid)).catch(() => null),
+          getDoc(doc(db, 'parents', uid)).catch(() => null),
+        ]);
+        if (listResult.ok) {
+          const [mSnap, aSnap, oSnap] = listResult.v;
           mergeDocs([...mSnap.docs, ...aSnap.docs, ...oSnap.docs]);
-        } catch (err) {
+        } else {
           listFailed = true;
+          const err = listResult.err;
           console.warn('[AppContext] family list query failed', err?.code || err?.message || err);
         }
 
         // Fallback: hydrate by known IDs (getDoc still works when list rules use exists()/get()).
         const candidateIds = new Set(map.keys());
-        try {
-          const scopedId = await AsyncStorage.getItem(familyStorageKey(uid));
-          if (scopedId) candidateIds.add(scopedId);
-        } catch { /* ignore */ }
-        try {
-          const legacyId = await AsyncStorage.getItem(FAMILY_KEY);
-          if (legacyId) candidateIds.add(legacyId);
-        } catch { /* ignore */ }
+        if (scopedId) candidateIds.add(scopedId);
+        if (legacyIdEarly) candidateIds.add(legacyIdEarly);
         try {
           const cachedHints = peekFamilyListCache(uid);
           (cachedHints?.families || []).forEach((f) => {
@@ -251,8 +259,7 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
           });
         } catch { /* ignore */ }
         try {
-          const userSnap = await getDoc(doc(db, 'users', uid));
-          if (userSnap.exists()) {
+          if (userSnap?.exists()) {
             const d = userSnap.data() || {};
             const ids = []
               .concat(d.familyIds || [])
@@ -267,8 +274,7 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
           }
         } catch { /* ignore */ }
         try {
-          const parentSnap = await getDoc(doc(db, 'parents', uid));
-          if (parentSnap.exists()) {
+          if (parentSnap?.exists()) {
             const d = parentSnap.data() || {};
             [].concat(d.familyIds || []).concat(d.familyId ? [d.familyId] : [])
               .forEach((id) => {
@@ -280,19 +286,21 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
           }
         } catch { /* ignore */ }
 
-        for (const id of candidateIds) {
-          if (map.has(id)) {
-            membershipHints.add(id);
-            continue;
+        // Kandidatene som ikke kom med i spørringene hentes samtidig, ikke én og én.
+        const missing = [];
+        candidateIds.forEach((id) => {
+          if (map.has(id)) membershipHints.add(id);
+          else missing.push(id);
+        });
+        const extra = await Promise.all(missing.map((id) => (
+          getDoc(doc(db, 'families', id)).catch(() => null) // likely permission-denied for another account's id
+        )));
+        extra.forEach((snap) => {
+          if (snap?.exists() && !isGroupDeleted(snap.data())) {
+            map.set(snap.id, { id: snap.id, ...snap.data() });
+            membershipHints.add(snap.id);
           }
-          try {
-            const snap = await getDoc(doc(db, 'families', id));
-            if (snap.exists() && !isGroupDeleted(snap.data())) {
-              map.set(snap.id, { id: snap.id, ...snap.data() });
-              membershipHints.add(snap.id);
-            }
-          } catch { /* ignore — likely permission-denied for another account's id */ }
-        }
+        });
 
         // Drop legacy/global familyId that we could not prove access to.
         try {
@@ -787,7 +795,7 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
   );
   const currentAgeBand = useMemo(() => ageBand(currentAge), [currentAge]);
 
-  const value = {
+  const value = useMemo(() => ({
     user,
     uid,
     role,
@@ -829,17 +837,34 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
     currentAgeBand,
     selectFamily,
     applyFamilyPatch,
-    shellNav,
-    shellIntent,
     requestShellTab,
     clearShellIntent,
-  };
+  }), [
+    user, uid, role, isChild, isParent, isGrandparent, isSuperAdmin, isAdmin, loading,
+    familiesReady, familiesLoadError, clearFamiliesLoadError, userProfileReady, families,
+    liveFamilies, familyId, family, parents, kids, members, friends, friendPeople, meChild,
+    meParent, childProfile, activeProfileKind, activeChildId, activeChild, activeProfile,
+    isActingAsChild, viewingChildId, viewingChild, setViewingChildId, clearViewingChild,
+    switchToParentProfile, switchToChildProfile, userProfile, currentAge, currentAgeBand,
+    selectFamily, applyFamilyPatch, requestShellTab, clearShellIntent,
+  ]);
+  const shellNavValue = useMemo(() => ({ shellNav, shellIntent }), [shellNav, shellIntent]);
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+
+  return (
+    <Ctx.Provider value={value}>
+      <ShellNavCtx.Provider value={shellNavValue}>{children}</ShellNavCtx.Provider>
+    </Ctx.Provider>
+  );
 }
 
 export function useOptionalApp() {
   return useContext(Ctx);
+}
+
+/** Skallnavigering ({ shellNav, shellIntent }). requestShellTab og clearShellIntent ligger i useApp(). */
+export function useShellNav() {
+  return useContext(ShellNavCtx);
 }
 
 export function useApp() {

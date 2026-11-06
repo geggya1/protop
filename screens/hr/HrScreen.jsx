@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
@@ -52,8 +52,9 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const colors = useColors();
   const nav = useNavigation();
   const {
-    family, familyId, uid, activeProfile, requestShellTab, shellIntent, clearShellIntent,
+    family, familyId, uid, activeProfile, requestShellTab, clearShellIntent,
   } = useApp();
+  const { shellIntent } = useShellNav();
   const assigneeName = String(activeProfile?.name || activeProfile?.displayName || '').trim();
   // Timer ført på eget selskap er ikke fakturerbare.
   const ownCompanyName = String(family?.company?.navn || family?.name || '').trim();

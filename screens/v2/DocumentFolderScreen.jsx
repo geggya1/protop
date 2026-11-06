@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import { desktopOverlay, desktopSheet } from '../../src/desktop';
 import { Screen, Mute } from '../../components/ui';
 import CompactBackLink from '../../components/CompactBackLink';
@@ -142,7 +142,7 @@ export default function DocumentFolderScreen({
   onBack, backLabel = 'Dokumenter', onOpenSubfolder, onOpenSettings,
 }) {
   const { familyId, uid, members, isAdmin } = useApp();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   useHelpScene('inner', { onRetreat: onBack });
   const [folder, setFolder] = useState(null);
   const [files, setFiles] = useState([]);

@@ -9,7 +9,7 @@ import { doc, getDoc, updateDoc, serverTimestamp, setDoc } from 'firebase/firest
 import { db, auth } from '../../firebase';
 import { useI18n } from '../../src/i18n';
 import { useApp } from '../../src/context/AppContext';
-import { colors, radius, useLayout } from '../../src/theme';
+import { colors, radius, useBreakpoints } from '../../src/theme';
 import {
   isSuperAdmin,
   isGroupAdmin,
@@ -100,7 +100,7 @@ function groupLifecycleCopy(t, { isClassroom, isTeam }) {
 export function GroupSettingsScreen({ inShell = false }) {
   const { t } = useI18n();
   const nav = useNavigation();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { family, familyId, uid, families, selectFamily, applyFamilyPatch, requestShellTab } = useApp();
   const route = useOptionalRoute();
   const { switching } = useRouteFamily(route?.params?.familyId);

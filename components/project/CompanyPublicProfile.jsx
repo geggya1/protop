@@ -49,7 +49,7 @@ import { useIsoProfile } from './useIsoProfile';
 import { useApp } from '../../src/context/AppContext';
 import { parentCompanyDisplayName } from '../../src/utils/companyName';
 import { BREAKPOINTS } from '../../src/ui/layout.js';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { touchHit } from '../../src/ui/touchTarget';
 
 const TONES = {
@@ -108,7 +108,7 @@ export default function CompanyPublicProfile({
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
   // Blyanten er en sirkel på 22 px; trykkflaten rundt er 44 px på berøringsskjerm (UX-26).
   const pencilHit = touchHit(22, 22, { touch: isTouch, os: Platform.OS });
   const access = useCompanyAccess();

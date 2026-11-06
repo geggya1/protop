@@ -55,7 +55,7 @@ import {
 } from '../../src/doccontrol/templates';
 import { pickDocument, pickImage } from '../../src/utils/media';
 import { useColors } from '../../src/context/ThemeContext';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import FormStudio from './FormStudio';
 import FormFill, { FilledStatusIcon } from './FormFill';
 import { useFormContext } from './useFormContext';
@@ -126,7 +126,8 @@ export default function FormBuilderScreen({
 }) {
   const themeColors = useColors();
   const colors = colorsProp || themeColors;
-  const { shellIntent, clearShellIntent, requestShellTab } = useApp();
+  const { clearShellIntent, requestShellTab } = useApp();
+  const { shellIntent } = useShellNav();
   const { familyId, actor, company, logo: companyLogo } = useFormContext();
   const dc = useDocControl();
   const logoUrl = companyLogo?.dataUrl || '';

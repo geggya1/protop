@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppearance } from '../../src/appearance/AppearanceContext';
 import { useI18n } from '../../src/i18n';
 import { useColors } from '../../src/context/ThemeContext';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { Screen } from '../../components/ui';
 import CompactBackLink from '../../components/CompactBackLink';
 import TimeField from '../../components/TimeField';
@@ -45,7 +45,7 @@ export default function AppearanceSettingsScreen() {
   const nav = useNavigation();
   const { t } = useI18n();
   const colors = useColors();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { prefs, scheme, summary, updatePrefs } = useAppearance();
   const [page, setPage] = useState('main');
   const card = { backgroundColor: colors.card, borderColor: colors.line };

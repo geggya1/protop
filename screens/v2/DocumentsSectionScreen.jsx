@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import { Screen, Title, Mute } from '../../components/ui';
 import CompactBackLink from '../../components/CompactBackLink';
 import EdgeSwipeBack from '../../components/EdgeSwipeBack';
@@ -39,7 +39,7 @@ function FolderRow({ folder, fileCount, onPress, isDesktop }) {
 export default function DocumentsSectionScreen({
   section, sectionTitle, folders, fileCounts, uid, onBack, onOpenFolder,
 }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const items = getCustomFolders(folders, section, uid);
 
   return (

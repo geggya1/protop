@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { employeeLevelIds, levelById, placedLevelId } from '../../src/access/companyAccess';
 import {
   applyInviteSendResult,
@@ -32,7 +32,7 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { isSuperAdmin } from '../../src/utils/groups';
 import { useColors } from '../../src/context/ThemeContext';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { downloadBytes } from '../../src/indeksregulering/office';
@@ -149,8 +149,9 @@ export default function EmployeesScreen({ subView = null } = {}) {
   // Bedrift › Ansatt: egen side (Min side, Gjøremål, Fravær, Utlegg). Null = ansattregisteret.
   const selfRoute = ansattSelfView(subView);
   const colors = useColors();
-  const { isDesktop, isPhone } = useLayout();
-  const { familyId, family, members, uid, user, userProfile, requestShellTab, shellIntent, clearShellIntent } = useApp();
+  const { isDesktop, isPhone } = useBreakpoints();
+  const { familyId, family, members, uid, user, userProfile, requestShellTab, clearShellIntent } = useApp();
+  const { shellIntent } = useShellNav();
   const leaving = useLeaveCompany();
   const access = useCompanyAccess();
   // «Tillat AI-funksjoner» (L-09): av = importen leses lokalt, CV fra PDF/bilde gir beskjed.

@@ -22,7 +22,7 @@ import {
 import { fetchGrunnbelop, grunnbelopIsStale } from '../../src/economy/grunnbelop';
 import { loadHrState } from '../../src/hr/storage';
 import { useEarningsSettings } from '../../src/economy/useEarningsSettings';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import EmployeeEarningsSheet from '../../components/economy/EmployeeEarningsSheet';
 import EarningsSettings from '../../components/economy/EarningsSettings';
 import { ActivityTabs } from '../../components/arbeid/TimesheetEmployeePicker';
@@ -66,7 +66,7 @@ export default function EconomyEarnings({
   onOpenIndex,
 }) {
   const colors = useColors();
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const { familyId } = useApp();
   const access = useCompanyAccess();
   const canEarnings = access.canView('economyEarnings') || access.canView('economy');

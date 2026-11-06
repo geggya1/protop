@@ -73,18 +73,18 @@ function loadJsx(rel) {
       return { __esModule: true, default: Skeleton };
     }
     if (id.includes('ThemeContext')) return { useColors: () => colors };
-    if (id.endsWith('src/theme')) return { useLayout: () => ({ width: 800 }) };
+    if (id.endsWith('src/theme')) return ((m) => ({ ...m, useBreakpoints: m.useLayout }))({ useLayout: () => ({ width: 800 }) });
     if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => false };
     if (id.includes('components/Breadcrumb')) return { __esModule: true, default: function Breadcrumb() { return null; } };
     if (id.includes('useProjectStateEditor')) {
       return { useProjectStateEditor: () => ({ state: projectState, setState: () => true, ready: true }) };
     }
     if (id.includes('context/AppContext')) {
-      return {
+      return ((m) => ({ ...m, useShellNav: () => { const a = (m.useApp && m.useApp()) || {}; return { shellIntent: a.shellIntent ?? null, shellNav: a.shellNav ?? null }; } }))({
         useApp: () => ({
           familyId: 'co', user: { uid: 'u1' }, requestShellTab: () => {}, shellIntent: null, clearShellIntent: () => {},
         }),
-      };
+      });
     }
     // Admin på prosjektutlegg: import vises (canImportList). seesAll: Utlegg gir alle filtrene.
     if (id.includes('useCompanyAccess')) {

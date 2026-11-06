@@ -36,7 +36,7 @@ import { agreementSummary, emailLooksLikeSupplier, registerConfirmText, reviewFl
 import { ensureAgreementOriginal } from '../../src/anbud/contractFiles';
 import { AGREEMENT_IMPORT_ACCEPT, documentHasOriginalFile, documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
 import { pickDocument } from '../../src/utils/media';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import AgreementAssigneesField from './AgreementAssigneesField';
 import AgreementCustomerField from './AgreementCustomerField';
 import AgreementDocumentPreview from './AgreementDocumentPreview';
@@ -424,7 +424,7 @@ export default function DirectAgreementForm({
     ramme: false,
     opsjoner: false,
   });
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const splitPreview = !isPhone;
 
   useEffect(() => {

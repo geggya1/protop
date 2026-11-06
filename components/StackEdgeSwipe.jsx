@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import { useLayout } from '../src/theme';
+import { useBreakpoints } from '../src/theme';
 import EdgeSwipeBack from './EdgeSwipeBack';
 
 /**
@@ -9,7 +9,7 @@ import EdgeSwipeBack from './EdgeSwipeBack';
  */
 export default function StackEdgeSwipe({ enabled = true, children, style }) {
   const nav = useNavigation();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const onBack = useCallback(() => {
     if (nav.canGoBack()) nav.goBack();
   }, [nav]);

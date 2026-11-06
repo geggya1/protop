@@ -5,7 +5,7 @@ import {
 import { useApp } from '../src/context/AppContext';
 import { useI18n } from '../src/i18n';
 import { LEGAL_VERSION } from '../src/i18n/langs';
-import { colors, radius, useLayout } from '../src/theme';
+import { colors, radius, useBreakpoints } from '../src/theme';
 import {
   acceptLegalConsents, loadLocalConsents, needsLegalUpdate, persistUserConsents,
 } from '../src/utils/consents';
@@ -23,7 +23,7 @@ export default function LegalUpdateNotice() {
     uid, userProfile, userProfileReady, isChild,
   } = useApp();
   const { lang } = useI18n();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const [local, setLocal] = useState(null);
   const [opened, setOpened] = useState(false);
   const [docOpen, setDocOpen] = useState(false);

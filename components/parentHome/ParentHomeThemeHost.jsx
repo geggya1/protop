@@ -6,7 +6,7 @@ import { useProfileNavigation } from '../../src/hooks/useProfileNavigation';
 import { useApp } from '../../src/context/AppContext';
 import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
 import { useOptionalRoute } from '../../src/hooks/useOptionalRoute';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import { useParentHomeModel } from './useParentHomeModel';
 import { usePullToRefresh, hardReloadApp } from '../../src/hooks/usePullToRefresh';
 import { useHomeLayout } from '../../src/hooks/useHomeLayout';
@@ -129,7 +129,7 @@ export default function ParentHomeThemeHost({
     },
   };
 
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const immersive = useHomeImmersive() && isPhone;
   // Samme bakgrunn som modulene (UX-05); med bakgrunnsbilde er siden gjennomsiktig.
   const pageBg = immersive ? 'transparent' : colors.bg;

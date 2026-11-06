@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import CreateMenu from '../../components/CreateMenu';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { agreementResponsiblePeople } from '../../src/anbud/customers';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { useEmployees } from '../../src/context/CompanyDataContext';
@@ -14,8 +14,9 @@ import { companyDisplayName } from '../../src/utils/companyName';
 
 export default function ContractScreen() {
   const colors = useColors();
-  const { isPhone } = useLayout();
-  const { requestShellTab, familyId, family, shellIntent, clearShellIntent, members } = useApp();
+  const { isPhone } = useBreakpoints();
+  const { requestShellTab, familyId, family, clearShellIntent, members } = useApp();
+  const { shellIntent } = useShellNav();
   const [part, setPart] = useState(() => (
     shellIntent?.type === 'agreementTemplateReady' || shellIntent?.type === 'composeAgreementTreatment'
       ? 'behandling'

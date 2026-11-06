@@ -5,7 +5,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useI18n } from '../../src/i18n';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import {
   addDays, dateKey, startOfWeekMonday, monthGrid, isSameMonth, WEEKDAYS_SHORT, MONTHS_NO, sameDay, isToday, getISOWeek,
 } from '../../src/utils/dates';
@@ -149,7 +149,7 @@ export default function PlanScreen({ active = true }) {
   const nav = useNavigation();
   useHelpScene('hub');
   const { t } = useI18n();
-  const { pad, isDesktop, isTablet } = useLayout();
+  const { pad, isDesktop, isTablet } = useBreakpoints();
   const {
     familyId, members, uid, family, families, isParent, meChild, isChild, activeChild, isActingAsChild,
     isGrandparent, kids, friendPeople,

@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { isSuperAdmin, updateGroup, updateGroupCompany } from '../../src/utils/groups';
 import { searchBrregCompanies, selectBrregHitForStoredOrg } from '../../src/utils/boligmappaApis';
@@ -23,7 +23,7 @@ import { saveEmployee } from '../../src/employees/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useCompanyModules } from '../../src/access/useCompanyModules';
 import { UnlessShellTitle } from '../../src/ui/ShellTitles';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { touchHit } from '../../src/ui/touchTarget';
 import { companyWorkingTime, withWorkingTime, workingTimeFocusText } from '../../src/arbeid/workingTimePolicy';
 
@@ -74,11 +74,12 @@ function Field({ label, value, onChangeText, placeholder, colors, keyboardType, 
 
 export default function ProjectPlatformScreen({ startPage = '' }) {
   const colors = useColors();
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
   // Lukk-krysset er 22 px; trykkflaten er 44 px på berøringsskjerm (UX-26).
   const closeHit = touchHit(22, 24, { touch: isTouch, os: Platform.OS });
   const nav = useNavigation();
-  const { family, familyId, families, applyFamilyPatch, requestShellTab, uid, userProfile, selectFamily, shellIntent, clearShellIntent } = useApp();
+  const { family, familyId, families, applyFamilyPatch, requestShellTab, uid, userProfile, selectFamily, clearShellIntent } = useApp();
+  const { shellIntent } = useShellNav();
   // Kom man hit fra en annen modul (f.eks. ISO-oppsettet), vises en vei tilbake dit.
   const [returnTo, setReturnTo] = useState(() => (shellIntent?.type === 'returnTo' && shellIntent.tab ? shellIntent : null));
   useEffect(() => {

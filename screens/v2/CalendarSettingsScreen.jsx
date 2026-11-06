@@ -7,7 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Screen } from '../../components/ui';
-import { colors, radius, useLayout } from '../../src/theme';
+import { colors, radius, useBreakpoints } from '../../src/theme';
 import { useApp } from '../../src/context/AppContext';
 import CompactBackLink from '../../components/CompactBackLink';
 import CalendarLayerList from '../../components/CalendarLayerList';
@@ -141,7 +141,7 @@ export default function CalendarSettingsScreen({
 } = {}) {
   const nav = useNavigation();
   const { isParent, uid, kids, parents, familyId } = useApp();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const goBack = useCallback(() => {
     if (typeof onBack === 'function') onBack();
     else nav.goBack();

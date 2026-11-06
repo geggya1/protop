@@ -73,21 +73,21 @@ function loadJsx(rel, { phone = false } = {}) {
     if (id === 'react-native-svg') return svgMock;
     if (id.includes('ThemeContext')) return { useColors: () => colors };
     if (id.includes('AppContext')) {
-      return {
+      return ((m) => ({ ...m, useShellNav: () => { const a = (m.useApp && m.useApp()) || {}; return { shellIntent: a.shellIntent ?? null, shellNav: a.shellNav ?? null }; } }))({
         useApp: () => ({
           requestShellTab() {},
           shellIntent: null,
           clearShellIntent() {},
         }),
-      };
+      });
     }
     if (id.includes('/theme')) {
-      return {
+      return ((m) => ({ ...m, useBreakpoints: m.useLayout }))({
         useLayout: () => (phone
           ? { width: 390, isPhone: true, hasRail: false, railWidth: 0, isDesktop: false }
           : { width: 1280, isPhone: false, hasRail: true, railWidth: 240, isDesktop: true }),
         colors,
-      };
+      });
     }
     if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => true };
     if (id.includes('components/Breadcrumb')) return { __esModule: true, default: function Breadcrumb() { return null; } };

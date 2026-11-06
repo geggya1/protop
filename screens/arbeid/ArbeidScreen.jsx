@@ -12,12 +12,12 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { grantsForEmployee, hoursOnAssignedOnly } from '../../src/access/companyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import { radius } from '../../src/ui/tokens';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { showSaveError, showSaveToast } from '../../src/ui/saveToast';
 import { watchEmployees } from '../../src/employees/storage';
 import { isActiveEmployee, isHiredPersonnel, ownEmployee } from '../../src/employees/model';
@@ -175,8 +175,9 @@ export default function ArbeidScreen({
   personScope = '',
 } = {}) {
   const colors = useColors();
-  const { isPhone } = useLayout();
-  const { familyId, family, user, isAdmin, requestShellTab, shellIntent, clearShellIntent } = useApp();
+  const { isPhone } = useBreakpoints();
+  const { familyId, family, user, isAdmin, requestShellTab, clearShellIntent } = useApp();
+  const { shellIntent } = useShellNav();
   const access = useCompanyAccess();
   const uid = user?.uid || null;
   const lockedId = String(lockedEmployeeId || '').trim();

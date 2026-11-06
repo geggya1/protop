@@ -1,7 +1,7 @@
 import React from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { useColors } from '../../src/context/ThemeContext';
 import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
@@ -14,7 +14,7 @@ import CompanyStartChecklist from '../../components/home/CompanyStartChecklist';
  * Innstillinger åpnes via tannhjulet (selskap/innstillinger).
  */
 export default function CompanyLanding({ subView = '' } = {}) {
-  const { pad } = useLayout();
+  const { pad } = useBreakpoints();
   const colors = useColors();
   const nav = useNavigation();
   const { family, requestShellTab, uid } = useApp();

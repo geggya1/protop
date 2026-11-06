@@ -27,7 +27,7 @@ import {
 } from '../../src/employees/schema';
 import EmployeeFields, { EmployeeField } from './EmployeeFields';
 import ChildCareCard from '../../components/employees/ChildCareCard';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import {
   emptyProjectState,
   monthsAgoIso,
@@ -353,7 +353,7 @@ export default function EmployeeDetailView({
   // 'home' = hovedsiden, 'employment' = Ansettelsesdata under Innstillinger.
   section = 'home',
 }) {
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const [editingKey, setEditingKey] = useState('');
   const [editingSection, setEditingSection] = useState('');
   const [extraDepartment, setExtraDepartment] = useState('');

@@ -83,9 +83,9 @@ function hookedRequire(orig, id) {
   if (id === 'react') return React;
   if (id === 'react-native') return rnMock;
   if (id.includes('@expo/vector-icons')) return { Ionicons() { return null; } };
-  if (id.includes('AppContext')) return { useApp: () => ({ familyId: 'co' }) };
+  if (id.includes('AppContext')) return ((m) => ({ ...m, useShellNav: () => { const a = (m.useApp && m.useApp()) || {}; return { shellIntent: a.shellIntent ?? null, shellNav: a.shellNav ?? null }; } }))({ useApp: () => ({ familyId: 'co' }) });
   if (id.includes('ThemeContext')) return { useColors: () => colors };
-  if (id.includes('src/theme')) return { useLayout: () => ({ width: 1400, isPhone: false, hasRail: false, railWidth: 0 }) };
+  if (id.includes('src/theme')) return ((m) => ({ ...m, useBreakpoints: m.useLayout }))({ useLayout: () => ({ width: 1400, isPhone: false, hasRail: false, railWidth: 0 }) });
   if (id.includes('useCompanyAccess')) {
     return {
       useCompanyAccess: () => ({

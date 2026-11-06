@@ -6,7 +6,7 @@ import HelpTarget from '../HelpTarget';
 import { useApp } from '../../src/context/AppContext';
 import { useUnread } from '../../src/context/NotificationContext';
 import { useChatDock, useChatDockPreferred } from '../../src/context/ChatDockContext';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import { useI18n } from '../../src/i18n';
 import { useParentDashboardTheme } from '../../src/hooks/useParentDashboardTheme';
 import { useHomeLayout } from '../../src/hooks/useHomeLayout';
@@ -53,7 +53,7 @@ export default function ParentShellBottomNav({
   const nav = useNavigation();
   const focused = useIsFocused();
   const { t } = useI18n();
-  const { hasRail } = useLayout();
+  const { hasRail } = useBreakpoints();
   const {
     isParent, isChild, isActingAsChild, familyId, family, families, kids, uid, activeChild, meChild,
   } = useApp();

@@ -1,11 +1,11 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { canImportList } from '../../src/access/companyAccess';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import {
   applyCustomerKind,
@@ -210,8 +210,9 @@ function fillFromBrreg(current, hit) {
 
 export default function CustomersScreen() {
   const colors = useColors();
-  const { isPhone } = useLayout();
-  const { familyId, requestShellTab, shellIntent, clearShellIntent, members, uid } = useApp();
+  const { isPhone } = useBreakpoints();
+  const { familyId, requestShellTab, clearShellIntent, members, uid } = useApp();
+  const { shellIntent } = useShellNav();
   const access = useCompanyAccess();
   // Import av kundelister krever Admin på Kunder.
   const canImport = canImportList(useCompanyAccess(), 'customers');

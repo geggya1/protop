@@ -157,6 +157,8 @@ export function reattachDeniedHubs(familyId) {
 
 subscribeAccessMirror((familyId) => reattachDeniedHubs(familyId));
 
+const HUB_RELEASE_GRACE_MS = 30_000;
+
 /**
  * Subscribe to families/{familyId}/{collectionName} with shared onSnapshot.
  * @param {string} familyId
@@ -194,6 +196,10 @@ export function subscribeFamilyCollection(familyId, collectionName, mapSnap, onC
   }
 
   const sub = { mapSnap: mapFn, onChange };
+  if (hub.releaseTimer) {
+    clearTimeout(hub.releaseTimer);
+    hub.releaseTimer = null;
+  }
   hub.refCount += 1;
   hub.subscribers.add(sub);
   if (hub.ready) emitToSubscriber(hub, sub);
@@ -207,10 +213,17 @@ export function subscribeFamilyCollection(familyId, collectionName, mapSnap, onC
     current.subscribers.delete(sub);
     current.refCount -= 1;
     if (current.refCount <= 0) {
-      if (current.retryTimer) clearTimeout(current.retryTimer);
-      current.unsub?.();
-      hubs.delete(key);
-      releaseListener(`families/${familyId}/${collectionName}`);
+      // Vent litt før lytteren stenges: et fanebytte fram og tilbake skal ikke starte den på
+      // nytt (og lese hele samlingen igjen).
+      if (current.releaseTimer) clearTimeout(current.releaseTimer);
+      current.releaseTimer = setTimeout(() => {
+        current.releaseTimer = null;
+        if (current.refCount > 0 || hubs.get(key) !== current) return;
+        if (current.retryTimer) clearTimeout(current.retryTimer);
+        current.unsub?.();
+        hubs.delete(key);
+        releaseListener(`families/${familyId}/${collectionName}`);
+      }, HUB_RELEASE_GRACE_MS);
     }
   };
 }
@@ -228,6 +241,7 @@ export function sharedListenerStats() {
 export function resetSharedCollectionListeners() {
   hubs.forEach((hub) => {
     if (hub.retryTimer) clearTimeout(hub.retryTimer);
+    if (hub.releaseTimer) clearTimeout(hub.releaseTimer);
     try { hub.unsub?.(); } catch { /* ignore */ }
   });
   hubs.clear();

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import InfoButton from '../../components/InfoButton';
 import OptionPicker from '../../components/OptionPicker';
@@ -97,7 +97,7 @@ export default function AgreementTreatment({
   onRequestCreate,
 }) {
   const { user } = useApp();
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const [state, setState] = useState(null);
   const [projects, setProjects] = useState([]);
   const [selectedId, setSelectedId] = useState('');

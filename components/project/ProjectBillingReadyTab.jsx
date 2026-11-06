@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { supplierFromCompany } from '../../src/economy/ehf.js';
 import { buildReadyProjects, PERIOD_OPTIONS, periodEndFor } from '../../src/economy/billingReady.js';
@@ -30,7 +30,7 @@ export default function ProjectBillingReadyTab({
 }) {
   const { familyId, family, uid, activeProfile, isAdmin } = useApp();
   const access = useCompanyAccess();
-  const { isPhone, isWide } = useLayout();
+  const { isPhone, isWide } = useBreakpoints();
   const canEdit = !!isAdmin || access.canEdit('economyBilling');
   const data = useBillingData({ familyId, projectId: project.id, project, canSeePowerOffice: !!isAdmin });
   const today = osloDate();

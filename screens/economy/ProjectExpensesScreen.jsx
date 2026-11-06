@@ -20,10 +20,10 @@ import {
   View,
 } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { canImportList } from '../../src/access/companyAccess';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import OptionPicker from '../../components/OptionPicker';
 import { useProjectStateEditor } from '../../src/project/useProjectStateEditor';
@@ -406,12 +406,13 @@ function ExpenseSheet({
 
 export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImport: canImportProp, scope: startScope = '' } = {}) {
   const colors = useColors();
-  const { familyId, user, requestShellTab, shellIntent, clearShellIntent } = useApp();
+  const { familyId, user, requestShellTab, clearShellIntent } = useApp();
+  const { shellIntent } = useShellNav();
   const access = useCompanyAccess();
   // Import av utleggslister krever Admin på Prosjektutlegg.
   const adminImport = canImportList(access, 'economyProjectExpenses');
   const canImport = adminImport && canImportProp !== false;
-  const { isWide, isPhone } = useLayout();
+  const { isWide, isPhone } = useBreakpoints();
   // Brede skjermer: filter og sortering i høyre marg, som på Timer.
   const sideFilters = !!isWide;
   const phone = !!isPhone;

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { liveCustomerList, useCustomers, useProjects } from '../../src/context/CompanyDataContext';
 import { freshRows } from '../../src/company/companyData.js';
@@ -53,8 +53,9 @@ function rememberIndexUrl(contractId, caseId = '', view = '') {
 export default function EconomyScreen({ subView = 'oversikt' }) {
   const colors = useColors();
   const {
-    family, familyId, members, requestShellTab, shellIntent, clearShellIntent, isAdmin, user,
+    family, familyId, members, requestShellTab, clearShellIntent, isAdmin, user,
   } = useApp();
+  const { shellIntent } = useShellNav();
   const page = defaultOkonomiSubView(subView);
   // Til fakturering henter prosjektene selv. Skallets egen lesing (med timer) venter til
   // en annen fane åpnes, så de to ikke henter det store prosjektdokumentet samtidig.

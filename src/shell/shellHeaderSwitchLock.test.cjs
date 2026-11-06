@@ -84,13 +84,13 @@ function loadShellHeader() {
     if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
     if (id.includes('ThemeContext')) return { useColors: () => ({ ink: '#111', muted: '#888', line: '#ddd', card: '#fff' }) };
     if (id.includes('i18n')) return { useI18n: () => ({ t: (key) => key }) };
-    if (id.includes('/theme')) return { useLayout: () => ({ isPhone: false }) };
+    if (id.includes('/theme')) return ((m) => ({ ...m, useBreakpoints: m.useLayout }))({ useLayout: () => ({ isPhone: false }) });
     if (id.includes('HelpButton')) return { __esModule: true, default: host('HelpButton') };
     if (id.includes('HelpTarget')) return { __esModule: true, default: host('HelpTarget') };
     if (id.includes('AvatarPicker')) return { AvatarBubble: function AvatarBubble() { return null; } };
     if (id.includes('ProfileMenuModal')) return { __esModule: true, default: function ProfileMenuModal() { return null; } };
     if (id.includes('AppContext')) {
-      return { useApp: () => ({ activeProfile: { name: 'Geir' }, family: { name: 'CONSULT1 AS' } }) };
+      return ((m) => ({ ...m, useShellNav: () => { const a = (m.useApp && m.useApp()) || {}; return { shellIntent: a.shellIntent ?? null, shellNav: a.shellNav ?? null }; } }))({ useApp: () => ({ activeProfile: { name: 'Geir' }, family: { name: 'CONSULT1 AS' } }) });
     }
     if (id.includes('NotificationContext')) return { useUnread: () => ({ unreadTotal: 0 }) };
     if (id.includes('IconBadge')) return { __esModule: true, default: host('IconBadge') };

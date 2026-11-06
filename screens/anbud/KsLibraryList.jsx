@@ -11,7 +11,7 @@ import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import { KS_LIBRARY, entryTitle, libraryTemplateId } from '../../src/forms/ksLibrary';
 import { controlKey, controlStatus, publishedRevision } from '../../src/doccontrol/model';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { radius, space, touch, type } from '../../src/ui/tokens';
 import { StatusChip } from '../doccontrol/parts';
 
@@ -198,7 +198,7 @@ export default function KsLibraryList({
   onEdit,
   onModule,
 }) {
-  const { isWide, isPhone, isTouch } = useLayout();
+  const { isWide, isPhone, isTouch } = useBreakpoints();
   const [boxWidth, setBoxWidth] = useState(0);
   const asTable = boxWidth ? boxWidth >= TABLE_MIN : isWide;
   const searching = !!String(query).trim();

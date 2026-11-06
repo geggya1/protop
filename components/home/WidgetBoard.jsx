@@ -6,7 +6,7 @@ import HomeHeroOverlay from './HomeHeroOverlay';
 import { HomeFooterLine } from './PastelCards';
 import WidgetGrid from './WidgetGrid';
 import AddWidgetSheet from './AddWidgetSheet';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
 import { useModuleHeroHosted } from '../ModulePageBg';
 import { HOME_FOOTER_LINE } from '../../src/homeBanners';
@@ -74,7 +74,7 @@ export default function WidgetBoard({
   const look = layout?.look || 'oversikt';
   const immersive = useHomeImmersive();
   const shellHeroHosted = useModuleHeroHosted();
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const fitCounts = useMemo(() => contentFitCounts(model), [model]);
   // Edit: saved sizes so ghost footprint matches collision.
   // View (telefon): tom kalender krymper til én rad, og bare radene det frigjør trekkes opp.

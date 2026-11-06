@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import InfoButton from '../../components/InfoButton';
 import ScrollSheet from '../../components/ScrollSheet';
 
 /** Veier under Kontrakt / avtale: behandle utkast eller registrere en avtale som allerede er inngått. */
 export default function AgreementPathSwitch({ colors, value, onChange, options }) {
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const [open, setOpen] = useState(false);
   if (isPhone) {
     const current = options.find((row) => row[0] === value) || options[0];

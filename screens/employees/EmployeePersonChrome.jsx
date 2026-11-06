@@ -12,7 +12,7 @@ import {
   statusLabel,
 } from '../../src/employees/model';
 import { EMPLOYEE_DETAIL_TABS, employeeViewToTab } from '../../src/employees/personTabs.js';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import BackLink from '../../src/ui/BackLink';
 import { SHELL_DETAILS } from '../../src/navigation/shellPaths';
 import { radius, space, type } from '../../src/ui/tokens';
@@ -50,7 +50,7 @@ export default function EmployeePersonChrome({
   tabs = EMPLOYEE_DETAIL_TABS,
   children,
 }) {
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState('');
   const searchRef = useRef(null);

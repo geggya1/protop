@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
 import { useUnread } from '../../src/context/NotificationContext';
 import { useI18n } from '../../src/i18n';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import { Screen, Mute } from '../../components/ui';
 import ShellHeader from '../../components/ShellHeader';
 import { Ionicons } from '@expo/vector-icons';
@@ -195,7 +195,7 @@ function NotificationRow({ row, onPress, compact }) {
 export default function NotificationsScreen({ inShell = false, onBack = null }) {
   const nav = useNavigation();
   const { t } = useI18n();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { uid, familyId, requestShellTab, selectFamily } = useApp();
   const { items, unreadTotal } = useUnread();
   const [familyInvites, setFamilyInvites] = useState([]);

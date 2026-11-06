@@ -29,7 +29,7 @@ import { surveyTrend, trendSentence, uniqueSurveyTitle } from '../../src/surveys
 import { csvFileName, downloadCsv, trendCsvRows } from '../../src/surveys/csv';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { chartColorsFor } from '../../src/ui/chartColors';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { radius, space, type } from '../../src/ui/tokens';
 import SurveyTrend from '../../components/surveys/SurveyTrend';
 import {
@@ -77,7 +77,7 @@ function SurveyRow({ colors, survey, onOpen }) {
 /** familyIdOverride og companyNameOverride brukes av den lokale demoen (/kundeundersokelse-demo). */
 export default function CustomerSurveyScreen({ familyIdOverride = '', companyNameOverride = '', initialSection = '' } = {}) {
   const colors = useColors();
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const app = useApp();
   const familyId = familyIdOverride || app.familyId;
   const { family, uid } = app;

@@ -18,8 +18,8 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useOptionalApp } from '../../src/context/AppContext';
-import { useLayout } from '../../src/theme';
+import { useOptionalApp, useShellNav } from '../../src/context/AppContext';
+import { useBreakpoints } from '../../src/theme';
 import {
   ARTICLE_GROUPS, articlesInGroup, getArticle, groupCounts, popularArticles, relatedArticles, searchArticles, suggestForTicket,
 } from '../../src/helpdesk/articles';
@@ -83,9 +83,10 @@ function Crumbs({ items }) {
 export default function HelpCenterScreen({ initial = null, demo = false }) {
   const app = useOptionalApp() || {};
   const {
-    user, family, shellIntent, clearShellIntent, requestShellTab, shellNav, activeProfile, role: userRole,
+    user, family, clearShellIntent, requestShellTab, activeProfile, role: userRole,
   } = app;
-  const { isDesktop, isPhone } = useLayout();
+  const { shellIntent, shellNav } = useShellNav();
+  const { isDesktop, isPhone } = useBreakpoints();
   const [view, setView] = useState({ name: 'home' });
   const [history, setHistory] = useState([]);
   const [query, setQuery] = useState('');

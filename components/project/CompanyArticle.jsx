@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import {
   ARTICLE_LIMITS, IMAGE_LAYOUTS, moveListItem, newArticleBlock,
 } from '../../src/project/companyPage';
@@ -86,7 +86,7 @@ export default function CompanyArticle({
   onSave,
   onCancel,
 }) {
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const blocks = Array.isArray(article?.blocks) ? article.blocks : [];
   const shown = blocks.filter((row) => (row.type === 'image' ? row.url : String(row.text || '').trim()));
   const images = useCroppedUpload({

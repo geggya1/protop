@@ -5,7 +5,7 @@ import {
   ACTION_STATUSES, addAction, planProgress, removeAction, suggestedActions, toggleStep, updateAction,
 } from '../../src/hr/surveyPlan';
 import { formatNbDate } from '../../src/hr/model';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { radius, space, type } from '../../src/ui/tokens';
 import { HrButton, HrChip, HrField } from './HrShared';
 
@@ -14,7 +14,7 @@ import { HrButton, HrChip, HrField } from './HrShared';
  * og linjen mellom trinnene fylles etter hvert. På telefon står trinnene under hverandre.
  */
 function Stepper({ colors, progress, canWrite, onToggle }) {
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   return (
     <View style={[styles.stepper, isPhone && styles.stepperPhone]} nativeID="hr-survey-plan-steps" accessibilityRole="list">
       {progress.steps.map((s, i) => {

@@ -4,9 +4,9 @@ import {
   Modal, Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useI18n } from '../../src/i18n';
-import { colors, radius, useLayout } from '../../src/theme';
+import { colors, radius, useBreakpoints } from '../../src/theme';
 import { desktopOverlay, desktopSheet } from '../../src/desktop';
 import { Screen, Title, Mute } from '../../components/ui';
 import { InfoDialog } from '../../components/ConfirmDialog';
@@ -44,8 +44,9 @@ import { ModulePageFrame, ModuleHubIntro } from '../../components/ModulePageBg';
 
 export default function NotesHubScreen({ compactHeader = false, profileUid = null }) {
   const { t } = useI18n();
-  const { isDesktop } = useLayout();
-  const { familyId, family, uid, members, shellIntent, clearShellIntent } = useApp();
+  const { isDesktop } = useBreakpoints();
+  const { familyId, family, uid, members, clearShellIntent } = useApp();
+  const { shellIntent } = useShellNav();
   const [notes, setNotes] = useState([]);
   const [archivedNotes, setArchivedNotes] = useState([]);
   const [loading, setLoading] = useState(true);

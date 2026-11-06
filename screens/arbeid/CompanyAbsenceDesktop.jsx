@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Rect } from 'react-native-svg';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import {
@@ -627,7 +627,8 @@ export function AbsenceReportDesktop({
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 960;
 
-  const { shellIntent, clearShellIntent } = useApp();
+  const { clearShellIntent } = useApp();
+  const { shellIntent } = useShellNav();
   const [employeeId, setEmployeeId] = useState(canChooseEmployee ? '' : lockedEmployeeId);
   const [query, setQuery] = useState('');
   const [period, setPeriod] = useState('all');

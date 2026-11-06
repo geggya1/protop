@@ -115,10 +115,10 @@ function loadJsx(rel) {
     if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
     if (id.includes('ThemeContext')) return { useColors: () => colors };
     if (id.includes('/theme')) {
-      return { useLayout: () => ({ width: 1280, isPhone: false, isDesktop: true }) };
+      return ((m) => ({ ...m, useBreakpoints: m.useLayout }))({ useLayout: () => ({ width: 1280, isPhone: false, isDesktop: true }) });
     }
     if (id.includes('AppContext')) {
-      return {
+      return ((m) => ({ ...m, useShellNav: () => { const a = (m.useApp && m.useApp()) || {}; return { shellIntent: a.shellIntent ?? null, shellNav: a.shellNav ?? null }; } }))({
         useApp: () => ({
           familyId: 'co1',
           family: { name: 'CONSULT1 AS', company: { navn: 'CONSULT1 AS' } },
@@ -128,7 +128,7 @@ function loadJsx(rel) {
           shellIntent: null,
           clearShellIntent: () => {},
         }),
-      };
+      });
     }
     if (id.includes('useCompanyAccess')) {
       return {

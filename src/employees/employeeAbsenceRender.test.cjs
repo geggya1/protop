@@ -65,9 +65,9 @@ function loadJsx(rel) {
     if (id.endsWith('.png')) return 1;
     if (id.includes('ThemeContext')) return { useColors: () => colors };
     if (id.includes('AppContext')) {
-      return { useApp: () => ({ familyId: '', family: null, families: [], shellIntent: null, clearShellIntent() {} }) };
+      return ((m) => ({ ...m, useShellNav: () => { const a = (m.useApp && m.useApp()) || {}; return { shellIntent: a.shellIntent ?? null, shellNav: a.shellNav ?? null }; } }))({ useApp: () => ({ familyId: '', family: null, families: [], shellIntent: null, clearShellIntent() {} }) });
     }
-    if (id.endsWith('src/theme')) return { useLayout: () => layout };
+    if (id.endsWith('src/theme')) return ((m) => ({ ...m, useBreakpoints: m.useLayout }))({ useLayout: () => layout });
     if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => true };
     if (id.includes('useTimesheetWorkspace')) return { useTimesheetWorkspace: () => workspace };
     if (id.includes('useCompanyAccess')) return { useCompanyAccess: () => ({ ready: true }) };

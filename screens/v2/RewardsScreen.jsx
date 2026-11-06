@@ -5,7 +5,7 @@ import {
 import { doc, onSnapshot, collection } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import FilterMenu from '../../components/FilterMenu';
 import {
   addDays, dateKey, startOfWeekMonday, monthGrid, isSameMonth,
@@ -259,7 +259,7 @@ const TASK_SPLIT_MIN = 1100;
 
 export default function RewardsScreen({ variant = 'auto' }) {
   const nav = useNavigation();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { highChildFriendliness } = useThemeMeta();
   const {
     familyId, families, isParent, isChild, meChild, members, uid,

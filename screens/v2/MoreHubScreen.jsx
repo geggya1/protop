@@ -6,7 +6,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useCompanyModules } from '../../src/access/useCompanyModules';
 import { useI18n } from '../../src/i18n';
-import { colors, radius, useLayout } from '../../src/theme';
+import { colors, radius, useBreakpoints } from '../../src/theme';
 import { Screen, ScrollBody } from '../../components/ui';
 import { lazyScreen } from '../../src/ui/lazyScreen';
 import ChildProfileHeader from '../../components/ChildProfileHeader';
@@ -157,7 +157,7 @@ const SUB_SCREENS = {
 export default function MoreHubScreen({ subView, setSubView }) {
   const nav = useNavigation();
   const { t } = useI18n();
-  const { pad, isDesktop, isTablet, hasRail, isPhone } = useLayout();
+  const { pad, isDesktop, isTablet, hasRail, isPhone } = useBreakpoints();
   const {
     isParent, isChild, family, familyId, meChild, meParent, kids,
     isActingAsChild, activeChild, isAdmin, isSuperAdmin, isGrandparent, requestShellTab,

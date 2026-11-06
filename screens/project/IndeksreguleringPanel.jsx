@@ -3,7 +3,7 @@ import {
   Image, Share, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { COST_CODES } from '../../src/project/catalog';
 import { INDEX_SERIES, MODELS, standardById } from '../../src/indeksregulering/catalog';
 import { interpretAvtale } from '../../src/indeksregulering/aiClient';
@@ -172,7 +172,8 @@ export default function IndeksreguleringPanel({
   onSaved,
 }) {
   const colors = useColors();
-  const { family, shellIntent, clearShellIntent } = useApp();
+  const { family, clearShellIntent } = useApp();
+  const { shellIntent } = useShellNav();
   const guardAi = useCompanyAiGuard();
   const [draft, setDraft] = useState(() => (
     seedDraft && typeof seedDraft === 'object' ? emptyDraft(seedDraft) : freshDraft(project, '')

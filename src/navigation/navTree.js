@@ -26,9 +26,18 @@ export const NAV_VARIANTS = ['rail', 'drawer'];
  */
 const HEADLESS_SECTION_IDS = new Set(['main']);
 
+/** Gruppen Ansatt i bedriftsmenyen vises som egen seksjon over Bedrift. */
+export const ANSATT_SECTION_ID = 'company-me';
+
+/** Seksjoner med skillelinje over (Ansatt og Bedrift). */
+export function isCompanySectionId(id) {
+  return id === 'company' || id === ANSATT_SECTION_ID;
+}
+
 /** Seksjoner som kan lukkes. Bedriftsgruppene lukkes én og én, ikke hele bedriftsmenyen. */
 function sectionFoldable(id) {
-  return isParentAppSection(id) || isChildAppSection(id) || id === 'account' || id === 'skole';
+  return isParentAppSection(id) || isChildAppSection(id) || id === 'account' || id === 'skole'
+    || id === ANSATT_SECTION_ID;
 }
 
 /**
@@ -104,16 +113,24 @@ function narrowItems(items, q) {
 export function navSections(sections, { query = '' } = {}) {
   const q = String(query || '').trim().toLowerCase();
   return (sections || [])
-    .map((section) => {
+    .flatMap((section) => {
       const items = q ? narrowItems(section.items, q) : (section.items || []);
       const appFolder = isParentAppSection(section.id) || isChildAppSection(section.id);
-      return {
+      const shown = {
         ...section,
         heading: HEADLESS_SECTION_IDS.has(section.id) ? '' : (section.title || ''),
         appFolder,
         foldable: sectionFoldable(section.id),
         items: section.id === 'company' ? groupCompanyDrawerItems(items) : items,
       };
+      if (section.id !== 'company') return [shown];
+      // Ansatt (egne sider) er egen seksjon med overskrift, over Bedrift.
+      const me = shown.items.find((item) => item.group && item.id === ANSATT_SECTION_ID);
+      if (!me) return [shown];
+      return [
+        { ...shown, id: ANSATT_SECTION_ID, title: me.label, heading: me.label, foldable: sectionFoldable(ANSATT_SECTION_ID), items: me.children || [] },
+        { ...shown, items: shown.items.filter((item) => item !== me) },
+      ];
     })
     .filter((section) => section.items.length > 0);
 }
@@ -130,7 +147,7 @@ export function navSectionHasActive(section, activeTab, activeSubView) {
 
 /**
  * Om seksjonen vises åpen. Et trykk på overskriften lagres i `open` og vinner.
- * Ellers åpen når den har aktiv side; app-mapper og Konto er lukket til de åpnes.
+ * Ellers åpen når den har aktiv side; app-mapper, Konto og Ansatt er lukket til de åpnes.
  */
 export function navSectionExpanded(section, {
   open = {}, query = '', activeTab = null, activeSubView = null,
@@ -140,7 +157,8 @@ export function navSectionExpanded(section, {
   if (!section.foldable) return true;
   if (open && Object.prototype.hasOwnProperty.call(open, section.id)) return open[section.id] !== false;
   if (navSectionHasActive(section, activeTab, activeSubView)) return true;
-  if (section.appFolder || section.id === 'account') return false;
+  // Ansatt er lukket til den åpnes, med mindre en av sidene der er åpen nå.
+  if (section.appFolder || section.id === 'account' || section.id === ANSATT_SECTION_ID) return false;
   return true;
 }
 

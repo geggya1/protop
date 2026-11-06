@@ -721,14 +721,14 @@ function collectPresented(items, acc = []) {
   assert.deepEqual(
     presented.filter((item) => item.group).map((item) => item.children.map((child) => child.id)),
     [
-      ['ansatt-minside', 'ansatt-gjoremal', 'ansatt-timeliste', 'ansatt-fravaer', 'ansatt-utlegg'],
+      ['ansatt-minside', 'ansatt-gjoremal', 'ansatt-timeliste', 'ansatt-fravaer', 'ansatt-utlegg', 'kjorebok'],
       ['selskap', 'underenheter', 'selskapsinnstillinger'],
       ['hr', 'ansatte', 'fravaer', 'arbeid'],
       ['innleie'],
       ['iso', 'skjema'],
       ['produktivitet', 'fremdrift', 'okonomi-inntjening'],
       ['okonomi'],
-      ['produkt', 'utstyr', 'kjorebok'],
+      ['produkt', 'utstyr'],
       ['anbud'],
       ['kunder', 'kundeundersokelse', 'kontrakt', 'projects'],
       ['moter'],

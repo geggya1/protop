@@ -110,8 +110,25 @@ test('bedriftsmenyen grupperes likt fra COMPANY_DRAWER_GROUPS', () => {
   const { rail, drawer } = menus(navTreeInput({ t, app: owner }));
   for (const sections of [rail, drawer]) {
     const groups = sections.find((section) => section.id === 'company').items;
-    assert.deepEqual(groups.map((group) => group.id), COMPANY_DRAWER_GROUPS.map((group) => group.id));
+    // Ansatt er egen seksjon over Bedrift; resten av gruppene står under Bedrift.
+    assert.deepEqual(
+      groups.map((group) => group.id),
+      COMPANY_DRAWER_GROUPS.map((group) => group.id).filter((id) => id !== 'company-me'),
+    );
     assert.ok(groups.every((group) => group.group));
+    const me = sections.find((section) => section.id === 'company-me');
+    assert.equal(me.heading, 'Ansatt');
+    assert.deepEqual(
+      me.items.map((item) => item.id),
+      ['ansatt-minside', 'ansatt-gjoremal', 'ansatt-timeliste', 'ansatt-fravaer', 'ansatt-utlegg', 'kjorebok'],
+    );
+    assert.equal(me.items.some((item) => item.group), false, 'sidene står rett under overskriften');
+    // Ansatt kan lukkes og er lukket til den åpnes, men åpen når en av sidene er åpen.
+    assert.equal(me.foldable, true);
+    assert.equal(navSectionExpanded(me), false);
+    assert.equal(navSectionExpanded(me, { activeTab: 'ansatte', activeSubView: 'min-side' }), true);
+    assert.equal(navSectionExpanded(me, { open: { 'company-me': true } }), true);
+    assert.equal(navSectionExpanded(me, { open: { 'company-me': false }, activeTab: 'ansatte', activeSubView: 'min-side' }), false);
   }
 });
 
@@ -135,7 +152,7 @@ test('bryteren Privat/Bedrift styrer menyen; ingen egen «Personlig»-overskrift
     assert.ok(main.items.some((item) => item.id === 'plan'), 'Kalender står øverst i begge');
   }
   assert.equal(bedrift.find((section) => section.id === 'company').heading, 'shell.company');
-  assert.deepEqual(bedrift.map((section) => section.id), ['main', 'company', 'account']);
+  assert.deepEqual(bedrift.map((section) => section.id), ['main', 'company-me', 'company', 'account']);
   assert.deepEqual(privat.map((section) => section.id), ['main', 'account']);
 });
 

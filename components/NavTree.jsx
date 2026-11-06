@@ -15,7 +15,7 @@ import {
   releaseClosedActiveSubmenus,
   toggleDrawerGroup,
 } from '../src/navigation/shellModules';
-import { navSectionExpanded } from '../src/navigation/navTree';
+import { isCompanySectionId, navSectionExpanded } from '../src/navigation/navTree';
 import IconBadge from './IconBadge';
 import { countForItem } from '../src/utils/notifications';
 
@@ -365,8 +365,8 @@ export default function NavTree({
           s.section,
           section.appFolder && s.appSection,
           section.appFolder && tone.appSection,
-          section.id === 'company' && s.companySection,
-          section.id === 'company' && tone.line,
+          isCompanySectionId(section.id) && s.companySection,
+          isCompanySectionId(section.id) && tone.line,
         ]}
       >
         {head}

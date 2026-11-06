@@ -30,6 +30,8 @@ export { deleteMyAccount } from './deleteAccount.js';
 export { recordConsent } from './consentLog.js';
 export { syncMyProfile } from './profileSync.js';
 export { claimUsername } from './usernameClaim.js';
+// Bildeutgaver (.m.webp og .t.webp) når et bilde lastes opp til Storage.
+export { imageVariants } from './imageVariants.js';
 // Avslutning, eksport og sletting av en bedrift (GRUNN-03).
 export {
   closeCompany, reopenCompany, exportCompanyData, purgeClosedCompanies,

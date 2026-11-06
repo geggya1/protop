@@ -13,6 +13,7 @@ import {
   storedCompanyProfile,
 } from '../../src/project/companyPublic';
 import { companyLogoOf } from '../../src/project/companyLogo';
+import { radius } from '../../src/ui/tokens';
 
 function Fact({ label, value, colors }) {
   if (!value) return null;
@@ -131,7 +132,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   companyLogo: { width: 148, height: 56 },
-  card: { flexGrow: 1, borderWidth: 1, borderRadius: 16, padding: 14, gap: 8, ...webShadow },
+  card: { flexGrow: 1, borderWidth: 1, borderRadius: radius.sheet, padding: 14, gap: 8, ...webShadow },
   cardTitle: { fontSize: 16, fontWeight: '600', paddingRight: 36 },
   body: { fontSize: 15, lineHeight: 21 },
   factGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

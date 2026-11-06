@@ -126,6 +126,7 @@ import {
 } from '../../src/employees/personTabs.js';
 import EmployeeEarningsSheet from '../../components/economy/EmployeeEarningsSheet';
 import { companyDisplayName } from '../../src/utils/companyName';
+import { radius } from '../../src/ui/tokens';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -1895,7 +1896,7 @@ export default function EmployeesScreen({ subView = null } = {}) {
         />
       ) : null}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
-      {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+      {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
       {view === 'list' && importReport ? <ImportResult colors={colors} result={importReport} /> : null}
 
       {view === 'list' ? (
@@ -1909,7 +1910,7 @@ export default function EmployeesScreen({ subView = null } = {}) {
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
           {lingering.length ? (
-            <View nativeID="employees-lingering" style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.danger || '#b42318' }]}>
+            <View nativeID="employees-lingering" style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.danger }]}>
               <Text style={{ color: colors.ink, fontWeight: '700' }}>
                 {lingering.length === 1
                   ? '1 avsluttet ansettelse har fortsatt tilgang til bedriften'
@@ -1923,7 +1924,7 @@ export default function EmployeesScreen({ subView = null } = {}) {
                 onPress={removeLingeringAccess}
                 disabled={busy}
                 accessibilityRole="button"
-                style={[styles.primary, { marginTop: 6, backgroundColor: colors.danger || '#b42318', opacity: busy ? 0.6 : 1 }]}
+                style={[styles.primary, { marginTop: 6, backgroundColor: colors.danger, opacity: busy ? 0.6 : 1 }]}
               >
                 <Text style={styles.primaryText}>Fjern tilgangen</Text>
               </TouchableOpacity>
@@ -2512,15 +2513,15 @@ export default function EmployeesScreen({ subView = null } = {}) {
               <Text style={{ color: colors.muted }}>
                 {`Du tas ut av «${leaving.companyName}» og mister tilgangen med en gang. Profilen og CV-en din på Min side følger deg videre.`}
               </Text>
-              {leaving.error ? <Text style={{ color: colors.danger || '#b42318' }}>{leaving.error}</Text> : null}
+              {leaving.error ? <Text style={{ color: colors.danger }}>{leaving.error}</Text> : null}
               <TouchableOpacity
                 nativeID="employee-leave-company-confirm"
                 onPress={leaving.leave}
                 disabled={leaving.busy}
                 accessibilityRole="button"
-                style={[styles.secondary, { borderColor: colors.danger || '#b42318', opacity: leaving.busy ? 0.6 : 1 }]}
+                style={[styles.secondary, { borderColor: colors.danger, opacity: leaving.busy ? 0.6 : 1 }]}
               >
-                <Text style={{ color: colors.danger || '#b42318' }}>{leaving.busy ? 'Forlater…' : 'Forlat bedriften'}</Text>
+                <Text style={{ color: colors.danger }}>{leaving.busy ? 'Forlater…' : 'Forlat bedriften'}</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -2639,7 +2640,7 @@ function InviteMark({ employee, colors }) {
   const label = INVITE_MARK_LABELS[state.key] || state.label;
   const color = mark.tone === 'ok' ? colors.success
     : mark.tone === 'warn' ? colors.warn
-      : mark.tone === 'danger' ? (colors.danger || '#b42318')
+      : mark.tone === 'danger' ? (colors.danger)
         : colors.muted;
   return (
     <View
@@ -2657,7 +2658,7 @@ function InviteMark({ employee, colors }) {
 function CvAttention({ draft, colors }) {
   const attention = cvAttention(draft);
   const warn = '#9a6700';
-  const danger = colors.danger || '#b42318';
+  const danger = colors.danger;
   if (!attention.gaps.length && !attention.issues.length) return null;
   return (
     <View nativeID="employee-cv-attention" style={[styles.attention, { borderColor: warn, backgroundColor: colors.card }]}>
@@ -2687,7 +2688,7 @@ const styles = StyleSheet.create({
   homeMain: { flex: 1, minWidth: 0, order: 1 },
   homeSide: { width: 260, order: 2 },
   homeStack: { gap: 12 },
-  homeSideTop: { borderWidth: 1, borderRadius: 12, padding: 12 },
+  homeSideTop: { borderWidth: 1, borderRadius: radius.card, padding: 12 },
   screen: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', alignSelf: 'stretch' },
   selfPending: { alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
   screenScroll: { flex: 1, minWidth: 0, alignSelf: 'stretch' },

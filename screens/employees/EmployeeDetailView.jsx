@@ -969,7 +969,7 @@ export default function EmployeeDetailView({
                     <TouchableOpacity
                       onPress={onDestroy}
                       accessibilityRole="button"
-                      style={[styles.dangerBtn, { backgroundColor: colors.danger || '#b42318' }]}
+                      style={[styles.dangerBtn, { backgroundColor: colors.danger }]}
                     >
                       <Text style={{ color: '#fff', fontWeight: '600' }}>Slett permanent</Text>
                     </TouchableOpacity>
@@ -979,7 +979,7 @@ export default function EmployeeDetailView({
                   </>
                 ) : (
                   <TouchableOpacity onPress={onConfirmDelete} accessibilityRole="button" style={styles.deleteLink}>
-                    <Text style={{ color: colors.danger || '#b42318' }}>Slett permanent</Text>
+                    <Text style={{ color: colors.danger }}>Slett permanent</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -988,7 +988,7 @@ export default function EmployeeDetailView({
                 <TouchableOpacity
                   onPress={onDestroy}
                   accessibilityRole="button"
-                  style={[styles.dangerBtn, { backgroundColor: colors.danger || '#b42318' }]}
+                  style={[styles.dangerBtn, { backgroundColor: colors.danger }]}
                 >
                   <Text style={{ color: '#fff', fontWeight: '600' }}>Flytt til papirkurv</Text>
                 </TouchableOpacity>
@@ -998,7 +998,7 @@ export default function EmployeeDetailView({
               </View>
             ) : (
               <TouchableOpacity onPress={onConfirmDelete} accessibilityRole="button" style={styles.deleteLink}>
-                <Text style={{ color: colors.danger || '#b42318' }}>Flytt til papirkurv</Text>
+                <Text style={{ color: colors.danger }}>Flytt til papirkurv</Text>
               </TouchableOpacity>
             )
           ) : null}

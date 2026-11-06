@@ -144,7 +144,7 @@ export default function EmployeeFilesView({
         ))}
       </View>
 
-      {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+      {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
 
       {newFolder !== null ? (
         <View style={[styles.inlineRow, { borderColor: colors.line }]}>

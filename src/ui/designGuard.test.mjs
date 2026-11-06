@@ -16,8 +16,8 @@ import test from 'node:test';
 // 86 borderRadius. Grensen er hevet med akkurat det; resten av screens/ har gått ned. Møtemodulen
 // bør over på useColors() og tokens, og da senkes grensen igjen.
 export const BASELINE = {
-  hex: 2432,
-  fontSize: 4170,
+  hex: 2402,
+  fontSize: 4169,
   borderRadius: 2180,
 };
 

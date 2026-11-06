@@ -12,6 +12,7 @@ import {
   actualHoursForWeek,
   actualWeekRuns,
   addAllocation,
+  addPlanRow,
   addDays,
   allocationEnd,
   allocationInclusiveEnd,
@@ -37,6 +38,7 @@ import {
   planningRows,
   projectLabel,
   removeAllocation,
+  removePlanRow,
   round1,
   shareOfCapacity,
   shiftPreview,
@@ -44,7 +46,6 @@ import {
   sizeFromPercent,
   spanBetween,
   spanFromDates,
-  suggestSpan,
   visibleWeekKeys,
   weekKeys,
   weekMeta,
@@ -222,6 +223,7 @@ export default function ProductivityBoard({
   absences = NO_ROWS,
   canWrite = false,
   onPlan,
+  onAddMember,
   initialOpenId = '',
   initialSelectedId = '',
   view = 'people',
@@ -342,19 +344,15 @@ export default function ProductivityBoard({
     commit(patchAllocation(plan, id, fields));
   }
 
-  function addProjectBar(person, project, start) {
-    const span = suggestSpan(project, start || origin, 8);
-    const row = makeAllocation({
-      employeeId: person.id,
-      project,
-      start: start || span.start,
-      weeks: span.weeks,
-      percent: 50,
-      weekHours,
-    });
-    commit(addAllocation(plan, row));
+  // Ny prosjektrad uten reservasjon. Belegget tegnes etterpå i raden.
+  function addProjectRow(person, project) {
+    commit(addPlanRow(plan, person.id, project.id));
     setOpenId(person.id);
-    selectAlloc(row);
+    onAddMember?.(person, project);
+  }
+
+  function removeProjectRow(person, projectId) {
+    commit(removePlanRow(plan, person.id, projectId));
   }
 
   function addDummy(person) {
@@ -777,6 +775,7 @@ export default function ProductivityBoard({
             timeEntries: ownEntries,
             employeeId: person.id,
             activityFrom,
+            pinned: plan?.rows || NO_ROWS,
           })
           : NO_ROWS;
         const actualByProject = open ? weeklyActualHours(ownEntries, person.id, weeks) : null;
@@ -885,14 +884,30 @@ export default function ProductivityBoard({
                         <Text numberOfLines={1} style={[styles.rowMeta, { color: colors.warnInk }]}>Registrert</Text>
                       </View>
                     ) : null}
-                    {rows.map((row) => (
-                      <View key={row.key} style={[styles.labelCell, { borderColor: colors.line }]}>
-                        <Text numberOfLines={1} style={[styles.rowName, { color: colors.ink }]}>{row.name}</Text>
-                        <Text numberOfLines={1} style={[styles.rowMeta, { color: colors.muted }]}>
-                          {row.source === 'dummy' ? 'Ikke et ekte prosjekt' : `${formatHours(row.recentHours)} t siste 3 md`}
-                        </Text>
-                      </View>
-                    ))}
+                    {rows.map((row) => {
+                      const loose = canWrite
+                        && removableRow(row, person.id, plan?.rows, personAllocs);
+                      return (
+                        <View key={row.key} style={[styles.labelCell, styles.labelRow, { borderColor: colors.line }]}>
+                          <View style={styles.labelText}>
+                            <Text numberOfLines={1} style={[styles.rowName, { color: colors.ink }]}>{row.name}</Text>
+                            <Text numberOfLines={1} style={[styles.rowMeta, { color: colors.muted }]}>
+                              {row.source === 'dummy' ? 'Ikke et ekte prosjekt' : `${formatHours(row.recentHours)} t siste 3 md`}
+                            </Text>
+                          </View>
+                          {loose ? (
+                            <Pressable
+                              onPress={() => removeProjectRow(person, row.projectId)}
+                              accessibilityLabel={`Fjern ${row.name} fra listen`}
+                              nativeID={`produktivitet-fjern-rad-${person.id}-${row.projectId}`}
+                              hitSlop={8}
+                            >
+                              <Ionicons name="close" size={14} color={colors.muted} />
+                            </Pressable>
+                          ) : null}
+                        </View>
+                      );
+                    })}
                   </View>
                   <ScrollView
                     horizontal
@@ -1222,7 +1237,7 @@ export default function ProductivityBoard({
                       .filter((project) => !rows.some((row) => row.projectId === project.id))
                       .slice(0, 8)
                       .map((project) => (
-                        <Pressable key={project.id} onPress={() => { addProjectBar(person, project, origin); setOtherQuery(''); }} style={[styles.chip, { borderColor: colors.line }]}>
+                        <Pressable key={project.id} onPress={() => { addProjectRow(person, project); setOtherQuery(''); }} style={[styles.chip, { borderColor: colors.line }]}>
                           <Text style={{ color: colors.ink }}>{projectLabel(project)}</Text>
                         </Pressable>
                       ))}
@@ -1235,6 +1250,14 @@ export default function ProductivityBoard({
       })}
     </View>
   );
+}
+
+/** En rad som bare står fordi den ble lagt til her: ingen timer eller reservasjon. */
+export function removableRow(row, employeeId, planRows, allocs) {
+  if (!row?.projectId || row.recentHours > 0) return false;
+  const pinned = (planRows || []).some((item) => item.employeeId === employeeId && item.projectId === row.projectId);
+  if (!pinned) return false;
+  return !(allocs || []).some((alloc) => alloc.projectId === row.projectId);
 }
 
 function shiftWeek(key, delta) {
@@ -1465,6 +1488,8 @@ const styles = StyleSheet.create({
   labelSum: { height: ROW_H, justifyContent: 'center', paddingRight: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   sumLabel: { fontSize: 12, fontWeight: '700' },
   labelCell: { height: ROW_H, justifyContent: 'center', paddingRight: 8, borderBottomWidth: StyleSheet.hairlineWidth, gap: 1 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 4 },
+  labelText: { flex: 1, minWidth: 0, gap: 1 },
   rowName: { fontSize: 13, fontWeight: '700' },
   rowMeta: { fontSize: 11 },
   sumRow: { flexDirection: 'row', height: ROW_H },

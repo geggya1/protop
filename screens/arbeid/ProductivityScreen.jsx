@@ -13,8 +13,11 @@ import {
   ensureProjectHours,
   hoursRangeCovered,
   loadProjectState,
+  patchProjectOperations,
   peekProjectState,
 } from '../../src/project/storage';
+import { addProjectMember } from '../../src/project/engine';
+import { displayName } from '../../src/employees/model';
 import { myProjectIds } from '../../src/project/myProjects';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { radius, type } from '../../src/ui/tokens';
@@ -181,6 +184,40 @@ export default function ProductivityScreen() {
     return live.filter((project) => own.has(project.id));
   }, [projects, allProjects, members, timeEntries, me, employees]);
 
+  // Admin og ledere setter personen inn som deltaker på prosjektet når de legger det til her.
+  const canAddMember = canWrite && allProjects;
+  async function addMember(person, project) {
+    if (!canAddMember || !familyId || !person?.id || !project?.id) return;
+    const already = members.some((row) => (
+      row.projectId === project.id && row.employeeId === person.id && row.active !== false
+    ));
+    if (already) return;
+    const input = {
+      projectId: project.id,
+      employeeId: person.id,
+      employeeName: displayName(person),
+      role: 'Prosjektmedlem',
+      addedByUid: String(user?.uid || ''),
+    };
+    const companyId = familyId;
+    let added = null;
+    const result = await patchProjectOperations(companyId, (remote) => {
+      const next = addProjectMember(remote, input);
+      if (!next.ok) return null;
+      added = next.state.members;
+      return { members: next.state.members };
+    }).catch((error) => ({ ok: false, error }));
+    if (familyRef.current !== companyId) return;
+    if (!result?.ok) {
+      showSaveToast?.('Prosjektet står i listen, men personen ble ikke lagt inn som deltaker');
+      return;
+    }
+    if (added) {
+      setMembers(added);
+      showSaveToast?.(`${displayName(person)} er lagt inn på ${project.number || project.name || 'prosjektet'}`);
+    }
+  }
+
   if (access.active && !access.ready) {
     return <ScrollView style={[styles.scroll, { backgroundColor: colors.bg }]} nativeID="produktivitet-screen" />;
   }
@@ -221,6 +258,7 @@ export default function ProductivityScreen() {
           loadingHours={loadingHours}
           canWrite={canWrite && (!access.active || access.ready)}
           onPlan={setPlan}
+          onAddMember={canAddMember ? addMember : undefined}
           view={view}
         />
       ) : null}

@@ -14,7 +14,8 @@ import { companyAddressLabel, companyAddressParts } from '../../src/mileage/flow
 import { companyContextLabel } from '../../src/project/companyOffer';
 import CompanyLogoSettings from '../../components/CompanyLogoSettings';
 import LinkedCompaniesSettings from '../../components/intercompany/LinkedCompaniesSettings';
-import CompanyAccessSettings, { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
+import CompanyAccessSettings from '../../components/project/CompanyAccessSettings';
+import CompanyAccessDenied from '../../components/project/CompanyAccessDenied';
 import CompanyModuleSettings from '../../components/project/CompanyModuleSettings';
 import ModuleActivationSettings from '../../components/ModuleActivationSettings';
 import CompanyPrivacySettings from '../../components/company/CompanyPrivacySettings';

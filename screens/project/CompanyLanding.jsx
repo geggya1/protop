@@ -7,7 +7,8 @@ import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { isSuperAdmin } from '../../src/utils/groups';
 import CompanyDesktopLanding from './CompanyDesktopLanding';
-import CompanyStartChecklist from '../../components/home/CompanyStartChecklist';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const CompanyStartChecklist = lazyScreen(() => import('../../components/home/CompanyStartChecklist'), { name: 'CompanyStartChecklist', silent: true });
 
 /**
  * Selskap: offentlig bedriftsinfo og nyhetsvegg.

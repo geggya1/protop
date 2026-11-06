@@ -24,7 +24,8 @@ import { hoursLabel } from '../../src/utils/proHome';
 import {
   useAwayToday, useCelebrations, useTenderPeek, useApprovals, useMyReports,
 } from '../../src/hooks/useProHomeData';
-import QuickReportButton from '../../screens/iso/QuickReport';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const QuickReportButton = lazyScreen(() => import('../../screens/iso/QuickReport'), { name: 'QuickReportButton', silent: true });
 
 const FONT = Platform.OS === 'web' ? 'Inter, system-ui, -apple-system, sans-serif' : undefined;
 

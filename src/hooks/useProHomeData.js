@@ -7,29 +7,37 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '../context/AppContext';
 import { useEmployees, useProjects, useCompanySettings } from '../context/CompanyDataContext';
-import { loadTimeEntries } from '../economy/timeEntryStorage';
 import { findLinkedEmployee, canManageTimesheets, employeeDisplayName } from '../arbeid/roles';
 import { isActiveEmployee } from '../employees/employmentState';
-import { hrKindBucket } from '../hr/directory';
+import { isHiredPersonnel } from '../employees/model';
 
 /** Egne, aktive ansatte: uten innleide og eksterne. */
 function ownStaff(employees) {
-  return (employees || []).filter((row) => isActiveEmployee(row) && hrKindBucket(row) !== 'external');
+  return (employees || []).filter((row) => isActiveEmployee(row) && !isHiredPersonnel(row));
 }
 import { projectPhaseOf } from '../project/statusFilter';
 import { listenCompanyWall } from '../project/companyWall';
 import { newsPlainText } from '../project/newsFormat';
 import { normalizeTrip } from '../economy/mileage';
 import { sameEmployeeIds } from '../project/myProjects';
-import { loadAbsences } from '../arbeid/absenceStorage';
-import { loadAnbudState, peekAnbudState, readCachedAnbudState } from '../anbud/storage';
-import { loadMyReports } from '../iso/storage';
 import {
   weekHoursSummary, homeProjects, teamToday, weekDays, isoDay, mileageSummary,
 } from '../utils/proHome';
 import {
   awayToday, celebrations, tenderPeek, approvalSummary, myReportsSummary,
 } from '../utils/proHomeMore';
+
+/*
+ * Lagrene (timer, fravær, anbud, ISO) hentes først når en widget trenger dem. Da kan Hjem
+ * tegnes før koden for anbud, ISO og prosjektmotoren er lastet (den lå før i oppstartsbunten).
+ */
+let anbudStore = null;
+function anbud() {
+  return import('../anbud/storage').then((mod) => { anbudStore = mod; return mod; });
+}
+const loadTimeEntries = (...args) => import('../economy/timeEntryStorage').then((m) => m.loadTimeEntries(...args));
+const loadAbsences = (...args) => import('../arbeid/absenceStorage').then((m) => m.loadAbsences(...args));
+const loadMyReports = (...args) => import('../iso/storage').then((m) => m.loadMyReports(...args));
 
 /** Teller opp når Hjem får fokus igjen, så tallene er ferske etter at man har ført timer. */
 function useFocusTick() {
@@ -243,19 +251,20 @@ export function useCelebrations(companyId, { limit = 4 } = {}) {
 /** Anbud: nye treff og frister. Leser samme tilstand som Anbud-modulen (delt i minnet). */
 export function useTenderPeek(companyId, { enabled = true, limit = 3 } = {}) {
   const tick = useFocusTick();
-  const [state, setState] = useState(() => (companyId ? peekAnbudState(companyId) : null));
+  const [state, setState] = useState(() => (companyId && anbudStore ? anbudStore.peekAnbudState(companyId) : null));
   useEffect(() => {
     let live = true;
     if (!companyId || !enabled) {
       setState(null);
       return undefined;
     }
-    readCachedAnbudState(companyId)
-      .then((cached) => { if (live && cached) setState(cached); })
-      .catch(() => {});
-    loadAnbudState(companyId)
-      .then((next) => { if (live) setState(next || null); })
-      .catch(() => {});
+    anbud().then((store) => {
+      store.readCachedAnbudState(companyId)
+        .then((cached) => { if (live && cached) setState(cached); })
+        .catch(() => {});
+      return store.loadAnbudState(companyId)
+        .then((next) => { if (live) setState(next || null); });
+    }).catch(() => {});
     return () => { live = false; };
   }, [companyId, enabled, tick]);
   const peek = useMemo(() => tenderPeek(state, { today: new Date(), limit }), [state, limit]);

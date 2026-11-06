@@ -6,7 +6,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { isSuperAdmin } from '../../src/utils/groups';
 import StandardAccountSettings from '../../components/company/StandardAccountSettings';
-import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
+import CompanyAccessDenied from '../../components/project/CompanyAccessDenied';
 import CompanyMileageSettings from '../../components/mileage/CompanyMileageSettings';
 import { UnlessShellTitle } from '../../src/ui/ShellTitles';
 import { lazyScreen } from '../../src/ui/lazyScreen';

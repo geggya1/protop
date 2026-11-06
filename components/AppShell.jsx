@@ -23,7 +23,7 @@ const MoreHubScreen = lazyScreen(() => import('../screens/v2/MoreHubScreen'), { 
 const MailHubScreen = lazyScreen(() => import('../screens/v2/MailHubScreen'), { name: 'MailHubScreen' });
 const ProjectPlatformScreen = lazyScreen(() => import('../screens/project/ProjectPlatformScreen'), { name: 'ProjectPlatformScreen' });
 const CompanyLanding = lazyScreen(() => import('../screens/project/CompanyLanding'), { name: 'CompanyLanding' });
-import { CompanyAccessDenied } from './project/CompanyAccessSettings';
+import CompanyAccessDenied from './project/CompanyAccessDenied';
 import CompanyAccountEnded from './CompanyAccountEnded';
 import { isActiveEmployee } from '../src/employees/model';
 import { CompanyModuleLocked } from './project/CompanyModuleSettings';
@@ -57,7 +57,7 @@ import { companyHasRegisteredUnits, companyMenuItems, defaultAnbudSubView, defau
 import { moduleTabsFor } from '../src/navigation/moduleTabs';
 import ModuleTabs from './ModuleTabs';
 import { companyLandingTab, isShellPath, parseShellPath, setHomeRouteKey, setShellLocation, shellPathFor, shellSearchFor } from '../src/navigation/shellPaths';
-import { movedExpensePage } from '../src/economy/expenseScope';
+import { movedExpensePage } from '../src/economy/expensePages';
 import { ShellDetailContext } from '../src/navigation/shellDetail';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,

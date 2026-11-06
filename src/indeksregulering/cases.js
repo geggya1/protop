@@ -978,19 +978,7 @@ export function applyPriceVersion(versions, next) {
   return [...closed, next].sort((a, b) => text(a.validFrom).localeCompare(text(b.validFrom)));
 }
 
-export function rateOnDate(versions, iso) {
-  const day = parseIsoDate(iso);
-  if (!day) return null;
-  const hits = (Array.isArray(versions) ? versions : []).filter((row) => {
-    if (!row?.validFrom || !(Number(row.rateExVat) >= 0)) return false;
-    if (row.validFrom > day) return false;
-    if (row.validTo && row.validTo < day) return false;
-    return true;
-  });
-  if (!hits.length) return null;
-  hits.sort((a, b) => text(b.validFrom).localeCompare(text(a.validFrom)));
-  return Number(hits[0].rateExVat);
-}
+export { rateOnDate } from './rateOnDate.js';
 
 export function beginSend(entry, message, actor, now = new Date()) {
   if (!entry) return { ok: false, error: 'Mangler sak.' };

@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
+import CompanyAccessDenied from '../../components/project/CompanyAccessDenied';
 import { watchEmployees } from '../../src/employees/storage';
 import { loadTimeEntries } from '../../src/economy/timeEntryStorage';
 import { createFollowUpTask } from '../../src/hr/followUpTask';

@@ -14,14 +14,15 @@ import { homeSceneTitle, homeSceneTagline, HOME_SCENE_SUBTITLE } from '../../src
 import { useBottomChromeInset } from '../../src/utils/useBottomChromeInset';
 import WidgetBoard from '../home/WidgetBoard';
 import CompanyOfferCard from '../home/CompanyOfferCard';
-import CompanyStartChecklist from '../home/CompanyStartChecklist';
-import CompanyQuickReport from '../home/CompanyQuickReport';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { useCompanyModules } from '../../src/access/useCompanyModules';
 import { openNotifications } from '../../src/navigation/openNotifications';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { applyPlatformSwitch, visibleCompanyWorkspaces } from '../../src/utils/platformSwitch';
 import { companyDisplayName } from '../../src/utils/companyName';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const CompanyStartChecklist = lazyScreen(() => import('../home/CompanyStartChecklist'), { name: 'CompanyStartChecklist', silent: true });
+const CompanyQuickReport = lazyScreen(() => import('../home/CompanyQuickReport'), { name: 'CompanyQuickReport', silent: true });
 
 /**
  * Fixed parent home — same tidy widget layout for every login.

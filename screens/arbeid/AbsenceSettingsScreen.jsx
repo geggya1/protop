@@ -5,7 +5,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { isSuperAdmin } from '../../src/utils/groups';
-import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
+import CompanyAccessDenied from '../../components/project/CompanyAccessDenied';
 import { employeeDisplayName } from '../../src/arbeid/roles.js';
 import { employeeActivityTab } from '../../src/employees/model.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';

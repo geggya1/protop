@@ -743,16 +743,7 @@ function PersonAccessPopup(props) {
   );
 }
 
-export function CompanyAccessDenied({ colors }) {
-  return (
-    <View style={styles.denied}>
-      <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>Ingen tilgang</Text>
-      <Text style={[styles.lead, { color: colors.muted }]}>
-        Du har ikke tilgang til denne delen av bedriften. Tilgangen styres under Selskap, Tilgang.
-      </Text>
-    </View>
-  );
-}
+export { default as CompanyAccessDenied } from './CompanyAccessDenied';
 
 export default function CompanyAccessSettings({
   company,

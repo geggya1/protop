@@ -1,4 +1,5 @@
 import { modelById, seriesById, standardById } from './catalog.js';
+import { parseIsoDate } from './isoDate.js';
 
 export function roundMoney(value) {
   const number = Number(value);
@@ -18,22 +19,7 @@ export function parseAmount(raw) {
   return Number.isFinite(number) ? number : null;
 }
 
-export function parseIsoDate(raw) {
-  const text = String(raw ?? '').trim();
-  let match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (match) return validIso(match[1], match[2], match[3]);
-  match = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  if (match) return validIso(match[3], match[2].padStart(2, '0'), match[1].padStart(2, '0'));
-  return '';
-}
-
-function validIso(year, month, day) {
-  const y = Number(year);
-  const m = Number(month);
-  const d = Number(day);
-  if (y < 1970 || m < 1 || m > 12 || d < 1 || d > 31) return '';
-  return `${year}-${month}-${day}`;
-}
+export { parseIsoDate } from './isoDate.js';
 
 export function todayIso(now = new Date()) {
   const y = now.getFullYear();

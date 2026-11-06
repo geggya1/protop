@@ -17,6 +17,7 @@ import BackLink from '../../src/ui/BackLink';
 import { SHELL_DETAILS } from '../../src/navigation/shellPaths';
 import { radius, space, type } from '../../src/ui/tokens';
 import PageTabs from '../../components/PageTabs';
+import { useShellHeroOverride } from '../../components/ShellHeroOverride';
 import { lazyScreen } from '../../src/ui/lazyScreen';
 const TimesheetEmployeePicker = lazyScreen(() => import('../../components/arbeid/TimesheetEmployeePicker'), { name: 'TimesheetEmployeePicker', silent: true });
 
@@ -68,6 +69,48 @@ export default function EmployeePersonChrome({
 
   const pageTabs = useMemo(() => tabs.map((tab) => ({ ...tab, short: SHORT[tab.id] })), [tabs]);
 
+  // Navnet står i modulbåndet øverst (med velger og Forrige/Neste), ikke i en egen rad.
+  // Funksjonene går via ref, så båndet ikke settes på nytt ved hver gjengivelse.
+  const handlers = useRef({});
+  handlers.current = { onBack, onSelect, prev, next };
+  const statusText = deactivated ? (state === 'ended' ? 'Sluttet' : 'Deaktivert') : status;
+  const heroValue = useMemo(() => {
+    if (!employee?.id) return null;
+    const arrow = (dir) => {
+      const target = dir < 0 ? prev : next;
+      return (
+        <TouchableOpacity
+          key={dir}
+          nativeID={dir < 0 ? 'employee-prev' : 'employee-next'}
+          onPress={() => {
+            const row = dir < 0 ? handlers.current.prev : handlers.current.next;
+            if (row) handlers.current.onSelect?.(row);
+          }}
+          disabled={!target}
+          accessibilityRole="button"
+          accessibilityLabel={dir < 0 ? 'Forrige medarbeider' : 'Neste medarbeider'}
+          hitSlop={4}
+          style={[styles.heroArrow, { opacity: target ? 1 : 0.4 }]}
+        >
+          <Ionicons name={dir < 0 ? 'chevron-back' : 'chevron-forward'} size={15} color={colors.ink} />
+        </TouchableOpacity>
+      );
+    };
+    return {
+      kicker: own ? 'Ansatt' : SHELL_DETAILS.employee.list,
+      onKickerPress: own ? null : () => handlers.current.onBack?.(),
+      title: name || 'Medarbeider',
+      subtitle: [statusText, subtitle].filter(Boolean).join(' · '),
+      onTitlePress: canSwitch ? () => setPickerOpen(true) : null,
+      titleA11y: canSwitch ? `${name}. Skift person` : name,
+      titleAccessory: own || isPhone ? null : (
+        <View style={styles.heroArrows}>{[arrow(-1), arrow(1)]}</View>
+      ),
+      compact: true,
+    };
+  }, [employee?.id, own, name, statusText, subtitle, canSwitch, isPhone, prev?.id, next?.id, colors]); // eslint-disable-line react-hooks/exhaustive-deps
+  const heroHosted = useShellHeroOverride(heroValue);
+
   useEffect(() => {
     if (!pickerOpen || Platform.OS !== 'web') return undefined;
     const timer = setTimeout(() => searchRef.current?.focus?.(), 60);
@@ -83,8 +126,8 @@ export default function EmployeePersonChrome({
     <View nativeID="employee-person-chrome" style={styles.root}>
       <PageTabs id="employee" label={name || 'Medarbeider'} tabs={pageTabs} value={activeTab} onChange={onTab} />
 
-      <View style={[styles.body, isPhone && styles.bodyPhone]}>
-        <View style={styles.identity}>
+      <View style={[styles.body, isPhone && styles.bodyPhone, heroHosted && styles.bodyHosted]}>
+        {heroHosted ? null : <View style={styles.identity}>
           {own ? null : (
             <>
               <BackLink label={SHELL_DETAILS.employee.list} onPress={onBack} nativeID="employee-back" />
@@ -141,7 +184,7 @@ export default function EmployeePersonChrome({
               <Ionicons name="chevron-forward" size={16} color={colors.ink} />
             </TouchableOpacity>
           </View>}
-        </View>
+        </View>}
 
         {deactivated ? (
           <View
@@ -203,6 +246,17 @@ const styles = StyleSheet.create({
   root: { width: '100%', flexShrink: 0 },
   body: { paddingHorizontal: space.md, paddingVertical: 6, gap: 8 },
   bodyPhone: { paddingHorizontal: space.sm, paddingVertical: 4, gap: 6 },
+  // Navnet står i båndet: bare undermenyen og eventuelt varselet om avsluttet konto her.
+  bodyHosted: { paddingVertical: 0 },
+  heroArrows: { flexDirection: 'row', gap: 6, marginLeft: 4 },
+  heroArrow: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+  },
   identity: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   divider: { width: 1, alignSelf: 'stretch', marginVertical: 6 },
   titleBlock: { flex: 1, minWidth: 0, gap: 0 },

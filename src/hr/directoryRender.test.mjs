@@ -776,7 +776,7 @@ let caseHtml = '';
 // HR bruker modulmenyen i skallet (ModuleTabs), som de andre modulene (UX-19).
 const ModuleTabs = component('components/ModuleTabs.jsx');
 const { moduleTabsFor } = load(path.join(ROOT, 'src/navigation/moduleTabs.js'));
-const sectionLabels = ['Oversikt', 'Ansatte', 'Oppfølging', 'Rekruttering', 'Rutiner'];
+const sectionLabels = ['Oversikt', 'Personell', 'Oppfølging', 'Rekruttering', 'Rutiner'];
 
 let phoneNavHtml = '';
 let phoneSheetHtml = '';
@@ -787,13 +787,10 @@ let phoneSheetHtml = '';
     onSelect: () => {},
   }));
   for (const label of sectionLabels) assert.match(phoneNavHtml, new RegExp(label));
-  assert.match(phoneNavHtml, /id="module-tab-del-ansatte"/);
-  // Ansattregisteret (HR › Ansatte) er første side i delen.
+  assert.match(phoneNavHtml, /id="module-tab-del-personell"/);
+  // Ansattregisteret er egen modul (Ansatte), ikke en side i HR.
   // Avtaler, Lønn og Lovpålagt er samlet i Personell.
-  assert.match(phoneNavHtml, /Ansatte \(2 sider\)/);
-  for (const id of ['ansatte', 'personell']) {
-    assert.match(phoneNavHtml, new RegExp(`id="module-tab-hr-${id}"`));
-  }
+  assert.equal(phoneNavHtml.includes('module-tab-hr-ansatte'), false);
   // Sidene i de andre delene står ikke i andre rad.
   assert.equal(phoneNavHtml.includes('module-tab-hr-sykefravaer'), false);
   assert.equal(phoneNavHtml.includes('module-tab-hr-handbok'), false);

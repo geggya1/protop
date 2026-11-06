@@ -99,7 +99,7 @@ function idsIn(sections) {
     [
       'selskap', 'selskapsinnstillinger',
       'ansatt-minside', 'ansatt-gjoremal', 'ansatt-timeliste', 'ansatt-fravaer', 'ansatt-utlegg',
-      'hr', 'innleie', 'fravaer', 'arbeid', 'produktivitet', 'fremdrift',
+      'hr', 'ansatte', 'innleie', 'fravaer', 'arbeid', 'produktivitet', 'fremdrift',
       'okonomi-inntjening', 'kunder', 'kundeundersokelse', 'anbud', 'kontrakt', 'projects', 'moter', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
       'skjema',
     ],
@@ -152,11 +152,13 @@ function idsIn(sections) {
   assert.deepEqual(own('ansatt-timeliste'), { type: 'tab', tab: 'timeliste' });
   assert.deepEqual(own('ansatt-fravaer'), { type: 'tab', tab: 'ansatte', subView: 'mitt-fravaer' });
   assert.deepEqual(own('ansatt-utlegg'), { type: 'tab', tab: 'ansatte', subView: 'mine-utlegg' });
-  assert.equal(companyItems.some((i) => i.id === 'ansatte'), false, 'registeret er en side i HR');
+  // Registeret er egen modul ved siden av HR. Den gamle adressen hr/ansatte sendes dit.
+  assert.deepEqual(companyItems.find((i) => i.id === 'ansatte').action, { type: 'tab', tab: 'ansatte' });
+  assert.deepEqual(normalizeShellSelection('hr', 'ansatte'), { tab: 'ansatte', subView: null });
   const hr = companyItems.find((i) => i.id === 'hr');
   assert.equal(hr.action.tab, 'hr');
-  assert.equal(hr.children.length, 10);
-  assert.deepEqual(hr.children.find((i) => i.id === 'hr-ansatte').action, { type: 'tab', tab: 'hr', subView: 'ansatte' });
+  assert.equal(hr.children.length, 9);
+  assert.equal(hr.children.some((i) => i.id === 'hr-ansatte'), false);
   // Innleie er egen modul ved siden av HR.
   const innleie = companyItems.find((i) => i.id === 'innleie');
   assert.equal(innleie.action.tab, 'innleie');
@@ -721,7 +723,7 @@ function collectPresented(items, acc = []) {
     [
       ['ansatt-minside', 'ansatt-gjoremal', 'ansatt-timeliste', 'ansatt-fravaer', 'ansatt-utlegg'],
       ['selskap', 'underenheter', 'selskapsinnstillinger'],
-      ['hr', 'fravaer', 'arbeid'],
+      ['hr', 'ansatte', 'fravaer', 'arbeid'],
       ['innleie'],
       ['iso', 'skjema'],
       ['produktivitet', 'fremdrift', 'okonomi-inntjening'],

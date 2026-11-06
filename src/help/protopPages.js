@@ -670,7 +670,7 @@ export const PROTOP_PAGES = {
     section: 'company-people',
     label: tx('Ansatte', 'Employees'),
     path: tx('Bedrift → Ansatte og arbeidstid → HR → Ansatte', 'Company → Employees and working hours → HR → Employees'),
-    nav: { tab: 'hr', subView: 'ansatte' },
+    nav: { tab: 'ansatte', subView: null },
     icon: 'id-card',
     process: 'ny-ansatt',
     kicker: tx('Register, CV og invitasjon', 'Register, CV and invites'),

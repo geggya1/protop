@@ -80,7 +80,8 @@ import { useUnread } from '../src/context/NotificationContext';
 import { countForModule } from '../src/utils/notifications';
 import ModuleIntroHost from './ModuleIntroHost';
 import { helpPageId } from '../src/help/protopPageKeys';
-import ModuleHero, { ModuleTitleRow } from './ModuleHero';
+import { ModuleTitleRow } from './ModuleHero';
+import { HostedModuleHero, ShellHeroOverrideProvider } from './ShellHeroOverride';
 import HelpTarget from './HelpTarget';
 import ModuleActivationGate from './ModuleActivationGate';
 import { activationModuleIdForShell } from '../src/modules/moduleActivationRegistry';
@@ -468,6 +469,13 @@ function AppShellInner() {
     }
   }, [loading, isParent, families, family, nav, userProfile?.profileComplete]);
 
+  // Registeret lå før som HR › Ansatte. Gamle lenker og bokmerker går til modulen Ansatte.
+  useEffect(() => {
+    if (tab !== 'hr' || moreSubView !== 'ansatte') return;
+    setMoreSubView(null);
+    setTab('ansatte');
+  }, [tab, moreSubView]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const selectTab = (id, subView = null) => {
     prevNavRef.current = { tab, subView: moreSubView };
     clearShellIntent?.();
@@ -668,7 +676,7 @@ function AppShellInner() {
     if (tab === 'kunder') return moreSubView === 'undersokelse' ? <CustomerSurveyScreen /> : <CustomersScreen />;
     // Egen side (Bedrift › Ansatt) eller registeret. Ny montering per side, så egen side ikke arver listen.
     if (tab === 'ansatte') return <EmployeesScreen key={moreSubView || 'register'} subView={moreSubView} />;
-    // HR › Ansatte: samme ansattregister, som egen side i HR.
+    // Gammel adresse (HR › Ansatte): registeret vises til effekten over har sendt videre til Ansatte.
     if (tab === 'hr' && moreSubView === 'ansatte') return <EmployeesScreen key="hr-ansatte" />;
     if (tab === 'hr' && moreSubView === 'innleid') return <InnleieScreen subView="personell" />;
     if (tab === 'hr') return <HrScreen subView={moreSubView || defaultHrSubView(null)} />;
@@ -946,6 +954,7 @@ function AppShellInner() {
     <ShellWideContext.Provider value={setDeskWide}>
     <ShellTitleRightContext.Provider value={shellTitleApi}>
     <ShellPageHeroContext.Provider value={shellPageHeroApi}>
+    <ShellHeroOverrideProvider>
     <View style={[styles.safe, { backgroundColor: immersiveHome ? '#1a2430' : colors.bg }]}>
       <UsageRecorder companyId={familyId} tab={tab} subView={moreSubView} />
       <SkipToContent />
@@ -1051,7 +1060,7 @@ function AppShellInner() {
             titleInPage={titleInContent}
             helpdeskActive={tab === 'more' && moreSubView === 'helpdesk'}
             hero={shellPageHero || (headerHeroId ? (
-              <ModuleHero moduleId={headerHeroId} flush chrome />
+              <HostedModuleHero moduleId={headerHeroId} flush chrome />
             ) : null)}
           />
           <PushEnableBanner />
@@ -1082,7 +1091,7 @@ function AppShellInner() {
                   ]}>
                     {heroCompact
                       ? <ModuleTitleRow moduleId={pageHeroId} tab={tab} subView={moreSubView} />
-                      : <ModuleHero moduleId={pageHeroId} flush />}
+                      : <HostedModuleHero moduleId={pageHeroId} flush />}
                   </View>
                 ) : null}
                 {showDeskAside ? (
@@ -1136,6 +1145,7 @@ function AppShellInner() {
 
     </SafeAreaView>
     </View>
+    </ShellHeroOverrideProvider>
     </ShellPageHeroContext.Provider>
     </ShellTitleRightContext.Provider>
     </ShellWideContext.Provider>

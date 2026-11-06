@@ -24,12 +24,8 @@ export const GOOGLE_WEB_CLIENT_ID =
 
 function prefersRedirectAuth() {
   if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false;
-  if (typeof window !== 'undefined' && shouldUseFirebaseGoogleOnLocal({
-    isWeb: true,
-    hostname: window.location.hostname,
-  })) {
-    return true;
-  }
+  // Lokalt (localhost) brukes popup: Chrome blokkerer tredjepartslagringen som
+  // omdirigering via firebaseapp.com trenger, og da kommer økten aldri tilbake.
   const ua = navigator.userAgent || '';
   const iOS = /iPad|iPhone|iPod/.test(ua)
     || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
@@ -418,8 +414,9 @@ export async function signInWithGoogle() {
 
   if (Platform.OS === 'web') {
     const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-    // Local Metro: never GIS (origin_mismatch). Redirect via firebaseapp.com
+    // Local Metro: never GIS (origin_mismatch). Firebase popup via firebaseapp.com
     // so Google sees an already-authorized origin, not localhost:8081.
+    // Redirect is only a fallback when the popup is blocked.
     if (shouldUseFirebaseGoogleOnLocal({ isWeb: true, hostname })) {
       return signInWithProviderFirebase(provider, { allowRedirect: true });
     }

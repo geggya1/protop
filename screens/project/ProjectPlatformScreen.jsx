@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
@@ -105,6 +105,12 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   // AI-abonnement: Lese ser forbruket, Admin endrer rammene og ser hvert kall.
   const canOpenAi = (owner && !access.previewLocks('aiSubscription')) || (access.ready && access.canView('aiSubscription'));
   const canEditAi = (owner && !access.previewLocks('aiSubscription')) || (access.ready && access.canAdmin('aiSubscription'));
+  // Eier og administratorer uten ansattpost kan også få AI-tilgang (src/ai/aiPeople.js).
+  const aiAdmins = useMemo(() => {
+    const ids = [family?.ownerUid, ...(Array.isArray(family?.adminUids) ? family.adminUids : [])].filter(Boolean);
+    const myName = userProfile?.displayName || userProfile?.name || '';
+    return [...new Set(ids)].map((id) => ({ uid: id, name: id === uid ? (myName || 'Deg') : '' }));
+  }, [family?.ownerUid, family?.adminUids, uid, userProfile?.displayName, userProfile?.name]);
   const canOpenAccess = (owner && !access.previewLocks('accessControl'))
     || (access.ready && access.canView('accessControl'));
   const contextLabel = companyContextLabel(family);
@@ -517,6 +523,8 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
               familyId={familyId}
               company={company}
               uid={uid}
+              employees={access.employees}
+              admins={aiAdmins}
               canEdit={canEditAi}
               colors={colors}
               onOpenPrivacy={() => requestShellTab?.('selskap', 'innstillinger')}

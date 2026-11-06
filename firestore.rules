@@ -383,15 +383,18 @@ service cloud.firestore {
 
     function aiPlanShapeOk(d) {
       return d.keys().hasOnly(['enabled', 'monthlyBudgetNok', 'onLimit', 'perUserMonthlyNok', 'deepModelEnabled',
-          'allowInnleide', 'maxFileMb', 'maxFilesPerMessage', 'chatRetentionDays', 'emailDraftsEnabled',
-          'updatedAt', 'updatedBy'])
+          'maxFileMb', 'maxFilesPerMessage', 'chatRetentionDays', 'emailDraftsEnabled',
+          'allowedUids', 'externalUids', 'updatedAt', 'updatedBy'])
         && d.keys().hasAll(['enabled', 'monthlyBudgetNok', 'onLimit', 'updatedAt', 'updatedBy'])
         && d.enabled is bool
         && aiNumIn(d, 'monthlyBudgetNok', 0, 1000000)
         && d.onLimit in ['stop', 'downgrade']
         && (!('perUserMonthlyNok' in d) || aiNumIn(d, 'perUserMonthlyNok', 0, 100000))
         && (!('deepModelEnabled' in d) || d.deepModelEnabled is bool)
-        && (!('allowInnleide' in d) || d.allowInnleide is bool)
+        // Tilgang person for person. Serveren sjekker i tillegg at personen er aktiv, og at
+        // innleide/eksterne står i externalUids (src/ai/aiPeople.js).
+        && (!('allowedUids' in d) || (d.allowedUids is list && d.allowedUids.size() <= 1000))
+        && (!('externalUids' in d) || (d.externalUids is list && d.externalUids.size() <= 1000))
         && (!('maxFileMb' in d) || aiIntIn(d, 'maxFileMb', 1, 100))
         && (!('maxFilesPerMessage' in d) || aiIntIn(d, 'maxFilesPerMessage', 1, 20))
         && (!('chatRetentionDays' in d) || aiIntIn(d, 'chatRetentionDays', 1, 3650))

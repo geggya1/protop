@@ -2,7 +2,8 @@
  * Gatewayen for AI-assistenten. Alle kall går hit, aldri direkte til en leverandør:
  *
  *   1. Er personen medlem, og har bedriften slått på AI-assistenten og AI under personvern?
- *   2. Er personen innleid/ekstern, og er det tillatt?
+ *   2. Er personen aktiv, og har administrator gitt akkurat denne personen tilgang?
+ *      Innleide og eksterne må stå i sin egen liste (externalUids). Se src/ai/aiPeople.js.
  *   3. Er det budsjett igjen for bedriften og personen? (aiAccessDecision)
  *   4. Velg modell for nivået (router.js), med tak på tokens og verktøykall.
  *   5. Gjør kallet (`call`, leverandøren kommer i fase 3).
@@ -11,7 +12,7 @@
  * Ingen leverandør kalles uten at 1–4 er sjekket, og ingen kall føres uten pris.
  */
 import {
-  AI_EXTERNAL_LEVELS, aiAccessDecision, aiMonthKey, companyAiAllowed, normalizeAiPlan,
+  aiAccessDecision, aiMonthKey, aiPersonFor, companyAiAllowed, normalizeAiPlan,
 } from '../aiAssistentSrc.js';
 import { estimateCostNok, costForUsage } from './pricing.js';
 import { modelForTier } from './router.js';
@@ -32,13 +33,18 @@ function isMember(family, uid) {
   return ['members', 'activeUsers', 'memberIds'].some((key) => Array.isArray(family[key]) && family[key].includes(uid));
 }
 
-/** Bedrift, plan og personens tilgangsnivå. */
+function isAdmin(family, uid) {
+  return family.ownerUid === uid || family.ownerId === uid
+    || (Array.isArray(family.adminUids) && family.adminUids.includes(uid));
+}
+
+/** Bedrift, plan og personen (aktiv? innleid/ekstern?) fra ansattpostene. */
 export async function loadAiContext(db, companyId, uid) {
   if (!companyId || !uid) throw new AiGatewayError('permission-denied', 'no-access', 'Mangler tilgang.');
-  const [familySnap, planSnap, aclSnap] = await Promise.all([
+  const [familySnap, planSnap, staffSnap] = await Promise.all([
     db.doc(`families/${companyId}`).get(),
     db.doc(`families/${companyId}/aiSettings/plan`).get(),
-    db.doc(`families/${companyId}/accessAcl/${uid}`).get(),
+    db.collection(`families/${companyId}/employees`).where('personUid', '==', uid).limit(10).get(),
   ]);
   const family = familySnap.exists ? familySnap.data() || {} : null;
   if (!family || !isMember(family, uid)) {
@@ -47,11 +53,11 @@ export async function loadAiContext(db, companyId, uid) {
   if (!['company', 'organization'].includes(family.type)) {
     throw new AiGatewayError('failed-precondition', 'not-company', 'AI-assistenten finnes bare for bedrifter.');
   }
-  const levelId = aclSnap.exists ? String(aclSnap.data()?.levelId || '') : '';
+  const employees = staffSnap.docs.map((row) => ({ id: row.id, ...row.data() }));
   return {
     plan: normalizeAiPlan(planSnap.exists ? planSnap.data() : null),
     aiAllowed: companyAiAllowed(family.company),
-    external: AI_EXTERNAL_LEVELS.includes(levelId),
+    person: aiPersonFor(uid, employees, { isAdmin: isAdmin(family, uid) }),
   };
 }
 
@@ -81,7 +87,8 @@ export async function runAiCall({
   const decision = aiAccessDecision({
     plan: ctx.plan,
     aiAllowed: ctx.aiAllowed,
-    external: ctx.external,
+    uid,
+    person: ctx.person,
     tier,
     monthSpentNok: spend.monthSpentNok,
     userSpentNok: spend.userSpentNok,
@@ -102,7 +109,7 @@ export async function runAiCall({
   const { crossed } = await recordUsage(db, {
     companyId,
     uid,
-    userName,
+    userName: userName || ctx.person.name,
     month,
     feature,
     model: route.model,

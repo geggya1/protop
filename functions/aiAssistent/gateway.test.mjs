@@ -23,6 +23,19 @@ function fakeDb(seed = {}) {
       auto += 1;
       return ref(`${path}/${id || `auto${auto}`}`);
     },
+    // Bare det gatewayen trenger: where(felt, '==', verdi).limit(n).get()
+    where(field, op, value) {
+      return {
+        limit: () => ({
+          async get() {
+            const docs = [...store.entries()]
+              .filter(([key, data]) => key.startsWith(`${path}/`) && !key.slice(path.length + 1).includes('/') && data?.[field] === value)
+              .map(([key, data]) => ({ id: key.split('/').pop(), data: () => data }));
+            return { docs };
+          },
+        }),
+      };
+    },
   });
   return {
     store,
@@ -38,10 +51,15 @@ function fakeDb(seed = {}) {
 }
 
 const C = 'bygg';
+// ola: aktiv egen ansatt med tilgang. inn: aktiv innleid, står (feil) i listen for egne ansatte.
+// slutt: sluttet, med tilgang fra før. eier: uten ansattpost.
+const staff = (personUid, company) => ({ personUid, person: { firstName: personUid }, company });
 const company = (over = {}) => ({
-  [`families/${C}`]: { type: 'company', ownerUid: 'eier', members: ['eier', 'ola', 'inn'], company: {} },
-  [`families/${C}/aiSettings/plan`]: { enabled: true, monthlyBudgetNok: 1000 },
-  [`families/${C}/accessAcl/inn`]: { levelId: 'innleie_ekstern' },
+  [`families/${C}`]: { type: 'company', ownerUid: 'eier', members: ['eier', 'ola', 'inn', 'slutt'], company: {} },
+  [`families/${C}/aiSettings/plan`]: { enabled: true, monthlyBudgetNok: 1000, allowedUids: ['ola', 'inn', 'slutt', 'eier'] },
+  [`families/${C}/employees/e1`]: staff('ola', { status: 'active' }),
+  [`families/${C}/employees/e2`]: staff('inn', { status: 'active', personnelKind: 'innleid' }),
+  [`families/${C}/employees/e3`]: staff('slutt', { status: 'inactive' }),
   ...over,
 });
 
@@ -115,11 +133,21 @@ describe('runAiCall', () => {
     assert.equal(called, false);
   });
 
-  test('innleide og ikke-medlemmer stoppes før kallet', async () => {
+  test('innleide uten egen tilgang, sluttede og ikke-medlemmer stoppes før kallet', async () => {
     const db = fakeDb(company());
     const call = async () => { throw new Error('skal ikke kalles'); };
-    await assert.rejects(runAiCall({ db, companyId: C, uid: 'inn', call }), (err) => err.reason === 'external');
+    await assert.rejects(runAiCall({ db, companyId: C, uid: 'inn', call }), (err) => err.reason === 'not-granted');
+    await assert.rejects(runAiCall({ db, companyId: C, uid: 'slutt', call }), (err) => err.reason === 'inactive');
     await assert.rejects(runAiCall({ db, companyId: C, uid: 'fremmed', call }), (err) => err.reason === 'no-access');
+  });
+
+  test('innleid med egen tilgang, og eier uten ansattpost, slipper til', async () => {
+    const db = fakeDb(company({
+      [`families/${C}/aiSettings/plan`]: { enabled: true, monthlyBudgetNok: 1000, allowedUids: ['eier'], externalUids: ['inn'] },
+    }));
+    const call = async () => ({ usage });
+    assert.ok((await runAiCall({ db, companyId: C, uid: 'inn', call })).cost.nok > 0);
+    assert.ok((await runAiCall({ db, companyId: C, uid: 'eier', call })).cost.nok > 0);
   });
 
   test('personvernvalget for AI stopper assistenten', async () => {

@@ -4,10 +4,10 @@
  * importer som starter med '../src/'. Undermappene importerer herfra.
  */
 export {
-  AI_EXTERNAL_LEVELS,
   aiAccessDecision,
   aiMonthKey,
   crossedAlertThresholds,
   normalizeAiPlan,
 } from '../src/ai/aiPlan.js';
+export { aiPersonFor } from '../src/ai/aiPeople.js';
 export { companyAiAllowed } from '../src/privacy/companyPrivacy.js';

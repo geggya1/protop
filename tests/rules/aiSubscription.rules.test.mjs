@@ -41,11 +41,12 @@ function plan(uid, over = {}) {
     onLimit: 'stop',
     perUserMonthlyNok: 0,
     deepModelEnabled: false,
-    allowInnleide: false,
     maxFileMb: 20,
     maxFilesPerMessage: 5,
     chatRetentionDays: 90,
     emailDraftsEnabled: true,
+    allowedUids: ['bob'],
+    externalUids: [],
     updatedAt: serverTimestamp(),
     updatedBy: uid,
     ...over,
@@ -113,8 +114,16 @@ describe('AI-abonnement: rammene', () => {
     await assertFails(setDoc(planRef(db), plan('own', { onLimit: 'fortsett' })));
     await assertFails(setDoc(planRef(db), plan('own', { maxFileMb: 500 })));
     await assertFails(setDoc(planRef(db), plan('own', { model: 'claude-opus-5-5' })));
+    await assertFails(setDoc(planRef(db), plan('own', { allowInnleide: true })));
+    await assertFails(setDoc(planRef(db), plan('own', { allowedUids: 'bob' })));
+    await assertFails(setDoc(planRef(db), plan('own', { externalUids: Array.from({ length: 1001 }, (_, i) => `u${i}`) })));
     await assertFails(setDoc(planRef(db), plan('own', { updatedBy: 'adm' })));
     await assertFails(setDoc(doc(db, 'families', A, 'aiSettings', 'annet'), plan('own')));
+  });
+
+  test('en ansatt kan ikke gi seg selv tilgang', async () => {
+    await assertSucceeds(setDoc(planRef(as('own')), plan('own', { allowedUids: [] })));
+    await assertFails(updateDoc(planRef(as('bob')), { allowedUids: ['bob'], updatedAt: serverTimestamp(), updatedBy: 'bob' }));
   });
 
   test('bare i bedrifter', async () => {

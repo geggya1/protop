@@ -35,6 +35,7 @@ export const FILES = [
   'functions/aiCompanyGate.test.mjs',
   // AI-abonnement: budsjett, pris og forbrukslogg for AI-assistenten.
   'src/ai/aiPlan.test.mjs',
+  'src/ai/aiPeople.test.mjs',
   'functions/aiAssistent/gateway.test.mjs',
   'src/privacy/myDataExport.test.mjs',
   'functions/deleteAccount.test.mjs',

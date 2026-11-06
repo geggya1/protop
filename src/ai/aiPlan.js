@@ -5,6 +5,12 @@
  * Lagres i families/{bedrift}/aiSettings/plan. Abonnementet er av til noen slår det på,
  * fordi det koster penger. Forbruket føres av serveren i aiLedger (se functions/aiAssistent/ledger.js).
  * Ren JS uten Firebase, så både appen og serveren bruker samme regler.
+ *
+ * Tilgang gis person for person. Ingen har tilgang som standard:
+ *   allowedUids   egne, aktive ansatte som har fått tilgang
+ *   externalUids  innleide og eksterne som har fått tilgang, hver for seg (aldri i bulk)
+ * En innleid eller ekstern teller bare i externalUids, så en person som går fra egen ansatt
+ * til ekstern mister tilgangen til den gis på nytt. Personer som ikke er aktive, har aldri tilgang.
  */
 
 export const AI_TIERS = ['light', 'standard', 'deep'];
@@ -22,6 +28,8 @@ export const AI_PLAN_LIMITS = {
   maxFileMb: { min: 1, max: 100 },
   maxFilesPerMessage: { min: 1, max: 20 },
   chatRetentionDays: { min: 1, max: 3650 },
+  /** Personer med tilgang (samme tak som i firestore.rules). */
+  uids: 1000,
 };
 
 export const DEFAULT_AI_PLAN = Object.freeze({
@@ -31,21 +39,48 @@ export const DEFAULT_AI_PLAN = Object.freeze({
   /** 0 = ingen egen grense per bruker, bare bedriftens budsjett. */
   perUserMonthlyNok: 0,
   deepModelEnabled: false,
-  allowInnleide: false,
   maxFileMb: 20,
   maxFilesPerMessage: 5,
   chatRetentionDays: 90,
   emailDraftsEnabled: true,
+  allowedUids: Object.freeze([]),
+  externalUids: Object.freeze([]),
 });
 
 /** Feltene appen får skrive (samme liste som aiPlanShapeOk i firestore.rules). */
 export const AI_PLAN_KEYS = [...Object.keys(DEFAULT_AI_PLAN), 'updatedAt', 'updatedBy'];
 
-/**
- * Nivåene for innleide og eksterne. Samme liste som hiredMember i firestore.rules
- * og kindOf i src/employees/model.js.
- */
-export const AI_EXTERNAL_LEVELS = ['regnskap_ekstern', 'innleie_ekstern', 'ansatt_andre_avdelinger'];
+function uidList(value) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  for (const raw of value) {
+    const uid = typeof raw === 'string' ? raw.trim() : '';
+    if (uid && uid.length <= 128 && !out.includes(uid)) out.push(uid);
+    if (out.length >= AI_PLAN_LIMITS.uids) break;
+  }
+  return out;
+}
+
+/** Gi eller ta tilgang for én person. `external` velger listen for innleide og eksterne. */
+export function withAiAccess(plan, uid, on, { external = false } = {}) {
+  const p = normalizeAiPlan(plan);
+  const key = external ? 'externalUids' : 'allowedUids';
+  const other = external ? 'allowedUids' : 'externalUids';
+  const rest = p[key].filter((row) => row !== uid);
+  return {
+    ...p,
+    [key]: uidList(on && uid ? [...rest, uid] : rest),
+    // En person står bare i én liste.
+    [other]: p[other].filter((row) => row !== uid),
+  };
+}
+
+/** Har personen fått tilgang? `person.external` avgjør hvilken liste som teller. */
+export function aiAccessGranted(plan, uid, person = {}) {
+  const p = normalizeAiPlan(plan);
+  if (!uid) return false;
+  return person.external ? p.externalUids.includes(uid) : p.allowedUids.includes(uid);
+}
 
 function clampNumber(value, { min, max }, fallback, integer = false) {
   const n = Number(value);
@@ -64,11 +99,12 @@ export function normalizeAiPlan(raw) {
     onLimit: AI_ON_LIMIT.includes(src.onLimit) ? src.onLimit : d.onLimit,
     perUserMonthlyNok: clampNumber(src.perUserMonthlyNok, L.perUserMonthlyNok, d.perUserMonthlyNok),
     deepModelEnabled: src.deepModelEnabled === true,
-    allowInnleide: src.allowInnleide === true,
     maxFileMb: clampNumber(src.maxFileMb, L.maxFileMb, d.maxFileMb, true),
     maxFilesPerMessage: clampNumber(src.maxFilesPerMessage, L.maxFilesPerMessage, d.maxFilesPerMessage, true),
     chatRetentionDays: clampNumber(src.chatRetentionDays, L.chatRetentionDays, d.chatRetentionDays, true),
     emailDraftsEnabled: src.emailDraftsEnabled !== false,
+    allowedUids: uidList(src.allowedUids),
+    externalUids: uidList(src.externalUids),
   };
 }
 
@@ -93,7 +129,9 @@ function round2(n) {
  * input:
  *   plan            normalisert eller rå plan
  *   aiAllowed       bedriftens personvernvalg (company.privacy.ai)
- *   external        personen er innleid eller ekstern
+ *   uid             personen
+ *   person          { active, external } fra ansattposten. Eier og administratorer uten
+ *                   ansattpost regnes som aktive egne ansatte.
  *   tier            ønsket nivå: light | standard | deep
  *   monthSpentNok   bedriftens forbruk denne måneden
  *   userSpentNok    personens forbruk denne måneden
@@ -102,7 +140,7 @@ function round2(n) {
  * Svarer { allowed, tier, reason, message }. `tier` kan være nedgradert til light.
  */
 export function aiAccessDecision({
-  plan: rawPlan, aiAllowed = true, external = false, tier = 'standard',
+  plan: rawPlan, aiAllowed = true, uid = '', person = {}, tier = 'standard',
   monthSpentNok = 0, userSpentNok = 0, estimateNok = 0,
 }) {
   const plan = normalizeAiPlan(rawPlan);
@@ -110,7 +148,12 @@ export function aiAccessDecision({
 
   if (!plan.enabled) return deny('disabled', 'AI-assistenten er ikke slått på for bedriften.');
   if (!aiAllowed) return deny('privacy', 'Bedriften har slått av AI-funksjoner under personvern.');
-  if (external && !plan.allowInnleide) return deny('external', 'AI-assistenten er ikke åpnet for innleide og eksterne.');
+  if (!person?.active) return deny('inactive', 'AI-assistenten er bare for aktive personer i bedriften.');
+  if (!aiAccessGranted(plan, uid, person)) {
+    return deny('not-granted', person?.external
+      ? 'Innleide og eksterne får AI-assistenten bare når administrator gir tilgang til hver enkelt.'
+      : 'Du har ikke fått tilgang til AI-assistenten. Spør administrator.');
+  }
   if (plan.monthlyBudgetNok <= 0) return deny('no-budget', 'Bedriften har ikke satt et månedsbudsjett for AI.');
 
   let wanted = AI_TIERS.includes(tier) ? tier : 'standard';

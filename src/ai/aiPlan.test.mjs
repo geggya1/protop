@@ -2,10 +2,10 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   AI_DOWNGRADE_CEILING, DEFAULT_AI_PLAN, aiAccessDecision, aiMonthKey, aiUsageSummary,
-  crossedAlertThresholds, formatNok, normalizeAiPlan,
+  crossedAlertThresholds, formatNok, normalizeAiPlan, withAiAccess,
 } from './aiPlan.js';
 
-const ON = { enabled: true, monthlyBudgetNok: 1000 };
+const ON = { enabled: true, monthlyBudgetNok: 1000, allowedUids: ['ola'] };
 
 describe('normalizeAiPlan', () => {
   test('er av til noen slår det på', () => {
@@ -31,41 +31,71 @@ describe('normalizeAiPlan', () => {
 });
 
 describe('aiAccessDecision', () => {
-  test('av, personvern, innleide og manglende budsjett stopper', () => {
-    assert.equal(aiAccessDecision({ plan: {} }).reason, 'disabled');
-    assert.equal(aiAccessDecision({ plan: ON, aiAllowed: false }).reason, 'privacy');
-    assert.equal(aiAccessDecision({ plan: ON, external: true }).reason, 'external');
-    assert.equal(aiAccessDecision({ plan: { ...ON, allowInnleide: true }, external: true }).allowed, true);
-    assert.equal(aiAccessDecision({ plan: { enabled: true } }).reason, 'no-budget');
+  // Ola er aktiv egen ansatt med tilgang. Kari er innleid.
+  const ola = { uid: 'ola', person: { active: true, external: false } };
+  const kari = { uid: 'kari', person: { active: true, external: true } };
+  const decide = (over = {}) => aiAccessDecision({ plan: ON, ...ola, ...over });
+
+  test('av, personvern og manglende budsjett stopper', () => {
+    assert.equal(decide({ plan: {} }).reason, 'disabled');
+    assert.equal(decide({ aiAllowed: false }).reason, 'privacy');
+    assert.equal(decide({ plan: { enabled: true, allowedUids: ['ola'] } }).reason, 'no-budget');
+    assert.equal(decide().allowed, true);
+  });
+
+  test('ingen har tilgang som standard, og bare aktive personer', () => {
+    const bare = { enabled: true, monthlyBudgetNok: 1000 };
+    assert.equal(decide({ plan: bare }).reason, 'not-granted');
+    assert.equal(decide({ person: { active: false } }).reason, 'inactive');
+    assert.equal(decide({ uid: 'per' }).reason, 'not-granted');
+  });
+
+  test('innleide og eksterne må ha fått tilgang hver for seg', () => {
+    // Kari står i listen for egne ansatte (f.eks. fra før hun ble innleid): teller ikke.
+    assert.equal(decide({ ...kari, plan: { ...ON, allowedUids: ['ola', 'kari'] } }).reason, 'not-granted');
+    assert.equal(decide({ ...kari, plan: { ...ON, externalUids: ['kari'] } }).allowed, true);
+    // Og motsatt: en egen ansatt teller bare i sin egen liste.
+    assert.equal(decide({ plan: { ...ON, allowedUids: [], externalUids: ['ola'] } }).reason, 'not-granted');
+  });
+
+  test('withAiAccess gir og tar tilgang, og en person står bare i én liste', () => {
+    let plan = withAiAccess(ON, 'kari', true, { external: true });
+    assert.deepEqual(plan.externalUids, ['kari']);
+    plan = withAiAccess(plan, 'kari', true);
+    assert.deepEqual(plan.externalUids, []);
+    assert.deepEqual(plan.allowedUids, ['ola', 'kari']);
+    plan = withAiAccess(plan, 'ola', false);
+    assert.deepEqual(plan.allowedUids, ['kari']);
+    assert.deepEqual(normalizeAiPlan({ allowedUids: ['a', 'a', '', 5, ' b '] }).allowedUids, ['a', 'b']);
   });
 
   test('dyp modell bare når eier har slått den på', () => {
-    assert.equal(aiAccessDecision({ plan: ON, tier: 'deep' }).tier, 'standard');
-    assert.equal(aiAccessDecision({ plan: { ...ON, deepModelEnabled: true }, tier: 'deep' }).tier, 'deep');
+    assert.equal(decide({ tier: 'deep' }).tier, 'standard');
+    assert.equal(decide({ plan: { ...ON, deepModelEnabled: true }, tier: 'deep' }).tier, 'deep');
   });
 
   test('stopper når bedriftens budsjett er brukt opp', () => {
-    const d = aiAccessDecision({ plan: ON, monthSpentNok: 1000 });
+    const d = decide({ monthSpentNok: 1000 });
     assert.equal(d.allowed, false);
     assert.equal(d.reason, 'company-limit');
-    assert.equal(aiAccessDecision({ plan: ON, monthSpentNok: 995, estimateNok: 10 }).reason, 'company-limit');
+    assert.equal(decide({ monthSpentNok: 995, estimateNok: 10 }).reason, 'company-limit');
   });
 
   test('nedgraderer til lett modell, men aldri over taket', () => {
     const plan = { ...ON, onLimit: 'downgrade' };
-    const near = aiAccessDecision({ plan, monthSpentNok: 995, estimateNok: 10 });
+    const near = decide({ plan, monthSpentNok: 995, estimateNok: 10 });
     assert.equal(near.allowed, true);
     assert.equal(near.tier, 'light');
-    const over = aiAccessDecision({ plan, monthSpentNok: 1000 * AI_DOWNGRADE_CEILING });
+    const over = decide({ plan, monthSpentNok: 1000 * AI_DOWNGRADE_CEILING });
     assert.equal(over.allowed, false);
     assert.equal(over.reason, 'company-limit');
   });
 
   test('tak per person', () => {
     const plan = { ...ON, perUserMonthlyNok: 100 };
-    assert.equal(aiAccessDecision({ plan, userSpentNok: 100 }).reason, 'user-limit');
-    assert.equal(aiAccessDecision({ plan, userSpentNok: 95, estimateNok: 10 }).reason, 'user-limit');
-    assert.equal(aiAccessDecision({ plan, userSpentNok: 50, estimateNok: 10 }).allowed, true);
+    assert.equal(decide({ plan, userSpentNok: 100 }).reason, 'user-limit');
+    assert.equal(decide({ plan, userSpentNok: 95, estimateNok: 10 }).reason, 'user-limit');
+    assert.equal(decide({ plan, userSpentNok: 50, estimateNok: 10 }).allowed, true);
   });
 });
 

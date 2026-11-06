@@ -4,8 +4,9 @@ import {
 } from 'react-native';
 import BrandToggle from '../BrandToggle';
 import {
-  AI_DOWNGRADE_CEILING, DEFAULT_AI_PLAN, aiMonthKey, aiUsageSummary, formatNok, normalizeAiPlan,
+  AI_DOWNGRADE_CEILING, DEFAULT_AI_PLAN, aiMonthKey, aiUsageSummary, formatNok, normalizeAiPlan, withAiAccess,
 } from '../../src/ai/aiPlan';
+import { aiCandidates } from '../../src/ai/aiPeople';
 import { loadAiPlan, loadAiUsage, saveAiPlan } from '../../src/ai/aiPlanStore';
 import { companyAiAllowed } from '../../src/privacy/companyPrivacy';
 
@@ -79,6 +80,17 @@ function Kroner({
   );
 }
 
+function PersonRow({
+  person, value, disabled, onChange, colors,
+}) {
+  return (
+    <View style={styles.switchRow}>
+      <Text style={[styles.lead, { color: colors.ink, flex: 1, minWidth: 0 }]} numberOfLines={1}>{person.name}</Text>
+      <BrandToggle value={value} onValueChange={onChange} disabled={disabled} compact />
+    </View>
+  );
+}
+
 function Card({ title, children, colors }) {
   return (
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -93,9 +105,10 @@ function Card({ title, children, colors }) {
  * rammene for AI-assistenten. Lese ser forbruket. Forbruket føres av serveren per kall.
  */
 export default function CompanyAiSettings({
-  familyId, company, uid, canEdit = false, colors, onOpenPrivacy,
+  familyId, company, uid, employees = [], admins = [], canEdit = false, colors, onOpenPrivacy,
 }) {
   const month = useMemo(() => aiMonthKey(), []);
+  const people = useMemo(() => aiCandidates(employees, { admins }), [employees, admins]);
   const [plan, setPlan] = useState(() => normalizeAiPlan(null));
   const [budgetText, setBudgetText] = useState('');
   const [userCapText, setUserCapText] = useState('');
@@ -155,6 +168,23 @@ export default function CompanyAiSettings({
       setBusy(false);
     }
   }
+
+  // Gi eller ta tilgang for én person. Innleide og eksterne havner alltid i sin egen liste.
+  function grant(person, on) {
+    setPlan((prev) => withAiAccess(prev, person.uid, on, { external: person.external }));
+    setDirty(true);
+    setSaved(false);
+  }
+
+  const allOwnOn = people.own.length > 0 && people.own.every((p) => plan.allowedUids.includes(p.uid));
+  function setOwnAll(on) {
+    setPlan((prev) => people.own.reduce((acc, person) => withAiAccess(acc, person.uid, on), prev));
+    setDirty(true);
+    setSaved(false);
+  }
+  // Bare de som står i listene nå og fortsatt er aktive, telles.
+  const grantedCount = people.own.filter((p) => plan.allowedUids.includes(p.uid)).length
+    + people.external.filter((p) => plan.externalUids.includes(p.uid)).length;
 
   const summary = aiUsageSummary(
     { ...plan, monthlyBudgetNok: Number(budgetText) || 0 },
@@ -236,6 +266,57 @@ export default function CompanyAiSettings({
         </Text>
       </Card>
 
+      <Card title="Hvem har tilgang" colors={colors}>
+        <Text style={[styles.lead, { color: colors.muted }]}>
+          {`Ingen har tilgang før du gir det. Bare personer som er i arbeid nå og har bruker i ProTop, står her. Ved permisjon, sluttdato eller deaktivering stopper tilgangen av seg selv. ${grantedCount} har tilgang nå.`}
+        </Text>
+        <View style={{ gap: 8 }} nativeID="company-ai-own">
+          <View style={styles.headRow}>
+            <Text style={[styles.label, { color: colors.ink, flex: 1 }]}>Egne ansatte</Text>
+            {canEdit && people.own.length ? (
+              <TouchableOpacity
+                nativeID="company-ai-all-own"
+                onPress={() => setOwnAll(!allOwnOn)}
+                disabled={off}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: colors.brand }}>{allOwnOn ? 'Fjern alle egne ansatte' : 'Gi alle egne ansatte tilgang'}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {people.own.length ? people.own.map((person) => (
+            <PersonRow
+              key={person.uid}
+              person={person}
+              value={plan.allowedUids.includes(person.uid)}
+              disabled={off}
+              onChange={(on) => grant(person, on)}
+              colors={colors}
+            />
+          )) : (
+            <Text style={[styles.hint, { color: colors.muted }]}>Ingen aktive egne ansatte med bruker i ProTop.</Text>
+          )}
+        </View>
+        <View style={{ gap: 8 }} nativeID="company-ai-external">
+          <Text style={[styles.label, { color: colors.ink }]}>Innleide og eksterne</Text>
+          <Text style={[styles.hint, { color: colors.muted }]}>
+            Gis bare én og én. De har en annen arbeidsgiver, så tenk gjennom hva de skal få lese.
+          </Text>
+          {people.external.length ? people.external.map((person) => (
+            <PersonRow
+              key={person.uid}
+              person={person}
+              value={plan.externalUids.includes(person.uid)}
+              disabled={off}
+              onChange={(on) => grant(person, on)}
+              colors={colors}
+            />
+          )) : (
+            <Text style={[styles.hint, { color: colors.muted }]}>Ingen aktive innleide eller eksterne med bruker i ProTop.</Text>
+          )}
+        </View>
+      </Card>
+
       <Card title="Hva assistenten får gjøre" colors={colors}>
         <Switch
           nativeID="company-ai-deep"
@@ -244,15 +325,6 @@ export default function CompanyAiSettings({
           value={plan.deepModelEnabled}
           disabled={off}
           onChange={(next) => patch({ deepModelEnabled: next })}
-          colors={colors}
-        />
-        <Switch
-          nativeID="company-ai-external"
-          title="Innleide og eksterne"
-          body="Av: bare egne ansatte kan bruke assistenten."
-          value={plan.allowInnleide}
-          disabled={off}
-          onChange={(next) => patch({ allowInnleide: next })}
           colors={colors}
         />
         <Switch
@@ -390,4 +462,5 @@ const styles = StyleSheet.create({
   bar: { height: 8, borderRadius: 4, overflow: 'hidden' },
   barFill: { height: 8, borderRadius: 4 },
   userRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
 });

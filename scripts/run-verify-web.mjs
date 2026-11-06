@@ -406,6 +406,7 @@ export const FILES = [
   'src/helpdesk/crashReport.test.mjs',
   'src/help/protopPageKeys.test.mjs',
   'src/i18n/dictsGenerated.test.mjs',
+  'src/anbud/storageSaveQueue.test.mjs',
 ];
 
 function runFile(file) {

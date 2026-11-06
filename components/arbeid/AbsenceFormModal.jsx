@@ -8,7 +8,7 @@ import OptionPicker from '../OptionPicker';
 import CheckBox from '../CheckBox';
 import { HEALTH_FREE_TEXT_NOTICE, absenceTypeById, isHealthAbsence } from '../../src/arbeid/absenceCatalog.js';
 import {
-  OCCASIONS, PROVIDERS, RELATIONS, WHO_FOR, WIZARD_GROUPS, categoryDaysUsed, defaultFormCategory, formCategory,
+  OCCASIONS, PROVIDERS, RELATIONS, WHO_FOR, WIZARD_TOPICS, wizardTopicGroups, categoryDaysUsed, defaultFormCategory, formCategory,
   formPayDecision, formSummary, formTypeFor, formWarnings, validateAbsenceForm, wizardOtherTypes,
   ABSENCE_FORM_START, needsAbsenceForm,
 } from '../../src/arbeid/absenceForm.js';
@@ -19,8 +19,8 @@ import { radius, type } from '../../src/ui/tokens';
 export const FORM_DECLARATION = 'Jeg bekrefter at opplysningene er riktige, og at dokumentasjon kan kreves.';
 
 /**
- * «Registrer fravær»: linjen «Fravær» i timelisten åpner denne. Først hva som skjedde (syk,
- * sykt barn, ferie, legetime, permisjon …) med en hjelpelinje per valg, så bare feltene det
+ * «Registrer fravær»: linjen «Fravær» i timelisten åpner denne. Først et overordnet tema
+ * (sykdom, ferie, permisjon, kurs og annet), så valget under temaet med en hjelpelinje, så bare feltene det
  * valget trenger, med lovgrunnlag og om dagen føres med eller uten lønn.
  * Står dagen med fravær fra før, vises det først. Åpnes også fra «Mangler fraværsskjema»,
  * da med typen dagene står med (originType).
@@ -60,6 +60,7 @@ function AbsenceForm({
   const fixing = !!originType;
   const firstCategory = initial?.category || (fixing ? defaultFormCategory(originType, catalog) : '');
   const [step, setStep] = useState(firstCategory ? 'form' : (initial?.listDay && dayRows.length ? 'list' : 'choose'));
+  const [topic, setTopic] = useState(null);
   const [group, setGroup] = useState(null);
   const [plainType, setPlainType] = useState('');
   const [pickedType, setPickedType] = useState('');
@@ -105,6 +106,17 @@ function AbsenceForm({
     ...(!fromDate || (toDate && toDate < fromDate) ? ['Velg gyldig periode.'] : []),
   ] : [];
 
+  // Ved retting av eldre fravær vises ikke sykdom og rene timetyper (ferie, avspasering).
+  const allowed = (row) => !fixing || (row.kind !== 'plain' && row.id !== 'syk');
+  const topics = WIZARD_TOPICS.filter((t) => wizardTopicGroups(t, allowed).length);
+
+  function chooseTopic(t) {
+    const rows = wizardTopicGroups(t, allowed);
+    setTopic(t);
+    if (rows.length === 1) choose(rows[0]);
+    else setStep('sub');
+  }
+
   function choose(row) {
     if (row.kind === 'sick') {
       onSick?.(row.sick, { fromDate, toDate: end });
@@ -145,8 +157,10 @@ function AbsenceForm({
 
   function back() {
     setTried(false);
+    const subStep = topic && wizardTopicGroups(topic, allowed).length > 1 ? 'sub' : 'choose';
     if (step === 'form' && group?.kind === 'pick') setStep('pick');
-    else if (step === 'form' || step === 'pick') setStep('choose');
+    else if (step === 'form' || step === 'pick') setStep(subStep);
+    else if (step === 'sub') setStep('choose');
     else if (step === 'choose' && dayRows.length && initial?.listDay) setStep('list');
   }
 
@@ -208,20 +222,21 @@ function AbsenceForm({
         >
           <ScrollView contentContainerStyle={styles.stack} keyboardShouldPersistTaps="handled">
             <View style={styles.head}>
-              {step === 'form' || step === 'pick' || (step === 'choose' && dayRows.length && initial?.listDay) ? (
+              {step === 'form' || step === 'pick' || step === 'sub' || (step === 'choose' && dayRows.length && initial?.listDay) ? (
                 <TouchableOpacity onPress={back} accessibilityRole="button" accessibilityLabel="Tilbake" nativeID="fravaer-tilbake" hitSlop={8}>
                   <Ionicons name="chevron-back" size={22} color={colors.ink} />
                 </TouchableOpacity>
               ) : null}
               <View style={styles.flex}>
                 <Text style={[styles.title, { color: colors.ink }]}>
-                  {step === 'list' ? 'Fravær' : step === 'form' ? (plain ? typeLabel : (cat?.label || 'Fraværsskjema')) : step === 'pick' ? group?.label : 'Registrer fravær'}
+                  {step === 'list' ? 'Fravær' : step === 'form' ? (plain ? typeLabel : (cat?.label || 'Fraværsskjema')) : step === 'pick' ? group?.label : step === 'sub' ? topic?.label : 'Registrer fravær'}
                 </Text>
                 <Text style={[styles.body, { color: colors.muted }]}>
                   {onBehalf ? `For ${employeeName || 'medarbeideren'}. ` : ''}
                   {step === 'list' ? formatNbDate(start)
-                    : step === 'choose' ? (fixing ? `Dagene står som ${absenceTypeById(originType, catalog).label}. Hva gjelder fraværet?` : 'Hva gjelder fraværet? Velg det som passer best.')
+                    : step === 'choose' ? (fixing ? `Dagene står som ${absenceTypeById(originType, catalog).label}. Hva gjelder fraværet?` : 'Hva gjelder fraværet?')
                       : step === 'pick' ? group?.help
+                        : step === 'sub' ? 'Velg det som passer best.'
                         : 'Går til leder for godkjenning.'}
                 </Text>
               </View>
@@ -261,8 +276,29 @@ function AbsenceForm({
             ) : null}
 
             {step === 'choose' ? (
+              <View style={styles.stack} nativeID="fravaer-tema">
+                {topics.map((row) => (
+                  <TouchableOpacity
+                    key={row.id}
+                    onPress={() => chooseTopic(row)}
+                    style={[styles.choice, { borderColor: colors.line }]}
+                    accessibilityRole="button"
+                    nativeID={`fravaer-tema-${row.id}`}
+                  >
+                    <Ionicons name={row.icon} size={22} color={colors.brand} />
+                    <View style={styles.flex}>
+                      <Text style={[styles.strong, { color: colors.ink }]}>{row.label}</Text>
+                      <Text style={[styles.caption, { color: colors.muted }]}>{row.help}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+
+            {step === 'sub' ? (
               <View style={styles.stack} nativeID="fravaer-valg">
-                {WIZARD_GROUPS.filter((row) => !fixing || (row.kind !== 'plain' && row.id !== 'syk')).map((row) => (
+                {wizardTopicGroups(topic, allowed).map((row) => (
                   <TouchableOpacity
                     key={row.id}
                     onPress={() => choose(row)}

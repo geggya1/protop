@@ -105,6 +105,8 @@ try {
     // Linjen «Fravær» nederst: trykk dagen, velg «Ferie» og lagre.
     await A.page.locator('[id="timesheet-absence-row-fravaer"] > [role=button]').nth(Number(ferieDate.slice(8, 10)) - 1).click();
     await sleep(800);
+    await A.page.locator('[id="fravaer-tema-fri"]').first().click();
+    await sleep(600);
     await A.page.locator('[id="fravaer-valg-ferie"]').first().click();
     await sleep(600);
     await A.page.locator('[id="fravaersskjema-send"]').first().click();

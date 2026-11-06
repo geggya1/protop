@@ -3,6 +3,8 @@ import { emptyProjectState, normalizeAbsenceRow } from '../project/engine.js';
 import { defaultAbsenceTypes } from './absenceCatalog.js';
 import {
   WIZARD_GROUPS,
+  WIZARD_TOPICS,
+  wizardTopicGroups,
   applyPlainAbsence,
   dayAbsenceSummary,
   wizardOtherTypes,
@@ -219,6 +221,11 @@ assert.ok(formWarnings({ category: 'livets_sluttfase', fromDate: '2026-11-04', t
   const ids = WIZARD_GROUPS.map((g) => g.id);
   assert.deepEqual(ids.slice(0, 4), ['syk', 'sykt_barn', 'ferie', 'avspasering']);
   assert.equal(WIZARD_GROUPS.find((g) => g.id === 'sykt_barn').sick, 'child');
+  // Første side: få temaer, og hvert valg står under nøyaktig ett tema.
+  assert.ok(WIZARD_TOPICS.length <= 5);
+  const placed = WIZARD_TOPICS.flatMap((topic) => wizardTopicGroups(topic).map((g) => g.id));
+  assert.deepEqual([...placed].sort(), [...ids].sort());
+  assert.equal(new Set(placed).size, placed.length);
   for (const g of WIZARD_GROUPS.filter((row) => Array.isArray(row.options))) {
     for (const id of g.options) assert.ok(formCategory(id), `${g.id}: ${id}`);
   }

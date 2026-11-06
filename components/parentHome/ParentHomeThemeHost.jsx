@@ -22,7 +22,6 @@ import { applyPlatformSwitch, visibleCompanyWorkspaces } from '../../src/utils/p
 import { companyDisplayName } from '../../src/utils/companyName';
 import { lazyScreen } from '../../src/ui/lazyScreen';
 const CompanyStartChecklist = lazyScreen(() => import('../home/CompanyStartChecklist'), { name: 'CompanyStartChecklist', silent: true });
-const CompanyQuickReport = lazyScreen(() => import('../home/CompanyQuickReport'), { name: 'CompanyQuickReport', silent: true });
 
 /**
  * Fixed parent home — same tidy widget layout for every login.
@@ -92,7 +91,6 @@ export default function ParentHomeThemeHost({
     mileageCompanyId: mileageCompany?.id || '',
     mileageCompanyName: mileageCompany ? companyDisplayName(mileageCompany, 'Bedrift') : '',
   }), [model, board, familyId, weekCounts, isoActive, mileageActive, anbudActive, absenceActive, mileageCompany]);
-  const hasQuickActions = (home.layout?.widgets || []).some((w) => w.type === 'quickActions');
   const [editing, setEditing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [setupEdit, setSetupEdit] = useState(false);
@@ -181,7 +179,6 @@ export default function ParentHomeThemeHost({
             <>
               <CompanyOfferCard style={styles.startCard} />
               <CompanyStartChecklist style={styles.startCard} />
-              {hasQuickActions ? null : <CompanyQuickReport style={styles.startCard} />}
             </>
           )}
         />

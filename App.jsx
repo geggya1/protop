@@ -31,7 +31,6 @@ const ProfileScreen = lazyScreen(() => import('./screens/ProfileScreen'), { name
 const ParentProfileScreen = lazyScreen(() => import('./screens/ParentProfileScreen'), { name: 'ParentProfileScreen' });
 const ConfirmationScreen = lazyScreen(() => import('./screens/ConfirmationScreen'), { name: 'ConfirmationScreen' });
 const SelectFamilyScreen = lazyScreen(() => import('./screens/SelectFamilyScreen'), { name: 'SelectFamilyScreen' });
-const AddTodoScreen = lazyScreen(() => import('./screens/AddTodoScreen'), { name: 'AddTodoScreen' });
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { lazyScreen } from './src/ui/lazyScreen';
 import { AppProvider, useApp } from './src/context/AppContext';
@@ -218,7 +217,6 @@ function withStackShell(ScreenComponent, title, moduleId) {
 }
 
 const NotificationSettingsWithGate = gatedStackScreen('NotificationSettings', NotificationSettingsScreen);
-const AddTodoWithGate = gatedStackScreen('AddTodo', AddTodoScreen);
 const ParentTaskWithGate = gatedStackScreen('ParentTask', ParentTaskScreen);
 
 const DashboardThemeSettingsWithShell = withStackShell(DashboardThemeSettingsScreen, 'Tilpass hjem');
@@ -1061,7 +1059,6 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             <Stack.Screen name="ParentProfile" component={ParentProfileScreen} />
             <Stack.Screen name="Confirmation" component={ConfirmationScreen} />
             <Stack.Screen name="SelectFamilyScreen" component={SelectFamilyScreen} />
-            <Stack.Screen name="AddTodo" component={AddTodoWithGate} options={{ headerShown: false }} />
             <Stack.Screen name="AiChat" component={AiChatWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen name="ProtopAssistant" component={AssistantWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen

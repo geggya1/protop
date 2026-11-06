@@ -14,8 +14,6 @@ import { resolveEventWriteTarget } from '../../src/utils/eventWriteTarget';
 import { Screen, Loader } from '../../components/ui';
 import CreateShortcutSheet from '../../components/CreateShortcutSheet';
 import DeskHomeDashboard from '../../components/DeskHomeDashboard';
-import KitchenWallDashboard from '../../components/KitchenWallDashboard';
-import KitchenPinModal from '../../components/KitchenPinModal';
 import ParentHomeThemeHost from '../../components/parentHome/ParentHomeThemeHost';
 import PendingFamilyInvitePrompt from '../../components/PendingFamilyInvitePrompt';
 import { buildParentDashboardApps } from '../../src/navigation/shellModules';
@@ -23,12 +21,6 @@ import { openNotifications } from '../../src/navigation/openNotifications';
 import { useHomeWidgetData } from '../../src/hooks/useHomeWidgetData';
 import { useI18n } from '../../src/i18n';
 import { toggleParentTodo } from '../../src/utils/todos';
-import {
-  loadKitchenDisplaySettings,
-  saveKitchenDisplaySettings,
-  subscribeKitchenDisplay,
-  verifyKitchenPin,
-} from '../../src/utils/kitchenDisplay';
 
 // Barnas hjem hørte til familieproduktet (barnekontoer logges ut i ProTop).
 export default function HomeScreen() {
@@ -50,45 +42,6 @@ function ParentHomeScreen() {
 
   const [events, setEvents] = useState([]);
   const [createOpen, setCreateOpen] = useState(false);
-  const [kitchenMode, setKitchenMode] = useState(false);
-  const [kitchenSettings, setKitchenSettings] = useState({ enabled: false, pinEnabled: false });
-  const [pinModalOpen, setPinModalOpen] = useState(false);
-
-  useEffect(() => {
-    if (!uid) {
-      setKitchenMode(false);
-      setKitchenSettings({ enabled: false, pinEnabled: false });
-      return undefined;
-    }
-    let alive = true;
-    loadKitchenDisplaySettings(uid).then((s) => {
-      if (!alive) return;
-      setKitchenSettings(s);
-      setKitchenMode(!!s.enabled);
-    });
-    const unsub = subscribeKitchenDisplay((s) => {
-      if (!alive) return;
-      const next = typeof s === 'object' && s ? s : { enabled: !!s };
-      setKitchenSettings((prev) => ({ ...prev, ...next }));
-      setKitchenMode(!!next.enabled);
-    });
-    return () => { alive = false; unsub(); };
-  }, [uid]);
-
-  const requestExitKitchen = () => {
-    if (kitchenSettings.pinEnabled) {
-      setPinModalOpen(true);
-      return;
-    }
-    exitKitchenMode();
-  };
-
-  const exitKitchenMode = async () => {
-    if (!uid) return;
-    setKitchenMode(false);
-    await saveKitchenDisplaySettings(uid, { enabled: false });
-  };
-
   const viewerIds = useMemo(() => new Set([uid].filter(Boolean)), [uid]);
   const platformIds = useMemo(() => {
     const ids = platformIdsFromFamilies(families);
@@ -250,33 +203,6 @@ function ParentHomeScreen() {
       <Screen>
         <PendingFamilyInvitePrompt />
         <Loader />
-      </Screen>
-    );
-  }
-
-  if (kitchenMode) {
-    return (
-      <Screen>
-        <PendingFamilyInvitePrompt />
-        <KitchenWallDashboard
-          widgetData={widgetData}
-          familyEventsToday={familyEventsToday}
-          onOpenEvent={openEvent}
-          onTab={(tab, subView) => requestShellTab(tab, subView || null)}
-          onExitRequest={requestExitKitchen}
-        />
-        <KitchenPinModal
-          visible={pinModalOpen}
-          mode="unlock"
-          onCancel={() => setPinModalOpen(false)}
-          onSubmit={async (pin) => {
-            const full = await loadKitchenDisplaySettings(uid);
-            if (!(await verifyKitchenPin(full, pin))) return false;
-            setPinModalOpen(false);
-            await exitKitchenMode();
-            return true;
-          }}
-        />
       </Screen>
     );
   }

@@ -13,9 +13,6 @@ export const OLD_BRAND_PATTERN = new RegExp(OLD, 'i');
 /** Domenet brukernavn-kontoer fikk i Firebase Auth før ProTop. */
 export const LEGACY_SYNTHETIC_DOMAIN = `@${OLD}.app`;
 
-/** Salt for kjøkken-PIN lagret før ProTop. */
-export const LEGACY_KITCHEN_PIN_SALT = `${OLD}-kitchen-v2:`;
-
 /** Widgettyper i lagrede hjemoppsett som har fått nytt navn. */
 export const LEGACY_WIDGET_TYPES = Object.freeze({ [['week', 'Plan'].join('')]: 'weeklyPlan' });
 

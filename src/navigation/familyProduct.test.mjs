@@ -93,5 +93,5 @@ test('vaktene er koblet inn der familieproduktet kunne nås', () => {
   // Familieposisjon er fjernet helt: skallet deler ingen posisjon.
   assert.equal(/useLocationSharing|effectiveLocationSharing/.test(read('components/AppShell.jsx')), false);
   assert.match(read('components/AppShell.jsx'), /if \(tab === 'more' && isFamilyProductMoreView\(moreSubView\)\) \{\s*setTab\('home'\)/);
-  assert.match(read('components/AppShell.jsx'), /kitchenMode \|\| familyViewBlocked/);
+  assert.match(read('components/AppShell.jsx'), /const activationModuleId = familyViewBlocked/);
 });

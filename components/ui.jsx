@@ -3,16 +3,13 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { colors as baseColors, radius, space, useBreakpoints } from '../src/theme';
-import { useColors, useThemeMeta } from '../src/context/ThemeContext';
+import { useColors } from '../src/context/ThemeContext';
 import { useHomeImmersive } from '../src/context/HomeImmersiveContext';
-import ChildThemeBackdrop from './ChildThemeBackdrop';
 
 export function Screen({ children, style }) {
   const themeColors = useColors();
-  const { isChildTheme, theme } = useThemeMeta();
   const { isDesktop } = useBreakpoints();
   const immersive = useHomeImmersive();
-  const showPattern = isChildTheme && !!theme?.pattern && !immersive;
   return (
     <View style={[
       styles.screen,
@@ -21,7 +18,6 @@ export function Screen({ children, style }) {
       style,
     ]}
     >
-      {showPattern ? <ChildThemeBackdrop /> : null}
       <View style={[styles.screenContent, !isDesktop && styles.screenClip]}>{children}</View>
     </View>
   );

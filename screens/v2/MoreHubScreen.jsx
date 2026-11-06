@@ -9,7 +9,6 @@ import { useI18n } from '../../src/i18n';
 import { colors, radius, useBreakpoints } from '../../src/theme';
 import { Screen, ScrollBody } from '../../components/ui';
 import { lazyScreen } from '../../src/ui/lazyScreen';
-import ChildProfileHeader from '../../components/ChildProfileHeader';
 const ChatListScreen = lazyScreen(() => import('./ChatListScreen'), { name: 'ChatListScreen' });
 const SettingsScreen = lazyScreen(() => import('./SettingsScreen'), { name: 'SettingsScreen' });
 const NotificationsScreen = lazyScreen(() => import('./NotificationsScreen'), { name: 'NotificationsScreen' });
@@ -29,17 +28,11 @@ const HelpdeskPortalScreen = lazyScreen(() => import('../helpdesk/HelpdeskPortal
 const GroupSettingsScreen = lazyScreen(() => import('../settings/GroupSettingsScreen'), { name: 'GroupSettingsScreen', pick: 'GroupSettingsScreen' });
 import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
 import {
-  buildChildDashboardApps,
-  buildParentDashboardApps,
   buildShellModules,
 } from '../../src/navigation/shellModules';
-import HomeModulesBoard from '../../components/home/HomeModulesBoard';
-import { moreSubviewTitle } from '../../src/navigation/shellHeaderTitle';
 import IconBadge from '../../components/IconBadge';
 import { useUnread } from '../../src/context/NotificationContext';
 import { countForItem } from '../../src/utils/notifications';
-import { allowedAppsForChild, isChildAppAllowed } from '../../src/utils/childApps';
-import { grandparentModulesFor, isGrandparentAppAllowed } from '../../src/utils/grandparentAccess';
 import HelpTarget from '../../components/HelpTarget';
 import { isFamilyProductMoreView } from '../../src/navigation/familyProduct';
 import NavTree, { useNavTreeState } from '../../components/NavTree';
@@ -157,23 +150,17 @@ const SUB_SCREENS = {
 export default function MoreHubScreen({ subView, setSubView }) {
   const nav = useNavigation();
   const { t } = useI18n();
-  const { pad, isDesktop, isTablet, hasRail, isPhone } = useBreakpoints();
+  const { pad, isDesktop, isTablet, hasRail } = useBreakpoints();
   const {
-    isParent, isChild, family, familyId, meChild, meParent, kids,
-    isActingAsChild, activeChild, isAdmin, isSuperAdmin, isGrandparent, requestShellTab,
+    isParent, family, familyId, isAdmin, isSuperAdmin, requestShellTab,
   } = useApp();
   const multiCol = hasRail && !isDesktop;
   const colWidth = isDesktop ? '100%' : isTablet ? '48.5%' : '100%';
   const [query, setQuery] = useState('');
   const searchRef = useRef(null);
 
-  const activeKids = useMemo(
-    () => (kids || []).filter((k) => k.active !== false),
-    [kids],
-  );
-
-  const asChild = isChild || isActingAsChild;
-  const asParent = isParent && !isActingAsChild;
+  // Barnekontoer, «vis som barn» og besteforeldre-tilgang hørte til familieproduktet.
+  const asParent = isParent;
   const companyAccess = useCompanyAccess();
   const companyModules = useCompanyModules();
   const { unreadByModule } = useUnread();
@@ -182,59 +169,30 @@ export default function MoreHubScreen({ subView, setSubView }) {
   const navTree = useNavTree();
   const navState = useNavTreeState(navTree, 'more', subView || null);
   const navShown = useMemo(() => navSections(navTree), [navTree]);
-  const profileChild = isChild ? meChild : (isActingAsChild ? activeChild : null);
-  const childForSchedule = profileChild;
-  const allowedApps = asChild ? allowedAppsForChild(profileChild) : null;
-  const grandparentModules = isGrandparent ? grandparentModulesFor(meParent) : null;
-  const aiEnabled = asChild ? isChildAppAllowed(allowedApps, 'ai') : true;
-  const showChildRestrictions = isActingAsChild && !!childForSchedule;
-
-  const dashboardApps = useMemo(
-    () => (asChild
-      ? buildChildDashboardApps({
-        t,
-        familyId,
-        child: profileChild,
-        aiEnabled,
-        allowedApps,
-        canEdit: isParent && !isChild,
-      })
-      : buildParentDashboardApps({
-        t,
-        familyId,
-        eventCount: 0,
-        hasKids: activeKids.length > 0,
-        firstKid: activeKids[0] || null,
-      })),
-    [asChild, t, familyId, profileChild, aiEnabled, allowedApps, isParent, isChild, activeKids],
-  );
-
   const sections = useMemo(
     () => buildShellModules({
       t,
-      asChild,
+      asChild: false,
       asParent,
       isAdmin,
       isSuperAdmin,
       familyId,
       family,
       canImport: false,
-      hasKids: activeKids.length > 0,
-      childForSchedule,
-      aiEnabled,
-      allowedApps,
-      showChildRestrictions,
-      firstKid: activeKids[0] || null,
-      isGrandparent,
-      grandparentModules,
+      hasKids: false,
+      childForSchedule: null,
+      aiEnabled: true,
+      allowedApps: null,
+      showChildRestrictions: false,
+      firstKid: null,
+      isGrandparent: false,
+      grandparentModules: null,
       companyGrants: companyAccess.grants,
       companyModules: companyModules.state,
       companyModuleNote: companyModules.lockedLabel,
     }),
     [
-      t, asChild, asParent, isAdmin, isSuperAdmin, familyId, family,
-      activeKids, childForSchedule, aiEnabled,
-      allowedApps, showChildRestrictions, isGrandparent, grandparentModules,
+      t, asParent, isAdmin, isSuperAdmin, familyId, family,
       companyAccess.grants, companyModules,
     ],
   );
@@ -268,12 +226,6 @@ export default function MoreHubScreen({ subView, setSubView }) {
 
   const runAction = (action, appId) => {
     if (!action) return;
-    if (asChild && appId && appId !== 'restrictions' && !isChildAppAllowed(allowedApps, appId)) {
-      return;
-    }
-    if (isGrandparent && appId && !isGrandparentAppAllowed(grandparentModules, appId)) {
-      return;
-    }
     if (action.type === 'tab') {
       if (action.tab === 'more' && action.subView) {
         setSubView(action.subView);
@@ -292,49 +244,17 @@ export default function MoreHubScreen({ subView, setSubView }) {
     if (first) runAction(first.action, first.id);
   };
 
-  if (subView && asChild && !isChildAppAllowed(allowedApps, subView)) {
-    return (
-      <Screen>
-        <View style={styles.denied}>
-          <Ionicons name="lock-closed-outline" size={32} color={colors.muted} />
-          <Text style={styles.deniedTitle}>{t('moreHub.appDisabledTitle')}</Text>
-          <Text style={styles.deniedSub}>
-            {t('moreHub.appDisabledBody')}
-          </Text>
-        </View>
-      </Screen>
-    );
-  }
-
   // Familiesidene (/hjem/apper/…) finnes ikke i ProTop-bygget (L-35).
   if (subView && SUB_SCREENS[subView] && !isFamilyProductMoreView(subView)) {
     const Sub = SUB_SCREENS[subView];
-    const subTitle = moreSubviewTitle(subView, t);
-    const firstName = profileChild?.name?.split(' ')[0] || t('settings.child');
-    // On tablet/web the shell top bar already shows the module title; skip the
-    // duplicate ChildProfileHeader row (avatar + bold title + «Kun familien.»).
-    const hasProfile = !!profileChild;
-    const showProfileHeader = hasProfile && isPhone;
 
     return (
       <View style={styles.subWrap}>
-        {showProfileHeader ? (
-          <ChildProfileHeader
-            child={profileChild}
-            kids={activeKids}
-            heading={isChild ? subTitle : `${firstName} · ${subTitle}`}
-            sub={isChild ? t('moreHub.familyOnly') : t('moreHub.viewingProfile', { name: firstName })}
-            showSwitcher={false}
-            onSelectChild={() => {}}
-            showBack={false}
-            compact
-          />
-        ) : null}
         <View style={styles.subBody}>
           <Sub
-            compactHeader={hasProfile}
-            profileUid={profileChild?.uid || null}
-            profileChildId={profileChild?.id || profileChild?.childId || null}
+            compactHeader={false}
+            profileUid={null}
+            profileChildId={null}
             inShell
             onBack={() => setSubView(null)}
             setSubView={setSubView}
@@ -344,7 +264,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
     );
   }
 
-  if (!subView && !asChild) {
+  if (!subView) {
     return (
       <Screen>
         <ScrollBody pad={pad}>
@@ -364,20 +284,6 @@ export default function MoreHubScreen({ subView, setSubView }) {
           </Card>
           <View style={{ height: 24 }} />
         </ScrollBody>
-      </Screen>
-    );
-  }
-
-  if (asChild && isPhone && !subView) {
-    return (
-      <Screen>
-        <HomeModulesBoard
-          apps={dashboardApps}
-          unreadByModule={unreadByModule}
-          onPress={(app) => runAction(app.action, app.id)}
-          title={t('moreHub.modulesTitle')}
-          subtitle={t('moreHub.modulesSub')}
-        />
       </Screen>
     );
   }
@@ -409,11 +315,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
           </View>
         ) : (
           <Text style={styles.intro}>
-            {asChild
-              ? t('moreHub.childAppsIntro')
-              : hasRail
-                ? t('moreHub.railIntro')
-                : t('moreHub.phoneIntro')}
+            {hasRail ? t('moreHub.railIntro') : t('moreHub.phoneIntro')}
           </Text>
         )}
         <View style={isDesktop ? styles.deskSections : null}>

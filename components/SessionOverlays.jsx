@@ -12,10 +12,6 @@ import MajorUpdateModal from './MajorUpdateModal';
 import LegalUpdateNotice from './LegalUpdateNotice';
 import JoinVerifyNotice from './JoinVerifyNotice';
 import {
-  loadKitchenDisplaySettings,
-  subscribeKitchenDisplay,
-} from '../src/utils/kitchenDisplay';
-import {
   defaultGreetingEnabled,
   loadGreetingPrefs,
   subscribeGreetingPrefs,
@@ -27,29 +23,12 @@ export default function SessionOverlays() {
   const overlayRoute = routeFromNavigation(nav);
   const { uid, loading, isChild } = useApp();
   const help = useHelp();
-  const [kitchenMode, setKitchenMode] = useState(false);
   const [greetingEnabled, setGreetingEnabled] = useState(() => defaultGreetingEnabled(isChild));
   const [hasPendingInvites, setHasPendingInvites] = useState(false);
 
   // Friend/family invite gate must not wait on AppContext family-list loading —
   // that boot can hang or stay true and then listFriendRequests never runs,
   // so the invitee sees no overlay/varsel despite a pending request.
-
-  useEffect(() => {
-    if (!uid) {
-      setKitchenMode(false);
-      return undefined;
-    }
-    let alive = true;
-    loadKitchenDisplaySettings(uid).then((s) => {
-      if (alive) setKitchenMode(!!s.enabled);
-    });
-    const unsub = subscribeKitchenDisplay((s) => {
-      if (!alive) return;
-      setKitchenMode(!!(typeof s === 'object' ? s?.enabled : s));
-    });
-    return () => { alive = false; unsub(); };
-  }, [uid]);
 
   useEffect(() => {
     if (!uid) {
@@ -74,7 +53,7 @@ export default function SessionOverlays() {
   }, [hasPendingInvites, help]);
 
   if (!uid) return null;
-  const invitesEnabled = !kitchenMode;
+  const invitesEnabled = true;
   return (
     <NavigationRouteContext.Provider value={overlayRoute}>
       <InviteRespondOverlay
@@ -92,7 +71,7 @@ export default function SessionOverlays() {
       {invitesEnabled && !hasPendingInvites ? <LegalUpdateNotice /> : null}
       {/* Invitasjonslenke, men e-posten er ikke bekreftet (f.eks. Microsoft): vei videre (UX-30). */}
       {invitesEnabled && !hasPendingInvites ? <JoinVerifyNotice /> : null}
-      {!kitchenMode ? <BiometricLockOverlay uid={uid} /> : null}
+      <BiometricLockOverlay uid={uid} />
       <ChatDockHost />
     </NavigationRouteContext.Provider>
   );

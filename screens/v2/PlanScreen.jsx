@@ -654,24 +654,15 @@ export default function PlanScreen({ active = true }) {
 
   const onOpenPaneItem = useCallback((item) => {
     if (!item) return;
-    if (item.kind === 'chore') {
-      if (!isParent || isActingAsChild) return;
-      nav.navigate('AddTodo', {
-        familyId,
-        child: item.child,
-        todo: item.task,
-        currentDateKey: dateKey(item.date),
-      });
-      return;
-    }
+    if (item.kind === 'chore') return; // Barnas gjøremål hørte til familieproduktet.
     const t = item.task;
     const resolved = t.crossPlatform ? { ...t, id: t.sourceTodoId || t.id } : t;
     nav.navigate('ParentTask', {
       task: resolved,
       familyId: t.familyId || familyId,
-      readOnly: isChildParentTaskReadOnly({ isChild, isNew: false }),
+      readOnly: false,
     });
-  }, [nav, familyId, isChild, isParent, isActingAsChild]);
+  }, [nav, familyId]);
 
   const onTogglePaneItem = useCallback(async (item) => {
     if (!item) return;

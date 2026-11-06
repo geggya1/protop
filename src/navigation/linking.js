@@ -346,7 +346,6 @@ export const linking = {
       Profile: 'profile',
       ParentProfile: 'parent/:parentId',
       SelectFamilyScreen: 'select-family',
-      AddTodo: 'todo/new',
       __KeepAlive: '__keepalive',
     },
   },

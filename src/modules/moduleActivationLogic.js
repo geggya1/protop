@@ -129,7 +129,6 @@ export const SHELL_SKIP_MODULE_IDS = new Set([
 ]);
 
 export const STACK_MODULE_IDS = {
-  AddTodo: 'stars',
   AddNote: 'notes',
   ParentTask: 'stars',
 };

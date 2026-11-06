@@ -78,10 +78,10 @@ assert.equal(activationModuleIdForShell('more', 'moduleAccess'), null);
 assert.equal(activationModuleIdForShell('chores'), null);
 assert.equal(activationModuleIdForShell('mail'), 'mail');
 
-assert.equal(STACK_MODULE_IDS.AddTodo, 'stars');
+assert.equal(STACK_MODULE_IDS.AddTodo, undefined);
 assert.equal(STACK_MODULE_IDS.AddNote, 'notes');
 assert.equal(STACK_MODULE_IDS.Activities, undefined);
-assert.equal(activationModuleIdForStack('AddTodo'), 'stars');
+assert.equal(activationModuleIdForStack('ParentTask'), 'stars');
 assert.equal(activationModuleIdForStack('Activities'), null);
 assert.equal(activationModuleIdForStack('FamilyDashboard'), null);
 assert.equal(activationModuleIdForStack('Home'), null);
@@ -144,6 +144,6 @@ assert.equal(ctxSrc.includes('isLegacyModuleAccess(liveFamily) return true'), fa
 assert.match(ctxSrc, /needsWelcome: \(\) => true/, 'missing provider must not silently unlock');
 
 const shellSrc = readFileSync(new URL('../../components/AppShell.jsx', import.meta.url), 'utf8');
-assert.match(shellSrc, /<ModuleActivationGate[\s\S]*?enabled=\{!kitchenMode\}/, 'do not disable the gate while family data is loading');
+assert.match(shellSrc, /<ModuleActivationGate[\s\S]*?onBack=\{onActivationBack\}\s+enabled\s/, 'do not disable the gate while family data is loading');
 
 console.log(`moduleActivationRegistry.test.mjs: ok (${EXPECTED_IDS.length} modules)`);

@@ -159,6 +159,7 @@ export const FILES = [
   'src/hr/dashboard.test.mjs',
   'src/hr/productivity.test.mjs',
   'src/hr/billable.test.mjs',
+  'src/employees/homeStats.test.mjs',
   'src/capacity/plan.test.mjs',
   'src/capacity/productivityBoard.test.mjs',
   'src/project/timeline.test.mjs',
@@ -245,6 +246,9 @@ export const FILES = [
   'src/employees/employeeReadAccess.test.mjs',
   'src/employees/employeeAbsenceRender.test.cjs',
   'src/employees/personTabs.test.mjs',
+  // Innstillinger på personen: seksjonene, oversikten og familiekortet på Gjøremål.
+  'src/employees/settingsSummary.test.mjs',
+  'src/employees/personSettingsRender.test.cjs',
   'src/employees/employeeAccount.test.mjs',
   'src/employees/membership.test.mjs',
   'src/project/projectAccess.test.mjs',

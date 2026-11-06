@@ -3,7 +3,7 @@ import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import CheckBox from '../CheckBox';
 import {
-  CHILD_CARE_PRIVACY, CHILD_CARE_PURPOSE, childCareSummary, formatBirthDate, newKidId, normalizeChildCare, validateChildCare,
+  CHILD_CARE_PRIVACY, CHILD_CARE_PURPOSE, KID_GENDERS, childCareSummary, formatBirthDate, kidAge, kidGenderLabel, newKidId, normalizeChildCare, resizeKids, validateChildCare,
 } from '../../src/employees/childCare.js';
 import { loadChildCare, saveChildCare } from '../../src/employees/childCareStorage.js';
 import { childCareQuota } from '../../src/arbeid/sickLeave.js';
@@ -16,6 +16,9 @@ import { radius, type } from '../../src/ui/tokens';
  */
 export default function ChildCareCard({
   companyId, employee, colors, canEdit = false, self = false, by = '', onSaved,
+  // Åpne rett i redigering (familievinduet på Gjøremål).
+  startEditing = false,
+  onCancel,
 }) {
   const employeeId = employee?.id || '';
   const [care, setCare] = useState(null);
@@ -32,7 +35,13 @@ export default function ChildCareCard({
     setDraft(null);
     setLoadError('');
     if (!companyId || !employeeId) return undefined;
-    loadChildCare(companyId, employeeId).then((row) => { if (live) setCare(row); }).catch(() => {
+    loadChildCare(companyId, employeeId).then((row) => {
+      if (!live) return;
+      setCare(row);
+      if (startEditing && canEdit) {
+        setDraft({ ...row, kids: row.kids.map((kid) => ({ ...kid, birthDate: formatBirthDate(kid.birthDate) })) });
+      }
+    }).catch(() => {
       if (live) {
         setCare(normalizeChildCare({}));
         setLoadError('Barna kunne ikke hentes. Du kan likevel registrere dem på nytt.');
@@ -98,6 +107,34 @@ export default function ChildCareCard({
           : `Omsorgsdager ${year}: ${quota.total} dager`}
       </Text>
 
+      {editing ? (
+        <View style={styles.countRow} nativeID="child-care-count">
+          <Text style={[styles.body, { color: colors.ink }]}>Antall barn</Text>
+          <View style={[styles.stepper, { borderColor: colors.line }]}>
+            <TouchableOpacity
+              onPress={() => setDraft((cur) => ({ ...cur, kids: resizeKids(cur.kids, cur.kids.length - 1) }))}
+              disabled={!draft.kids.length}
+              accessibilityRole="button"
+              accessibilityLabel="Ett barn færre"
+              nativeID="child-care-count-minus"
+              style={[styles.stepBtn, { opacity: draft.kids.length ? 1 : 0.4 }]}
+            >
+              <Ionicons name="remove" size={18} color={colors.ink} />
+            </TouchableOpacity>
+            <Text style={[styles.body, styles.stepValue, { color: colors.ink }]} nativeID="child-care-count-value">{draft.kids.length}</Text>
+            <TouchableOpacity
+              onPress={() => setDraft((cur) => ({ ...cur, kids: resizeKids(cur.kids, cur.kids.length + 1) }))}
+              accessibilityRole="button"
+              accessibilityLabel="Ett barn til"
+              nativeID="child-care-count-plus"
+              style={styles.stepBtn}
+            >
+              <Ionicons name="add" size={18} color={colors.ink} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+
       {shown.kids.map((kid, index) => (
         <View key={kid.id} style={[styles.kid, { borderColor: colors.line }]} nativeID={`child-care-kid-${index}`}>
           {editing ? (
@@ -116,7 +153,7 @@ export default function ChildCareCard({
                   />
                 </View>
                 <View style={styles.cell}>
-                  <Text style={[styles.label, { color: colors.muted }]}>Fornavn (valgfritt)</Text>
+                  <Text style={[styles.label, { color: colors.muted }]}>Fornavn</Text>
                   <TextInput
                     value={kid.name}
                     onChangeText={(v) => setKid(kid.id, { name: v })}
@@ -125,6 +162,24 @@ export default function ChildCareCard({
                     accessibilityLabel={`Fornavn barn ${index + 1}`}
                   />
                 </View>
+              </View>
+              <View style={styles.row} accessibilityRole="radiogroup" accessibilityLabel={`Kjønn barn ${index + 1}`}>
+                <Text style={[styles.label, { color: colors.muted }]}>Kjønn</Text>
+                {KID_GENDERS.map((g) => {
+                  const on = kid.gender === g.id;
+                  return (
+                    <TouchableOpacity
+                      key={g.id}
+                      onPress={() => setKid(kid.id, { gender: on ? '' : g.id })}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
+                      nativeID={`child-care-gender-${index}-${g.id}`}
+                      style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.bg }]}
+                    >
+                      <Text style={[styles.caption, { color: on ? colors.brand : colors.ink }]}>{g.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
               <View style={styles.rowBetween}>
                 <CheckBox checked={kid.chronic} onPress={() => setKid(kid.id, { chronic: !kid.chronic })} label="Utvidet rett fra NAV (kronisk syk eller funksjonshemmet)" />
@@ -140,7 +195,13 @@ export default function ChildCareCard({
             </>
           ) : (
             <Text style={[styles.body, { color: colors.ink }]}>
-              {`${kid.name || `Barn ${index + 1}`} · født ${kid.birthDate}${kid.chronic ? ' · utvidet rett fra NAV' : ''}`}
+              {[
+                kid.name || `Barn ${index + 1}`,
+                kidGenderLabel(kid.gender),
+                `født ${kid.birthDate}`,
+                kidAge(kid.birthDate) != null ? `${kidAge(kid.birthDate)} år` : '',
+                kid.chronic ? 'utvidet rett fra NAV' : '',
+              ].filter(Boolean).join(' · ')}
             </Text>
           )}
         </View>
@@ -149,7 +210,7 @@ export default function ChildCareCard({
       {editing ? (
         <>
           <TouchableOpacity
-            onPress={() => setDraft((cur) => ({ ...cur, kids: [...cur.kids, { id: newKidId(), name: '', birthDate: '', chronic: false }] }))}
+            onPress={() => setDraft((cur) => ({ ...cur, kids: [...cur.kids, { id: newKidId(), name: '', birthDate: '', chronic: false, gender: '' }] }))}
             style={[styles.ghost, { borderColor: colors.line }]}
             accessibilityRole="button"
             nativeID="child-care-add"
@@ -172,7 +233,7 @@ export default function ChildCareCard({
               <TouchableOpacity onPress={save} disabled={busy} style={[styles.button, { backgroundColor: colors.brand, opacity: busy ? 0.5 : 1 }]} accessibilityRole="button" nativeID="child-care-save">
                 <Text style={[styles.strong, { color: colors.onBrand || '#fff' }]}>{busy ? 'Lagrer …' : 'Lagre'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => { setDraft(null); setError(''); }} style={[styles.button, styles.ghostButton, { borderColor: colors.line }]} accessibilityRole="button">
+              <TouchableOpacity onPress={() => { setDraft(null); setError(''); onCancel?.(); }} style={[styles.button, styles.ghostButton, { borderColor: colors.line }]} accessibilityRole="button">
                 <Text style={[styles.strong, { color: colors.ink }]}>Avbryt</Text>
               </TouchableOpacity>
             </>
@@ -203,4 +264,9 @@ const styles = StyleSheet.create({
   caption: { ...type.caption },
   label: { ...type.caption, fontWeight: '600' },
   strong: { ...type.bodyStrong },
+  countRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radius.control },
+  stepBtn: { width: 40, height: 38, alignItems: 'center', justifyContent: 'center' },
+  stepValue: { minWidth: 28, textAlign: 'center' },
+  chip: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 5 },
 });

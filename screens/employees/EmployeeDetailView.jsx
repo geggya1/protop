@@ -35,11 +35,6 @@ import {
 import EmployeeFields, { EmployeeField } from './EmployeeFields';
 import ChildCareCard from '../../components/employees/ChildCareCard';
 import { useBreakpoints } from '../../src/theme';
-import {
-  emptyProjectState,
-  monthsAgoIso,
-  projectsWithEmployeeHours,
-} from '../../src/project/engine';
 
 const MAIN_FACT_KEYS = [
   'company.title',
@@ -51,6 +46,9 @@ const MAIN_FACT_KEYS = [
   'company.externalEmployeeNumber',
   'company.comment',
 ];
+
+/** Alt i persondata-vinduet fra hovedsiden. 'kin' (eget pårørendekort) bare når det bes om. */
+export const PROFILE_PARTS = ['identity', 'personal', 'work', 'childCare', 'custom', 'gaps'];
 
 function clip(value, limit = 220) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
@@ -101,35 +99,6 @@ function kinLine(person = {}, reveal) {
     .map((part) => String(part || '').trim())
     .filter(Boolean)
     .join(' · ');
-}
-
-function workProjectTitle(project) {
-  const number = project?.number ? `#${project.number} ` : '';
-  return `${number}${project?.name || project?.title || 'Prosjekt'}`.trim();
-}
-
-function workProjectMeta(project) {
-  const parts = [];
-  if (project?.client) parts.push(project.client);
-  if (project?.recentHours) parts.push(`${project.recentHours} t`);
-  return parts.join(' · ');
-}
-
-function repeatSummary(sectionId, item) {
-  if (sectionId === 'education') {
-    const when = [item.from, item.to].filter(Boolean).join('–');
-    return [when, item.school, item.program].filter(Boolean).join(' · ') || 'Utdanning';
-  }
-  if (sectionId === 'experience') {
-    return [item.employer, item.title, item.from].filter(Boolean).join(' · ') || 'Erfaring';
-  }
-  if (sectionId === 'courses') {
-    return [item.date, item.title].filter(Boolean).join(' · ') || 'Kurs';
-  }
-  if (sectionId === 'projects') {
-    return [item.title, item.client].filter(Boolean).join(' · ') || 'Prosjekt';
-  }
-  return item.title || 'Oppføring';
 }
 
 function openLink(url) {
@@ -311,8 +280,6 @@ function InlineEditor({
   );
 }
 
-// Statusene der administrator kan sende (eller sende på nytt) bedriftsinvitasjonen.
-const INVITABLE = new Set(['none', 'missingEmail', 'queued', 'sent', 'declined']);
 
 export default function EmployeeDetailView({
   showName = true,
@@ -335,10 +302,6 @@ export default function EmployeeDetailView({
   currentUid = '',
   confirmDelete = false,
   busy = false,
-  onCv,
-  onHours,
-  onOpenProject,
-  projectState = null,
   onChange,
   onSave,
   onPhoto,
@@ -357,14 +320,22 @@ export default function EmployeeDetailView({
   showAdminCards = true,
   // Papirkurv og permanent sletting krever Admin på ansatte.
   canDelete = isAdmin,
-  // 'home' = hovedsiden, 'employment' = Ansettelsesdata under Innstillinger.
-  section = 'home',
+  // 'profile' = persondata i redigeringsvinduet fra hovedsiden,
+  // 'account' = tagger og papirkurv under Innstillinger › Brukerkonto,
+  // 'employment' = Ansettelsesdata under Innstillinger.
+  section = 'profile',
+  // Delene av persondata som vises (Innstillinger viser én del per seksjon).
+  // Uten parts: alt, slik redigeringsvinduet fra hovedsiden viser det.
+  parts = null,
+  // Familievinduet på Gjøremål åpner barna rett i redigering.
+  childCareEditing = false,
+  onChildCareSaved,
 }) {
+  const show = (id) => (parts || PROFILE_PARTS).includes(id);
   const { isPhone } = useBreakpoints();
   const [editingKey, setEditingKey] = useState('');
   const [editingSection, setEditingSection] = useState('');
   const [extraDepartment, setExtraDepartment] = useState('');
-  const [recentOnly, setRecentOnly] = useState(true);
   const [openSections, setOpenSections] = useState({
     personal: true,
     employment: true,
@@ -377,7 +348,6 @@ export default function EmployeeDetailView({
   });
 
   useEffect(() => {
-    setRecentOnly(true);
     setEditingKey('');
     setEditingSection('');
     setOpenSections({
@@ -448,6 +418,20 @@ export default function EmployeeDetailView({
     return canEdit ? rows : rows.filter((row) => row.value);
   }, [employee, reveal, canEdit]);
 
+  const kinRows = useMemo(() => {
+    if (!reveal) return [];
+    const person = employee.person || {};
+    const phone = String(person.kinPhone || '').trim();
+    const email = String(person.kinEmail || '').trim();
+    const rows = [
+      { key: 'person.kinName', label: 'Navn', value: person.kinName },
+      { key: 'person.kinPhone', label: 'Telefon', value: phone, link: phone ? `tel:${phone.replace(/\s+/g, '')}` : '' },
+      { key: 'person.kinEmail', label: 'E-post', value: email, link: email ? `mailto:${email}` : '' },
+      { key: 'person.kinNote', label: 'Merknad', value: person.kinNote },
+    ];
+    return rows.filter((row) => String(row.value || '').trim());
+  }, [employee, reveal]);
+
   const employmentRows = useMemo(() => {
     const rows = [
       { key: 'company.employmentType', label: 'Type ansatt', value: employee.company?.employmentType },
@@ -467,27 +451,6 @@ export default function EmployeeDetailView({
     ];
     return canEdit ? rows : rows.filter((row) => row.value);
   }, [employee, canEdit]);
-
-  const visibleWorkProjects = useMemo(() => {
-    const state = projectState || emptyProjectState();
-    if (recentOnly) {
-      return projectsWithEmployeeHours(state, employee.id, { since: monthsAgoIso(3) });
-    }
-    return projectsWithEmployeeHours(state, employee.id, {
-      since: '',
-      includeMembership: true,
-    });
-  }, [projectState, employee.id, recentOnly]);
-
-  const cvSections = useMemo(
-    () => FORM_SECTIONS.filter((section) => section.repeatable && section.id !== 'projects')
-      .map((section) => {
-        const items = readPath(employee, section.collection) || [];
-        return { section, items };
-      })
-      .filter((row) => row.items.length),
-    [employee],
-  );
 
   const customFields = (employee.customFields || []).filter((field) => (
     field.value && (isAdmin || (field.owner === 'person' && isSelf))
@@ -629,18 +592,134 @@ export default function EmployeeDetailView({
           </SectionCard>
   );
 
+  const workCard = !limited && (workRows.length || canEdit) ? (
+            <SectionCard
+              title="Arbeidsforhold"
+              icon="time-outline"
+              colors={colors}
+              open={openSections.work}
+              onToggle={() => toggle('work')}
+              onEdit={canEdit && isAdmin ? () => startField('company.workPercent') : undefined}
+            >
+              {editingKey === 'company.workPercent' || editingKey === 'company.periodFrom' || editingKey === 'company.periodTo' ? (
+                <>
+                  {fieldEditor('company.workPercent')}
+                  {fieldEditor('company.periodFrom')}
+                  {fieldEditor('company.periodTo')}
+                </>
+              ) : (
+                <View style={[styles.workTable, { borderColor: colors.line }]}>
+                  <View style={[styles.workHead, { backgroundColor: colors.sunken, borderBottomColor: colors.line }]}>
+                    <Text style={[styles.workCell, { color: colors.muted }]}>Arbeidsprosent</Text>
+                    <Text style={[styles.workCell, styles.workGrow, { color: colors.muted }]}>Periode</Text>
+                  </View>
+                  <View style={styles.workBody}>
+                    <Text style={[styles.workCell, { color: colors.ink }]}>
+                      {employee.company?.workPercent ? `${employee.company.workPercent} %` : '—'}
+                    </Text>
+                    <Text style={[styles.workCell, styles.workGrow, { color: colors.ink }]}>
+                      {periodLabel(employee) || '—'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </SectionCard>
+          ) : null;
+
   if (section === 'employment') {
     return (
       <View nativeID="employee-employment" style={styles.root}>
         {employmentCard}
+        {workCard}
+      </View>
+    );
+  }
+
+  const deleteControls = canDelete ? (
+    isDeletedEmployee(employee) ? (
+      <View style={styles.inlineActions}>
+        <TouchableOpacity
+          onPress={onRestore}
+          accessibilityRole="button"
+          accessibilityLabel="Gjenopprett"
+          style={[styles.secondaryBtn, { borderColor: colors.line, backgroundColor: colors.sunken }]}
+        >
+          <Text style={{ color: colors.ink, fontSize: 13 }}>Gjenopprett</Text>
+        </TouchableOpacity>
+        {confirmDelete ? (
+          <>
+            <TouchableOpacity
+              onPress={onDestroy}
+              accessibilityRole="button"
+              style={[styles.dangerBtn, { backgroundColor: colors.danger }]}
+            >
+              <Text style={{ color: colors.onBrand, fontWeight: '600' }}>Slett permanent</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onCancelDelete} accessibilityRole="button">
+              <Text style={{ color: colors.ink }}>Avbryt</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <TouchableOpacity onPress={onConfirmDelete} accessibilityRole="button" style={styles.deleteLink}>
+            <Text style={{ color: colors.danger }}>Slett permanent</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    ) : confirmDelete ? (
+      <View style={styles.inlineActions}>
+        <TouchableOpacity
+          onPress={onDestroy}
+          accessibilityRole="button"
+          style={[styles.dangerBtn, { backgroundColor: colors.danger }]}
+        >
+          <Text style={{ color: colors.onBrand, fontWeight: '600' }}>Flytt til papirkurv</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onCancelDelete} accessibilityRole="button">
+          <Text style={{ color: colors.ink }}>Avbryt</Text>
+        </TouchableOpacity>
+      </View>
+    ) : (
+      <TouchableOpacity onPress={onConfirmDelete} accessibilityRole="button" style={styles.deleteLink}>
+        <Text style={{ color: colors.danger }}>Flytt til papirkurv</Text>
+      </TouchableOpacity>
+    )
+  ) : null;
+
+  // Innstillinger › Brukerkonto: tagger og papirkurv. Flyttet hit fra hovedsiden.
+  if (section === 'account') {
+    return (
+      <View nativeID="employee-account-extra" style={styles.root}>
+        {showAdminCards ? (
+          <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
+            <Text style={[styles.sideTitle, { color: colors.ink }]}>Tagger</Text>
+            {tags.length ? (
+              <View style={styles.chipRow}>
+                {tags.map((tag) => (
+                  <Text key={tag} style={[styles.tagChip, { color: colors.ink, backgroundColor: colors.sunken, borderColor: colors.line }]}>
+                    {tag}
+                  </Text>
+                ))}
+              </View>
+            ) : (
+              <Text style={{ color: colors.muted, fontSize: 14 }}>Ingen avdelinger eller rettigheter er satt.</Text>
+            )}
+          </View>
+        ) : null}
+        {deleteControls ? (
+          <View nativeID="employee-account-delete" style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
+            <Text style={[styles.sideTitle, { color: colors.ink }]}>{isDeletedEmployee(employee) ? 'I papirkurven' : 'Fjern medarbeideren'}</Text>
+            {deleteControls}
+          </View>
+        ) : null}
       </View>
     );
   }
 
   return (
     <View nativeID="employee-detail" style={styles.root}>
-      <View style={[styles.columns, isPhone && styles.columnsPhone]}>
-        <View style={[styles.mainCol, isPhone && styles.stackCol]}>
+      <View>
+        <View style={styles.profileCol}>
+          {show('identity') ? (
           <View
             style={[
               styles.panel,
@@ -731,23 +810,6 @@ export default function EmployeeDetailView({
                 </View>
               </View>
             </View>
-            {canInvite && INVITABLE.has(inviteState.key) && !isDeletedEmployee(employee) ? (
-              <View style={[styles.heroFooter, { borderTopColor: colors.line }]}>
-                <TouchableOpacity
-                  nativeID="employee-invite-send"
-                  onPress={onInvite}
-                  disabled={busy}
-                  accessibilityRole="button"
-                  style={[styles.secondaryBtn, { borderColor: colors.line, backgroundColor: colors.sunken, opacity: busy ? 0.6 : 1 }]}
-                >
-                  <Text style={{ color: colors.ink, fontSize: 13 }}>
-                    {inviteState.key === 'sent'
-                      ? 'Send invitasjon på nytt'
-                      : (inviteState.key === 'declined' ? 'Inviter på nytt' : 'Send invitasjon')}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
             {isSelf && onPushProfile ? (
               <View style={[styles.heroFooter, { borderTopColor: colors.line }]}>
                 <TouchableOpacity
@@ -767,8 +829,39 @@ export default function EmployeeDetailView({
               </View>
             ) : null}
           </View>
+          ) : null}
 
-          {editingKey && FIELDS.has(editingKey)
+          {show('kin') ? (
+            <SectionCard
+              title="Nærmeste pårørende"
+              icon="people-outline"
+              colors={colors}
+              open
+              onToggle={() => {}}
+              badge={OWNER_LABEL.person}
+              onEdit={canEdit ? () => startSection('kin') : undefined}
+            >
+              {editingSection === 'kin' ? sectionEditor('kin') : (
+                <>
+                  {kinRows.map((row, i) => (
+                    <FactRow
+                      key={row.key}
+                      label={row.label}
+                      value={row.value}
+                      link={row.link}
+                      colors={colors}
+                      last={i === kinRows.length - 1}
+                    />
+                  ))}
+                  {!kinRows.length ? (
+                    <Text style={{ color: colors.muted, fontSize: 14 }}>Ingen pårørende er registrert.</Text>
+                  ) : null}
+                </>
+              )}
+            </SectionCard>
+          ) : null}
+
+          {show('identity') && editingKey && FIELDS.has(editingKey)
             && !mainFacts.some((row) => row.key === editingKey)
             && !personalRows.some((row) => row.key === editingKey)
             && !employmentRows.some((row) => row.key === editingKey)
@@ -781,7 +874,7 @@ export default function EmployeeDetailView({
               </View>
             ) : null}
 
-          {!limited && (personalRows.length || canEdit) ? (
+          {show('personal') && !limited && (personalRows.length || canEdit) ? (
             <SectionCard
               title="Personlig data"
               icon="person-outline"
@@ -812,41 +905,9 @@ export default function EmployeeDetailView({
           ) : null}
 
 
-          {!limited && (workRows.length || canEdit) ? (
-            <SectionCard
-              title="Arbeidsforhold"
-              icon="time-outline"
-              colors={colors}
-              open={openSections.work}
-              onToggle={() => toggle('work')}
-              onEdit={canEdit && isAdmin ? () => startField('company.workPercent') : undefined}
-            >
-              {editingKey === 'company.workPercent' || editingKey === 'company.periodFrom' || editingKey === 'company.periodTo' ? (
-                <>
-                  {fieldEditor('company.workPercent')}
-                  {fieldEditor('company.periodFrom')}
-                  {fieldEditor('company.periodTo')}
-                </>
-              ) : (
-                <View style={[styles.workTable, { borderColor: colors.line }]}>
-                  <View style={[styles.workHead, { backgroundColor: colors.sunken, borderBottomColor: colors.line }]}>
-                    <Text style={[styles.workCell, { color: colors.muted }]}>Arbeidsprosent</Text>
-                    <Text style={[styles.workCell, styles.workGrow, { color: colors.muted }]}>Periode</Text>
-                  </View>
-                  <View style={styles.workBody}>
-                    <Text style={[styles.workCell, { color: colors.ink }]}>
-                      {employee.company?.workPercent ? `${employee.company.workPercent} %` : '—'}
-                    </Text>
-                    <Text style={[styles.workCell, styles.workGrow, { color: colors.ink }]}>
-                      {periodLabel(employee) || '—'}
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </SectionCard>
-          ) : null}
+          {show('work') ? workCard : null}
 
-          {!limited && (isAdmin || isSelf) && section === 'home' && companyId ? (
+          {show('childCare') && !limited && (isAdmin || isSelf) && section === 'profile' && companyId ? (
             <SectionCard
               title="Barn og omsorgsdager"
               icon="happy-outline"
@@ -861,48 +922,13 @@ export default function EmployeeDetailView({
                 canEdit={!!canEdit}
                 self={!!isSelf}
                 by={currentUid}
+                startEditing={childCareEditing}
+                onSaved={onChildCareSaved}
               />
             </SectionCard>
           ) : null}
 
-          {cvSections.length ? (
-            <SectionCard
-              title="CV-grunnlag"
-              icon="document-text-outline"
-              colors={colors}
-              open={openSections.cvBits}
-              onToggle={() => toggle('cvBits')}
-              right={limited ? null : (
-                <TouchableOpacity onPress={onCv} accessibilityRole="button">
-                  <Text style={{ color: colors.brand, fontSize: 13 }}>Åpne CV</Text>
-                </TouchableOpacity>
-              )}
-            >
-              {cvSections.map(({ section, items }) => {
-                const shown = items.slice(0, 3);
-                const more = items.length - shown.length;
-                return (
-                  <View key={section.id} style={styles.cvBlock}>
-                    <Text style={[styles.cvBlockTitle, { color: colors.ink }]}>
-                      {`${section.title} (${items.length})`}
-                    </Text>
-                    {shown.map((item) => (
-                      <Text key={item.id} style={{ color: colors.muted, fontSize: 14 }}>
-                        {repeatSummary(section.id, item)}
-                      </Text>
-                    ))}
-                    {more > 0 && !limited ? (
-                      <TouchableOpacity onPress={onCv} accessibilityRole="button">
-                        <Text style={{ color: colors.brand, fontSize: 13 }}>{`og ${more} til i CV-en`}</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                );
-              })}
-            </SectionCard>
-          ) : null}
-
-          {customFields.length ? (
+          {show('custom') && customFields.length ? (
             <SectionCard
               title="Egne felt"
               icon="pricetags-outline"
@@ -922,7 +948,7 @@ export default function EmployeeDetailView({
             </SectionCard>
           ) : null}
 
-          {gaps && !limited && showAdminCards ? (
+          {show('gaps') && gaps && !limited && showAdminCards ? (
             <SectionCard
               title="Mangler"
               icon="alert-circle-outline"
@@ -960,145 +986,6 @@ export default function EmployeeDetailView({
             </SectionCard>
           ) : null}
 
-          {canDelete ? (
-            isDeletedEmployee(employee) ? (
-              <View style={styles.inlineActions}>
-                <TouchableOpacity
-                  onPress={onRestore}
-                  accessibilityRole="button"
-                  accessibilityLabel="Gjenopprett"
-                  style={[styles.secondaryBtn, { borderColor: colors.line, backgroundColor: colors.sunken }]}
-                >
-                  <Text style={{ color: colors.ink, fontSize: 13 }}>Gjenopprett</Text>
-                </TouchableOpacity>
-                {confirmDelete ? (
-                  <>
-                    <TouchableOpacity
-                      onPress={onDestroy}
-                      accessibilityRole="button"
-                      style={[styles.dangerBtn, { backgroundColor: colors.danger }]}
-                    >
-                      <Text style={{ color: '#fff', fontWeight: '600' }}>Slett permanent</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={onCancelDelete} accessibilityRole="button">
-                      <Text style={{ color: colors.ink }}>Avbryt</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <TouchableOpacity onPress={onConfirmDelete} accessibilityRole="button" style={styles.deleteLink}>
-                    <Text style={{ color: colors.danger }}>Slett permanent</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ) : confirmDelete ? (
-              <View style={styles.inlineActions}>
-                <TouchableOpacity
-                  onPress={onDestroy}
-                  accessibilityRole="button"
-                  style={[styles.dangerBtn, { backgroundColor: colors.danger }]}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '600' }}>Flytt til papirkurv</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={onCancelDelete} accessibilityRole="button">
-                  <Text style={{ color: colors.ink }}>Avbryt</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity onPress={onConfirmDelete} accessibilityRole="button" style={styles.deleteLink}>
-                <Text style={{ color: colors.danger }}>Flytt til papirkurv</Text>
-              </TouchableOpacity>
-            )
-          ) : null}
-        </View>
-
-        <View style={[styles.sideCol, isPhone ? styles.stackCol : styles.sideColSticky]}>
-          <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
-            <View style={styles.sideHead}>
-              <Text style={[styles.sideTitle, { color: colors.ink }]}>Prosjekter</Text>
-              <TouchableOpacity
-                onPress={() => setRecentOnly((value) => !value)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: recentOnly }}
-                style={styles.activeCheck}
-              >
-                <View style={[
-                  styles.checkBox,
-                  { borderColor: recentOnly ? colors.brand : colors.muted },
-                  recentOnly && { backgroundColor: colors.brand },
-                ]}
-                >
-                  {recentOnly ? <Ionicons name="checkmark" size={12} color="#fff" /> : null}
-                </View>
-                <Text style={{ color: colors.ink, fontSize: 13 }}>Siste 3 mnd</Text>
-              </TouchableOpacity>
-            </View>
-            {!visibleWorkProjects.length ? (
-              <Text style={{ color: colors.muted, fontSize: 14 }}>
-                {recentOnly
-                  ? 'Ingen timer ført på prosjekt de siste 3 månedene.'
-                  : 'Ingen prosjektmedlemskap eller timer er registrert.'}
-              </Text>
-            ) : (
-              <View style={styles.projectGroup}>
-                {visibleWorkProjects.map((project) => {
-                  const meta = workProjectMeta(project);
-                  return (
-                    <TouchableOpacity
-                      key={project.id}
-                      onPress={() => onOpenProject?.(project)}
-                      accessibilityRole="button"
-                      style={[styles.projectRow, { borderTopColor: colors.line }]}
-                    >
-                      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                        <Text style={{ color: colors.ink, fontSize: 14 }} numberOfLines={2}>
-                          {workProjectTitle(project)}
-                        </Text>
-                        {meta ? (
-                          <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
-                            {meta}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <Ionicons name="chevron-forward" size={14} color={colors.muted} />
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-            {onHours && !limited ? (
-              <TouchableOpacity
-                onPress={onHours}
-                accessibilityRole="button"
-                accessibilityLabel="Åpne timeføring"
-                nativeID="employee-open-hours"
-                style={{ marginTop: 8 }}
-              >
-                <Text style={{ color: colors.brand, fontSize: 13 }}>Åpne timeføring…</Text>
-              </TouchableOpacity>
-            ) : null}
-            {!limited && (employee.cv?.projects || []).length > 0 ? (
-              <TouchableOpacity onPress={onCv} accessibilityRole="button" style={{ marginTop: 8 }}>
-                <Text style={{ color: colors.brand, fontSize: 13 }}>Vis referanseprosjekter i CV…</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-
-          {limited || !showAdminCards ? null : (
-          <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
-            <Text style={[styles.sideTitle, { color: colors.ink }]}>Tagger</Text>
-            {tags.length ? (
-              <View style={styles.chipRow}>
-                {tags.map((tag) => (
-                  <Text key={tag} style={[styles.tagChip, { color: colors.ink, backgroundColor: colors.sunken, borderColor: colors.line }]}>
-                    {tag}
-                  </Text>
-                ))}
-              </View>
-            ) : (
-              <Text style={{ color: colors.muted, fontSize: 14 }}>Ingen avdelinger eller rettigheter er satt.</Text>
-            )}
-          </View>
-          )}
         </View>
       </View>
     </View>
@@ -1107,6 +994,7 @@ export default function EmployeeDetailView({
 
 const styles = StyleSheet.create({
   root: { gap: 14, width: '100%' },
+  profileCol: { gap: 12, minWidth: 0 },
   columns: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
   columnsPhone: { flexDirection: 'column', alignItems: 'stretch' },
   mainCol: { flex: 1.65, gap: 12, minWidth: 0 },

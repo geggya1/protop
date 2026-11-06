@@ -107,9 +107,9 @@ assert.match(frameSrc, /hosted \|\| isPhone/, 'phone never draws a content-band 
 const shellSrc = readFileSync(join(ROOT, 'components/AppShell.jsx'), 'utf8');
 assert.match(shellSrc, /shellHeroModuleId/, 'shell draws the shared heading above content');
 assert.match(shellSrc, /phoneChromeHeroId/, 'phone heading id is resolved for Mer-subviews including Husk dato');
-assert.match(shellSrc, /<ModuleHero /, 'shell heading is ModuleHero');
+assert.match(shellSrc, /<HostedModuleHero /, 'shell heading is ModuleHero (with the page override)');
 assert.match(shellSrc, /ModuleHeroHostProvider/, 'shell marks the heading as hosted');
-assert.match(shellSrc, /headerHeroId \? \([\s\S]*<ModuleHero/, 'phone heading replaces the shell page title');
+assert.match(shellSrc, /headerHeroId \? \([\s\S]*<HostedModuleHero/, 'phone heading replaces the shell page title');
 assert.match(shellSrc, /pageHeroId && !headerHeroId/, 'tablet\/web keep the heading in the content band');
 assert.match(shellSrc, /flush chrome/, 'phone heading is flattened into the shell chrome');
 assert.doesNotMatch(shellSrc, /heroBandPhone/, 'phone no longer draws a second heading below the title');

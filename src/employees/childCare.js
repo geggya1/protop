@@ -37,6 +37,35 @@ export function formatBirthDate(iso) {
   return `${d}.${m}.${y}`;
 }
 
+/** Kjønn på barnet (valgfritt). Lagres skjermet sammen med navn og fødselsdato. */
+export const KID_GENDERS = [
+  { id: 'jente', label: 'Jente' },
+  { id: 'gutt', label: 'Gutt' },
+];
+
+export function kidGenderLabel(id) {
+  return KID_GENDERS.find((g) => g.id === id)?.label || '';
+}
+
+/** Barnets alder i hele år på en dato (ISO), eller null. */
+export function kidAge(birthIso, todayIso = new Date().toISOString().slice(0, 10)) {
+  const iso = parseBirthDate(birthIso);
+  if (!iso) return null;
+  const [y, m, d] = iso.split('-').map(Number);
+  const [ty, tm, td] = String(todayIso).split('-').map(Number);
+  let age = ty - y;
+  if (tm < m || (tm === m && td < d)) age -= 1;
+  return age < 0 ? null : age;
+}
+
+/** Listen med barn gjort like lang som «Antall barn»: nye tomme rader bak, de siste tas bort. */
+export function resizeKids(kids = [], count = 0) {
+  const n = Math.max(0, Math.min(12, Math.floor(Number(count) || 0)));
+  const list = Array.isArray(kids) ? kids.slice(0, n) : [];
+  while (list.length < n) list.push({ id: newKidId(), name: '', birthDate: '', chronic: false, gender: '' });
+  return list;
+}
+
 export function newKidId() {
   return `barn_${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36).slice(-3)}`;
 }
@@ -50,6 +79,7 @@ export function normalizeChildCare(raw = {}) {
       name: text(row?.name).slice(0, 40),
       birthDate: parseBirthDate(row?.birthDate),
       chronic: row?.chronic === true,
+      gender: KID_GENDERS.some((g) => g.id === row?.gender) ? row.gender : '',
     }))
     .filter((row) => row.birthDate)
     .sort((a, b) => a.birthDate.localeCompare(b.birthDate));

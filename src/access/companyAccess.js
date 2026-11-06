@@ -1406,6 +1406,9 @@ function navItemAllowed(id, grants) {
     return allowsHr(grants, 'see');
   }
   if (id === 'hr-personell') return hrControlAllowed(grants);
+  // Ansattregisteret var en side i HR. Som egen modul vises det for de samme: HR-tilgang og Ansatte.
+  // Vanlige ansatte har sin egen side under Bedrift › Ansatt.
+  if (id === 'ansatte') return allowsHr(grants, 'see') && seeResource(grants, 'employees');
   // Bedrift › Ansatt: egen ansattpost (tab ansatte) og fanen på den.
   if (id === 'ansatt-fravaer') return seeResource(grants, 'employees') && seeResource(grants, 'absence');
   if (id === 'ansatt-utlegg') return seeResource(grants, 'employees') && seeResource(grants, 'economyProjectExpenses');

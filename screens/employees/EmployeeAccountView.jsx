@@ -9,6 +9,7 @@ import {
 } from '../../src/employees/invite';
 import { employmentState, isDeletedEmployee } from '../../src/employees/model';
 import { formatUsageStamp } from '../../src/employees/usage';
+import { type } from '../../src/ui/tokens';
 
 // Statusene der administrator kan sende (eller sende på nytt) bedriftsinvitasjonen.
 const INVITABLE = new Set(['none', 'queued', 'sent', 'declined']);
@@ -99,6 +100,8 @@ export default function EmployeeAccountView({
   onOpenAccess,
   // AI-assistent (EmployeeAiAccessCard), bare for den som kan se AI-abonnementet.
   aiCard = null,
+  // Innstillinger deler kortene: 'account' = Konto og sikkerhet, 'access' = Tilgang og rettigheter.
+  part = 'all',
 }) {
   if (!employee) return null;
   const danger = colors.danger;
@@ -127,6 +130,8 @@ export default function EmployeeAccountView({
 
   return (
     <View nativeID="employee-account" style={styles.root}>
+      {part !== 'access' ? (
+      <>
       <Card title="Konto" icon="person-circle-outline" colors={colors} nativeID="employee-account-status">
         <View style={[styles.switch, { borderColor: deactivated ? danger : colors.line }]}>
           <TouchableOpacity
@@ -210,7 +215,11 @@ export default function EmployeeAccountView({
           </View>
         ) : null}
       </Card>
+      </>
+      ) : null}
 
+      {part !== 'account' ? (
+      <>
       <Card title="Rettigheter" icon="key-outline" colors={colors} nativeID="employee-account-access">
         {deactivated ? (
           <Text style={[styles.hint, { color: danger }]}>Deaktivert. Ingen rettigheter.</Text>
@@ -252,17 +261,19 @@ export default function EmployeeAccountView({
       </Card>
 
       {aiCard}
+      </>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { gap: 14, width: '100%', maxWidth: 760 },
+  root: { gap: 16, width: '100%' },
   card: { borderWidth: 1, borderRadius: 14, padding: 16, gap: 12 },
   cardLift: Platform.OS === 'web' ? { boxShadow: '0 8px 24px rgba(7, 39, 76, 0.06)' } : {},
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cardIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { fontSize: 16, fontWeight: '600' },
+  cardTitle: { ...type.cardTitle },
   switch: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   switchSide: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   hint: { fontSize: 13, lineHeight: 18 },

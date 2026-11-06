@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Image, StyleSheet, Platform } from 'react-native';
+import { View, Text, Image, StyleSheet, Platform, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../src/i18n';
 import { colors, useBreakpoints } from '../src/theme';
 import { LIGHT } from '../src/appearance/palette';
@@ -35,6 +36,13 @@ export default function ModuleHero({
   force = false,
   flush = false,
   chrome = false,
+  // Overstyring fra siden (ShellHeroOverride): overlinjen som lenke tilbake, tittelen som velger.
+  onKickerPress = null,
+  onTitlePress = null,
+  titleA11y = '',
+  titleAccessory = null,
+  // Lavere bånd når tittelen er en person eller en ting, ikke modulen.
+  compact = false,
 }) {
   const { lang } = useI18n();
   const { isPhone, isDesktop } = useBreakpoints();
@@ -58,7 +66,9 @@ export default function ModuleHero({
   // Overlinjen er modulnavnet; den står ikke over en overskrift med samme tekst (én tittel per side).
   const overline = normalizeTitle(kicker || hero.kicker) === normalizeTitle(heading) ? '' : (kicker || hero.kicker);
   const chromePhone = chrome && isPhone;
-  const heroH = isDesktop ? 148 : isPhone ? 112 : 136;
+  const heroH = compact
+    ? (isDesktop ? 104 : isPhone ? 96 : 100)
+    : (isDesktop ? 148 : isPhone ? 112 : 136);
   const artH = heroH - ART_INSET * 2;
   // Pastellbåndet er lyst også i mørkt utseende, så teksten på det er alltid den mørke
   // (LIGHT.ink/muted, minst 4,5:1 mot alle gruppefargene). colors.ink ble lys på lyst i mørkt.
@@ -90,18 +100,49 @@ export default function ModuleHero({
         isPhone && styles.copyPhone,
         chromePhone && styles.copyPhoneChrome,
       ]}>
-        {overline ? (
+        {overline ? (onKickerPress ? (
+          <Pressable
+            onPress={onKickerPress}
+            accessibilityRole="link"
+            accessibilityLabel={`Tilbake til ${overline}`}
+            nativeID="module-hero-kicker"
+            style={({ hovered }) => [styles.kickerLink, hovered ? { opacity: 0.75 } : null]}
+          >
+            <Ionicons name="chevron-back" size={12} color={hero.accent} />
+            <Text style={[styles.kicker, styles.kickerInLink, { color: hero.accent }]} numberOfLines={1}>
+              {overline}
+            </Text>
+          </Pressable>
+        ) : (
           <Text style={[styles.kicker, { color: hero.accent }]} numberOfLines={1}>
             {overline}
           </Text>
-        ) : null}
-        <Text nativeID="module-hero-title" accessibilityRole="header" aria-level={1} style={[styles.title, isDesktop && styles.titleDesk, isPhone && styles.titlePhone, { color: titleColor }]} numberOfLines={2}>
-          {heading}
-        </Text>
+        )) : null}
+        <View style={styles.titleLine}>
+          {onTitlePress ? (
+            <Pressable
+              onPress={onTitlePress}
+              accessibilityRole="button"
+              accessibilityLabel={titleA11y || heading}
+              nativeID="module-hero-title-button"
+              style={({ hovered }) => [styles.titleBtn, hovered ? { opacity: 0.8 } : null]}
+            >
+              <Text nativeID="module-hero-title" accessibilityRole="header" aria-level={1} style={[styles.title, isDesktop && styles.titleDesk, isPhone && styles.titlePhone, styles.titleShrink, { color: titleColor }]} numberOfLines={1}>
+                {heading}
+              </Text>
+              <Ionicons name="chevron-down" size={isPhone ? 16 : 18} color={titleColor} />
+            </Pressable>
+          ) : (
+            <Text nativeID="module-hero-title" accessibilityRole="header" aria-level={1} style={[styles.title, isDesktop && styles.titleDesk, isPhone && styles.titlePhone, titleAccessory && styles.titleShrink, { color: titleColor }]} numberOfLines={titleAccessory ? 1 : 2}>
+              {heading}
+            </Text>
+          )}
+          {titleAccessory}
+        </View>
         {lead ? (
           <Text
             style={[styles.pitch, isDesktop && styles.pitchDesk, isPhone && styles.pitchPhone, { color: pitchColor }]}
-            numberOfLines={isPhone ? 3 : (isDesktop ? 3 : 2)}
+            numberOfLines={compact ? 1 : (isPhone ? 3 : (isDesktop ? 3 : 2))}
           >
             {lead}
           </Text>
@@ -265,6 +306,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 4,
   },
+  kickerLink: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', marginBottom: 4 },
+  kickerInLink: { marginBottom: 0 },
+  titleLine: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
+  titleBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0, flexShrink: 1 },
+  titleShrink: { flexShrink: 1 },
   title: {
     fontWeight: '400',
     fontSize: 22,

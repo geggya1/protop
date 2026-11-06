@@ -43,17 +43,6 @@ export const COMPANY_HERO = {
       'Directory, CV and access for your own employees. Hired-in and external staff are under Hired-in and external.',
     ),
   },
-  // HR › Ansatte: samme register og bånd som Ansatte hadde i bedriftsmenyen.
-  'hr-ansatte': {
-    wideArt: true,
-    name: 'Ansatte',
-    kicker: t('Ansatte', 'Employees'),
-    title: t('Folkene i bedriften', 'The people in the company'),
-    pitch: t(
-      'Register, CV og tilgang for egne ansatte. Innleide og eksterne står under Innleie og eksterne.',
-      'Directory, CV and access for your own employees. Hired-in and external staff are under Hired-in and external.',
-    ),
-  },
   // Bedrift › Ansatt: egen side (Min side, Gjøremål, Fravær, Utlegg). Tittelen er ikke sidens navn (én tittel per side).
   ansatt: {
     wideArt: true,

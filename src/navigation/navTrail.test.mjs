@@ -38,8 +38,8 @@ assert.equal(companyNavGroupId('home'), '', 'personlige sider er ikke i bedrifts
 // Egen timeliste ligger under Bedrift › Ansatt.
 assert.equal(companyNavGroupId('timeliste'), 'company-me');
 assert.equal(companyNavGroupId('ansatte', 'min-side'), 'company-me');
-// Ansattregisteret ligger i HR.
-assert.equal(companyNavGroupId('hr', 'ansatte'), 'company-people');
+// Ansattregisteret er egen modul i samme gruppe som HR.
+assert.equal(companyNavGroupId('ansatte'), 'company-people');
 
 // Et ledd med samme navn som forrige tas ikke med to ganger.
 const customers = navTrailSegments(companyNavTrail('kunder'));

@@ -194,7 +194,7 @@ export const INNTJENING_NAV = { id: 'inntjening', icon: 'analytics', label: 'Inn
  */
 export const HR_GROUPS = [
   { id: 'oversikt', label: 'Oversikt' },
-  { id: 'ansatte', label: 'Ansatte' },
+  { id: 'personell', label: 'Personell' },
   { id: 'oppfolging', label: 'Oppfølging' },
   { id: 'rekruttering', label: 'Rekruttering' },
   { id: 'rutiner', label: 'Rutiner' },
@@ -202,10 +202,9 @@ export const HR_GROUPS = [
 
 export const HR_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt', group: 'oversikt' },
-  // Ansattregisteret (samme side som tidligere Ansatte i bedriftsmenyen). Egen side ligger under Ansatt › Min side.
-  { id: 'ansatte', icon: 'id-card', label: 'Ansatte', group: 'ansatte' },
   // Personell er kontrollsiden for egne ansatte: avtale, lønn, lovpålagt og oppfølging i én liste.
-  { id: 'personell', icon: 'people', label: 'Personell', group: 'ansatte' },
+  // Ansattregisteret er egen modul (Ansatte) ved siden av HR, ikke en side her.
+  { id: 'personell', icon: 'people', label: 'Personell', group: 'personell' },
   { id: 'oppfolging', icon: 'flag', label: 'Samtaler og saker', group: 'oppfolging' },
   { id: 'sykefravaer', icon: 'medkit', label: 'Sykefravær', group: 'oppfolging' },
   { id: 'undersokelse', icon: 'stats-chart', label: 'Medarbeiderundersøkelse', group: 'oppfolging' },
@@ -229,6 +228,16 @@ export function defaultHrSubView(subView) {
 export function hrMenuTitle(subView) {
   const row = HR_MENU.find((item) => item.id === subView);
   return row?.label || 'HR';
+}
+
+/** Ansatte: registeret over egne ansatte og personsidene. Egen modul, likestilt med HR. */
+function ansatteNavItem() {
+  return {
+    id: 'ansatte',
+    icon: 'id-card',
+    label: 'Ansatte',
+    action: { type: 'tab', tab: 'ansatte' },
+  };
 }
 
 function hrNavItem() {
@@ -520,6 +529,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
     },
     ...ANSATT_MENU.map((item) => ({ ...item, action: { ...item.action } })),
     hrNavItem(),
+    ansatteNavItem(),
     innleieNavItem(),
     fravaerNavItem(),
     arbeidNavItem(),
@@ -674,8 +684,8 @@ export const COMPANY_DRAWER_GROUPS = [
     id: 'company-people',
     label: 'Ansatte og arbeidstid',
     icon: 'people',
-    // Ansattregisteret ligger under HR (HR › Ansatte).
-    itemIds: ['hr', 'fravaer', 'arbeid'],
+    // HR er samlesiden. Ansatte (registeret og personsidene) står ved siden av.
+    itemIds: ['hr', 'ansatte', 'fravaer', 'arbeid'],
   },
   {
     // Innleide og eksterne har en annen arbeidsgiver. Egen gruppe, atskilt fra egne ansatte.
@@ -854,6 +864,8 @@ function companyAllowIds() {
  */
 export function normalizeShellSelection(id, subView = null) {
   if (id === 'friends') return { tab: 'more', subView: 'friends' };
+  // Registeret lå før som HR › Ansatte. Gamle lenker går til modulen Ansatte.
+  if (id === 'hr' && subView === 'ansatte') return { tab: 'ansatte', subView: null };
   return { tab: id, subView: subView || null };
 }
 

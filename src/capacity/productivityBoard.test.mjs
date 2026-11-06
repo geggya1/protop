@@ -370,3 +370,19 @@ const hrMenuBlock = menu.match(/export const HR_MENU = \[([\s\S]*?)\];/)?.[1] ||
 assert.equal(hrMenuBlock.includes('produktivitet'), false);
 const arbeidMenuBlock = menu.match(/export const ARBEID_MENU = \[([\s\S]*?)\];/)?.[1] || '';
 assert.equal(arbeidMenuBlock.includes('produktivitet'), false);
+
+{
+  // Lagt til fra belegget: raden står uten reservasjon og kan fjernes igjen.
+  const pinnedPlan = planApi.addPlanRow(planApi.emptyPlan(), 'a', 'p2');
+  const pinnedTree = withHooks(() => React.createElement(Board, {
+    colors,
+    people,
+    projects: [...projects, { id: 'p2', name: 'Lagt til', number: '200', phase: 'produksjon', status: 'aktiv' }],
+    plan: pinnedPlan,
+    canWrite: true,
+    initialOpenId: 'a',
+  }));
+  assert.match(collectText(pinnedTree).join('\n'), /200 Lagt til/);
+  assert.ok(findById(pinnedTree, 'produktivitet-fjern-rad-a-p2'), 'fjern-knapp mangler for lagt-til rad');
+}
+console.log('productivityBoard pinned rows: ok');

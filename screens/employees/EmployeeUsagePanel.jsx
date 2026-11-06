@@ -56,7 +56,7 @@ export default function EmployeeUsagePanel({
         {notice || usageLogNotice(company)}
       </Text>
       {loading ? <ActivityIndicator color={colors.brand} /> : null}
-      {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+      {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
       {!lines.length && !events.length && !loading ? (
         <Text style={{ color: colors.muted }}>Ingen bruk er registrert ennå.</Text>
       ) : null}

@@ -288,7 +288,7 @@ export default function EmployeeFields({
                   })}
                   accessibilityRole="button"
                 >
-                  <Text style={{ color: colors.danger || '#b42318' }}>Fjern felt</Text>
+                  <Text style={{ color: colors.danger }}>Fjern felt</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -362,7 +362,7 @@ export function EmployeeField({
               </TouchableOpacity>
               {value ? (
                 <TouchableOpacity onPress={() => onChange(field.key, '')} accessibilityRole="button">
-                  <Text style={{ color: colors.danger || '#b42318' }}>Fjern bilde</Text>
+                  <Text style={{ color: colors.danger }}>Fjern bilde</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -796,7 +796,7 @@ function RepeatBlock({
                           onPress={() => patch(index, field.key, item[field.key].filter((_, rowIndex) => rowIndex !== imageIndex))}
                           accessibilityRole="button"
                         >
-                          <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>
+                          <Text style={{ color: colors.danger }}>Fjern</Text>
                         </TouchableOpacity>
                       ) : null}
                     </View>
@@ -834,7 +834,7 @@ function RepeatBlock({
                       </TouchableOpacity>
                       {item[field.key] ? (
                         <TouchableOpacity onPress={() => patch(index, field.key, '')} accessibilityRole="button">
-                          <Text style={{ color: colors.danger || '#b42318' }}>Fjern bilde</Text>
+                          <Text style={{ color: colors.danger }}>Fjern bilde</Text>
                         </TouchableOpacity>
                       ) : null}
                     </View>
@@ -892,7 +892,7 @@ function RepeatBlock({
                 onPress={() => onChange(list.filter((row) => row.id !== item.id))}
                 accessibilityRole="button"
               >
-                <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>
+                <Text style={{ color: colors.danger }}>Fjern</Text>
               </TouchableOpacity>
             </View>
           ) : null}

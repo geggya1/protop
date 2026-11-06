@@ -111,7 +111,7 @@ export default function EmployeePersonChrome({
             </Pressable>
             <Text numberOfLines={1} style={[styles.meta, { color: colors.muted }]}>
               {deactivated ? (
-                <Text style={{ color: colors.danger || '#dc2626' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
+                <Text style={{ color: colors.danger }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
               ) : (
                 <Text style={{ color: colors.muted }}>{status}</Text>
               )}
@@ -145,12 +145,12 @@ export default function EmployeePersonChrome({
         {deactivated ? (
           <View
             nativeID="employee-deactivated"
-            style={[styles.deactivatedBanner, { backgroundColor: '#fde8e8', borderColor: colors.danger || '#dc2626' }]}
+            style={[styles.deactivatedBanner, { backgroundColor: '#fde8e8', borderColor: colors.danger }]}
           >
-            <Ionicons name="remove-circle" size={18} color={colors.danger || '#dc2626'} />
+            <Ionicons name="remove-circle" size={18} color={colors.danger} />
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.danger || '#dc2626', fontWeight: '600' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
-              <Text style={{ color: colors.danger || '#dc2626', fontSize: 13, lineHeight: 18 }}>
+              <Text style={{ color: colors.danger, fontWeight: '600' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
+              <Text style={{ color: colors.danger, fontSize: 13, lineHeight: 18 }}>
                 {closedNote(state)}
               </Text>
             </View>

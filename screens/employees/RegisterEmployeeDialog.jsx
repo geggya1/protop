@@ -238,7 +238,7 @@ export default function RegisterEmployeeDialog({
               />
             </Field>
             {emailState.status === 'invalid' && email.includes('@') ? (
-              <Text style={{ color: colors.danger || '#b42318' }}>Skriv en gyldig e-postadresse.</Text>
+              <Text style={{ color: colors.danger }}>Skriv en gyldig e-postadresse.</Text>
             ) : null}
             {existing ? (
               <View nativeID="employee-register-existing" style={[styles.banner, styles.existingBanner]}>
@@ -467,7 +467,7 @@ export default function RegisterEmployeeDialog({
             ) : null}
           </ScrollView>
           {!!formError && (
-            <Text nativeID="employee-register-error" style={{ color: colors.danger || '#b42318' }}>{formError}</Text>
+            <Text nativeID="employee-register-error" style={{ color: colors.danger }}>{formError}</Text>
           )}
           <View style={[styles.footer, { borderTopColor: colors.line }]}>
             <TouchableOpacity

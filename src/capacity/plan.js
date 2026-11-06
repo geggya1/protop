@@ -147,7 +147,38 @@ export function emptyPlan() {
     updatedAt: '',
     weekHours: FULL_WEEK_HOURS,
     allocations: [],
+    rows: [],
   };
+}
+
+/** Prosjektrader som er lagt til i belegget. De blir stående selv uten reservasjon. */
+export function normalizePlanRows(raw) {
+  const seen = new Set();
+  const out = [];
+  for (const row of Array.isArray(raw) ? raw : []) {
+    const employeeId = text(row?.employeeId);
+    const projectId = text(row?.projectId);
+    if (!employeeId || !projectId) continue;
+    const key = `${employeeId}|${projectId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ employeeId, projectId });
+  }
+  return out;
+}
+
+export function addPlanRow(plan, employeeId, projectId) {
+  const current = normalizePlan(plan);
+  const rows = normalizePlanRows([...current.rows, { employeeId, projectId }]);
+  if (rows.length === current.rows.length) return current;
+  return { ...current, updatedAt: new Date().toISOString(), rows };
+}
+
+export function removePlanRow(plan, employeeId, projectId) {
+  const current = normalizePlan(plan);
+  const rows = current.rows.filter((row) => !(row.employeeId === text(employeeId) && row.projectId === text(projectId)));
+  if (rows.length === current.rows.length) return current;
+  return { ...current, updatedAt: new Date().toISOString(), rows };
 }
 
 export function contractPercent(employee) {
@@ -245,11 +276,12 @@ export function normalizePlan(raw) {
     updatedAt: text(source.updatedAt),
     weekHours,
     allocations,
+    rows: normalizePlanRows(source.rows),
   };
 }
 
 export function planHasData(plan) {
-  return (plan?.allocations || []).length > 0;
+  return (plan?.allocations || []).length > 0 || (plan?.rows || []).length > 0;
 }
 
 export function rescaleWeekHours(plan, nextHours) {
@@ -659,6 +691,7 @@ export function planningRows({
   timeEntries = [],
   employeeId,
   activityFrom = '',
+  pinned = [],
 } = {}) {
   const id = text(employeeId);
   const projectById = new Map((projects || []).filter((row) => row?.id).map((row) => [row.id, row]));
@@ -717,6 +750,23 @@ export function planningRows({
       name: project ? projectLabel(project) : (fallbackName.get(projectId) || 'Prosjekt'),
       source: 'project',
       recentHours: hours,
+    });
+  }
+  // Lagt til i belegget: raden står selv uten timer eller reservasjon.
+  const kept = (pinned || []).filter((row) => text(row?.employeeId) === id).map((row) => text(row.projectId));
+  for (const projectId of kept) {
+    if (!projectId || seen.has(projectId)) continue;
+    const project = projectById.get(projectId);
+    if (!project) continue;
+    seen.add(projectId);
+    rows.push({
+      key: `project:${projectId}`,
+      allocId: '',
+      projectId,
+      project,
+      name: projectLabel(project),
+      source: 'project',
+      recentHours: 0,
     });
   }
   rows.sort((a, b) => a.name.localeCompare(b.name, 'nb'));

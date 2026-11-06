@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Dokumenter den ansatte skal lese, bekrefte eller signere. Vises på Min side.
  * Påkrevde dokumenter står øverst til de er bekreftet. Til informasjon kan bekreftes frivillig.
@@ -15,13 +16,15 @@ import { docTaskId } from '../../src/doccontrol/readTasks';
 import { formWithTokens } from '../../src/forms/tokens';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/forms/highlight';
 import { showSaveToast } from '../../src/ui/saveToast';
-import { HrButton, HrCard, HrSectionTitle } from '../hr/HrShared';
-import { HandbookReader } from '../hr/HrHandbook';
-import FormFill from '../anbud/FormFill';
 import { formPrintHtml, printForm } from '../anbud/formPrint';
 import { useDocControl } from './useDocControl';
 import { CommentComposer, SelectionBar, useSelectionCapture } from './DocComments';
 import { OK_INK, dateText } from './parts';
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('../hr/HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrSectionTitle = lazyScreen(() => import('../hr/HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
+const HandbookReader = lazyScreen(() => import('../hr/HrHandbook'), { name: 'HandbookReader', pick: 'HandbookReader', silent: true });
+const FormFill = lazyScreen(() => import('../anbud/FormFill'), { name: 'FormFill', silent: true });
 
 function TemplatePreview({ form, logo, company, colors }) {
   if (Platform.OS !== 'web') {

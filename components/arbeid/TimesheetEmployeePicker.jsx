@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { accessSectionTitle } from '../../src/access/companyAccess';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import {
   employeeDisplayName,
   employeePickerEmail,
@@ -108,7 +108,7 @@ export default function TimesheetEmployeePicker({
   const [externalOpen, setExternalOpen] = useState(true);
   const [companyTab, setCompanyTab] = useState('active');
   const [externalTab, setExternalTab] = useState('active');
-  const { isDesktop, isPhone } = useLayout();
+  const { isDesktop, isPhone } = useBreakpoints();
   const scoped = scope === 'external' || scope === 'company';
   const split = !compact && isDesktop && !scoped;
 

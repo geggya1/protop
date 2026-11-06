@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Møtemaler: bedriftens egne og ProTops ferdige maler. En egen mal kan lages
  * blank, fra et skjema i Skjemabygger, med AI eller som kopi av en ProTop-mal.
@@ -19,9 +20,18 @@ import {
 } from '../../src/meetings/templates';
 import { suggestAgenda } from '../../src/meetings/ai';
 import AgendaPreview from './AgendaPreview';
-import {
-  Banner, Btn, Card, Choice, Empty, Field, IconBtn, Label, Pill, SearchBox, SectionHead, TypeIcon,
-} from './meetingUi';
+const Banner = lazyScreen(() => import('./meetingUi'), { name: 'Banner', pick: 'Banner', silent: true });
+const Btn = lazyScreen(() => import('./meetingUi'), { name: 'Btn', pick: 'Btn', silent: true });
+const Card = lazyScreen(() => import('./meetingUi'), { name: 'Card', pick: 'Card', silent: true });
+const Choice = lazyScreen(() => import('./meetingUi'), { name: 'Choice', pick: 'Choice', silent: true });
+const Empty = lazyScreen(() => import('./meetingUi'), { name: 'Empty', pick: 'Empty', silent: true });
+const Field = lazyScreen(() => import('./meetingUi'), { name: 'Field', pick: 'Field', silent: true });
+const IconBtn = lazyScreen(() => import('./meetingUi'), { name: 'IconBtn', pick: 'IconBtn', silent: true });
+const Label = lazyScreen(() => import('./meetingUi'), { name: 'Label', pick: 'Label', silent: true });
+const Pill = lazyScreen(() => import('./meetingUi'), { name: 'Pill', pick: 'Pill', silent: true });
+const SearchBox = lazyScreen(() => import('./meetingUi'), { name: 'SearchBox', pick: 'SearchBox', silent: true });
+const SectionHead = lazyScreen(() => import('./meetingUi'), { name: 'SectionHead', pick: 'SectionHead', silent: true });
+const TypeIcon = lazyScreen(() => import('./meetingUi'), { name: 'TypeIcon', pick: 'TypeIcon', silent: true });
 
 function TemplateTile({ template, onUse, onEdit, onCopy, onDelete, onReset, canEdit, canAdmin }) {
   const colors = useColors();

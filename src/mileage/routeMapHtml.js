@@ -4,14 +4,7 @@
  */
 
 import { mapCspMeta, mapScriptNonce } from '../utils/mapFrame.js';
-
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+import { escapeHtml } from '../utils/mailHtml.js';
 
 /**
  * JSON som legges rett inn i et <script>. Stedsnavn er fritekst: «</script>» eller «<!--»

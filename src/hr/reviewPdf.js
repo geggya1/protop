@@ -2,6 +2,7 @@
  * PDF/utskrift for medarbeidersamtale — browser print → PDF.
  */
 import { formatNbDate } from './model.js';
+import { escapeHtml } from '../utils/mailHtml.js';
 
 export function reviewPrintHtml(review, { employeeName = '', companyName = '' } = {}) {
   const rows = [
@@ -34,14 +35,6 @@ export function reviewPrintHtml(review, { employeeName = '', companyName = '' } 
 <div class="meta">${escapeHtml(companyName || '')}</div>
 <table>${body}</table>
 </body></html>`;
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 export function printReview(review, options) {

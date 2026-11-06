@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import FormFill from '../anbud/FormFill';
 import { completeFilledDoc, reopenFilledDoc } from '../../src/forms/filledDocs';
 import { deleteFilledDoc, loadFilledDocs, saveFilledDoc } from '../../src/forms/filledStore';
 import { formWithTokens } from '../../src/forms/tokens';
@@ -12,6 +11,8 @@ import {
 } from '../../src/hr/reviewPrep';
 import { deletePrep, reviewAction, savePrep, watchPrep } from '../../src/hr/reviewPrepStore';
 import ReviewPrepPanel from './ReviewPrepPanel';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FormFill = lazyScreen(() => import('../anbud/FormFill'), { name: 'FormFill', silent: true });
 
 /**
  * Ett utfylt personalskjema (KS-mal) med lagring, ferdigstilling, gjenåpning og sletting.

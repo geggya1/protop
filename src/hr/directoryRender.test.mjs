@@ -14,6 +14,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import * as babel from '@babel/core';
 
 const require = createRequire(import.meta.url);
+const syncLazyScreen = require('../../tests/helpers/syncLazyScreen.cjs');
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const cache = new Map();
 
@@ -161,6 +162,7 @@ function load(full) {
   mod.filename = full;
   mod.paths = Module._nodeModulePaths(path.dirname(full));
   mod.require = (id) => {
+    if (id.includes('ui/lazyScreen')) return syncLazyScreen(mod.require);
     const hit = mocked(id);
     if (hit) return hit;
     const resolved = resolveFrom(id, mod);

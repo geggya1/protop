@@ -1,7 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, useLayout } from '../src/theme';
+import { colors, useBreakpoints } from '../src/theme';
 import { touch } from '../src/ui/tokens';
 import HelpTarget from './HelpTarget';
 
@@ -18,7 +18,7 @@ export function DeskBtn({
   muted = false,
   accessibilityLabel,
 }) {
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
   const btn = (
     <TouchableOpacity
       onPress={onPress}

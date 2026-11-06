@@ -64,7 +64,13 @@ export function AppearanceProvider({ children }) {
 
   useEffect(() => {
     if (!(prefs.automatic && prefs.schedule === 'clock')) return undefined;
-    const tick = () => setNow(new Date());
+    // Bytt «nå» bare når lys/mørk faktisk skifter. Før ga hvert halvminutt en ny kontekstverdi
+    // og nye renders av alle som leser utseendet (også skallet).
+    const tick = () => setNow((prev) => {
+      const next = new Date();
+      const before = resolveAppearanceScheme(prefs, { systemScheme, now: prev });
+      return resolveAppearanceScheme(prefs, { systemScheme, now: next }) === before ? prev : next;
+    });
     const id = setInterval(tick, 30000);
     const appSub = AppState.addEventListener?.('change', (state) => {
       if (state === 'active') tick();
@@ -73,7 +79,7 @@ export function AppearanceProvider({ children }) {
       clearInterval(id);
       appSub?.remove?.();
     };
-  }, [prefs.automatic, prefs.schedule]);
+  }, [prefs, systemScheme]);
 
   const updatePrefs = useCallback((partial) => {
     setPrefs((prev) => {

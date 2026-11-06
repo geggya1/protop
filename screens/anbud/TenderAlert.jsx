@@ -20,16 +20,14 @@ import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { SIDE_WIDTH_KEY, PHONE_PREVIEW_MAP_HEIGHT, clampSideWidth, mapHeightForRail, mapHeightForSide, sideWidthFromDrag } from '../../src/anbud/sideWidth';
 import { departmentsOf } from '../../src/project/companyUnits';
-import { BREAKPOINTS, useLayout } from '../../src/theme';
+import { BREAKPOINTS, useBreakpoints } from '../../src/theme';
 import { touchHit } from '../../src/ui/touchTarget';
 import { radius } from '../../src/ui/tokens';
 import TenderHitCards from './TenderHitCards';
 import NoticeInsight from './NoticeInsight';
 import NextStep from './NextStep';
-import TenderMap from './TenderMap';
 import PhoneMapDock from './PhoneMapDock';
 import RegionCoverage from './RegionCoverage';
-import FilterMenu from '../../components/FilterMenu';
 import OptionPicker from '../../components/OptionPicker';
 import InfoButton from '../../components/InfoButton';
 import {
@@ -45,6 +43,9 @@ import {
   sourceLabel,
 } from '../../src/anbud/noticeText';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
+const TenderMap = lazyScreen(() => import('./TenderMap'), { name: 'TenderMap', silent: true });
 
 const FILTERS = [
   ['nye', 'Nye', 'emphasis'],
@@ -173,7 +174,7 @@ export default function TenderAlert({
   stepFilter = null,
 }) {
   const { width } = useWindowDimensions();
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
   // Tannhjulet er et ikon på 22 px eller en sirkel på 30 px; trykkflaten er 44 px på berøringsskjerm (UX-26).
   const gearHit = touchHit(22, 24, { touch: isTouch, os: Platform.OS });
   const gearCircleHit = touchHit(30, 30, { touch: isTouch, os: Platform.OS });

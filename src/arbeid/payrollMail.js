@@ -3,6 +3,7 @@
  * Ren funksjon uten avhengigheter: brukes både i appen (forhåndsvisning) og på serveren.
  * Rader kommer fra buildPayrollSummary (src/arbeid/payroll.js), lagret i lønnskjøringen.
  */
+import { escapeHtml } from '../utils/mailHtml.js';
 
 const MONTH_NAMES = [
   'januar', 'februar', 'mars', 'april', 'mai', 'juni',
@@ -108,10 +109,6 @@ export function buildPayrollMail({
   if (text(companyName, 120)) parts.push(text(companyName, 120));
   const body = parts.join('\n');
   return { subject, text: body };
-}
-
-function escapeHtml(value) {
-  return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /** Samme innhold som HTML (punktlister per ansatt). */

@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Økonomi · Kjørebok — registrering, godkjenning, CSV.
  * Utlegg har egen side (ProjectExpensesScreen: prosjekt og internt på ett sted, UX-17).
@@ -32,8 +33,8 @@ import {
 import { mileageCompensation } from '../../src/mileage/compensation';
 import { useMileageRates } from '../../src/mileage/useMileageRates';
 import { deleteTrip, setTripStatus } from '../../src/economy/opsState.js';
-import MileageWizard from './MileageWizard';
 import { formatDate } from '../../src/format/nb';
+const MileageWizard = lazyScreen(() => import('./MileageWizard'), { name: 'MileageWizard', silent: true });
 
 const TRIP_COLUMNS = [
   { key: 'date', label: 'Dato', width: 96 },

@@ -7,14 +7,7 @@
 import { REVERSE_CHARGE_TEXT, vatCodeById } from './vat.js';
 import { totalsFromLines } from './invoiceLines.js';
 import { text } from './invoices.js';
-
-function esc(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+import { escapeHtml as esc } from '../utils/mailHtml.js';
 
 function orgDigits(orgnr) {
   return String(orgnr || '').replace(/\D/g, '').slice(0, 9);

@@ -29,8 +29,15 @@ import { formatNbDate } from '../../src/hr/model';
 import { hrKindBucket } from '../../src/hr/directory';
 import { toneColor } from '../../src/hr/uiHelpers';
 import { radius, space, type } from '../../src/ui/tokens';
-import SickNoteModal from '../../components/arbeid/SickNoteModal';
-import { EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink } from './HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
+const RowLink = lazyScreen(() => import('./HrShared'), { name: 'RowLink', pick: 'RowLink', silent: true });
+const SickNoteModal = lazyScreen(() => import('../../components/arbeid/SickNoteModal'), { name: 'SickNoteModal', silent: true });
 
 const STATUS_TONE = { innmeldt: 'warn', dokumentasjon: 'warn', godkjent: 'good', avvist: 'bad' };
 

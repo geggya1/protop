@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../src/i18n';
-import { useApp } from '../src/context/AppContext';
+import { useApp, useShellNav } from '../src/context/AppContext';
 import { useRouteFamily } from '../src/hooks/useRouteFamily';
 import { colors, useLayout, appTileWidth } from '../src/theme';
 import {
@@ -138,7 +138,8 @@ export default function GroupHubScreen({ inShell = false }) {
   const { params } = useRoute();
   const { width, isPhone, isTablet, isDesktop, railWidth, pad } = useLayout();
   const compact = !isPhone;
-  const { family, familyId, parents, kids, uid, selectFamily, requestShellTab, shellIntent, clearShellIntent } = useApp();
+  const { family, familyId, parents, kids, uid, selectFamily, requestShellTab, clearShellIntent } = useApp();
+  const { shellIntent } = useShellNav();
   const fid = params?.familyId || familyId;
   const { switching } = useRouteFamily(params?.familyId);
   const owner = family?.ownerUid;

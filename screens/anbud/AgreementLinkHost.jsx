@@ -3,7 +3,10 @@ import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { loadAgreementShare } from '../../src/anbud/agreementClient';
 import { captureAgreementLinkFromLocation, consumeAgreementToken } from '../../src/anbud/agreementLink';
-import AgreementTreatment from './AgreementTreatment';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+
+// Avtalebehandlingen er stor og trengs bare når noen åpner en avtalelenke.
+const AgreementTreatment = lazyScreen(() => import('./AgreementTreatment'), { name: 'AgreementTreatment' });
 
 function tokenFromLocation() {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return '';

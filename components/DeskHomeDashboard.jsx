@@ -19,7 +19,6 @@ import { roundTemp } from '../src/utils/weather';
 import WeatherPeriodsView from './WeatherPeriodsView';
 import LiveHomeWidgets from './LiveHomeWidgets';
 import CompanyOfferCard from './home/CompanyOfferCard';
-import CompanyStartChecklist from './home/CompanyStartChecklist';
 import { isDoneOn } from '../src/utils/todos';
 import { addDays, dateKey } from '../src/utils/dates';
 import {
@@ -29,6 +28,10 @@ import {
   taskFocusMeta,
 } from '../src/utils/deskHome';
 import { PRICING_VISIBLE } from '../src/utils/billingMethods';
+import { lazyScreen } from '../src/ui/lazyScreen';
+// Startsjekklisten og hurtigrapporten drar med anbud og ISO; de lastes når hjem tegnes.
+const CompanyStartChecklist = lazyScreen(() => import('./home/CompanyStartChecklist'), { name: 'CompanyStartChecklist', silent: true });
+const CompanyQuickReport = lazyScreen(() => import('./home/CompanyQuickReport'), { name: 'CompanyQuickReport', silent: true });
 
 function Card({ children, style, onPress, fill }) {
   const inner = (
@@ -219,6 +222,7 @@ export default function DeskHomeDashboard({
 
       <CompanyOfferCard style={styles.startCard} />
       <CompanyStartChecklist />
+      <CompanyQuickReport style={styles.startCard} />
 
       <View style={styles.main}>
         <View style={styles.agendaCol}>

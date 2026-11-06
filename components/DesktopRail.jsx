@@ -5,7 +5,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../src/context/AppContext';
-import { colors, useLayout } from '../src/theme';
+import { colors, useBreakpoints } from '../src/theme';
 import { touch } from '../src/ui/tokens';
 import { useColors } from '../src/context/ThemeContext';
 import { isNavItemActive } from '../src/navigation/shellModules';
@@ -35,7 +35,7 @@ export default function DesktopRail({
 }) {
   const nav = useNavigation();
   const colors = useColors();
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
   const t = isTouch ? touchStyles : null;
   const { scheme } = useAppearance();
   // Hvit logo når sidemenyen er mørk, som i skuffen.

@@ -71,6 +71,21 @@ const iconTags = [
 
 html = upsertHeadTags(html, iconTags);
 
+// Skriftene: koble til Google Fonts med en gang og start stilarket parallelt med JS-bundlen.
+// Før ble det først hentet via @import i app-CSS-en (kjede: html → css → fonts-css → font).
+// @import-en står igjen for lokal Metro; nettleseren henter samme adresse bare én gang.
+const FONT_CSS = (fs.readFileSync(path.join(__dirname, '..', 'app.web.css'), 'utf8').match(/@import url\('([^']+fonts\.googleapis\.com[^']+)'\)/) || [])[1];
+if (FONT_CSS && !html.includes('fonts.gstatic.com')) {
+  const fontTags = [
+    '<link rel="preconnect" href="https://fonts.googleapis.com" />',
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />',
+    `<link rel="stylesheet" href="${FONT_CSS}" />`,
+  ].map((t) => `\n    ${t}`).join('');
+  html = /<meta charset="[^"]*"\s*\/?>/.test(html)
+    ? html.replace(/(<meta charset="[^"]*"\s*\/?>)/, `$1${fontTags}`)
+    : html.replace(/<head>/, `<head>${fontTags}`);
+}
+
 const pwaMeta = [
   ['mobile-web-app-capable', 'yes'],
   ['apple-mobile-web-app-capable', 'yes'],
@@ -232,13 +247,6 @@ for (const name of pwaIconFiles) {
   console.log(`Copied icons/${name} to dist/`);
 }
 
-/** Hero-bilder til mobil/nettbrett-hjem (/heroes/…) */
-const heroesCopied = copyDirSync(
-  path.join(publicDir, 'heroes'),
-  path.join(distDir, 'heroes'),
-);
-if (heroesCopied) console.log(`Copied ${heroesCopied} heroes to dist/heroes/`);
-
 /** Module / help / activation illustrations (/assets/module-activation/…). */
 const activationCopied = copyDirSync(
   path.join(publicDir, 'assets', 'module-activation'),
@@ -246,9 +254,3 @@ const activationCopied = copyDirSync(
 );
 if (activationCopied) console.log(`Copied ${activationCopied} illustrations to dist/assets/module-activation/`);
 
-/** Barnetegninger room mockups (/assets/child-drawings/…). */
-const childDrawingsCopied = copyDirSync(
-  path.join(publicDir, 'assets', 'child-drawings'),
-  path.join(distDir, 'assets', 'child-drawings'),
-);
-if (childDrawingsCopied) console.log(`Copied ${childDrawingsCopied} child-drawings to dist/assets/child-drawings/`);

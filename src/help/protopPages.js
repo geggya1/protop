@@ -2673,79 +2673,10 @@ export const PROTOP_PAGES = {
   }),
 };
 
-/** Sider som deler innhold med en annen side-id. */
-export const PAGE_ALIASES = {
-  // Ansattregisteret ligger i HR (HR › Ansatte). Egne sider under Bedrift › Ansatt bruker samme hjelp.
-  'hr.ansatte': 'ansatte',
-  'ansatte.min-side': 'ansatte',
-  'ansatte.mine-gjoremal': 'ansatte',
-  'ansatte.mitt-fravaer': 'ansatte',
-  'ansatte.mine-utlegg': 'ansatte',
-  'selskap.fridager': 'selskap.fravaerstyper',
-  'arbeid.fravaer-innstillinger': 'selskap.fravaerstyper',
-  'selskap.regnskapskontoer': 'selskap.kontoplan',
-  underenheter: 'selskap.underenheter',
-  'okonomi.kunder': 'okonomi.inntjening',
-  'okonomi.avtaler': 'okonomi.inntjening',
-  'okonomi.prosjektutlegg': 'okonomi.utlegg',
-  'arbeid.utlegg': 'okonomi.utlegg',
-  'anbud.pipeline': 'anbud.tilbud',
-  'more.friends': 'friends',
-  'more.settings': 'settings',
-  'more.help': 'help',
-  'more.moduleAccess': 'moduleAccess',
-  'more.legal': 'legal',
-  'more.subscription': 'subscription',
-  'iso': 'iso.oversikt',
-  'anbud': 'anbud.varsling',
-  'arbeid': 'arbeid.timeliste',
-  'okonomi': 'okonomi.oversikt',
-  'hr': 'hr.oversikt',
-  'innleie': 'innleie.oversikt',
-  'hr.innleid': 'innleie.personell',
-};
+// Aliasene og oppslagene ligger i protopPageKeys.js, så skallet slipper å laste hele katalogen.
+import { PAGE_ALIASES, helpPageId, resolvePageKey } from './protopPageKeys.js';
 
-const DEFAULT_SUBVIEW = {
-  anbud: 'varsling',
-  arbeid: 'timeliste',
-  okonomi: 'oversikt',
-  hr: 'oversikt',
-  iso: 'oversikt',
-  innleie: 'oversikt',
-};
-
-const SUBVIEW_TABS = new Set(['anbud', 'arbeid', 'okonomi', 'hr', 'iso', 'selskap', 'kunder', 'innleie']);
-
-/**
- * Side-id for hjelp ut fra fane og underside i skallet.
- * «more» bruker undersiden (friends, settings, help …) som før.
- */
-export function helpPageId(tab, subView = null) {
-  if (!tab) return null;
-  if (tab === 'more') return subView || 'more';
-  if (SUBVIEW_TABS.has(tab)) {
-    const sub = subView || DEFAULT_SUBVIEW[tab] || null;
-    if (!sub) return tab;
-    const id = `${tab}.${sub}`;
-    return resolvePageKey(id) ? id : tab;
-  }
-  return tab;
-}
-
-/** Nøkkelen i PROTOP_PAGES som har innholdet for en side-id, eller null. */
-export function resolvePageKey(id) {
-  if (!id) return null;
-  if (PROTOP_PAGES[id]) return id;
-  const alias = PAGE_ALIASES[id];
-  if (alias && PROTOP_PAGES[alias]) return alias;
-  const dot = String(id).indexOf('.');
-  if (dot > 0) {
-    const parent = String(id).slice(0, dot);
-    const parentAlias = PAGE_ALIASES[parent] || parent;
-    if (PROTOP_PAGES[parentAlias]) return parentAlias;
-  }
-  return null;
-}
+export { PAGE_ALIASES, helpPageId, resolvePageKey };
 
 export function getProtopPage(id) {
   const key = resolvePageKey(id);

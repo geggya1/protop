@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, useLayout } from '../src/theme';
+import { colors, radius, useBreakpoints } from '../src/theme';
 import { desktopOverlay, desktopSheet } from '../src/desktop';
 
 /**
@@ -12,7 +12,7 @@ import { desktopOverlay, desktopSheet } from '../src/desktop';
  * options: [{ id, icon, label, sub?, onPress }]
  */
 export default function CreateShortcutSheet({ visible, onClose, options = [] }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   return (
     <Modal
       visible={visible}

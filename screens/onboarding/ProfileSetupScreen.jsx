@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
+import StorageImage from '../../components/StorageImage';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, useWindowDimensions, ScrollView, Image,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+  useWindowDimensions,
+  ScrollView,
 } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { updateProfile } from 'firebase/auth';
@@ -46,8 +54,8 @@ function Silhouette({ gender, size }) {
 function Portrait({ photoURL, gender, size }) {
   if (photoURL) {
     return (
-      <Image
-        source={{ uri: photoURL }}
+      <StorageImage
+        uri={photoURL}
         style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#eef2f6' }}
       />
     );

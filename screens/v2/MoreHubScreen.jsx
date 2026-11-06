@@ -6,68 +6,33 @@ import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useCompanyModules } from '../../src/access/useCompanyModules';
 import { useI18n } from '../../src/i18n';
-import { colors, radius, useLayout } from '../../src/theme';
+import { colors, radius, useBreakpoints } from '../../src/theme';
 import { Screen, ScrollBody } from '../../components/ui';
-import ChildProfileHeader from '../../components/ChildProfileHeader';
-import BookshelfScreen from './BookshelfScreen';
-import ShoppingListHubScreen from './ShoppingListHubScreen';
-import WishlistsHubScreen from './WishlistsHubScreen';
-import LekserHubScreen from './LekserHubScreen';
-import ChatListScreen from './ChatListScreen';
-import SettingsScreen from './SettingsScreen';
-import NotificationsScreen from './NotificationsScreen';
-import DashboardThemeSettingsScreen from './DashboardThemeSettingsScreen';
-import ChildAppsScreen from './ChildAppsScreen';
-import PlanScreen from './PlanScreen';
-import ActivitiesScreen from '../ActivitiesScreen';
-import GroupHubScreen from '../GroupHubScreen';
-import FriendsHubScreen from './FriendsHubScreen';
-import LocationHubScreen from './LocationHubScreen';
-import DocumentsHubScreen from './DocumentsHubScreen';
-import VoiceNotesHubScreen from './VoiceNotesHubScreen';
-import AiChatScreen from './AiChatScreen';
-import MealsHubScreen from './MealsHubScreen';
-import RecipesHubScreen from './RecipesHubScreen';
-import PantryHubScreen from './PantryHubScreen';
-import MatcoachHubScreen from './MatcoachHubScreen';
-import AlbumsHubScreen from './AlbumsHubScreen';
-import HoldingsHubScreen from './HoldingsHubScreen';
-import BoligmappaHubScreen from './BoligmappaHubScreen';
-import FamilyWallHubScreen from './FamilyWallHubScreen';
-import ChildDrawingsHubScreen from './ChildDrawingsHubScreen';
-import FamilyProgressScreen from './FamilyProgressScreen';
-import FamilyQuizScreen from './FamilyQuizScreen';
-import FamilyGamesScreen from './FamilyGamesScreen';
-import ScratchMapHubScreen from './ScratchMapHubScreen';
-import ReiseplanleggerHubScreen from './ReiseplanleggerHubScreen';
-import FamilyTreeHubScreen from './FamilyTreeHubScreen';
-import RememberDatesHubScreen from './RememberDatesHubScreen';
-import HospitalityHubScreen from './HospitalityHubScreen';
-import KlassenHubScreen from './KlassenHubScreen';
-import MailHubScreen from './MailHubScreen';
-import PrivacyTermsScreen from './PrivacyTermsScreen';
-import SubscriptionScreen from './SubscriptionScreen';
-import ModuleAccessSettingsScreen from './ModuleAccessSettingsScreen';
-import HelpCenterScreen from '../helpdesk/HelpCenterScreen';
-import HelpdeskPortalScreen from '../helpdesk/HelpdeskPortalScreen';
-import {
-  GroupSettingsScreen,
-} from '../settings/GroupSettingsScreen';
-import { useAiPlanImport } from '../../src/hooks/useAiPlanImport';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const ChatListScreen = lazyScreen(() => import('./ChatListScreen'), { name: 'ChatListScreen' });
+const SettingsScreen = lazyScreen(() => import('./SettingsScreen'), { name: 'SettingsScreen' });
+const NotificationsScreen = lazyScreen(() => import('./NotificationsScreen'), { name: 'NotificationsScreen' });
+const DashboardThemeSettingsScreen = lazyScreen(() => import('./DashboardThemeSettingsScreen'), { name: 'DashboardThemeSettingsScreen' });
+const PlanScreen = lazyScreen(() => import('./PlanScreen'), { name: 'PlanScreen' });
+const GroupHubScreen = lazyScreen(() => import('../GroupHubScreen'), { name: 'GroupHubScreen' });
+const FriendsHubScreen = lazyScreen(() => import('./FriendsHubScreen'), { name: 'FriendsHubScreen' });
+const DocumentsHubScreen = lazyScreen(() => import('./DocumentsHubScreen'), { name: 'DocumentsHubScreen' });
+const VoiceNotesHubScreen = lazyScreen(() => import('./VoiceNotesHubScreen'), { name: 'VoiceNotesHubScreen' });
+const AiChatScreen = lazyScreen(() => import('./AiChatScreen'), { name: 'AiChatScreen' });
+const MailHubScreen = lazyScreen(() => import('./MailHubScreen'), { name: 'MailHubScreen' });
+const PrivacyTermsScreen = lazyScreen(() => import('./PrivacyTermsScreen'), { name: 'PrivacyTermsScreen' });
+const SubscriptionScreen = lazyScreen(() => import('./SubscriptionScreen'), { name: 'SubscriptionScreen' });
+const ModuleAccessSettingsScreen = lazyScreen(() => import('./ModuleAccessSettingsScreen'), { name: 'ModuleAccessSettingsScreen' });
+const HelpCenterScreen = lazyScreen(() => import('../helpdesk/HelpCenterScreen'), { name: 'HelpCenterScreen' });
+const HelpdeskPortalScreen = lazyScreen(() => import('../helpdesk/HelpdeskPortalScreen'), { name: 'HelpdeskPortalScreen' });
+const GroupSettingsScreen = lazyScreen(() => import('../settings/GroupSettingsScreen'), { name: 'GroupSettingsScreen', pick: 'GroupSettingsScreen' });
 import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
-import AiImportChildPicker from '../../components/AiImportChildPicker';
 import {
-  buildChildDashboardApps,
-  buildParentDashboardApps,
   buildShellModules,
 } from '../../src/navigation/shellModules';
-import HomeModulesBoard from '../../components/home/HomeModulesBoard';
-import { moreSubviewTitle } from '../../src/navigation/shellHeaderTitle';
 import IconBadge from '../../components/IconBadge';
 import { useUnread } from '../../src/context/NotificationContext';
 import { countForItem } from '../../src/utils/notifications';
-import { allowedAppsForChild, isChildAppAllowed } from '../../src/utils/childApps';
-import { grandparentModulesFor, isGrandparentAppAllowed } from '../../src/utils/grandparentAccess';
 import HelpTarget from '../../components/HelpTarget';
 import { isFamilyProductMoreView } from '../../src/navigation/familyProduct';
 import NavTree, { useNavTreeState } from '../../components/NavTree';
@@ -160,42 +125,18 @@ function Row({
   );
 }
 
+// Familiesidene (handleliste, måltider, spill, lekser m.m.) er fjernet: de hører til familieproduktet, ikke ProTop.
 const SUB_SCREENS = {
-  shop: ShoppingListHubScreen,
-  wishes: WishlistsHubScreen,
-  books: BookshelfScreen,
-  lekser: LekserHubScreen,
   chat: ChatListScreen,
   settings: SettingsScreen,
   dashboardSetup: DashboardThemeSettingsScreen,
-  childApps: ChildAppsScreen,
   plan: PlanScreen,
-  activities: ActivitiesScreen,
   members: GroupHubScreen,
   friends: FriendsHubScreen,
   groupSettings: GroupSettingsScreen,
-  location: LocationHubScreen,
   documents: DocumentsHubScreen,
   voiceNotes: VoiceNotesHubScreen,
   ai: AiChatScreen,
-  meals: MealsHubScreen,
-  recipes: RecipesHubScreen,
-  pantry: PantryHubScreen,
-  matcoach: MatcoachHubScreen,
-  albums: AlbumsHubScreen,
-  holdings: HoldingsHubScreen,
-  boligmappa: BoligmappaHubScreen,
-  wall: FamilyWallHubScreen,
-  childDrawings: ChildDrawingsHubScreen,
-  progress: FamilyProgressScreen,
-  games: FamilyGamesScreen,
-  quiz: FamilyQuizScreen,
-  scratchMap: ScratchMapHubScreen,
-  reiseplanlegger: ReiseplanleggerHubScreen,
-  familyTree: FamilyTreeHubScreen,
-  rememberDates: RememberDatesHubScreen,
-  hospitality: HospitalityHubScreen,
-  klassen: KlassenHubScreen,
   mail: MailHubScreen,
   legal: PrivacyTermsScreen,
   ...(PRICING_VISIBLE ? { subscription: SubscriptionScreen } : {}),
@@ -209,28 +150,17 @@ const SUB_SCREENS = {
 export default function MoreHubScreen({ subView, setSubView }) {
   const nav = useNavigation();
   const { t } = useI18n();
-  const { pad, isDesktop, isTablet, hasRail, isPhone } = useLayout();
+  const { pad, isDesktop, isTablet, hasRail } = useBreakpoints();
   const {
-    isParent, isChild, family, familyId, meChild, meParent, kids,
-    isActingAsChild, activeChild, isAdmin, isSuperAdmin, isGrandparent, requestShellTab,
+    isParent, family, familyId, isAdmin, isSuperAdmin, requestShellTab,
   } = useApp();
   const multiCol = hasRail && !isDesktop;
   const colWidth = isDesktop ? '100%' : isTablet ? '48.5%' : '100%';
   const [query, setQuery] = useState('');
   const searchRef = useRef(null);
 
-  const {
-    startImport, canImport, activeKids: importKids,
-    childPickerOpen, selectChild, closePicker,
-  } = useAiPlanImport();
-
-  const activeKids = useMemo(
-    () => (kids || []).filter((k) => k.active !== false),
-    [kids],
-  );
-
-  const asChild = isChild || isActingAsChild;
-  const asParent = isParent && !isActingAsChild;
+  // Barnekontoer, «vis som barn» og besteforeldre-tilgang hørte til familieproduktet.
+  const asParent = isParent;
   const companyAccess = useCompanyAccess();
   const companyModules = useCompanyModules();
   const { unreadByModule } = useUnread();
@@ -239,59 +169,30 @@ export default function MoreHubScreen({ subView, setSubView }) {
   const navTree = useNavTree();
   const navState = useNavTreeState(navTree, 'more', subView || null);
   const navShown = useMemo(() => navSections(navTree), [navTree]);
-  const profileChild = isChild ? meChild : (isActingAsChild ? activeChild : null);
-  const childForSchedule = profileChild;
-  const allowedApps = asChild ? allowedAppsForChild(profileChild) : null;
-  const grandparentModules = isGrandparent ? grandparentModulesFor(meParent) : null;
-  const aiEnabled = asChild ? isChildAppAllowed(allowedApps, 'ai') : true;
-  const showChildRestrictions = isActingAsChild && !!childForSchedule;
-
-  const dashboardApps = useMemo(
-    () => (asChild
-      ? buildChildDashboardApps({
-        t,
-        familyId,
-        child: profileChild,
-        aiEnabled,
-        allowedApps,
-        canEdit: isParent && !isChild,
-      })
-      : buildParentDashboardApps({
-        t,
-        familyId,
-        eventCount: 0,
-        hasKids: activeKids.length > 0,
-        firstKid: activeKids[0] || null,
-      })),
-    [asChild, t, familyId, profileChild, aiEnabled, allowedApps, isParent, isChild, activeKids],
-  );
-
   const sections = useMemo(
     () => buildShellModules({
       t,
-      asChild,
+      asChild: false,
       asParent,
       isAdmin,
       isSuperAdmin,
       familyId,
       family,
-      canImport: asParent && canImport,
-      hasKids: activeKids.length > 0,
-      childForSchedule,
-      aiEnabled,
-      allowedApps,
-      showChildRestrictions,
-      firstKid: activeKids[0] || null,
-      isGrandparent,
-      grandparentModules,
+      canImport: false,
+      hasKids: false,
+      childForSchedule: null,
+      aiEnabled: true,
+      allowedApps: null,
+      showChildRestrictions: false,
+      firstKid: null,
+      isGrandparent: false,
+      grandparentModules: null,
       companyGrants: companyAccess.grants,
       companyModules: companyModules.state,
       companyModuleNote: companyModules.lockedLabel,
     }),
     [
-      t, asChild, asParent, isAdmin, isSuperAdmin, familyId, family,
-      canImport, activeKids, childForSchedule, aiEnabled,
-      allowedApps, showChildRestrictions, isGrandparent, grandparentModules,
+      t, asParent, isAdmin, isSuperAdmin, familyId, family,
       companyAccess.grants, companyModules,
     ],
   );
@@ -308,14 +209,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
             item.id,
             ...(item.children || []).flatMap((child) => [child.label, child.id]),
           ].join(' ').toLowerCase();
-          return hay.includes(q)
-            || (q.includes('skrape') && hay.includes('scratch'))
-            || (q.includes('reise') && hay.includes('scratch'))
-            || (q.includes('kart') && hay.includes('scratch'))
-            || (q.includes('besøk') && hay.includes('scratch'))
-            || (q.includes('slekt') && hay.includes('familytree'))
-            || (q.includes('tre') && hay.includes('familytree'))
-            || (q.includes('familietre') && hay.includes('familytree'));
+          return hay.includes(q);
         }),
       }))
       .filter((section) => section.items.length > 0);
@@ -332,16 +226,6 @@ export default function MoreHubScreen({ subView, setSubView }) {
 
   const runAction = (action, appId) => {
     if (!action) return;
-    if (asChild && appId && appId !== 'restrictions' && !isChildAppAllowed(allowedApps, appId)) {
-      return;
-    }
-    if (isGrandparent && appId && !isGrandparentAppAllowed(grandparentModules, appId)) {
-      return;
-    }
-    if (action.type === 'fn' && action.id === 'aiImport') {
-      startImport();
-      return;
-    }
     if (action.type === 'tab') {
       if (action.tab === 'more' && action.subView) {
         setSubView(action.subView);
@@ -360,49 +244,17 @@ export default function MoreHubScreen({ subView, setSubView }) {
     if (first) runAction(first.action, first.id);
   };
 
-  if (subView && asChild && !isChildAppAllowed(allowedApps, subView)) {
-    return (
-      <Screen>
-        <View style={styles.denied}>
-          <Ionicons name="lock-closed-outline" size={32} color={colors.muted} />
-          <Text style={styles.deniedTitle}>{t('moreHub.appDisabledTitle')}</Text>
-          <Text style={styles.deniedSub}>
-            {t('moreHub.appDisabledBody')}
-          </Text>
-        </View>
-      </Screen>
-    );
-  }
-
   // Familiesidene (/hjem/apper/…) finnes ikke i ProTop-bygget (L-35).
   if (subView && SUB_SCREENS[subView] && !isFamilyProductMoreView(subView)) {
     const Sub = SUB_SCREENS[subView];
-    const subTitle = moreSubviewTitle(subView, t);
-    const firstName = profileChild?.name?.split(' ')[0] || t('settings.child');
-    // On tablet/web the shell top bar already shows the module title; skip the
-    // duplicate ChildProfileHeader row (avatar + bold title + «Kun familien.»).
-    const hasProfile = !!profileChild;
-    const showProfileHeader = hasProfile && isPhone;
 
     return (
       <View style={styles.subWrap}>
-        {showProfileHeader ? (
-          <ChildProfileHeader
-            child={profileChild}
-            kids={activeKids}
-            heading={isChild ? subTitle : `${firstName} · ${subTitle}`}
-            sub={isChild ? t('moreHub.familyOnly') : t('moreHub.viewingProfile', { name: firstName })}
-            showSwitcher={false}
-            onSelectChild={() => {}}
-            showBack={false}
-            compact
-          />
-        ) : null}
         <View style={styles.subBody}>
           <Sub
-            compactHeader={hasProfile}
-            profileUid={profileChild?.uid || null}
-            profileChildId={profileChild?.id || profileChild?.childId || null}
+            compactHeader={false}
+            profileUid={null}
+            profileChildId={null}
             inShell
             onBack={() => setSubView(null)}
             setSubView={setSubView}
@@ -412,7 +264,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
     );
   }
 
-  if (!subView && !asChild) {
+  if (!subView) {
     return (
       <Screen>
         <ScrollBody pad={pad}>
@@ -432,26 +284,6 @@ export default function MoreHubScreen({ subView, setSubView }) {
           </Card>
           <View style={{ height: 24 }} />
         </ScrollBody>
-      </Screen>
-    );
-  }
-
-  if (asChild && isPhone && !subView) {
-    return (
-      <Screen>
-        <HomeModulesBoard
-          apps={dashboardApps}
-          unreadByModule={unreadByModule}
-          onPress={(app) => runAction(app.action, app.id)}
-          title={t('moreHub.modulesTitle')}
-          subtitle={t('moreHub.modulesSub')}
-        />
-        <AiImportChildPicker
-          visible={childPickerOpen}
-          kids={importKids}
-          onSelect={selectChild}
-          onClose={closePicker}
-        />
       </Screen>
     );
   }
@@ -483,11 +315,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
           </View>
         ) : (
           <Text style={styles.intro}>
-            {asChild
-              ? t('moreHub.childAppsIntro')
-              : hasRail
-                ? t('moreHub.railIntro')
-                : t('moreHub.phoneIntro')}
+            {hasRail ? t('moreHub.railIntro') : t('moreHub.phoneIntro')}
           </Text>
         )}
         <View style={isDesktop ? styles.deskSections : null}>
@@ -542,12 +370,6 @@ export default function MoreHubScreen({ subView, setSubView }) {
         ) : null}
         <View style={{ height: 24 }} />
       </ScrollBody>
-      <AiImportChildPicker
-        visible={childPickerOpen}
-        kids={importKids}
-        onSelect={selectChild}
-        onClose={closePicker}
-      />
     </Screen>
   );
 }

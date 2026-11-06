@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../src/context/ThemeContext';
 import { useI18n } from '../src/i18n';
-import { useLayout } from '../src/theme';
+import { useBreakpoints } from '../src/theme';
 import { touchHit } from '../src/ui/touchTarget';
 import HelpButton from './HelpButton';
 import HelpTarget from './HelpTarget';
@@ -62,7 +62,7 @@ export const ShellPageHeroContext = createContext(null);
 function HeaderIconButton({
   compact = false, style, onPress, accessibilityLabel, children,
 }) {
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
   const colors = useColors();
   const size = compact ? 32 : 36;
   const hit = touchHit(size, size, { touch: isTouch, os: Platform.OS });
@@ -99,7 +99,7 @@ export default function ShellHeader({
   const nav = useNavigation();
   const { t } = useI18n();
   const colors = useColors();
-  const { isPhone, isTouch } = useLayout();
+  const { isPhone, isTouch } = useBreakpoints();
   const insets = useSafeAreaInsets();
   const frame = useVisualViewportFrame();
   const statusPad = coverStatusBar

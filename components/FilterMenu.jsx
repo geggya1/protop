@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../src/context/ThemeContext';
-import { useLayout } from '../src/theme';
+import { useBreakpoints } from '../src/theme';
 import OptionPicker, { CHIP_LIMIT } from './OptionPicker';
 
 let createPortal = null;
@@ -39,7 +39,7 @@ function searchQuery(search) {
  */
 export default function FilterMenu({ groups = [], children = null, marked = false, search = null, row = false }) {
   const colors = useColors();
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const [open, setOpen] = useState(false);
   const [allowDismiss, setAllowDismiss] = useState(false);
   const labels = activeLabels(groups);

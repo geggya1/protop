@@ -2,21 +2,22 @@ import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { supplierFromCompany } from '../../src/economy/ehf.js';
 import { buildReadyProjects, PERIOD_OPTIONS, periodEndFor } from '../../src/economy/billingReady.js';
 import { osloDate } from '../../src/indeksregulering/watch';
 import ConfirmDialog from '../ConfirmDialog';
 import BrandBusyOverlay from '../BrandBusyOverlay';
-import BillingProjectRow from '../../screens/economy/billing/BillingProjectRow';
-import BillingApproveDialog from '../../screens/economy/billing/BillingApproveDialog';
 import useBillingData from '../../screens/economy/billing/useBillingData';
 import useBillingWorkflow from '../../screens/economy/billing/useBillingWorkflow';
-import { Banner } from '../../screens/economy/billing/ui';
 import { withIndexWarnings } from '../../screens/economy/billing/indexWarnings';
 import { forgetBillingChain } from '../../screens/economy/billing/useBillingChain';
 import { postsLabel } from '../../src/economy/billingApproval.js';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const Banner = lazyScreen(() => import('../../screens/economy/billing/ui'), { name: 'Banner', pick: 'Banner', silent: true });
+const BillingApproveDialog = lazyScreen(() => import('../../screens/economy/billing/BillingApproveDialog'), { name: 'BillingApproveDialog', silent: true });
+const BillingProjectRow = lazyScreen(() => import('../../screens/economy/billing/BillingProjectRow'), { name: 'BillingProjectRow', silent: true });
 
 /**
  * Prosjekt · Til fakturering: samme blokk som i Økonomi → Til fakturering, for dette prosjektet.
@@ -30,7 +31,7 @@ export default function ProjectBillingReadyTab({
 }) {
   const { familyId, family, uid, activeProfile, isAdmin } = useApp();
   const access = useCompanyAccess();
-  const { isPhone, isWide } = useLayout();
+  const { isPhone, isWide } = useBreakpoints();
   const canEdit = !!isAdmin || access.canEdit('economyBilling');
   const data = useBillingData({ familyId, projectId: project.id, project, canSeePowerOffice: !!isAdmin });
   const today = osloDate();

@@ -85,10 +85,8 @@ assert.equal(plan.title, 'Din kalender, én plan');
 assert.equal(plan.kicker, 'Kalender');
 
 const assetsSrc = readFileSync(join(ROOT, 'src/modules/moduleActivationAssets.js'), 'utf8');
-assert.match(assetsSrc, /matcoach: require\('\.\.\/\.\.\/assets\/module-activation\/ai-matcoach--module-activation-illustration\.png'\)/);
-assert.match(assetsSrc, /matcoach: 'matcoach'/);
-assert.match(assetsSrc, /location: 'location'/);
-assert.match(assetsSrc, /scratchMap: 'scratchMap'/);
+// Familiemodulene (matcoach, posisjon, reiser, familietre …) er fjernet fra ProTop.
+assert.equal(/matcoach|familietreet|scratchMap/.test(assetsSrc), false);
 
 for (const id of ACTIVATABLE_MODULE_IDS) {
   const hero = resolveModuleHero(id, 'nb');
@@ -97,16 +95,6 @@ for (const id of ACTIVATABLE_MODULE_IDS) {
   assert.ok(ILLUSTRATION_FILES[id], `${id} illustration filename`);
 }
 
-const matcoachFile = 'ai-matcoach--module-activation-illustration.png';
-const bundled = join(ROOT, 'assets/module-activation', matcoachFile);
-const published = join(ROOT, 'public/assets/module-activation', matcoachFile);
-assert.equal(existsSync(bundled), true, 'matcoach bundled art');
-assert.equal(existsSync(published), true, 'matcoach public art');
-assert.equal(
-  createHash('sha256').update(readFileSync(bundled)).digest('hex'),
-  createHash('sha256').update(readFileSync(published)).digest('hex'),
-  'matcoach bundled != public',
-);
 
 const frameSrc = readFileSync(join(ROOT, 'components/ModulePageBg.jsx'), 'utf8');
 assert.match(frameSrc, /<ModuleHero /, 'frame must render the shared heading');
@@ -138,12 +126,6 @@ assert.match(headerSrc, /styles\.heroChrome/, 'phone heading is embedded as head
 assert.match(headerSrc, /marginHorizontal: -12/, 'band is edge-to-edge in the header');
 assert.match(headerSrc, /styles\.avatarSlot/, 'profile photo keeps its slot');
 assert.doesNotMatch(headerSrc, /helpOnAvatar/, 'help sits in the logo row, not hanging off the profile photo (EGEN-03)');
-for (const headerName of ['platform/PlatformHeader.jsx', 'team/TeamHeader.jsx', 'classroom/ClassroomHeader.jsx']) {
-  const shellHeader = readFileSync(join(ROOT, 'components', headerName), 'utf8');
-  assert.match(shellHeader, /styles\.avatarSlot/, `${headerName} anchors help on the avatar`);
-  assert.match(shellHeader, /helpOverlay:\s*\{[^}]*top:\s*36/, `${headerName} help sits under the avatar`);
-  assert.doesNotMatch(shellHeader, /helpOverlay:\s*\{[^}]*top:\s*46/, `${headerName} help no longer covers the avatar`);
-}
 assert.doesNotMatch(headerSrc, /helpOverlayPhone:\s*\{[^}]*top:\s*42/, 'help is not pinned over the profile from the header top');
 assert.doesNotMatch(headerSrc, /heroBelowRow/, 'help no longer reserves a row under the band');
 assert.doesNotMatch(headerSrc, /heroBackLink/, 'no dedicated Hjem back-link slot under the band');
@@ -168,24 +150,6 @@ assert.match(headerSrc, /position:\s*'absolute'/, 'help overlay does not push pa
 assert.doesNotMatch(headerSrc, /familyNameHero/, 'family name is not painted on top of the band');
 assert.doesNotMatch(headerSrc, /styles\.pageTitleRow[\s\S]*nativeID="module-hero-slot"/, 'hero is not a detached card below the title row');
 
-const drawingsSrc = readFileSync(join(ROOT, 'screens/v2/ChildDrawingsHubScreen.jsx'), 'utf8');
-assert.match(drawingsSrc, /ModulePageFrame name="childDrawings"/, 'Barnetegninger uses the shared page frame');
-assert.match(drawingsSrc, /useShellTitleRight/, 'Barnetegninger registers + Ny tegning in the shell');
-assert.doesNotMatch(drawingsSrc, /<ModuleHero /, 'Barnetegninger must not draw its own heading card');
-
-const datesSrc = readFileSync(join(ROOT, 'screens/v2/RememberDatesHubScreen.jsx'), 'utf8');
-assert.match(datesSrc, /ModulePageFrame name="remember-dates"/, 'Husk dato uses the shared page frame');
-assert.match(datesSrc, /useShellTitleRight/, 'Husk dato registers + Ny dato in the shell title row');
-assert.doesNotMatch(datesSrc, /<ModuleHero /, 'Husk dato must not draw its own heading card');
-
-const schoolSrc = readFileSync(join(ROOT, 'components/SchoolPageLayout.jsx'), 'utf8');
-assert.match(schoolSrc, /force/, 'SchoolPageLayout still opts into ModuleHero on stack screens');
-assert.match(schoolSrc, /flush/, 'SchoolPageLayout still uses flush heading');
-assert.match(schoolSrc, /heroHosted/, 'SchoolPageLayout skips its own heading when the shell already drew one');
-assert.doesNotMatch(schoolSrc, /const TABS =/, 'school apps no longer render the in-page tab menu');
-assert.doesNotMatch(schoolSrc, /For \$\{firstName\}/, 'school apps no longer show the For-name context line');
-assert.match(schoolSrc, /showBack = typeof onBack === 'function'/, 'only an explicit onBack keeps a back link');
-assert.doesNotMatch(schoolSrc, /backLabel:\s*'Hjem'/, 'school hub no longer shows a Hjem back link');
 
 const asideSrc = readFileSync(join(ROOT, 'components/ModuleAside.jsx'), 'utf8');
 assert.match(asideSrc, /Tips for /, 'tips card kicker must name the module');
@@ -225,40 +189,8 @@ assert.match(heroSrc, /artWrapPhoneChrome/, 'phone chrome art stays in the title
 assert.match(heroSrc, /artWrapPhoneChrome:\s*\{[^}]*marginRight:\s*0/, 'phone chrome art is flush with the right margin');
 assert.match(heroSrc, /objectPosition: 'right center'/, 'phone heading art anchors to the right edge');
 
-const shopSrc = readFileSync(join(ROOT, 'screens/v2/ShoppingListScreen.jsx'), 'utf8');
-assert.match(shopSrc, /useShowModuleHero/, 'shopping list reads the shared heading flag');
-assert.match(shopSrc, /!showPageHero/, 'shopping list bottom art is suppressed when the heading shows');
 assert.ok(MODULE_HERO.matcoach.title.nb.includes('Ukeplanen'));
 assert.ok(MODULE_HERO.stars.title.nb.includes('oversikt'));
-
-const matcoachCopy = localizeIntro(getModuleIntro('family', 'matcoach'), 'nb');
-const matcoachHelp = buildHelpWelcomeModule({
-  scope: 'family',
-  moduleId: 'matcoach',
-  copy: matcoachCopy,
-});
-assert.ok(matcoachHelp);
-assert.match(matcoachHelp.illustrationPath, /ai-matcoach--module-activation-illustration\.png\?v=/);
-assert.equal(getModuleConfig('matcoach'), null, 'matcoach stays ungated');
-
-const familyTreeFile = 'familietreet--module-activation-illustration.png';
-const familyTreeBundled = join(ROOT, 'assets/module-activation', familyTreeFile);
-const familyTreePublic = join(ROOT, 'public/assets/module-activation', familyTreeFile);
-assert.equal(existsSync(familyTreeBundled), true, 'familyTree bundled art');
-assert.equal(existsSync(familyTreePublic), true, 'familyTree public art');
-assert.equal(
-  createHash('sha256').update(readFileSync(familyTreeBundled)).digest('hex'),
-  createHash('sha256').update(readFileSync(familyTreePublic)).digest('hex'),
-  'familyTree bundled != public',
-);
-assert.match(assetsSrc, /familyTree: require\('\.\.\/\.\.\/assets\/module-activation\/familietreet--module-activation-illustration\.png'\)/);
-const familyTreeHelp = buildHelpWelcomeModule({
-  scope: 'family',
-  moduleId: 'familyTree',
-  copy: localizeIntro(getModuleIntro('family', 'familyTree'), 'nb'),
-});
-assert.ok(familyTreeHelp);
-assert.match(familyTreeHelp.illustrationPath, /familietreet--module-activation-illustration\.png\?v=/);
 
 const COMPANY_PAGES = [
   ['projects', null, 'projects'],
@@ -373,10 +305,10 @@ assert.equal(resolveModuleHero('iso', 'nb').wideArt, true, 'iso uses the wide il
 // Møter: samme bilde på alle sidene, med sidens egen tittel, og fargen fra Møter og referat.
 for (const id of ['moter-oversikt', 'moter-oppfolging', 'moter-maler']) {
   assert.equal(resolveModuleHero(id, 'nb').wideArt, true, `${id} uses the wide illustration`);
-  assert.equal(ILLUSTRATION_FILES[id], 'moter--module-activation-illustration.png');
+  assert.equal(ILLUSTRATION_FILES[id], 'moter--module-activation-illustration.webp');
   assert.equal(companyHeroGroup(id), 'company-meetings');
   // Telefonen har et eget, nesten kvadratisk bilde, så folkene ikke blir små i det lave båndet.
-  assert.equal(PHONE_ILLUSTRATION_FILES[id], 'moter-phone--module-activation-illustration.png');
+  assert.equal(PHONE_ILLUSTRATION_FILES[id], 'moter-phone--module-activation-illustration.webp');
 }
 assert.equal(resolveModuleHero('moter-oppfolging', 'nb').title, 'Oppfølging');
 assert.equal(resolveModuleHero('moter-maler', 'nb').title, 'Møtemaler');
@@ -440,7 +372,7 @@ assert.match(heroSrc, /phone: isPhone/, 'phone can use the tighter illustration'
 assert.equal(shellHeroModuleId('arbeid', null), 'arbeid-timeliste');
 assert.equal(shellHeroModuleId('home'), null, 'home stays without a module heading');
 
-const projectFile = 'prosjekt--module-activation-illustration.png';
+const projectFile = 'prosjekt--module-activation-illustration.webp';
 const projectBundled = join(ROOT, 'assets/module-activation', projectFile);
 const projectPublic = join(ROOT, 'public/assets/module-activation', projectFile);
 assert.equal(existsSync(projectBundled), true, 'project overview bundled art');
@@ -450,8 +382,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(projectPublic)).digest('hex'),
   'project overview bundled != public',
 );
-assert.match(assetsSrc, /projects: require\('\.\.\/\.\.\/assets\/module-activation\/prosjekt--module-activation-illustration\.png'\)/);
-const ansatteFile = 'ansatte--module-activation-illustration.png';
+assert.match(assetsSrc, /projects: require\('\.\.\/\.\.\/assets\/module-activation\/prosjekt--module-activation-illustration\.webp'\)/);
+const ansatteFile = 'ansatte--module-activation-illustration.webp';
 const ansatteBundled = join(ROOT, 'assets/module-activation', ansatteFile);
 const ansattePublic = join(ROOT, 'public/assets/module-activation', ansatteFile);
 assert.equal(existsSync(ansatteBundled), true, 'ansatte bundled art');
@@ -461,8 +393,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(ansattePublic)).digest('hex'),
   'ansatte bundled != public',
 );
-assert.match(assetsSrc, /ansatte: require\('\.\.\/\.\.\/assets\/module-activation\/ansatte--module-activation-illustration\.png'\)/);
-const kunderFile = 'kunder--module-activation-illustration.png';
+assert.match(assetsSrc, /ansatte: require\('\.\.\/\.\.\/assets\/module-activation\/ansatte--module-activation-illustration\.webp'\)/);
+const kunderFile = 'kunder--module-activation-illustration.webp';
 const kunderBundled = join(ROOT, 'assets/module-activation', kunderFile);
 const kunderPublic = join(ROOT, 'public/assets/module-activation', kunderFile);
 assert.equal(existsSync(kunderBundled), true, 'kunder bundled art');
@@ -472,8 +404,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(kunderPublic)).digest('hex'),
   'kunder bundled != public',
 );
-assert.match(assetsSrc, /kunder: require\('\.\.\/\.\.\/assets\/module-activation\/kunder--module-activation-illustration\.png'\)/);
-const anbudFile = 'anbud-varsling--module-activation-illustration.png';
+assert.match(assetsSrc, /kunder: require\('\.\.\/\.\.\/assets\/module-activation\/kunder--module-activation-illustration\.webp'\)/);
+const anbudFile = 'anbud-varsling--module-activation-illustration.webp';
 const anbudBundled = join(ROOT, 'assets/module-activation', anbudFile);
 const anbudPublic = join(ROOT, 'public/assets/module-activation', anbudFile);
 assert.equal(existsSync(anbudBundled), true, 'anbud bundled art');
@@ -483,8 +415,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(anbudPublic)).digest('hex'),
   'anbud bundled != public',
 );
-assert.match(assetsSrc, /'anbud-varsling': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-varsling--module-activation-illustration\.png'\)/);
-const tilbudFile = 'anbud-tilbud--module-activation-illustration.png';
+assert.match(assetsSrc, /'anbud-varsling': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-varsling--module-activation-illustration\.webp'\)/);
+const tilbudFile = 'anbud-tilbud--module-activation-illustration.webp';
 const tilbudBundled = join(ROOT, 'assets/module-activation', tilbudFile);
 const tilbudPublic = join(ROOT, 'public/assets/module-activation', tilbudFile);
 assert.equal(existsSync(tilbudBundled), true, 'tilbud bundled art');
@@ -494,8 +426,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(tilbudPublic)).digest('hex'),
   'tilbud bundled != public',
 );
-assert.match(assetsSrc, /'anbud-tilbud': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-tilbud--module-activation-illustration\.png'\)/);
-const vurderingFile = 'anbud-vurdering--module-activation-illustration.png';
+assert.match(assetsSrc, /'anbud-tilbud': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-tilbud--module-activation-illustration\.webp'\)/);
+const vurderingFile = 'anbud-vurdering--module-activation-illustration.webp';
 const vurderingBundled = join(ROOT, 'assets/module-activation', vurderingFile);
 const vurderingPublic = join(ROOT, 'public/assets/module-activation', vurderingFile);
 assert.equal(existsSync(vurderingBundled), true, 'vurdering bundled art');
@@ -505,8 +437,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(vurderingPublic)).digest('hex'),
   'vurdering bundled != public',
 );
-assert.match(assetsSrc, /'anbud-vurdering': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-vurdering--module-activation-illustration\.png'\)/);
-const foresporselFile = 'anbud-foresporsel--module-activation-illustration.png';
+assert.match(assetsSrc, /'anbud-vurdering': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-vurdering--module-activation-illustration\.webp'\)/);
+const foresporselFile = 'anbud-foresporsel--module-activation-illustration.webp';
 const foresporselBundled = join(ROOT, 'assets/module-activation', foresporselFile);
 const foresporselPublic = join(ROOT, 'public/assets/module-activation', foresporselFile);
 assert.equal(existsSync(foresporselBundled), true, 'foresporsel bundled art');
@@ -516,8 +448,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(foresporselPublic)).digest('hex'),
   'foresporsel bundled != public',
 );
-assert.match(assetsSrc, /'anbud-foresporsel': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-foresporsel--module-activation-illustration\.png'\)/);
-const kontraktFile = 'kontrakt--module-activation-illustration.png';
+assert.match(assetsSrc, /'anbud-foresporsel': require\('\.\.\/\.\.\/assets\/module-activation\/anbud-foresporsel--module-activation-illustration\.webp'\)/);
+const kontraktFile = 'kontrakt--module-activation-illustration.webp';
 const kontraktBundled = join(ROOT, 'assets/module-activation', kontraktFile);
 const kontraktPublic = join(ROOT, 'public/assets/module-activation', kontraktFile);
 assert.equal(existsSync(kontraktBundled), true, 'kontrakt bundled art');
@@ -527,8 +459,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(kontraktPublic)).digest('hex'),
   'kontrakt bundled != public',
 );
-assert.match(assetsSrc, /kontrakt: require\('\.\.\/\.\.\/assets\/module-activation\/kontrakt--module-activation-illustration\.png'\)/);
-const skjemaFile = 'skjema--module-activation-illustration.png';
+assert.match(assetsSrc, /kontrakt: require\('\.\.\/\.\.\/assets\/module-activation\/kontrakt--module-activation-illustration\.webp'\)/);
+const skjemaFile = 'skjema--module-activation-illustration.webp';
 const skjemaBundled = join(ROOT, 'assets/module-activation', skjemaFile);
 const skjemaPublic = join(ROOT, 'public/assets/module-activation', skjemaFile);
 assert.equal(existsSync(skjemaBundled), true, 'skjema bundled art');
@@ -538,8 +470,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(skjemaPublic)).digest('hex'),
   'skjema bundled != public',
 );
-assert.match(assetsSrc, /skjema: require\('\.\.\/\.\.\/assets\/module-activation\/skjema--module-activation-illustration\.png'\)/);
-const timelisteFile = 'timeliste--module-activation-illustration.png';
+assert.match(assetsSrc, /skjema: require\('\.\.\/\.\.\/assets\/module-activation\/skjema--module-activation-illustration\.webp'\)/);
+const timelisteFile = 'timeliste--module-activation-illustration.webp';
 const timelisteBundled = join(ROOT, 'assets/module-activation', timelisteFile);
 const timelistePublic = join(ROOT, 'public/assets/module-activation', timelisteFile);
 assert.equal(existsSync(timelisteBundled), true, 'timeliste bundled art');
@@ -549,13 +481,13 @@ assert.equal(
   createHash('sha256').update(readFileSync(timelistePublic)).digest('hex'),
   'timeliste bundled != public',
 );
-assert.match(assetsSrc, /timeliste: require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.png'\)/);
-assert.match(assetsSrc, /'arbeid-timeliste': require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.png'\)/);
+assert.match(assetsSrc, /timeliste: require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.webp'\)/);
+assert.match(assetsSrc, /'arbeid-timeliste': require\('\.\.\/\.\.\/assets\/module-activation\/timeliste--module-activation-illustration\.webp'\)/);
 for (const file of [
-  'arbeid-timerapport--module-activation-illustration.png',
-  'arbeid-timesaldo--module-activation-illustration.png',
-  'arbeid-fravaer--module-activation-illustration.png',
-  'arbeid-fravaersrapport--module-activation-illustration.png',
+  'arbeid-timerapport--module-activation-illustration.webp',
+  'arbeid-timesaldo--module-activation-illustration.webp',
+  'arbeid-fravaer--module-activation-illustration.webp',
+  'arbeid-fravaersrapport--module-activation-illustration.webp',
 ]) {
   const bundled = join(ROOT, 'assets/module-activation', file);
   const published = join(ROOT, 'public/assets/module-activation', file);
@@ -567,11 +499,11 @@ for (const file of [
     `${file} bundled != public`,
   );
 }
-assert.match(assetsSrc, /'arbeid-timerapport': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-timerapport--module-activation-illustration\.png'\)/);
-assert.match(assetsSrc, /'arbeid-timesaldo': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-timesaldo--module-activation-illustration\.png'\)/);
-assert.match(assetsSrc, /'arbeid-fravaer': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaer--module-activation-illustration\.png'\)/);
-assert.match(assetsSrc, /'arbeid-fravaersrapport': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaersrapport--module-activation-illustration\.png'\)/);
-const utleggFile = 'arbeid-utlegg--module-activation-illustration.png';
+assert.match(assetsSrc, /'arbeid-timerapport': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-timerapport--module-activation-illustration\.webp'\)/);
+assert.match(assetsSrc, /'arbeid-timesaldo': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-timesaldo--module-activation-illustration\.webp'\)/);
+assert.match(assetsSrc, /'arbeid-fravaer': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaer--module-activation-illustration\.webp'\)/);
+assert.match(assetsSrc, /'arbeid-fravaersrapport': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-fravaersrapport--module-activation-illustration\.webp'\)/);
+const utleggFile = 'arbeid-utlegg--module-activation-illustration.webp';
 const utleggBundled = join(ROOT, 'assets/module-activation', utleggFile);
 const utleggPublic = join(ROOT, 'public/assets/module-activation', utleggFile);
 assert.equal(existsSync(utleggBundled), true, 'utlegg bundled art');
@@ -581,10 +513,10 @@ assert.equal(
   createHash('sha256').update(readFileSync(utleggPublic)).digest('hex'),
   'utlegg bundled != public',
 );
-assert.match(assetsSrc, /'arbeid-utlegg': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-utlegg--module-activation-illustration\.png'\)/);
+assert.match(assetsSrc, /'arbeid-utlegg': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-utlegg--module-activation-illustration\.webp'\)/);
 for (const file of [
-  'arbeid-salg--module-activation-illustration.png',
-  'okonomi-produkter--module-activation-illustration.png',
+  'arbeid-salg--module-activation-illustration.webp',
+  'okonomi-produkter--module-activation-illustration.webp',
 ]) {
   const bundled = join(ROOT, 'assets/module-activation', file);
   const published = join(ROOT, 'public/assets/module-activation', file);
@@ -596,9 +528,9 @@ for (const file of [
     `${file} bundled != public`,
   );
 }
-assert.match(assetsSrc, /'arbeid-salg': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-salg--module-activation-illustration\.png'\)/);
-assert.match(assetsSrc, /'okonomi-produkter': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-produkter--module-activation-illustration\.png'\)/);
-const godkjenningFile = 'arbeid-godkjenning--module-activation-illustration.png';
+assert.match(assetsSrc, /'arbeid-salg': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-salg--module-activation-illustration\.webp'\)/);
+assert.match(assetsSrc, /'okonomi-produkter': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-produkter--module-activation-illustration\.webp'\)/);
+const godkjenningFile = 'arbeid-godkjenning--module-activation-illustration.webp';
 const godkjenningBundled = join(ROOT, 'assets/module-activation', godkjenningFile);
 const godkjenningPublic = join(ROOT, 'public/assets/module-activation', godkjenningFile);
 assert.equal(existsSync(godkjenningBundled), true, 'godkjenning bundled art');
@@ -608,8 +540,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(godkjenningPublic)).digest('hex'),
   'godkjenning bundled != public',
 );
-assert.match(assetsSrc, /'arbeid-godkjenning': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-godkjenning--module-activation-illustration\.png'\)/);
-const isoFile = 'iso--module-activation-illustration.png';
+assert.match(assetsSrc, /'arbeid-godkjenning': require\('\.\.\/\.\.\/assets\/module-activation\/arbeid-godkjenning--module-activation-illustration\.webp'\)/);
+const isoFile = 'iso--module-activation-illustration.webp';
 const isoBundled = join(ROOT, 'assets/module-activation', isoFile);
 const isoPublic = join(ROOT, 'public/assets/module-activation', isoFile);
 assert.equal(existsSync(isoBundled), true, 'iso bundled art');
@@ -619,9 +551,9 @@ assert.equal(
   createHash('sha256').update(readFileSync(isoPublic)).digest('hex'),
   'iso bundled != public',
 );
-assert.match(assetsSrc, /iso: require\('\.\.\/\.\.\/assets\/module-activation\/iso--module-activation-illustration\.png'\)/);
+assert.match(assetsSrc, /iso: require\('\.\.\/\.\.\/assets\/module-activation\/iso--module-activation-illustration\.webp'\)/);
 for (const hrId of ['hr-oversikt', 'hr-personell', 'hr-avtaler', 'hr-produktivitet', 'hr-lonn', 'hr-oppfolging', 'hr-compliance', 'hr-rekruttering']) {
-  const hrFile = `${hrId}--module-activation-illustration.png`;
+  const hrFile = `${hrId}--module-activation-illustration.webp`;
   const hrBundled = join(ROOT, 'assets/module-activation', hrFile);
   const hrPublic = join(ROOT, 'public/assets/module-activation', hrFile);
   assert.equal(existsSync(hrBundled), true, `${hrId} bundled art`);
@@ -637,8 +569,8 @@ for (const hrId of ['hr-oversikt', 'hr-personell', 'hr-avtaler', 'hr-produktivit
     assert.equal(resolveModuleHero(hrId, 'nb').wideArt, true, `${hrId} uses the illustration`);
   }
 }
-assert.match(assetsSrc, /'arbeid-produktivitet': require\('\.\.\/\.\.\/assets\/module-activation\/hr-produktivitet--module-activation-illustration\.png'\)/);
-const fakturaFile = 'okonomi-faktura--module-activation-illustration.png';
+assert.match(assetsSrc, /'arbeid-produktivitet': require\('\.\.\/\.\.\/assets\/module-activation\/hr-produktivitet--module-activation-illustration\.webp'\)/);
+const fakturaFile = 'okonomi-faktura--module-activation-illustration.webp';
 const fakturaBundled = join(ROOT, 'assets/module-activation', fakturaFile);
 const fakturaPublic = join(ROOT, 'public/assets/module-activation', fakturaFile);
 assert.equal(existsSync(fakturaBundled), true, 'faktura bundled art');
@@ -648,8 +580,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(fakturaPublic)).digest('hex'),
   'faktura bundled != public',
 );
-assert.match(assetsSrc, /'okonomi-faktura': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-faktura--module-activation-illustration\.png'\)/);
-const kjorebokFile = 'okonomi-kjorebok--module-activation-illustration.png';
+assert.match(assetsSrc, /'okonomi-faktura': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-faktura--module-activation-illustration\.webp'\)/);
+const kjorebokFile = 'okonomi-kjorebok--module-activation-illustration.webp';
 const kjorebokBundled = join(ROOT, 'assets/module-activation', kjorebokFile);
 const kjorebokPublic = join(ROOT, 'public/assets/module-activation', kjorebokFile);
 assert.equal(existsSync(kjorebokBundled), true, 'kjorebok bundled art');
@@ -659,8 +591,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(kjorebokPublic)).digest('hex'),
   'kjorebok bundled != public',
 );
-assert.match(assetsSrc, /'okonomi-kjorebok': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-kjorebok--module-activation-illustration\.png'\)/);
-const indeksFile = 'okonomi-indeks--module-activation-illustration.png';
+assert.match(assetsSrc, /'okonomi-kjorebok': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-kjorebok--module-activation-illustration\.webp'\)/);
+const indeksFile = 'okonomi-indeks--module-activation-illustration.webp';
 const indeksBundled = join(ROOT, 'assets/module-activation', indeksFile);
 const indeksPublic = join(ROOT, 'public/assets/module-activation', indeksFile);
 assert.equal(existsSync(indeksBundled), true, 'indeks bundled art');
@@ -670,8 +602,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(indeksPublic)).digest('hex'),
   'indeks bundled != public',
 );
-assert.match(assetsSrc, /'okonomi-indeks': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-indeks--module-activation-illustration\.png'\)/);
-const grunnlagFile = 'okonomi-fakturagrunnlag--module-activation-illustration.png';
+assert.match(assetsSrc, /'okonomi-indeks': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-indeks--module-activation-illustration\.webp'\)/);
+const grunnlagFile = 'okonomi-fakturagrunnlag--module-activation-illustration.webp';
 const grunnlagBundled = join(ROOT, 'assets/module-activation', grunnlagFile);
 const grunnlagPublic = join(ROOT, 'public/assets/module-activation', grunnlagFile);
 assert.equal(existsSync(grunnlagBundled), true, 'fakturagrunnlag bundled art');
@@ -681,8 +613,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(grunnlagPublic)).digest('hex'),
   'fakturagrunnlag bundled != public',
 );
-assert.match(assetsSrc, /'okonomi-fakturagrunnlag': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-fakturagrunnlag--module-activation-illustration\.png'\)/);
-const oversiktFile = 'okonomi-oversikt--module-activation-illustration.png';
+assert.match(assetsSrc, /'okonomi-fakturagrunnlag': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-fakturagrunnlag--module-activation-illustration\.webp'\)/);
+const oversiktFile = 'okonomi-oversikt--module-activation-illustration.webp';
 const oversiktBundled = join(ROOT, 'assets/module-activation', oversiktFile);
 const oversiktPublic = join(ROOT, 'public/assets/module-activation', oversiktFile);
 assert.equal(existsSync(oversiktBundled), true, 'oversikt bundled art');
@@ -692,8 +624,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(oversiktPublic)).digest('hex'),
   'oversikt bundled != public',
 );
-assert.match(assetsSrc, /'okonomi-oversikt': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-oversikt--module-activation-illustration\.png'\)/);
-const utleggOkonomiFile = 'okonomi-utlegg--module-activation-illustration.png';
+assert.match(assetsSrc, /'okonomi-oversikt': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-oversikt--module-activation-illustration\.webp'\)/);
+const utleggOkonomiFile = 'okonomi-utlegg--module-activation-illustration.webp';
 const utleggOkonomiBundled = join(ROOT, 'assets/module-activation', utleggOkonomiFile);
 const utleggOkonomiPublic = join(ROOT, 'public/assets/module-activation', utleggOkonomiFile);
 assert.equal(existsSync(utleggOkonomiBundled), true, 'okonomi utlegg bundled art');
@@ -703,8 +635,8 @@ assert.equal(
   createHash('sha256').update(readFileSync(utleggOkonomiPublic)).digest('hex'),
   'okonomi utlegg bundled != public',
 );
-assert.match(assetsSrc, /'okonomi-utlegg': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-utlegg--module-activation-illustration\.png'\)/);
-const selskapFile = 'selskap--module-activation-illustration.png';
+assert.match(assetsSrc, /'okonomi-utlegg': require\('\.\.\/\.\.\/assets\/module-activation\/okonomi-utlegg--module-activation-illustration\.webp'\)/);
+const selskapFile = 'selskap--module-activation-illustration.webp';
 const selskapBundled = join(ROOT, 'assets/module-activation', selskapFile);
 const selskapPublic = join(ROOT, 'public/assets/module-activation', selskapFile);
 assert.equal(existsSync(selskapBundled), true, 'selskap bundled art');
@@ -714,15 +646,15 @@ assert.equal(
   createHash('sha256').update(readFileSync(selskapPublic)).digest('hex'),
   'selskap bundled != public',
 );
-assert.match(assetsSrc, /selskap: require\('\.\.\/\.\.\/assets\/module-activation\/selskap--module-activation-illustration\.png'\)/);
+assert.match(assetsSrc, /selskap: require\('\.\.\/\.\.\/assets\/module-activation\/selskap--module-activation-illustration\.webp'\)/);
 for (const [id, file] of [
-  ['underenheter', 'underenheter--module-activation-illustration.png'],
-  ['selskap-tilgang', 'selskap-tilgang--module-activation-illustration.png'],
-  ['friends', 'venner--module-activation-illustration.png'],
-  ['plan', 'kalender--module-activation-illustration.png'],
-  ['mail', 'e-post--module-activation-illustration.png'],
-  ['stars', 'oppgaver--module-activation-illustration.png'],
-  ['notes', 'notat--module-activation-illustration.png'],
+  ['underenheter', 'underenheter--module-activation-illustration.webp'],
+  ['selskap-tilgang', 'selskap-tilgang--module-activation-illustration.webp'],
+  ['friends', 'venner--module-activation-illustration.webp'],
+  ['plan', 'kalender--module-activation-illustration.webp'],
+  ['mail', 'e-post--module-activation-illustration.webp'],
+  ['stars', 'oppgaver--module-activation-illustration.webp'],
+  ['notes', 'notat--module-activation-illustration.webp'],
 ]) {
   const bundled = join(ROOT, 'assets/module-activation', file);
   const published = join(ROOT, 'public/assets/module-activation', file);
@@ -741,13 +673,13 @@ for (const [id, file] of [
   );
 }
 for (const file of [
-  'okonomi-faktura-phone--module-activation-illustration.png',
-  'arbeid-godkjenning-phone--module-activation-illustration.png',
-  'okonomi-produkter-phone--module-activation-illustration.png',
-  'okonomi-utlegg-phone--module-activation-illustration.png',
-  'arbeid-fravaer-phone--module-activation-illustration.png',
-  'timeliste-phone--module-activation-illustration.png',
-  'moter-phone--module-activation-illustration.png',
+  'okonomi-faktura-phone--module-activation-illustration.webp',
+  'arbeid-godkjenning-phone--module-activation-illustration.webp',
+  'okonomi-produkter-phone--module-activation-illustration.webp',
+  'okonomi-utlegg-phone--module-activation-illustration.webp',
+  'arbeid-fravaer-phone--module-activation-illustration.webp',
+  'timeliste-phone--module-activation-illustration.webp',
+  'moter-phone--module-activation-illustration.webp',
 ]) {
   const bundled = join(ROOT, 'assets/module-activation', file);
   const published = join(ROOT, 'public/assets/module-activation', file);

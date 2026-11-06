@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import { Screen, Mute } from '../../components/ui';
 import { DeskBtn } from '../../components/DeskBtn';
 import ConfirmDialog, { InfoDialog } from '../../components/ConfirmDialog';
@@ -17,7 +17,7 @@ import {
 import { shareDocumentFolderWithFriends } from '../../src/utils/friends';
 
 export default function DocumentFolderSettingsScreen({ folderId, onBack, onDeleted }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { familyId, uid, members, friendPeople, isAdmin } = useApp();
   const [folder, setFolder] = useState(null);
   const [name, setName] = useState('');

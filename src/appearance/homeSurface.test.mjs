@@ -103,7 +103,6 @@ test('soft-paletten er tatt ut av ProTop og ligger bare igjen for familieprodukt
   // Barnas Hjem, familiewidgetene og barneprofilens tema (ThemeContext) er familieproduktet.
   const allowed = new Set([
     'components/childHome/softTheme.js',
-    'components/childHome/ChildDashboardThemeHost.jsx',
     'components/parentHome/ParentHomeWidgets.jsx',
     'src/context/ThemeContext.jsx',
   ]);

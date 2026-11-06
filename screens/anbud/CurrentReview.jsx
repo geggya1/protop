@@ -26,7 +26,7 @@ import {
 import { deadlineInfo } from '../../src/anbud/noticeText';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { updateGroup } from '../../src/utils/groups';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import InfoButton from '../../components/InfoButton';
 import OptionPicker from '../../components/OptionPicker';
@@ -37,7 +37,7 @@ import ReviewNotes from './ReviewNotes';
 import MapRail, { activateMapRow, mapCardChrome, MapIndexBadge, revealAnbudRow } from './MapRail';
 
 function SectionHeading({ title, hint, colors }) {
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   return (
     <View style={{ gap: isPhone ? 0 : 2 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -212,7 +212,7 @@ export default function CurrentReview({
   const fetchedIds = useRef(new Set());
   const stateRef = useRef(null);
   stateRef.current = state;
-  const { isPhone, isWide } = useLayout();
+  const { isPhone, isWide } = useBreakpoints();
   const hostedHero = useModuleHeroHosted();
   const wide = isWide;
 

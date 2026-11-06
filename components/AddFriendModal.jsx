@@ -3,7 +3,7 @@ import {
   Modal, Pressable, ScrollView, View, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, useLayout } from '../src/theme';
+import { colors, useBreakpoints } from '../src/theme';
 import { desktopOverlay, desktopFormSheet } from '../src/desktop';
 import AddFriendScreen from '../screens/v2/AddFriendScreen';
 
@@ -13,7 +13,7 @@ import AddFriendScreen from '../screens/v2/AddFriendScreen';
 export default function AddFriendModal({
   visible, onClose, username = '', asUid = null, familyId = null,
 }) {
-  const { isDesktop, isTablet } = useLayout();
+  const { isDesktop, isTablet } = useBreakpoints();
   // Nettbrett + desktop: sentrert kort. Telefon: bunnsheet.
   const centered = isDesktop || isTablet;
 

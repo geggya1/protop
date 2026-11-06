@@ -8,8 +8,9 @@ import {
 } from '../../src/arbeid/personalTimesheet';
 import { visibleCompanyWorkspaces } from '../../src/utils/platformSwitch';
 import { watchEmployees } from '../../src/employees/storage';
-import ArbeidScreen from './ArbeidScreen';
 import JoinCompanyWelcome from '../../components/JoinCompanyWelcome';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const ArbeidScreen = lazyScreen(() => import('./ArbeidScreen'), { name: 'ArbeidScreen' });
 
 /**
  * Timeliste under Personlig: samme føring som under Arbeid, låst til innlogget bruker.

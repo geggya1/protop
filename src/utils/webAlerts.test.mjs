@@ -10,7 +10,6 @@ const SCREENS = [
   'screens/FamilyInviteRespondScreen.jsx',
   'screens/settings/GroupSettingsScreen.jsx',
   'screens/onboarding/AuthChoiceScreen.jsx',
-  'screens/EmailActionScreen.jsx',
   'screens/ConfirmationScreen.jsx',
   'screens/FamilyOverviewScreen.jsx',
   'screens/v2/FriendQrScreen.jsx',

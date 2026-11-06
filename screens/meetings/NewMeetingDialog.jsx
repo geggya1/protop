@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Nytt møte i to steg: hvordan du vil starte (mal, skjema, AI, blankt eller
  * neste møte i en serie), og så detaljene (tid, sted, deltakere, gjentakelse).
@@ -37,7 +38,14 @@ import {
 import { suggestAgenda } from '../../src/meetings/ai';
 import AgendaPreview from './AgendaPreview';
 import { radius, type } from '../../src/ui/tokens';
-import { Banner, Btn, Choice, Field, Label, Pill, SearchBox, TypeIcon } from './meetingUi';
+const Banner = lazyScreen(() => import('./meetingUi'), { name: 'Banner', pick: 'Banner', silent: true });
+const Btn = lazyScreen(() => import('./meetingUi'), { name: 'Btn', pick: 'Btn', silent: true });
+const Choice = lazyScreen(() => import('./meetingUi'), { name: 'Choice', pick: 'Choice', silent: true });
+const Field = lazyScreen(() => import('./meetingUi'), { name: 'Field', pick: 'Field', silent: true });
+const Label = lazyScreen(() => import('./meetingUi'), { name: 'Label', pick: 'Label', silent: true });
+const Pill = lazyScreen(() => import('./meetingUi'), { name: 'Pill', pick: 'Pill', silent: true });
+const SearchBox = lazyScreen(() => import('./meetingUi'), { name: 'SearchBox', pick: 'SearchBox', silent: true });
+const TypeIcon = lazyScreen(() => import('./meetingUi'), { name: 'TypeIcon', pick: 'TypeIcon', silent: true });
 
 const STARTS = [
   { id: 'mal', icon: 'albums', title: 'Fra møtemal', text: 'Byggemøte, HMS, styremøte og flere. Eller bedriftens egne maler.', color: '#1099F4' },

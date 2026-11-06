@@ -3,7 +3,6 @@
  * og en underenhet viser morselskapets navn slik det er nå.
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import {
   companyDisplayName, parentCompanyDisplayName, readableCompanyName, renameGroupPatch,
 } from './companyName.js';
@@ -32,8 +31,5 @@ assert.equal(parentCompanyDisplayName({ id: 'C' }, [company]), '');
 const invite = inviteFromPlaceholder({ placeholder: { email: 'a@b.no' }, family: company, familyId: 'A', now: '2026-10-28T10:00:00Z' });
 assert.equal(invite.familyName, 'Nytt Bygg AS');
 
-// «Gi nytt navn» skriver begge feltene.
-const dashboard = readFileSync(new URL('../../screens/FamilyDashboardScreen.jsx', import.meta.url), 'utf8');
-assert.match(dashboard, /renameGroupPatch\(familyDoc, trimmed\)/);
 
 console.log('companyName.test.mjs: ok');

@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Prosjekt → Evaluering. Ansatte sender en prosjektevaluering til kunden eller en annen person,
  * fra en av selskapets maler. Mottakeren svarer uten innlogging og får en kopi av svaret.
@@ -12,9 +13,10 @@ import {
 } from '../../src/surveys/customerSurvey';
 import { customerSurveyCall } from '../../src/surveys/customerClient';
 import { space, type } from '../../src/ui/tokens';
-import { EmptyHint, HrButton } from '../../screens/hr/HrShared';
-import { SurveyDetail } from '../../screens/customers/CustomerSurveyDetail';
 import { EvaluationRow, NewEvaluationForm, unitOptions } from '../../screens/customers/EvaluationsPanel';
+const EmptyHint = lazyScreen(() => import('../../screens/hr/HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('../../screens/hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const SurveyDetail = lazyScreen(() => import('../../screens/customers/CustomerSurveyDetail'), { name: 'SurveyDetail', pick: 'SurveyDetail', silent: true });
 
 export default function ProjectEvaluationTab({
   familyId, project, customers = [], colors, uid,

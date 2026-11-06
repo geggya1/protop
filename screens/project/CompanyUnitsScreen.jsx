@@ -7,7 +7,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { isSuperAdmin } from '../../src/utils/groups';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { ShellPageHeroContext } from '../../components/ShellHeader';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useShellPageHero } from '../../src/hooks/useShellPageHero';
@@ -65,7 +65,7 @@ function PageHeading({ name, colors, onPress, yearControl, wide }) {
 
 export default function CompanyUnitsScreen() {
   const colors = useColors();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const heroCtx = useContext(ShellPageHeroContext);
   const hosted = useModuleHeroHosted();
   const inChrome = !isDesktop && !!heroCtx?.claim && !hosted;

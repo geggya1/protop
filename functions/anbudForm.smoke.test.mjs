@@ -45,7 +45,7 @@ const deployed = readFileSync(join(__dirname, 'anbud/formBuilder.js'), 'utf8');
 const source = readFileSync(join(__dirname, '../src/anbud/formBuilder.js'), 'utf8');
 assert.equal(deployed, source);
 
-const copies = ['catalog.js', 'engine.js', 'interpret.js', 'settings.js', 'ssb.js', 'watch.js'];
+const copies = ['catalog.js', 'engine.js', 'isoDate.js', 'interpret.js', 'settings.js', 'ssb.js', 'watch.js'];
 for (const name of copies) {
   const a = readFileSync(join(__dirname, 'indeksregulering', name), 'utf8');
   const b = readFileSync(join(__dirname, '../src/indeksregulering', name), 'utf8');

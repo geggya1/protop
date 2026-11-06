@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Image, StyleSheet, Platform } from 'react-native';
 import { useI18n } from '../src/i18n';
-import { colors, useLayout } from '../src/theme';
+import { colors, useBreakpoints } from '../src/theme';
 import { LIGHT } from '../src/appearance/palette';
 import { illustrationSourceById } from '../src/modules/moduleActivationAssets';
 import { heroTitleWithCompany, resolveModuleHero } from '../src/modules/moduleHero';
@@ -37,7 +37,7 @@ export default function ModuleHero({
   chrome = false,
 }) {
   const { lang } = useI18n();
-  const { isPhone, isDesktop } = useLayout();
+  const { isPhone, isDesktop } = useBreakpoints();
   const [useBundled, setUseBundled] = useState(Platform.OS !== 'web');
   const [artRatio, setArtRatio] = useState(2.4);
   useEffect(() => { setArtRatio(2.4); }, [moduleId, isPhone, useBundled]);

@@ -7,7 +7,13 @@ import {
   getToken as getAppCheckToken,
 } from 'firebase/app-check';
 import { connectAuthEmulator, getAuth, initializeAuth } from 'firebase/auth';
-import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import {
+  connectFirestoreEmulator,
+  getFirestore,
+  initializeFirestore,
+  memoryLocalCache,
+  memoryLruGarbageCollector,
+} from 'firebase/firestore';
 import { connectStorageEmulator, getStorage } from 'firebase/storage';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { resolveAuthDomain as resolveAuthDomainForHost } from './src/utils/hostingChannel';
@@ -74,7 +80,22 @@ function createAuth(firebaseApp) {
 export const auth = createAuth(app);
 // Memory cache only — persistentLocalCache caused white-screen hangs on web
 // (IndexedDB lock / multi-tab) after login and home-screen launches.
-export const db = getFirestore(app);
+// LRU i minnet (40 MB) i stedet for standarden, som kastet dokumentene så snart siste lytter
+// ble stengt. Da måtte hver fane som ble åpnet igjen hente hele samlingen på nytt (og betale
+// for alle lesingene). Nå gjenopptas lytteren og henter bare det som er endret.
+function createDb(firebaseApp) {
+  try {
+    return initializeFirestore(firebaseApp, {
+      localCache: memoryLocalCache({
+        garbageCollector: memoryLruGarbageCollector({ cacheSizeBytes: 40 * 1024 * 1024 }),
+      }),
+    });
+  } catch {
+    // Allerede initialisert (hot reload).
+    return getFirestore(firebaseApp);
+  }
+}
+export const db = createDb(app);
 
 // Deferred, non-blocking cleanup of leftover Firestore IndexedDB from the
 // short-lived persistence experiment. Must NOT run during module init / race

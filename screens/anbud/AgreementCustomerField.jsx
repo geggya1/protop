@@ -4,7 +4,8 @@ import ScrollSheet from '../../components/ScrollSheet';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, SUGGESTION_MARK } from '../../src/anbud/agreementSuggestions';
 import { customerDraftFromBrreg, formatOrgnr, rankCustomerMatches } from '../../src/anbud/customers';
 import { searchBrregCompanies } from '../../src/utils/boligmappaApis';
-import CustomerCreateModal from '../customers/CustomerCreateModal';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const CustomerCreateModal = lazyScreen(() => import('../customers/CustomerCreateModal'), { name: 'CustomerCreateModal', silent: true });
 
 function meta(item) {
   return [

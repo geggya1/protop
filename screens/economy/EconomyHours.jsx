@@ -20,10 +20,8 @@ import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { ImportResult } from '../../components/ImportReview';
 import HourPhoneRow from '../../components/arbeid/HourPhoneRow';
-import TimeEntryModal from '../../components/arbeid/TimeEntryModal';
 import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 import { toDateKey } from '../../src/arbeid/calendar.js';
-import HoursImportReview from '../../components/arbeid/HoursImportReview';
 import HoursOrganizePanel from '../../components/arbeid/HoursOrganizePanel';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
@@ -80,6 +78,9 @@ import { displayName } from '../../src/employees/model.js';
 import { pickableProjects } from '../../src/project/myProjects';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 import Breadcrumb from '../../components/Breadcrumb';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HoursImportReview = lazyScreen(() => import('../../components/arbeid/HoursImportReview'), { name: 'HoursImportReview', silent: true });
+const TimeEntryModal = lazyScreen(() => import('../../components/arbeid/TimeEntryModal'), { name: 'TimeEntryModal', silent: true });
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;

@@ -147,7 +147,7 @@ export default function CompanyJoinModal({ visible, onClose }) {
 
   const useCode = () => {
     onClose?.();
-    nav.navigate('GroupJoin', { platformType: 'organization' });
+    nav.navigate('CompanyJoin', { platformType: 'organization' });
   };
 
   const pickedName = picked?.companyName || picked?.name || picked?.company?.navn || '';

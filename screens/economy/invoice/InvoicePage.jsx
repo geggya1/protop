@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../../src/ui/lazyScreen';
 /**
  * Fakturasiden: utkast, faktura og kreditnota.
  * Hovedfeltet viser fakturaen (eller redigering av utkastet). Sidepanelet har status,
@@ -38,11 +39,16 @@ import { Banner, Button, LinkText, money } from '../billing/ui';
 import { InvoiceHeaderEditor, InvoiceHeaderView, InvoiceTexts } from './InvoiceHeader';
 import { InvoiceLinesView, InvoiceTotalsView } from './InvoiceLinesView';
 import InvoiceLinesEditor from './InvoiceLinesEditor';
-import InvoiceSidebar from './InvoiceSidebar';
-import { CollectionDialog, CreditDialog, DeleteDraftDialog, LossDialog, PaymentDialog, SendDialog } from './InvoiceDialogs';
 import * as actions from './invoiceActions';
 import { SHELL_DETAILS } from '../../../src/navigation/shellPaths';
 import BackLink from '../../../src/ui/BackLink';
+const CollectionDialog = lazyScreen(() => import('./InvoiceDialogs'), { name: 'CollectionDialog', pick: 'CollectionDialog', silent: true });
+const CreditDialog = lazyScreen(() => import('./InvoiceDialogs'), { name: 'CreditDialog', pick: 'CreditDialog', silent: true });
+const DeleteDraftDialog = lazyScreen(() => import('./InvoiceDialogs'), { name: 'DeleteDraftDialog', pick: 'DeleteDraftDialog', silent: true });
+const LossDialog = lazyScreen(() => import('./InvoiceDialogs'), { name: 'LossDialog', pick: 'LossDialog', silent: true });
+const PaymentDialog = lazyScreen(() => import('./InvoiceDialogs'), { name: 'PaymentDialog', pick: 'PaymentDialog', silent: true });
+const SendDialog = lazyScreen(() => import('./InvoiceDialogs'), { name: 'SendDialog', pick: 'SendDialog', silent: true });
+const InvoiceSidebar = lazyScreen(() => import('./InvoiceSidebar'), { name: 'InvoiceSidebar', silent: true });
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;

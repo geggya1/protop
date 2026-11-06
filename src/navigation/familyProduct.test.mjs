@@ -62,15 +62,15 @@ test('bare bedriftsinvitasjoner, og ingen barnekontoer', () => {
   assert.equal(childLoginAllowed(true), true);
 });
 
-test('listene peker på skjermer og sider som finnes (ingen skrivefeil)', () => {
+test('familieskjermene og familiesidene er fjernet fra ProTop-bygget', () => {
   const app = read('App.jsx');
   for (const name of FAMILY_PRODUCT_ROUTES) {
-    assert.match(app, new RegExp(`Stack\\.Screen name="${name}"`), name);
+    assert.doesNotMatch(app, new RegExp(`Stack\\.Screen name="${name}"`), name);
   }
   const more = read('screens/v2/MoreHubScreen.jsx');
   const subScreens = more.slice(more.indexOf('const SUB_SCREENS'), more.indexOf('export default function MoreHubScreen'));
   for (const view of FAMILY_PRODUCT_MORE_VIEWS) {
-    assert.match(subScreens, new RegExp(`\\b${view}:`), view);
+    assert.doesNotMatch(subScreens, new RegExp(`\\b${view}:`), view);
   }
 });
 
@@ -90,7 +90,8 @@ test('vaktene er koblet inn der familieproduktet kunne nås', () => {
   assert.match(read('screens/v2/MoreHubScreen.jsx'), /!isFamilyProductMoreView\(subView\)/);
   assert.match(read('components/InviteRespondOverlay.jsx'), /groupInviteAllowed\(inv\?\.groupType\)/);
   assert.match(read('screens/FamilyInviteRespondScreen.jsx'), /!groupInviteAllowed\(invite\.groupType\)/);
-  assert.match(read('components/AppShell.jsx'), /if \(!FAMILY_PRODUCT_ENABLED\) return false;/);
+  // Familieposisjon er fjernet helt: skallet deler ingen posisjon.
+  assert.equal(/useLocationSharing|effectiveLocationSharing/.test(read('components/AppShell.jsx')), false);
   assert.match(read('components/AppShell.jsx'), /if \(tab === 'more' && isFamilyProductMoreView\(moreSubView\)\) \{\s*setTab\('home'\)/);
-  assert.match(read('components/AppShell.jsx'), /kitchenMode \|\| familyViewBlocked/);
+  assert.match(read('components/AppShell.jsx'), /const activationModuleId = familyViewBlocked/);
 });

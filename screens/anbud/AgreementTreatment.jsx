@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import InfoButton from '../../components/InfoButton';
 import OptionPicker from '../../components/OptionPicker';
@@ -38,9 +38,10 @@ import { flushAnbudState, loadAnbudState, saveAnbudState } from '../../src/anbud
 import { useEmployees } from '../../src/context/CompanyDataContext';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { createProject } from '../../src/project/engine';
-import AgreementCustomerField from './AgreementCustomerField';
 import AgreementPersonField from './AgreementPersonField';
 import ProcessTrail from './ProcessTrail';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const AgreementCustomerField = lazyScreen(() => import('./AgreementCustomerField'), { name: 'AgreementCustomerField', silent: true });
 
 function statusTone(status, colors) {
   if (status === 'signert') return { bg: colors.successSoft, ink: colors.success };
@@ -97,7 +98,7 @@ export default function AgreementTreatment({
   onRequestCreate,
 }) {
   const { user } = useApp();
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const [state, setState] = useState(null);
   const [projects, setProjects] = useState([]);
   const [selectedId, setSelectedId] = useState('');

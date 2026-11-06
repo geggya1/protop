@@ -2175,11 +2175,7 @@ service cloud.firestore {
           && request.resource.data.get('inviteeUid', '') == resource.data.get('inviteeUid', '');
       }
 
-      match /gameInvites/{id} {
-        allow create: if isSignedIn()
-          && request.resource.data.get('hostUid', '') == request.auth.uid
-          && request.resource.data.get('inviteeUid', '') == uid;
-      }
+      // Spillinvitasjoner (gameInvites) fantes bare i familieproduktet og kan ikke lenger skrives.
 
       match /friendRequests/{id} {
         allow create: if isSignedIn()
@@ -2194,7 +2190,9 @@ service cloud.firestore {
       }
 
       match /{shared}/{itemId} {
-        allow create, update: if shared in ['sharedAlbums', 'sharedWishlists', 'sharedDocuments', 'sharedShoppingLists', 'sharedEvents']
+        // Venner deler dokumenter og hendelser. Album, ønskelister og handlelister fantes bare i
+        // familieproduktet: eksisterende delinger kan fjernes, men ikke lages på nytt.
+        allow create, update: if shared in ['sharedDocuments', 'sharedEvents']
           && isFriendOf(uid)
           && request.resource.data.get('sharedBy', '') == request.auth.uid;
         allow delete: if shared in ['sharedAlbums', 'sharedWishlists', 'sharedDocuments', 'sharedShoppingLists', 'sharedEvents']
@@ -2271,7 +2269,10 @@ service cloud.firestore {
     // Bare eieren kan ta et ledig navn til seg selv. Et navn til et barn kan bare tas av en
     // foresatt til barnet (barneprofilen finnes), ikke av hvem som helst til en vilkårlig uid.
     match /usernames/{name} {
-      allow get: if true;
+      // Bare innloggede kan slå opp et brukernavn (venneforespørsel, ledig navn i profilen).
+      // Før kunne hvem som helst slå opp uid for et navn. Innlogging med brukernavn gjaldt
+      // barnekontoene, som ikke finnes i ProTop.
+      allow get: if isSignedIn();
       allow create: if isSignedIn() && usernameDocOk(name) && legacyUsernameCreate()
         && (request.resource.data.uid == request.auth.uid
           || (request.resource.data.type == 'child' && isGuardianOf(request.resource.data.uid)));
@@ -2373,10 +2374,6 @@ service cloud.firestore {
     }
 
     /* ───────── Felles kataloger (skrives av ProTop) ───────── */
-    match /recipeCatalog/{id} {
-      allow read: if isSignedIn();
-    }
-
     match /templates/{id} {
       allow read: if isSignedIn();
     }
@@ -2396,6 +2393,36 @@ service cloud.firestore {
     // selskapene kan lese; bare serveren skriver (functions/intercompany.js), så en tilknytning
     // alltid er godkjent av det inviterte selskapet. Appen spør etter parentCompanyId eller childCompanyId.
     // Tildelingene under (projects) leses bare av serveren.
+    // Krasjkontroll (src/helpdesk/crashReporter.js): innloggede brukere kan bare opprette en
+    // rapport om seg selv, med faste felt og grenser. Ingen kan lese, endre eller slette dem fra
+    // appen; helpdesk-teamet leser dem via helpdesk-kallet (agentCrashes). expireAt brukes av
+    // Firestore TTL, så rapportene slettes etter 30 dager.
+    match /crashReports/{id} {
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['uid', 'kind', 'fatal', 'message', 'stack', 'componentStack',
+          'route', 'url', 'userAgent', 'platform', 'appVersion', 'buildId', 'signature', 'companyId',
+          'createdAtMs', 'expireAt', 'count'])
+        && request.resource.data.keys().hasAll(['uid', 'kind', 'message', 'signature', 'createdAtMs'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.kind in ['error', 'unhandledrejection', 'render', 'native']
+        && request.resource.data.message is string && request.resource.data.message.size() <= 1000
+        && request.resource.data.signature is string && request.resource.data.signature.size() <= 200
+        && (!('stack' in request.resource.data) || (request.resource.data.stack is string && request.resource.data.stack.size() <= 6000))
+        && (!('componentStack' in request.resource.data) || (request.resource.data.componentStack is string && request.resource.data.componentStack.size() <= 3000))
+        && (!('route' in request.resource.data) || (request.resource.data.route is string && request.resource.data.route.size() <= 200))
+        && (!('url' in request.resource.data) || (request.resource.data.url is string && request.resource.data.url.size() <= 300))
+        && (!('userAgent' in request.resource.data) || (request.resource.data.userAgent is string && request.resource.data.userAgent.size() <= 300))
+        && (!('platform' in request.resource.data) || request.resource.data.platform in ['web', 'ios', 'android'])
+        && (!('appVersion' in request.resource.data) || (request.resource.data.appVersion is string && request.resource.data.appVersion.size() <= 40))
+        && (!('buildId' in request.resource.data) || (request.resource.data.buildId is string && request.resource.data.buildId.size() <= 80))
+        && (!('companyId' in request.resource.data) || (request.resource.data.companyId is string && request.resource.data.companyId.size() <= 128))
+        && (!('fatal' in request.resource.data) || request.resource.data.fatal is bool)
+        && (!('count' in request.resource.data) || request.resource.data.count == 1)
+        && request.resource.data.createdAtMs is int
+        && (!('expireAt' in request.resource.data) || request.resource.data.expireAt is timestamp);
+      allow read, update, delete: if false;
+    }
+
     match /intercompanyLinks/{linkId} {
       allow get, list: if isSignedIn()
         && (isFamilyMemberLite(resource.data.parentCompanyId) || isFamilyMemberLite(resource.data.childCompanyId));

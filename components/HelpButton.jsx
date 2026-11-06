@@ -8,7 +8,7 @@ import { useHelp } from '../src/context/HelpContext';
 import HelpTarget from './HelpTarget';
 import { useReducedMotion } from '../src/hooks/useReducedMotion';
 import { autoLoopIterations } from '../src/hooks/reducedMotion';
-import { useLayout } from '../src/theme';
+import { useBreakpoints } from '../src/theme';
 import { touchHit } from '../src/ui/touchTarget';
 
 const NATIVE_DRIVER = Platform.OS !== 'web';
@@ -37,7 +37,7 @@ export default function HelpButton({
   const bob = useRef(new Animated.Value(0)).current;
   // Redusert bevegelse: stå stille. Ellers stopper løkkene før fem sekunder (WCAG 2.2.2).
   const reduced = useReducedMotion();
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
 
   useEffect(() => {
     const iterations = autoLoopIterations(1400, { reduced });

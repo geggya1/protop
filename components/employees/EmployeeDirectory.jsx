@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { accessLevelSections, accessSectionTitle, accountDeactivated, employeeLevelIds } from '../../src/access/companyAccess';
 import { displayName, employeeActivityTab, employeeShowsInSection } from '../../src/employees/model';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 
 const COLUMN_LABEL = {
   regnskap_ekstern: 'Regnskap',
@@ -187,7 +187,7 @@ export default function EmployeeDirectory({
   const sections = accessLevelSections();
   const companyLevels = sections.find((section) => section.id === 'company')?.levels || [];
   const externalLevels = sections.find((section) => section.id === 'external')?.levels || [];
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   // Listen står side om side på bred skjerm. Nivåtabellen trenger hele bredden.
   const split = variant === 'list' && isDesktop && !ownOnly;
 

@@ -109,8 +109,9 @@ describe('brukernavn (SEC-19)', () => {
     await assertSucceeds(claim(as('gammel'), 'gammel', 'gammel'));
   });
 
-  test('oppslag før innlogging virker som før', async () => {
-    await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'usernames', 'mormor')));
+  test('oppslag krever innlogging (ingen kobling navn → uid for utenforstående)', async () => {
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'usernames', 'mormor')));
+    await assertSucceeds(getDoc(doc(as('ext'), 'usernames', 'mormor')));
     await assertFails(claim(env.unauthenticatedContext().firestore(), 'anonym', 'x'));
   });
 });

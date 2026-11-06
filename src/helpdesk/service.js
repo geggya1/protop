@@ -18,6 +18,7 @@
  * Ingenting deployes automatisk: forslagene venter på godkjenning i portalen.
  */
 
+import { CRASH_COLLECTION, groupCrashReports } from './crashReport.js';
 import {
   AGENT_ROLES,
   CATEGORIES,
@@ -897,6 +898,19 @@ async function agentStats(ctx) {
   };
 }
 
+/** Krasjrapporter fra appen (crashReports), gruppert per feil. Bare helpdesk-teamet. */
+async function agentCrashes(ctx, data) {
+  await requireAgent(ctx);
+  const days = Math.min(30, Math.max(1, Math.round(Number(data?.days) || 7)));
+  const since = ctx.now() - days * 24 * 3600 * 1000;
+  const col = ctx.db.collection(CRASH_COLLECTION);
+  const snap = typeof col.orderBy === 'function'
+    ? await col.where('createdAtMs', '>=', since).orderBy('createdAtMs', 'desc').limit(500).get()
+    : await col.get();
+  const rows = snap.docs.map((d) => d.data() || {}).filter((r) => (Number(r.createdAtMs) || 0) >= since);
+  return { days, total: rows.length, groups: groupCrashReports(rows).slice(0, 100) };
+}
+
 async function teamList(ctx) {
   const me = await requireAgent(ctx);
   const [team, invites] = await Promise.all([
@@ -972,6 +986,7 @@ const ACTIONS = {
   agentAi,
   agentFix,
   agentStats,
+  agentCrashes,
   teamList,
   teamInvite,
   teamRemove,

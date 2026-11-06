@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useColors } from '../src/context/ThemeContext';
-import { useLayout } from '../src/theme';
+import { useBreakpoints } from '../src/theme';
 
 /**
  * Prosesslinje: nummererte steg med en kort status under, samme mønster som
@@ -12,7 +12,7 @@ import { useLayout } from '../src/theme';
  */
 export default function ProcessLine({ steps = [], onSelect, label = 'Prosess', nativeID }) {
   const colors = useColors();
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   if (!steps.length) return null;
   return (
     <View

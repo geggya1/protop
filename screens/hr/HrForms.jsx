@@ -10,12 +10,15 @@ import { hrKindBucket, hrKindLabel } from '../../src/hr/directory';
 import { casesFromReviewDoc, isReviewDoc, reviewDocsToSync, syncReviewRows } from '../../src/hr/reviewForms';
 import { controlStatus } from '../../src/doccontrol/model';
 import { templateControlKey } from '../../src/doccontrol/templates';
-import { FilledStatusIcon } from '../anbud/FormFill';
 import OptionPicker from '../../components/OptionPicker';
 import HrFilledForm from './HrFilledForm';
 import { useHrFormStart } from './useHrFormStart';
 import { StatusChip } from '../doccontrol/parts';
-import { HrButton, HrCard, HrSectionTitle } from './HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
+const FilledStatusIcon = lazyScreen(() => import('../anbud/FormFill'), { name: 'FilledStatusIcon', pick: 'FilledStatusIcon', silent: true });
 
 const HR_ENTRIES = KS_LIBRARY.filter((row) => row.kind === 'mal' && row.hr);
 // Skjema som også kan gjelde innleide og eksterne. Resten (medarbeidersamtale, nyansatt,

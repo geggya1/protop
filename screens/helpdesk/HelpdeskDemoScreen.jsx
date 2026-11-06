@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Lokal demo av hjelpesenteret og Helpdesk-portalen (/helpdesk-demo).
  * Bare i utviklingsbygg. Kjører den ekte saksbehandlingen (src/helpdesk/service.js)
@@ -10,10 +11,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { createDemoBackend } from '../../src/helpdesk/demoBackend';
 import { setHelpdeskBackend } from '../../src/helpdesk/client';
-import HelpCenterScreen from './HelpCenterScreen';
-import HelpdeskPortalScreen from './HelpdeskPortalScreen';
 import { HD } from '../../components/helpdesk/HelpdeskUi';
 import { radius, type } from '../../src/ui/tokens';
+const HelpCenterScreen = lazyScreen(() => import('./HelpCenterScreen'), { name: 'HelpCenterScreen' });
+const HelpdeskPortalScreen = lazyScreen(() => import('./HelpdeskPortalScreen'), { name: 'HelpdeskPortalScreen' });
 
 export function helpdeskDemoAllowed() {
   return typeof __DEV__ !== 'undefined' && __DEV__;

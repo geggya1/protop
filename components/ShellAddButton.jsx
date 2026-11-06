@@ -1,7 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, useLayout } from '../src/theme';
+import { colors, useBreakpoints } from '../src/theme';
 import HelpTarget from './HelpTarget';
 
 /**
@@ -10,7 +10,7 @@ import HelpTarget from './HelpTarget';
  * Without `label`, renders as an icon-only + button.
  */
 export default function ShellAddButton({ label, onPress, accessibilityLabel }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const iconOnly = !label;
   return (
     <HelpTarget id="add" onAdvance={onPress}>

@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Kunder → Kundeundersøkelse. Tre deler:
  *  - Kundeundersøkelse: den årlige undersøkelsen med utvikling over tid.
@@ -29,15 +30,17 @@ import { surveyTrend, trendSentence, uniqueSurveyTitle } from '../../src/surveys
 import { csvFileName, downloadCsv, trendCsvRows } from '../../src/surveys/csv';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { chartColorsFor } from '../../src/ui/chartColors';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { radius, space, type } from '../../src/ui/tokens';
-import SurveyTrend from '../../components/surveys/SurveyTrend';
-import {
-  EmptyHint, HrButton, HrCard, HrChip, HrSectionTitle,
-} from '../hr/HrShared';
 import { STATUS_LABEL, SurveyDetail, defaultDeadline } from './CustomerSurveyDetail';
 import EvaluationsPanel, { unitOptions } from './EvaluationsPanel';
 import SurveyTemplatesPanel from './SurveyTemplatesPanel';
+const EmptyHint = lazyScreen(() => import('../hr/HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('../hr/HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrChip = lazyScreen(() => import('../hr/HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrSectionTitle = lazyScreen(() => import('../hr/HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
+const SurveyTrend = lazyScreen(() => import('../../components/surveys/SurveyTrend'), { name: 'SurveyTrend', silent: true });
 
 const SECTIONS = [
   { id: 'customer', label: 'Kundeundersøkelse' },
@@ -77,7 +80,7 @@ function SurveyRow({ colors, survey, onOpen }) {
 /** familyIdOverride og companyNameOverride brukes av den lokale demoen (/kundeundersokelse-demo). */
 export default function CustomerSurveyScreen({ familyIdOverride = '', companyNameOverride = '', initialSection = '' } = {}) {
   const colors = useColors();
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const app = useApp();
   const familyId = familyIdOverride || app.familyId;
   const { family, uid } = app;

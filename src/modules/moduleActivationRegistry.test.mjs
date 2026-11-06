@@ -20,14 +20,8 @@ import {
   STACK_MODULE_IDS,
 } from './moduleActivationRegistry.js';
 
-const EXPECTED_IDS = [
-  'plan', 'mail', 'stars', 'notes', 'chat', 'chores',
-  'shop', 'meals', 'recipes', 'pantry',
-  'albums', 'wall', 'childDrawings', 'familyTree', 'scratchMap', 'reiseplanlegger', 'wishes',
-  'location', 'rememberDates', 'activities', 'books', 'games', 'progress',
-  'skole', 'lekser', 'leksehjelp', 'mattehjelp', 'week-plan',
-  'holdings', 'documents', 'boligmappa', 'hospitality',
-];
+// ProTop: bare modulene for arbeid. Familiemodulene (mat, skole, spill, minner, hus) er fjernet.
+const EXPECTED_IDS = ['plan', 'mail', 'stars', 'notes', 'chat', 'documents'];
 
 const json = JSON.parse(readFileSync(new URL('./moduler.json', import.meta.url), 'utf8'));
 assert.deepEqual(catalogJsonFile, json, 'moduler.catalog.js must match moduler.json');
@@ -36,7 +30,7 @@ assert.deepEqual(MODULE_CATALOG, json);
 const registry = createModuleRegistry(json);
 assert.deepEqual(registry.ACTIVATABLE_MODULE_IDS, EXPECTED_IDS);
 assert.deepEqual(ACTIVATABLE_MODULE_IDS, EXPECTED_IDS);
-assert.equal(EXPECTED_IDS.length, 32);
+assert.equal(EXPECTED_IDS.length, 6);
 
 for (const id of EXPECTED_IDS) {
   const mod = getModuleConfig(id);
@@ -48,7 +42,7 @@ for (const id of EXPECTED_IDS) {
   assert.ok(mod.headline, `${id} headline`);
   assert.ok(mod.pitch, `${id} pitch`);
   assert.equal(mod.benefits.length, 3, `${id} needs 3 benefits`);
-  assert.ok(mod.illustration.endsWith('--module-activation-illustration.png'), `${id} illustration filename`);
+  assert.ok(mod.illustration.endsWith('--module-activation-illustration.webp'), `${id} illustration filename`);
   assert.equal(
     mod.illustrationPath,
     `/assets/module-activation/${mod.illustration}?v=${ILLUSTRATION_CACHE}`,
@@ -79,16 +73,16 @@ assert.equal(activationModuleIdForShell('home'), null);
 assert.equal(activationModuleIdForShell('plan'), 'plan');
 assert.equal(activationModuleIdForShell('more', null), null);
 assert.equal(activationModuleIdForShell('more', 'settings'), null);
-assert.equal(activationModuleIdForShell('more', 'shop'), 'shop');
+assert.equal(activationModuleIdForShell('more', 'shop'), null);
 assert.equal(activationModuleIdForShell('more', 'moduleAccess'), null);
-assert.equal(activationModuleIdForShell('chores'), 'chores');
+assert.equal(activationModuleIdForShell('chores'), null);
 assert.equal(activationModuleIdForShell('mail'), 'mail');
 
-assert.equal(STACK_MODULE_IDS.Activities, 'activities');
-assert.equal(STACK_MODULE_IDS.FamilyProgress, 'progress');
-assert.equal(STACK_MODULE_IDS.LocationSettings, 'location');
-assert.equal(STACK_MODULE_IDS.StarGoals, 'chores');
-assert.equal(activationModuleIdForStack('Activities'), 'activities');
+assert.equal(STACK_MODULE_IDS.AddTodo, undefined);
+assert.equal(STACK_MODULE_IDS.AddNote, 'notes');
+assert.equal(STACK_MODULE_IDS.Activities, undefined);
+assert.equal(activationModuleIdForStack('ParentTask'), 'stars');
+assert.equal(activationModuleIdForStack('Activities'), null);
 assert.equal(activationModuleIdForStack('FamilyDashboard'), null);
 assert.equal(activationModuleIdForStack('Home'), null);
 
@@ -117,7 +111,7 @@ assert.equal(broken.getModuleConfig('plan'), null);
 const exported = readFileSync(new URL('./alle-modultekster.txt', import.meta.url), 'utf8');
 assert.equal(exported, buildAlleModultekster(json), 'alle-modultekster.txt must match export-modultekster.mjs');
 assert.match(exported, /Id: plan/);
-assert.match(exported, /Illustrasjon: kalender--module-activation-illustration\.png/);
+assert.match(exported, /Illustrasjon: kalender--module-activation-illustration\.webp/);
 assert.match(exported, /Trygghetstekst mobil: Gratis nå · Kan deaktiveres senere/);
 assert.match(exported, /Trygghetstekst barn: Du kan åpne modulen når du vil/);
 assert.equal(exported.includes('Trygghetstekst barn mobil:'), false);
@@ -137,8 +131,8 @@ assert.match(gateSrc, /source: 'welcome'/, 'Aktiver from the overlay is billed a
 assert.equal(gateSrc.includes('accessReady && isActivatableModule'), false, 'do not hide the dialog while access is loading');
 
 const appSrc = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8');
-assert.match(appSrc, /ActivitiesWithGate/, 'FamilyDashboard → Activities must be gated');
-assert.match(appSrc, /FamilyProgressWithGate/, 'stack FamilyProgress must be gated');
+// Familieskjermene (aktiviteter, fremgang m.m.) er fjernet fra ProTop; de skal ikke komme tilbake i App.jsx.
+assert.equal(/ActivitiesWithGate|FamilyProgressWithGate/.test(appSrc), false, 'family stack screens are removed');
 assert.match(appSrc, /gatedStackScreen/, 'stack routes share one gate helper');
 
 const accessSrc = readFileSync(new URL('../utils/moduleAccess.js', import.meta.url), 'utf8');
@@ -150,6 +144,6 @@ assert.equal(ctxSrc.includes('isLegacyModuleAccess(liveFamily) return true'), fa
 assert.match(ctxSrc, /needsWelcome: \(\) => true/, 'missing provider must not silently unlock');
 
 const shellSrc = readFileSync(new URL('../../components/AppShell.jsx', import.meta.url), 'utf8');
-assert.match(shellSrc, /<ModuleActivationGate[\s\S]*?enabled=\{!kitchenMode\}/, 'do not disable the gate while family data is loading');
+assert.match(shellSrc, /<ModuleActivationGate[\s\S]*?onBack=\{onActivationBack\}\s+enabled\s/, 'do not disable the gate while family data is loading');
 
 console.log(`moduleActivationRegistry.test.mjs: ok (${EXPECTED_IDS.length} modules)`);

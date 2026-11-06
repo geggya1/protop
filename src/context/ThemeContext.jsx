@@ -1,12 +1,7 @@
 import React, { createContext, useContext, useMemo } from 'react';
 import { colors as baseColors } from '../theme';
-import { getChildTheme, resolveColorsForChildTheme } from '../childThemes';
-import { isHighChildFriendliness } from '../utils/childUi';
-import { profileAge, isMinor } from '../utils/age';
-import { soft } from '../../components/childHome/softTheme';
 import { useAppearance } from '../appearance/AppearanceContext';
 import { paletteFor } from '../appearance/palette';
-import { useApp } from './AppContext';
 
 const ThemeContext = createContext({
   colors: baseColors,
@@ -16,78 +11,22 @@ const ThemeContext = createContext({
   highChildFriendliness: false,
 });
 
-/** Soft cream palette for under-18 — matches the new dashboard look. Always light. */
-function softChildColors() {
-  return {
-    ...baseColors,
-    bg: soft.bg,
-    card: soft.card,
-    ink: soft.ink,
-    muted: soft.muted,
-    line: soft.line,
-    brand: soft.sage || baseColors.brand,
-    brandSoft: soft.brandSoft || baseColors.brandSoft,
-    brandInk: soft.sage || baseColors.brandInk,
-    onBrand: '#ffffff',
-    accent: soft.sage || baseColors.accent,
-  };
-}
-
+/**
+ * Farger etter lys/mørk modus. Barnetemaene (Himmel, Hav, Skog og den myke dashbord-paletten)
+ * hørte til familieproduktet og er fjernet; feltene isChildTheme, theme og
+ * highChildFriendliness står igjen med faste verdier, så forbrukerne har samme form.
+ */
 export function ThemeProvider({ children }) {
-  const { activeProfileKind, activeChild, isChild, meChild } = useApp();
   const { scheme } = useAppearance();
 
-  const value = useMemo(() => {
-    const pal = paletteFor(scheme);
-    const child = activeProfileKind === 'child'
-      ? (activeChild || (isChild ? meChild : null))
-      : null;
-    if (!child) {
-      return {
-        colors: { ...baseColors, ...pal },
-        scheme,
-        themeId: null,
-        isChildTheme: false,
-        theme: null,
-        highChildFriendliness: false,
-      };
-    }
-
-    const age = profileAge(child);
-    // Under 18: soft dashboard look (not the old Himmel/Hav/Skog color themes).
-    if (age == null || isMinor(age)) {
-      return {
-        colors: softChildColors(),
-        scheme,
-        themeId: 'soft-dashboard',
-        isChildTheme: true,
-        theme: null,
-        highChildFriendliness: isHighChildFriendliness(child),
-      };
-    }
-
-    const themeId = child.themeId || 'sky';
-    const themed = resolveColorsForChildTheme(themeId);
-    return {
-      colors: scheme === 'dark'
-        ? {
-          ...themed,
-          ...pal,
-          brand: themed.brand,
-          brandInk: themed.brandInk,
-          onBrand: themed.onBrand,
-          fab: themed.fab,
-          accent: themed.accent,
-          kid: themed.kid,
-        }
-        : themed,
-      scheme,
-      themeId,
-      isChildTheme: true,
-      theme: getChildTheme(themeId),
-      highChildFriendliness: isHighChildFriendliness(child),
-    };
-  }, [activeProfileKind, activeChild, isChild, meChild, scheme]);
+  const value = useMemo(() => ({
+    colors: { ...baseColors, ...paletteFor(scheme) },
+    scheme,
+    themeId: null,
+    isChildTheme: false,
+    theme: null,
+    highChildFriendliness: false,
+  }), [scheme]);
 
   return (
     <ThemeContext.Provider value={value}>
@@ -96,7 +35,7 @@ export function ThemeProvider({ children }) {
   );
 }
 
-/** Aktive farger — barnets tema når profil er barn, ellers standard. */
+/** Aktive farger for lys eller mørk modus. */
 export function useColors() {
   return useContext(ThemeContext).colors;
 }

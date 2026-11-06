@@ -2,17 +2,10 @@
  * E-post til kunden med lenke til kundeundersøkelsen (invitasjon og påminnelse).
  * Tekst + enkel HTML med inline-stil, så den fungerer i Outlook og Gmail.
  */
+import { escapeHtml as esc } from '../utils/mailHtml.js';
 
 export const SURVEY_BASE_URL = 'https://protop.no';
 const BRAND = '#0b6bcb';
-
-function esc(value) {
-  return String(value == null ? '' : value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 export function answerUrl(token) {
   return `${SURVEY_BASE_URL}/svar/${encodeURIComponent(String(token || ''))}`;

@@ -2,7 +2,7 @@ import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react';
 import { Platform } from 'react-native';
-import { useLayout } from '../theme';
+import { useBreakpoints } from '../theme';
 import {
   registerChatDockBridge,
   subscribePendingChatDockThread,
@@ -17,7 +17,7 @@ const Ctx = createContext(null);
  * Chat-dock: desktop = Facebook-stil vinduer; mobil/web = høyre-skuff (4/5).
  */
 export function ChatDockProvider({ children }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const [windows, setWindows] = useState([]);
   const [composeOpen, setComposeOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);

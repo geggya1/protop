@@ -18,7 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from '../../firebase';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import {
   AGENT_VIEWS, CATEGORIES, CATEGORY_ORDER, FIX_STATES, MODULES, MODULE_ORDER, PRIORITY_ORDER, STATUS_ORDER,
   categoryLabel, filterTickets, formatDuration, formatWhen, moduleLabel, pickText, priorityLabel, slaState, sortTickets,
@@ -38,7 +38,7 @@ import { signInWithGoogle, signInWithMicrosoft, mapAuthError } from '../../src/u
 import BrandLogo from '../../components/BrandLogo';
 import ModuleTabs from '../../components/ModuleTabs';
 import { rememberHelpdeskAgent } from '../../src/helpdesk/useHelpdeskAgent';
-import { useOptionalApp } from '../../src/context/AppContext';
+import { useOptionalApp, useShellNav } from '../../src/context/AppContext';
 import { badgedLabel } from '../../src/navigation/moduleTabBadges';
 import { HELPDESK_TICKET_INTENT, helpdeskShellOpen } from '../../src/helpdesk/shellLink';
 
@@ -61,7 +61,8 @@ export default function HelpdeskPortalScreen({
 }) {
   const demo = isHelpdeskDemo();
   const app = useOptionalApp();
-  const shellIntent = inShell ? app?.shellIntent : null;
+  const nav = useShellNav();
+  const shellIntent = inShell ? nav?.shellIntent : null;
   const clearShellIntent = app?.clearShellIntent;
   const intentTicket = shellIntent?.type === HELPDESK_TICKET_INTENT ? shellIntent.ticketId : null;
   const [initialTicketId, setInitialTicketId] = useState(() => route?.params?.ticketId || intentTicket || null);
@@ -225,13 +226,14 @@ function HelpdeskLogin() {
 const EXTRA_VIEWS = [
   { id: 'fixes', icon: 'construct-outline', label: 'AI-fiks til godkjenning' },
   { id: 'stats', icon: 'stats-chart-outline', label: 'Statistikk' },
+  { id: 'crashes', icon: 'bug-outline', label: 'Krasjrapporter' },
   { id: 'team', icon: 'people-outline', label: 'Team' },
 ];
 
 function Portal({
   session, onLeave, onSignOut, initialTicketId, demoOutbox, inShell = false,
 }) {
-  const { isDesktop, isPhone, isWide } = useLayout();
+  const { isDesktop, isPhone, isWide } = useBreakpoints();
   const [view, setView] = useState('open');
   const [list, setList] = useState(null);
   const [me, setMe] = useState(null);
@@ -280,7 +282,7 @@ function Portal({
     return sortTickets(out, { by: sort });
   }, [list, view, query, me, category, sort]);
 
-  const ticketPane = view !== 'stats' && view !== 'team';
+  const ticketPane = view !== 'stats' && view !== 'team' && view !== 'crashes';
   const showList = ticketPane && (!selected || isWide);
   const showDetail = ticketPane && !!selected;
   const allViews = [...AGENT_VIEWS, ...EXTRA_VIEWS];
@@ -429,6 +431,7 @@ function Portal({
         <View style={st.main}>
           {error ? <Notice tone="danger" icon="alert-circle">{error}</Notice> : null}
           {view === 'stats' ? <StatsPanel /> : null}
+          {view === 'crashes' ? <CrashPanel /> : null}
           {view === 'team' ? <TeamPanel session={session} onTeam={setTeam} /> : null}
           {view === 'outbox' ? <OutboxPanel outbox={demoOutbox || []} /> : null}
           {ticketPane && view !== 'outbox' ? (
@@ -1031,6 +1034,67 @@ function StatsPanel() {
   );
 }
 
+/* ─────────── Krasjrapporter ─────────── */
+
+const CRASH_KIND_LABEL = {
+  render: 'Skjerm krasjet', error: 'Feil', unhandledrejection: 'Feil i bakgrunnen', native: 'Feil i appen',
+};
+
+function CrashPanel() {
+  const [days, setDays] = useState(7);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  const [open, setOpen] = useState('');
+  useEffect(() => {
+    setData(null);
+    setError('');
+    helpdeskCall('agentCrashes', { days })
+      .then(setData)
+      .catch((e) => setError(e?.message || 'Klarte ikke hente krasjrapportene.'));
+  }, [days]);
+  return (
+    <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} testID="hd-crashes">
+      <Text style={st.listTitle}>Krasjrapporter</Text>
+      <Text style={st.muted}>
+        Uventede feil i appen, samlet per feil. Rapportene slettes etter 30 dager.
+      </Text>
+      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+        {[1, 7, 30].map((d) => (
+          <Chip key={d} label={d === 1 ? 'Siste døgn' : `Siste ${d} dager`} active={days === d} onPress={() => setDays(d)} testID={`hd-crashes-${d}`} />
+        ))}
+      </View>
+      {error ? <Notice tone="danger">{error}</Notice> : null}
+      {!data && !error ? <ActivityIndicator color={HD.brand} style={{ margin: 40 }} /> : null}
+      {data && !data.groups.length ? <Text style={st.muted}>Ingen krasj i perioden.</Text> : null}
+      {(data?.groups || []).map((g) => (
+        <Box key={g.signature} title={g.message || 'Ukjent feil'} icon={g.fatal ? 'alert-circle-outline' : 'bug-outline'}>
+          <View style={st.kv}>
+            <Text style={st.muted}>
+              {CRASH_KIND_LABEL[g.kind] || 'Feil'} · {g.count} gang{g.count === 1 ? '' : 'er'} · {g.users} bruker{g.users === 1 ? '' : 'e'} · {g.companies} bedrift{g.companies === 1 ? '' : 'er'}
+              {g.fatal ? ` · ${g.fatal} stoppet appen` : ''}
+            </Text>
+          </View>
+          <Text style={st.muted}>
+            Sist {formatWhen(g.lastAtMs)} · først {formatWhen(g.firstAtMs)} · {(g.platforms || []).join(', ') || 'ukjent plattform'}
+          </Text>
+          {g.sample?.route ? <Text style={st.muted}>Side: {g.sample.route}</Text> : null}
+          <TouchableOpacity onPress={() => setOpen(open === g.signature ? '' : g.signature)} accessibilityRole="button">
+            <Text style={{ color: HD.brand, marginTop: 6 }}>{open === g.signature ? 'Skjul detaljer' : 'Vis detaljer'}</Text>
+          </TouchableOpacity>
+          {open === g.signature ? (
+            <View style={{ gap: 6, marginTop: 6 }}>
+              <Text style={st.muted}>Bygg: {(g.builds || []).join(', ') || '–'} · Versjon: {g.sample?.appVersion || '–'}</Text>
+              {g.sample?.userAgent ? <Text style={st.muted} selectable>{g.sample.userAgent}</Text> : null}
+              {g.sample?.stack ? <Text style={st.code} selectable>{g.sample.stack}</Text> : null}
+              {g.sample?.componentStack ? <Text style={st.code} selectable>{g.sample.componentStack}</Text> : null}
+            </View>
+          ) : null}
+        </Box>
+      ))}
+    </ScrollView>
+  );
+}
+
 function Bar({ label, value, max }) {
   return (
     <View style={st.bar}>
@@ -1146,6 +1210,14 @@ function OutboxPanel({ outbox }) {
 const st = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20, gap: 10, backgroundColor: HD.bg },
   muted: { ...type.label, color: HD.muted },
+  code: {
+    fontFamily: Platform.OS === 'web' ? 'ui-monospace, Menlo, Consolas, monospace' : undefined,
+    fontSize: 12,
+    color: HD.muted,
+    backgroundColor: 'rgba(15,23,42,0.04)',
+    padding: 8,
+    borderRadius: 8,
+  },
   rowGap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   loginPage: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: HD.side },
   loginCard: { width: '100%', maxWidth: 420, backgroundColor: HD.card, borderRadius: radius.sheet, padding: 24, gap: 12, alignItems: 'center' },

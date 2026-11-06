@@ -1,24 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { defaultAnbudSubView } from '../../src/navigation/shellModules';
 import { clearModuleTabBadges, setModuleTabBadges } from '../../src/navigation/moduleTabBadges';
 import { directQueueItems, noticesAwaitingBid } from '../../src/anbud/processTrail';
 import { loadAnbudState } from '../../src/anbud/storage';
-import { useLayout } from '../../src/theme';
-import TenderAlert from './TenderAlert';
+import { useBreakpoints } from '../../src/theme';
 import TenderInquiry from './TenderInquiry';
 import CurrentReview from './CurrentReview';
-import BidDesk from './BidDesk';
 import WatchSettings from './WatchSettings';
 import { bidListedOnDesk } from '../../src/anbud/model';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const BidDesk = lazyScreen(() => import('./BidDesk'), { name: 'BidDesk', silent: true });
+const TenderAlert = lazyScreen(() => import('./TenderAlert'), { name: 'TenderAlert', silent: true });
 
 export default function AnbudScreen({ company, subView, members = [], units = [], companies = [] }) {
   const colors = useColors();
-  const { isPhone } = useLayout();
-  const { requestShellTab, shellIntent, clearShellIntent, family } = useApp();
+  const { isPhone } = useBreakpoints();
+  const { requestShellTab, clearShellIntent, family } = useApp();
+  const { shellIntent } = useShellNav();
   const access = useCompanyAccess();
   const canAdminSettings = !access.active || access.canAdmin('tenderSettings');
   const [step, setStep] = useState(() => (

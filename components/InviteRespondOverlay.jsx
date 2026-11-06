@@ -19,16 +19,9 @@ import { auth } from '../firebase';
 import { syncMyInvites } from '../src/utils/invite';
 import { inviteResponseMessage, isCompanyGroupType, isStaleInviteCode } from '../src/utils/groupInviteLogic';
 import { notifyUser } from '../src/utils/dialog';
-import {
-  listenIncomingGameInvites,
-  listenFamilyPendingGameInvites,
-  GAME_TYPE_LABELS,
-  GAME_TYPE_SCREENS,
-} from '../src/utils/familyGamesShared';
-import { respondToGameInvite } from '../src/utils/gameInviteRespond';
 import { groupInviteCopy } from '../src/utils/inviteIdentifiers';
 import { parseFriendInviteFromPath } from '../src/navigation/friendInviteLinks';
-import { FAMILY_PRODUCT_ENABLED, groupInviteAllowed } from '../src/navigation/familyProduct';
+import { groupInviteAllowed } from '../src/navigation/familyProduct';
 import { staleFriendInviteNoticeIds } from '../src/utils/friendsLogic';
 import { useUnread } from '../src/context/NotificationContext';
 import {
@@ -74,8 +67,6 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
   const nav = useNavigation();
   const { uid, activeProfile, meParent, selectFamily, familyId } = useApp();
   const [familyInvites, setFamilyInvites] = useState([]);
-  const [gameInvites, setGameInvites] = useState([]);
-  const [familyGameInvites, setFamilyGameInvites] = useState([]);
   const [friendInvites, setFriendInvites] = useState([]);
   const [friendInvitesLoaded, setFriendInvitesLoaded] = useState(false);
   const { items: inboxItems, markSeen } = useUnread();
@@ -92,15 +83,6 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
     return listenIncomingFamilyInvites(uid, (list) => {
       setFamilyInvites((list || []).filter((inv) => groupInviteAllowed(inv?.groupType)));
     });
-  }, [uid, enabled]);
-
-  useEffect(() => {
-    // Spillinvitasjoner hører til familiespillene, som ikke er med i ProTop (L-35).
-    if (!uid || !enabled || !FAMILY_PRODUCT_ENABLED) {
-      setGameInvites([]);
-      return undefined;
-    }
-    return listenIncomingGameInvites(uid, setGameInvites);
   }, [uid, enabled]);
 
   // Ny bruker invitert på e-post: serveren legger invitasjonen i innboksen når e-posten er
@@ -181,14 +163,6 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
   }, [uid, enabled, runInviteSync]);
 
   useEffect(() => {
-    if (!uid || !enabled || !familyId || !FAMILY_PRODUCT_ENABLED) {
-      setFamilyGameInvites([]);
-      return undefined;
-    }
-    return listenFamilyPendingGameInvites(familyId, uid, setFamilyGameInvites);
-  }, [uid, enabled, familyId]);
-
-  useEffect(() => {
     setFriendInvitesLoaded(false);
     if (!uid || !enabled) {
       setFriendInvites([]);
@@ -211,21 +185,10 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
     if (stale.length) markSeen(stale).catch(() => {});
   }, [uid, enabled, friendInvitesLoaded, friendInvites, inboxItems, markSeen]);
 
-  const mergedGameInvites = useMemo(() => {
-    const byKey = new Map();
-    [...(gameInvites || []), ...(familyGameInvites || [])].forEach((inv) => {
-      const key = inv.inviteId || inv.id || `${inv.gameType}_${inv.gameId}`;
-      if (!key || byKey.has(key)) return;
-      byKey.set(key, inv);
-    });
-    return [...byKey.values()];
-  }, [gameInvites, familyGameInvites]);
-
   // Invitasjoner som venter og ikke er lagt til side med «Senere».
   const pendingCount = [
     ...familyInvites.map((inv) => inviteKey('family', inv)),
     ...friendInvites.map((inv) => inviteKey('friend', inv)),
-    ...mergedGameInvites.map((inv) => inviteKey('game', inv)),
   ].filter((key) => !dismissed.has(key)).length;
   useEffect(() => {
     onPendingChange?.(enabled ? pendingCount > 0 : false);
@@ -268,10 +231,8 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
     if (family) return { kind: 'family', inv: family };
     const friend = open('friend', friendInvites);
     if (friend) return { kind: 'friend', inv: friend };
-    const game = open('game', mergedGameInvites);
-    if (game) return { kind: 'game', inv: game };
     return null;
-  }, [familyInvites, friendInvites, mergedGameInvites, dismissed]);
+  }, [familyInvites, friendInvites, dismissed]);
 
   const later = useCallback(() => {
     if (!current) return;
@@ -317,22 +278,6 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
           requestId: inv.requestId || inv.id,
           request: inv,
         });
-      } else {
-        const inv = current.inv;
-        await respondToGameInvite({
-          familyId: inv.familyId,
-          gameType: inv.gameType,
-          gameId: inv.gameId,
-          uid,
-          name: activeProfile?.name || meParent?.name || 'Spiller',
-          response: 'accepted',
-        });
-        const screen = GAME_TYPE_SCREENS[inv.gameType];
-        if (screen) {
-          nav.navigate(screen, { familyId: inv.familyId, gameId: inv.gameId });
-        } else {
-          nav.navigate('Home', { openShell: { tab: 'more', subView: 'games' } });
-        }
       }
     } catch (e) {
       // Invitasjonen gjelder ikke lenger: den er lukket i innboksen, og vinduet forsvinner.
@@ -364,16 +309,6 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
           uid,
           requestId: inv.requestId || inv.id,
         });
-      } else {
-        const inv = current.inv;
-        await respondToGameInvite({
-          familyId: inv.familyId,
-          gameType: inv.gameType,
-          gameId: inv.gameId,
-          uid,
-          name: activeProfile?.name || meParent?.name || 'Spiller',
-          response: 'declined',
-        });
       }
     } catch (e) {
       setError(answerError(e));
@@ -391,26 +326,20 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
     ? t('member.companyInviteTitle')
     : current.kind === 'family'
     ? (copy?.title || t('member.familyInviteTitle'))
-    : (current.kind === 'friend'
-      ? t('friend.requestTitle')
-      : t('member.gameInviteTitle'));
+    : t('friend.requestTitle');
   const lead = companyInvite
     ? `${t('member.companyInviteLead')} «${copy?.bodyName || inv.familyName}».`
     : current.kind === 'family'
     ? `${t('member.familyInviteLead')} «${copy?.bodyName || inv.familyName || t('group.family')}».`
-    : (current.kind === 'friend'
-      ? (inv.fromName
-        ? t('friend.requestFrom').replace('{name}', inv.fromName)
-        : t('friend.wantsToBeFriend'))
-      : `${inv.hostName || 'Noen'} inviterer deg til ${inv.gameTitle || GAME_TYPE_LABELS[inv.gameType] || 'spill'}.`);
+    : (inv.fromName
+      ? t('friend.requestFrom').replace('{name}', inv.fromName)
+      : t('friend.wantsToBeFriend'));
   const question = t('member.homeInviteQuestion');
   const hint = companyInvite
     ? t('member.companyInviteHint')
     : current.kind === 'family'
     ? t('member.familyInviteHint')
-    : (current.kind === 'friend'
-      ? t('friend.privacyNotice')
-      : t('member.gameInviteHint'));
+    : t('friend.privacyNotice');
   const remaining = pendingCount;
 
   return (
@@ -426,11 +355,7 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
         <View style={styles.card}>
           <View style={styles.iconWrap}>
             <Ionicons
-              name={
-                current.kind === 'game'
-                  ? 'game-controller'
-                  : (current.kind === 'friend' ? 'people' : 'mail-unread')
-              }
+              name={current.kind === 'friend' ? 'people' : 'mail-unread'}
               size={36}
               color={colors.brand}
             />

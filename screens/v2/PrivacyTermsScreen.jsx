@@ -4,14 +4,14 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useI18n } from '../../src/i18n';
-import { colors, deskType, radius, useLayout } from '../../src/theme';
+import { colors, deskType, radius, useBreakpoints } from '../../src/theme';
 import { Screen, Title, Mute, ScrollBody } from '../../components/ui';
 import CompactBackLink from '../../components/CompactBackLink';
 import BrandToggle from '../../components/BrandToggle';
 import CheckBox from '../../components/CheckBox';
-import LegalDocumentModal from '../../components/LegalDocumentModal';
+import LegalDocumentModal from '../../components/LegalDocumentModalLazy';
 import { LEGAL_VERSION } from '../../src/i18n/langs';
 import {
   getTerms, getPrivacy, getDpa, isLegalHeading, APP_LICENSES, LEGAL_ENTITY,
@@ -108,11 +108,12 @@ export default function PrivacyTermsScreen({
 }) {
   const nav = useNavigation();
   const { t, lang } = useI18n();
-  const { isDesktop, hasRail, pad } = useLayout();
+  const { isDesktop, hasRail, pad } = useBreakpoints();
   const compact = isDesktop;
   const {
-    uid, user, families, userProfile, requestShellTab, shellIntent, clearShellIntent,
+    uid, user, families, userProfile, requestShellTab, clearShellIntent,
   } = useApp();
+  const { shellIntent } = useShellNav();
   const startPage = PAGES.includes(initialPage) ? initialPage : 'hub';
   const [page, setPage] = useState(startPage);
   const [consents, setConsents] = useState(emptyConsents());

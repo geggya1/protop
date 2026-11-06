@@ -21,7 +21,6 @@ import { webDataSet } from '../src/desktop';
 import { DeskBtn } from './DeskBtn';
 import CalendarLayerList from './CalendarLayerList';
 import CalendarTaskPane from './CalendarTaskPane';
-import { custodyCellTint } from '../src/utils/custodySchedule';
 
 const HOUR_H = 52;
 const GUTTER = 56;
@@ -31,14 +30,13 @@ const VIEWS = [
   { id: 'day', label: 'Dag' },
   { id: 'week', label: 'Uke' },
   { id: 'month', label: 'Måned' },
-  { id: 'meals', label: 'Mat' },
 ];
 
 function eventKey(e) {
   return `${e.id}-${e.occurrenceDateKey || e.dateKey || ''}`;
 }
 
-function MiniMonth({ monthDate, anchor, onPickDay, onShiftMonth, daysWithEvents, showNav = true, getCustodyOverlay }) {
+function MiniMonth({ monthDate, anchor, onPickDay, onShiftMonth, daysWithEvents, showNav = true }) {
   const days = useMemo(() => monthGrid(monthDate), [monthDate]);
   return (
     <View style={styles.mini}>
@@ -75,14 +73,11 @@ function MiniMonth({ monthDate, anchor, onPickDay, onShiftMonth, daysWithEvents,
           const today = isToday(d);
           const selected = sameDay(d, anchor);
           const has = daysWithEvents?.has(k);
-          const custodyTint = getCustodyOverlay
-            ? custodyCellTint(getCustodyOverlay(d), { selected, today })
-            : null;
           return (
             <TouchableOpacity
               key={k}
               onPress={() => onPickDay(d)}
-              style={[styles.miniCell, custodyTint]}
+              style={[styles.miniCell]}
               accessibilityLabel={k}
             >
               <View style={[
@@ -201,7 +196,7 @@ function DayTrack({ inset = 0, gutter, children, style, lanesStyle }) {
 
 function TimeGrid({
   days, itemsForDay, startHour, endHour, now,
-  canOpenEvent, openEventForm, onCreateAt, canCreateCalendarEvent, getCustodyOverlay,
+  canOpenEvent, openEventForm, onCreateAt, canCreateCalendarEvent,
 }) {
   const hours = [];
   for (let h = startHour; h <= endHour; h += 1) hours.push(h);
@@ -229,13 +224,10 @@ function TimeGrid({
         const { ev } = itemsForDay(d);
         const timed = layoutTimedEvents(ev.filter((e) => !isAllDayEvent(e)));
         const today = isToday(d);
-        const custodyTint = getCustodyOverlay
-          ? custodyCellTint(getCustodyOverlay(d), { today })
-          : null;
         return (
           <View
             key={k}
-            style={[styles.lane, today && styles.laneToday, custodyTint]}
+            style={[styles.lane, today && styles.laneToday]}
             {...webDataSet({ wpCalCol: 'lane' })}
           >
             {hours.map((h) => (
@@ -307,18 +299,12 @@ export default function OutlookCalendar({
   hiddenCals,
   onToggleCal,
   syncNotice,
-  mealsBody,
   paneItemsForDay,
   paneLabel,
   paneCreateLabel,
   onOpenPaneItem,
   onTogglePaneItem,
   onCreatePaneItem,
-  getCustodyOverlay,
-  custodyOverlayActive,
-  showCustodyToggle = false,
-  onToggleCustodyOverlay,
-  custodyLegend,
   paneTitle = 'Mine kalendere',
   views = VIEWS,
   showTaskPane = true,
@@ -354,7 +340,7 @@ export default function OutlookCalendar({
     [mode, anchor, weekDays],
   );
   const allTimed = useMemo(() => {
-    const days = mode === 'month' || mode === 'meals' ? [] : viewDays;
+    const days = mode === 'month' ? [] : viewDays;
     const list = [];
     days.forEach((d) => {
       itemsForDay(d).ev.forEach((e) => list.push(e));
@@ -368,7 +354,7 @@ export default function OutlookCalendar({
   );
 
   useEffect(() => {
-    if (didScroll.current || mode === 'month' || mode === 'meals') return;
+    if (didScroll.current || mode === 'month') return;
     const y = Math.max(0, ((now.getHours() * 60 + now.getMinutes()) - startHour * 60) * (HOUR_H / 60) - 72);
     const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 0);
     const caf = typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : clearTimeout;
@@ -385,7 +371,7 @@ export default function OutlookCalendar({
   }, []);
 
   useLayoutEffect(() => {
-    if (mode === 'month' || mode === 'meals') {
+    if (mode === 'month') {
       setScrollInset((prev) => (prev === 0 ? prev : 0));
       return undefined;
     }
@@ -417,7 +403,7 @@ export default function OutlookCalendar({
   }, [paneMonth, itemsForDay]);
 
   const shift = (dir) => {
-    if (mode === 'month' || mode === 'meals') {
+    if (mode === 'month') {
       setAnchor((d) => (mode === 'month'
         ? new Date(d.getFullYear(), d.getMonth() + dir, 1)
         : addDays(d, dir * 7)));
@@ -457,7 +443,6 @@ export default function OutlookCalendar({
             onPickDay={(d) => setAnchor(d)}
             onShiftMonth={(dir) => setPaneMonth((m) => new Date(m.getFullYear(), m.getMonth() + dir, 1))}
             daysWithEvents={daysWithEvents}
-            getCustodyOverlay={custodyOverlayActive ? getCustodyOverlay : null}
           />
           <MiniMonth
             monthDate={nextMonth}
@@ -466,7 +451,6 @@ export default function OutlookCalendar({
             onShiftMonth={(dir) => setPaneMonth((m) => new Date(m.getFullYear(), m.getMonth() + dir, 1))}
             daysWithEvents={daysWithEvents}
             showNav={false}
-            getCustodyOverlay={custodyOverlayActive ? getCustodyOverlay : null}
           />
           <View style={styles.paneSectionRow}>
             <Text style={styles.paneSection}>{paneTitle}</Text>
@@ -525,19 +509,6 @@ export default function OutlookCalendar({
             <Text style={styles.weekNum}>Uke {iso?.week}</Text>
           ) : null}
           <View style={{ flex: 1 }} />
-          {showCustodyToggle ? (
-            <TouchableOpacity
-              style={[styles.iconBtn, custodyOverlayActive && styles.custodyBtnOn]}
-              onPress={onToggleCustodyOverlay}
-              accessibilityLabel={custodyOverlayActive ? 'Skjul delt bosted' : 'Vis delt bosted'}
-            >
-              <Ionicons
-                name={custodyOverlayActive ? 'home' : 'home-outline'}
-                size={18}
-                color={custodyOverlayActive ? colors.brand : colors.ink}
-              />
-            </TouchableOpacity>
-          ) : null}
           <View style={styles.viewWrap}>
             <TouchableOpacity
               onPress={() => setViewOpen((v) => !v)}
@@ -587,11 +558,7 @@ export default function OutlookCalendar({
           </TouchableOpacity>
         ) : null}
 
-        {custodyLegend}
-
-        {mode === 'meals' ? (
-          <View style={styles.mealsWrap}>{mealsBody}</View>
-        ) : mode === 'month' ? (
+        {mode === 'month' ? (
           <View style={styles.monthWrap}>
             <View style={styles.monthHead}>
               {WEEKDAYS_LONG.map((d, i) => (
@@ -607,11 +574,8 @@ export default function OutlookCalendar({
                 const today = isToday(d);
                 const selected = sameDay(d, anchor);
                 const outside = !isSameMonth(d, anchor);
-                const custodyTint = custodyOverlayActive && getCustodyOverlay
-                  ? custodyCellTint(getCustodyOverlay(d), { selected, today })
-                  : null;
                 return (
-                  <View key={k} style={[styles.monthCell, today && styles.monthCellToday, outside && { opacity: 0.45 }, custodyTint]}>
+                  <View key={k} style={[styles.monthCell, today && styles.monthCellToday, outside && { opacity: 0.45 }]}>
                     <View style={styles.monthCellTop}>
                       <TouchableOpacity
                         onPress={() => { setAnchor(d); setMode('day'); }}
@@ -662,14 +626,11 @@ export default function OutlookCalendar({
                 const today = isToday(d);
                 const selected = sameDay(d, anchor);
                 const i = (d.getDay() + 6) % 7;
-                const custodyTint = custodyOverlayActive && getCustodyOverlay
-                  ? custodyCellTint(getCustodyOverlay(d), { selected, today })
-                  : null;
                 return (
                   <TouchableOpacity
                     key={dateKey(d)}
                     onPress={() => { setAnchor(d); if (mode === 'week') setMode('day'); }}
-                    style={[styles.colHead, today && styles.colHeadToday, selected && !today && styles.colHeadOn, custodyTint]}
+                    style={[styles.colHead, today && styles.colHeadToday, selected && !today && styles.colHeadOn]}
                     {...webDataSet({ wpCalCol: 'head' })}
                   >
                     <Text style={[styles.colDow, today && styles.colTodayTxt]} numberOfLines={1}>
@@ -737,7 +698,6 @@ export default function OutlookCalendar({
                 openEventForm={openEventForm}
                 onCreateAt={createAt}
                 canCreateCalendarEvent={canCreate}
-                getCustodyOverlay={custodyOverlayActive ? getCustodyOverlay : null}
               />
             </ScrollView>
             {showTaskPane ? (
@@ -843,8 +803,6 @@ const styles = StyleSheet.create({
     width: 28, height: 28, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: colors.line,
   },
-  custodyBtnOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
-  mealsWrap: { flex: 1, minHeight: 0, paddingHorizontal: 12, paddingTop: 8 },
   weekWrap: { flex: 1, minHeight: 0 },
   dayTrack: { flexDirection: 'row', minWidth: 0, alignItems: 'stretch' },
   dayLanes: { flex: 1, minWidth: 0, flexDirection: 'row' },

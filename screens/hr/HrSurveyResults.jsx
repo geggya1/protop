@@ -4,10 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   SURVEY_GOOD_SCORE, SURVEY_SCALE_LABELS, surveyActionDraft,
 } from '../../src/hr/survey';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { LIKERT_LABELS, chartColorsFor } from '../../src/ui/chartColors';
 import { radius, space, type } from '../../src/ui/tokens';
-import { HrButton, HrChip } from './HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
 
 function signed(n) {
   if (n == null) return '';
@@ -198,7 +200,7 @@ function LikertChart({ colors, questions, isPhone }) {
 export default function HrSurveyResults({
   colors, survey, results, analysis, participation: part, canWrite, onCreateTask, onOpenHandbook,
 }) {
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const [made, setMade] = useState({});
   const makeTask = async (area) => {
     if (!onCreateTask || made[area.area]) return;

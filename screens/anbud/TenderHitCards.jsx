@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Linking, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import FilterMenu from '../../components/FilterMenu';
 import { formatWhen } from '../../src/anbud/model';
 import { scoreNoticeFit } from '../../src/anbud/matchFit';
 import {
@@ -11,6 +10,8 @@ import {
   officialNoticeUrl,
   sourceLabel,
 } from '../../src/anbud/noticeText';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
 
 function day(value) {
   const raw = String(value || '');

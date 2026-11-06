@@ -8,7 +8,7 @@ import { subscribeAppRoute } from '../src/navigation/navRef';
 import { openAssistant } from '../src/help/assistantBridge';
 import { useLayout } from '../src/theme';
 import { buildTourSteps } from '../src/utils/helpLayout';
-import { pickIntroText } from '../src/utils/moduleIntros';
+import { pickIntroText } from '../src/utils/moduleIntroKeys';
 import { useHelpAccess } from '../src/help/useHelpAccess';
 import { condenseStepLocks } from '../src/help/helpAccess';
 import { useOptionalApp } from '../src/context/AppContext';

@@ -3,7 +3,10 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { listAccessLog } from '../../src/hr/accessLogClient';
 import { accessLogLines } from '../../src/hr/accessLog';
 import { ACCESS_LOG_RETENTION_DAYS } from '../../src/privacy/retentionPolicy';
-import { EmptyHint, HrCard, HrSectionTitle } from './HrShared';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrCard = lazyScreen(() => import('./HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrSectionTitle = lazyScreen(() => import('./HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
 
 /**
  * Innsynslogg (L-19): hvem har åpnet HR-mapper, lønn, fravær og personnummer.

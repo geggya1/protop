@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { canImportList } from '../../src/access/companyAccess';
@@ -49,12 +49,8 @@ import {
   putProjectState,
 } from '../../src/project/storage';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
-import AbsenceImportReview from '../../components/arbeid/AbsenceImportReview';
-import AbsencePeriodModal from '../../components/arbeid/AbsencePeriodModal';
 import { ImportResult } from '../../components/ImportReview';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
-import { AbsenceReportDesktop, PlannedAbsenceDesktop } from './CompanyAbsenceDesktop';
-import VacationPlanPanel from '../../components/arbeid/VacationPlanPanel';
 import RegisterVacationModal from '../../components/arbeid/RegisterVacationModal';
 import { loadVacationPlan } from '../../src/arbeid/vacationPlanStorage.js';
 import { sweepVacationPlan } from '../../src/arbeid/vacationPlanClient.js';
@@ -63,6 +59,12 @@ import {
   planningWindow,
 } from '../../src/arbeid/vacationPlan.js';
 import { companyDisplayName } from '../../src/utils/companyName';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const AbsenceReportDesktop = lazyScreen(() => import('./CompanyAbsenceDesktop'), { name: 'AbsenceReportDesktop', pick: 'AbsenceReportDesktop', silent: true });
+const PlannedAbsenceDesktop = lazyScreen(() => import('./CompanyAbsenceDesktop'), { name: 'PlannedAbsenceDesktop', pick: 'PlannedAbsenceDesktop', silent: true });
+const AbsenceImportReview = lazyScreen(() => import('../../components/arbeid/AbsenceImportReview'), { name: 'AbsenceImportReview', silent: true });
+const AbsencePeriodModal = lazyScreen(() => import('../../components/arbeid/AbsencePeriodModal'), { name: 'AbsencePeriodModal', silent: true });
+const VacationPlanPanel = lazyScreen(() => import('../../components/arbeid/VacationPlanPanel'), { name: 'VacationPlanPanel', silent: true });
 
 // Fraværsrapport bruker samme dagstabell + filter på mobil og desktop.
 
@@ -527,7 +529,8 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
 export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
-  const { shellIntent, clearShellIntent, familyId, family, user } = useApp();
+  const { clearShellIntent, familyId, family, user } = useApp();
+  const { shellIntent } = useShellNav();
   const { workspace, activeId, setEmployeeId } = usePeople(lockedEmployeeId);
   const [focusEmployeeId, setFocusEmployeeId] = useState('');
   const [plan, setPlan] = useState(null);

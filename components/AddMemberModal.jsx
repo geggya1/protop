@@ -3,7 +3,7 @@ import {
   Modal, Pressable, ScrollView, View, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, useLayout } from '../src/theme';
+import { colors, useBreakpoints } from '../src/theme';
 import { desktopOverlay, desktopFormSheet } from '../src/desktop';
 import AddMemberScreen from '../screens/AddMemberScreen';
 
@@ -11,7 +11,7 @@ import AddMemberScreen from '../screens/AddMemberScreen';
  * Legg til barn eller voksen som popup fra Medlemmer — ikke egen side i menyen.
  */
 export default function AddMemberModal({ visible, onClose, familyId }) {
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
 
   return (
     <Modal

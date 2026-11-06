@@ -5,7 +5,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { touchHit } from '../../src/ui/touchTarget';
 import {
   accountDeactivated,
@@ -148,7 +148,7 @@ function useViewAsModel(access) {
 
 function ViewAsSheet({ access, onClose }) {
   const colors = useColors();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const model = useViewAsModel(access);
   const {
     uid, familyId, query, setQuery, previewing, capability, people, viewing, name,
@@ -314,7 +314,7 @@ function ViewAsSheet({ access, onClose }) {
  */
 export default function ViewAsControl({ access, labeled = false }) {
   const colors = useColors();
-  const { isDesktop, isTouch } = useLayout();
+  const { isDesktop, isTouch } = useBreakpoints();
   const { familyId } = useApp();
   const [open, setOpen] = useState(false);
   // Knappen er 36 px (ikon) eller 32 px høy (med tekst); trykkflaten er 44 px på berøringsskjerm (UX-26).

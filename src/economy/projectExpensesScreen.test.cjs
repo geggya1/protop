@@ -5,6 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
+const syncLazyScreen = require('../../tests/helpers/syncLazyScreen.cjs');
 const babel = require('@babel/core');
 const React = require('react');
 const assert = require('node:assert/strict');
@@ -60,6 +61,7 @@ function loadJsx(rel) {
   m.paths = Module._nodeModulePaths(path.dirname(full));
   const orig = m.require.bind(m);
   m.require = (id) => {
+    if (id.includes('ui/lazyScreen')) return syncLazyScreen(m.require);
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
     if (id.endsWith('/DateInput')) return { __esModule: true, default: host('DateInput') };
@@ -73,18 +75,18 @@ function loadJsx(rel) {
       return { __esModule: true, default: Skeleton };
     }
     if (id.includes('ThemeContext')) return { useColors: () => colors };
-    if (id.endsWith('src/theme')) return { useLayout: () => ({ width: 800 }) };
+    if (id.endsWith('src/theme')) return ((m) => ({ ...m, useBreakpoints: m.useLayout }))({ useLayout: () => ({ width: 800 }) });
     if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => false };
     if (id.includes('components/Breadcrumb')) return { __esModule: true, default: function Breadcrumb() { return null; } };
     if (id.includes('useProjectStateEditor')) {
       return { useProjectStateEditor: () => ({ state: projectState, setState: () => true, ready: true }) };
     }
     if (id.includes('context/AppContext')) {
-      return {
+      return ((m) => ({ ...m, useShellNav: () => { const a = (m.useApp && m.useApp()) || {}; return { shellIntent: a.shellIntent ?? null, shellNav: a.shellNav ?? null }; } }))({
         useApp: () => ({
           familyId: 'co', user: { uid: 'u1' }, requestShellTab: () => {}, shellIntent: null, clearShellIntent: () => {},
         }),
-      };
+      });
     }
     // Admin på prosjektutlegg: import vises (canImportList). seesAll: Utlegg gir alle filtrene.
     if (id.includes('useCompanyAccess')) {

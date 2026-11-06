@@ -20,11 +20,13 @@ import {
 import { showSaveToast } from '../../src/ui/saveToast';
 import OptionPicker from '../../components/OptionPicker';
 import FileDropZone from '../anbud/FileDropZone';
-import {
-  EmptyHint, HrButton, HrChip, HrField,
-} from './HrShared';
 import { radius, type } from '../../src/ui/tokens';
 import { BREAKPOINTS } from '../../src/ui/layout';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EmptyHint = lazyScreen(() => import('./HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('./HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('./HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const HrField = lazyScreen(() => import('./HrShared'), { name: 'HrField', pick: 'HrField', silent: true });
 
 /** Samtykke fra søkeren: søknaden beholdes så lenge, regnet fra i dag. */
 const CONSENT_MONTHS = 12;

@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Gjøremål for én ansatt: det personen selv må gjøre eller ha på plass.
  * Full side på personsiden (fanen Gjøremål), og som «Krever oppmerksomhet» på Min side (compact).
@@ -16,11 +17,14 @@ import { employeeVisibleSlice } from '../../src/hr/model';
 import { loadEmployeeHrSlice } from '../../src/hr/storage';
 import { employeeTodos, openTodoCount } from '../../src/employees/todo';
 import { showSaveToast } from '../../src/ui/saveToast';
-import { HrButton, HrCard, HrSectionTitle, RowLink } from '../hr/HrShared';
-import HmsCardEditor from '../hr/HmsCardEditor';
 import MyDocuments from '../doccontrol/MyDocuments';
 import { useDocControl } from '../doccontrol/useDocControl';
 import { type, radius } from '../../src/ui/tokens';
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrCard = lazyScreen(() => import('../hr/HrShared'), { name: 'HrCard', pick: 'HrCard', silent: true });
+const HrSectionTitle = lazyScreen(() => import('../hr/HrShared'), { name: 'HrSectionTitle', pick: 'HrSectionTitle', silent: true });
+const RowLink = lazyScreen(() => import('../hr/HrShared'), { name: 'RowLink', pick: 'RowLink', silent: true });
+const HmsCardEditor = lazyScreen(() => import('../hr/HmsCardEditor'), { name: 'HmsCardEditor', silent: true });
 
 const ICONS = { document: 'document-text-outline', kin: 'people-outline', hms: 'card-outline', hrTask: 'checkbox-outline' };
 

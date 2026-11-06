@@ -6,6 +6,7 @@
  * Under innholdet (mobil og nettbrett) legges blokkene i to eller tre kolonner når det er plass.
  */
 import React, { useState } from 'react';
+import StorageImage from '../StorageImage';
 import {
   Image, Linking, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
@@ -87,7 +88,7 @@ function PeopleBlock({ people, colors, onTab }) {
             style={styles.person}
           >
             {person.photoUrl ? (
-              <Image source={{ uri: person.photoUrl }} style={[styles.avatar, { backgroundColor: colors.sunken }]} />
+              <StorageImage uri={person.photoUrl} style={[styles.avatar, { backgroundColor: colors.sunken }]} />
             ) : (
               <View style={[styles.avatar, styles.avatarEmpty, { backgroundColor: colors.brandSoft }]}>
                 <Text style={[type.label, { color: colors.brandInk || colors.brand }]}>{companyInitials(person.name)}</Text>

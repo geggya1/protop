@@ -58,7 +58,7 @@ import { submitQuick } from '../iso/quickSend';
 import EquipmentCalendar from '../../components/equipment/EquipmentCalendar';
 import { Ionicons } from '@expo/vector-icons';
 import { radius, type } from '../../src/ui/tokens';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { mileageProjectOptions, vehicleOdometer } from '../../src/mileage/flow';
 import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
 import { feeClassFromSignals, feeClassLabel, VEHICLE_FEE_CLASSES } from '../../src/mileage/vehicleFee';
@@ -180,7 +180,7 @@ export default function EquipmentScreen() {
   const hostedHero = useModuleHeroHosted();
   const { familyId, user, uid, activeProfile } = useApp();
   const access = useCompanyAccess();
-  const { isDesktop, isPhone } = useLayout();
+  const { isDesktop, isPhone } = useBreakpoints();
   // Mobil: «Registrer» ligger bak innstillingsknappen ved fanene, så listen får plassen.
   const [toolsOpen, setToolsOpen] = useState(false);
   const [state, setState] = useState(emptyProjectState());

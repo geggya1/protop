@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Auth-fri demo av Møter for manuell og automatisk UI-test.
  * Åpnes på /moter-demo (samme mønster som /faktura-demo). Minnelagring, ingen e-post.
@@ -9,7 +10,7 @@ import { todayOslo } from '../../src/meetings/model';
 import { DEMO_PEOPLE, DEMO_PROJECTS, demoMeetings } from '../../src/meetings/demoData';
 import { createMemoryMeetingStore } from '../../src/meetings/memoryStore';
 import { MOTER_MENU } from '../../src/navigation/shellModules';
-import MeetingsModule from './MeetingsModule';
+const MeetingsModule = lazyScreen(() => import('./MeetingsModule'), { name: 'MeetingsModule', silent: true });
 
 export default function MeetingsDemoScreen() {
   const colors = useColors();

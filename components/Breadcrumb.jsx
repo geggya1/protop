@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useColors } from '../src/context/ThemeContext';
 import { useOptionalApp } from '../src/context/AppContext';
-import { useLayout } from '../src/theme';
+import { useBreakpoints } from '../src/theme';
 import { companyNavTrail, navTrailSegments } from '../src/navigation/navTrail';
 
 /**
@@ -27,7 +27,7 @@ export default function Breadcrumb({
   nativeID = 'breadcrumb',
 }) {
   const colors = useColors();
-  const { isPhone } = useLayout();
+  const { isPhone } = useBreakpoints();
   const app = useOptionalApp();
   const short = compact ?? isPhone;
   const segments = useMemo(

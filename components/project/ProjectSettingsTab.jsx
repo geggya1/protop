@@ -17,9 +17,10 @@ import { updateProject } from '../../src/project/engine.js';
 import { searchPlaces } from '../../src/utils/location';
 import { alertPhotoError, pickImage, uploadImage } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
-import MileageWizard from '../../screens/economy/MileageWizard';
 import DateInput from '../DateInput';
 import { formatDate } from '../../src/format/nb';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const MileageWizard = lazyScreen(() => import('../../screens/economy/MileageWizard'), { name: 'MileageWizard', silent: true });
 
 /**
  * Prosjektinnstillinger: bilde, datoer, adresse, kjøreturer, timeføring.

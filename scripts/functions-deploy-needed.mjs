@@ -21,45 +21,14 @@ const EXTRA_PATHS = [
   'functions/package-lock.json',
 ];
 
-/** Samme entries som scripts/deploy-slim-functions.sh. */
-export const DEPLOY_ENTRIES = [
-  'tenderIndex.js',
-  'anbudDigestIndex.js',
-  'anbudFormIndex.js',
-  'agreementIndex.js',
-  'openFeedIndex.js',
-  'interpretAvtaleIndex.js',
-  'anbudIntakeIndex.js',
-  'friendListIndex.js',
-  'friendInviteIndex.js',
-  'indeksIndex.js',
-  'importIndex.js',
-  'employeeInviteIndex.js',
-  'storageIndex.js',
-  'doffinIndex.js',
-  'aiIndex.js',
-  'vegvesenIndex.js',
-  'membershipIndex.js',
-  'companyAccessIndex.js',
-  'authIndex.js',
-  'hospitalityIndex.js',
-  'stravaIndex.js',
-  'pushIndex.js',
-  'notifyPushIndex.js',
-  'vacationPlanIndex.js',
-  'powerOfficeIndex.js',
-  'invoiceIndex.js',
-  'meetingIndex.js',
-  'vacationPlanDailyIndex.js',
-  'powerOfficeSyncScheduledIndex.js',
-  'collectionAutoIndex.js',
-  'aiCleanupIndex.js',
-  'indeksSsbDailyIndex.js',
-  'intercompanyIndex.js',
-  'intercompanyTriggerIndex.js',
-  'helpdeskIndex.js',
-  'customerSurveyIndex.js',
-];
+/**
+ * Entry-filene som deployes, lest fra scripts/deploy-slim-functions.sh (deploy_entry og
+ * queue_entry). Skriptet er eneste liste, så en ny funksjon legges bare til der.
+ */
+export const DEPLOY_ENTRIES = [...new Set(
+  [...readFileSync(join(repoRoot, 'scripts/deploy-slim-functions.sh'), 'utf8')
+    .matchAll(/^(?:deploy_entry|queue_entry)\s+([A-Za-z0-9_]+\.js)\b/gm)].map((m) => m[1]),
+)];
 
 const SPECIFIER_RE = [
   /\bfrom\s+['"]([^'"]+)['"]/g,

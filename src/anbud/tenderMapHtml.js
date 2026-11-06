@@ -1,14 +1,7 @@
 /** Leaflet + OpenStreetMap, uten API-nøkkel eller innlogging. */
 
 import { mapCspMeta, mapScriptNonce } from '../utils/mapFrame.js';
-
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+import { escapeHtml } from '../utils/mailHtml.js';
 
 function decisionButtonsHtml(row) {
   const id = escapeHtml(row?.id || '');

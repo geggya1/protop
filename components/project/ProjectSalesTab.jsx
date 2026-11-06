@@ -9,7 +9,6 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import ProductSaleSheet from '../sales/ProductSaleSheet';
 import SaleStatusBadge from '../sales/SaleStatusBadge';
 import { formatMoney } from '../../src/economy/invoices.js';
 import { emptySale } from '../../src/economy/products.js';
@@ -20,6 +19,8 @@ import { isExternalSale } from '../../src/economy/productSalesStorage.js';
 import { saleIsLocked, sortProductSales } from '../../src/economy/productSalesView.js';
 import { salesSummaryForProject } from '../../src/project/projectDashboard.js';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const ProductSaleSheet = lazyScreen(() => import('../sales/ProductSaleSheet'), { name: 'ProductSaleSheet', silent: true });
 
 const COLUMNS = [
   { key: 'date', label: 'Dato', width: 96, sort: 'date' },

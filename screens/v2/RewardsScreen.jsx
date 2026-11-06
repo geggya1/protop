@@ -1,53 +1,30 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Animated, Pressable,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView,
 } from 'react-native';
-import { doc, onSnapshot, collection } from 'firebase/firestore';
-import { db } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
-import { colors, useLayout } from '../../src/theme';
-import FilterMenu from '../../components/FilterMenu';
+import { colors, useBreakpoints } from '../../src/theme';
 import {
   addDays, dateKey, startOfWeekMonday, monthGrid, isSameMonth,
   WEEKDAYS_SHORT, MONTHS_NO, sameDay, isToday, getISOWeek,
-  isoWeekKeys, chunkWeeks,
+  chunkWeeks,
 } from '../../src/utils/dates';
 import {
-  scoreInKeys, todosOnDate, isDoneOn,
-  toggleTodo, toggleParentTodo, restoreParentTodo, purgeParentTodo, valueForTask,
+  isDoneOn,
+  toggleParentTodo, restoreParentTodo, purgeParentTodo,
   sortParentTasksByDeadline,
   isParentTaskOverdue, formatDeadlineLabel, formatDeadlineDate,
   parentTaskVisibleToUser, parentTaskInTrashForUser, FAMILY_ASSIGNEE,
   parentTodosOnDate, isParentTaskOpen,
 } from '../../src/utils/todos';
-import { weekRewardCap } from '../../src/utils/todoBudget';
 import {
-  normalizeRewardMode,
-  showsNumericReward,
-  rewardUnitLabel,
-} from '../../src/utils/rewardModes';
-import {
-  listenRewardGoals,
-  goalsForChild,
-  goalProgress,
-  lifetimeStarsFromTodos,
-} from '../../src/utils/rewardGoals';
-import {
-  listenChildTodosAcrossPlatforms,
   listenParentTodosAcrossPlatforms,
   platformIdsFromFamilies,
 } from '../../src/utils/crossPlatformData';
-import { canChildCreateParentTasks, isChildParentTaskReadOnly } from '../../src/utils/childTaskAccess';
-import { Screen, Card, Mute } from '../../components/ui';
+import { Screen } from '../../components/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { useChildRewardCelebration } from '../../components/ChildRewardCelebration';
-import ChildTodoDetailModal from '../../components/ChildTodoDetailModal';
-import TodoTaskIcon from '../../components/TodoTaskIcon';
-import RewardGoalCard from '../../components/RewardGoalCard';
-import { useThemeMeta } from '../../src/context/ThemeContext';
 import ShellAddButton from '../../components/ShellAddButton';
-import HelpTarget from '../../components/HelpTarget';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
 import { ModulePageFrame } from '../../components/ModulePageBg';
@@ -55,6 +32,8 @@ import { useShellWide } from '../../components/ModuleAside';
 import { confirmUser } from '../../src/utils/dialog';
 import { showErrorToast } from '../../src/ui/saveToast';
 import { todoActionError } from '../../src/utils/todoStatus.js';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const FilterMenu = lazyScreen(() => import('../../components/FilterMenu'), { name: 'FilterMenu', silent: true });
 
 /** Feil i oppgavehandlinger vises som toast i stedet for å svelges. */
 function toastTodoError(action, err) {
@@ -85,65 +64,6 @@ function TaskCheckbox({ done, onPress, disabled, large = false, title = '' }) {
         {done && <Ionicons name="checkmark" size={large ? 22 : 14} color="#fff" />}
       </View>
     </TouchableOpacity>
-  );
-}
-
-function ChoreTaskRow({ task, done, unitLabel, onOpen, onToggle, simpleUi = false, quiet = false }) {
-  if (simpleUi) {
-    return (
-      <View style={[styles.taskRowSimple, done && styles.taskRowDone]}>
-        <TouchableOpacity
-          style={styles.choreMainSimple}
-          onPress={onOpen}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel={`${task.title}. Trykk for detaljer`}
-        >
-          <View style={[styles.choreIconSimple, done && styles.choreIconDone]}>
-            <TodoTaskIcon task={task} style={styles.choreIconImgSimple} emojiSize={40} />
-          </View>
-          <Text style={[styles.taskTitleSimple, done && styles.taskTitleDone]} numberOfLines={2}>
-            {task.title}
-          </Text>
-        </TouchableOpacity>
-        <TaskCheckbox title={task.title} done={done} onPress={onToggle} large />
-      </View>
-    );
-  }
-
-  const meta = quiet
-    ? (done ? 'Ferdig' : 'Åpen · trykk for mer')
-    : (done
-      ? `Ferdig · +${valueForTask(task)} ${unitLabel}`
-      : `Åpen · ${valueForTask(task)} ${unitLabel} · trykk for mer`);
-
-  return (
-    <View style={[styles.taskRow, done && styles.taskRowDone]}>
-      <TouchableOpacity
-        style={styles.choreMain}
-        onPress={onOpen}
-        activeOpacity={0.75}
-        accessibilityRole="button"
-        accessibilityLabel={`${task.title}. Trykk for detaljer`}
-      >
-        <View style={[styles.choreIcon, done && styles.choreIconDone]}>
-          <TodoTaskIcon task={task} style={styles.choreIconImg} emojiSize={22} />
-        </View>
-        <View style={styles.taskBody}>
-          <Text style={[styles.taskTitle, done && styles.taskTitleDone]} numberOfLines={2}>
-            {task.title}
-          </Text>
-          <Text style={styles.taskMeta}>
-            {task.crossPlatform && task.sourcePlatformName
-              ? `Fra ${task.sourcePlatformName} · `
-              : ''}
-            {meta}
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-      </TouchableOpacity>
-      <TaskCheckbox title={task.title} done={done} onPress={onToggle} />
-    </View>
   );
 }
 
@@ -257,129 +177,29 @@ function memberName(members, id) {
 /** Bredde på oppgavefeltet (PC) der Mine oppgaver og Tildelt til andre står side om side. */
 const TASK_SPLIT_MIN = 1100;
 
-export default function RewardsScreen({ variant = 'auto' }) {
+/**
+ * Oppgaver: egne oppgaver med frist og oppgaver tildelt andre. Barnas gjøremål og belønninger
+ * hørte til familieproduktet og er fjernet. `variant` beholdes for kallene fra skallet.
+ */
+export default function RewardsScreen() {
   const nav = useNavigation();
-  const { isDesktop } = useLayout();
-  const { highChildFriendliness } = useThemeMeta();
+  const { isDesktop } = useBreakpoints();
   const {
-    familyId, families, isParent, isChild, meChild, members, uid,
-    isActingAsChild, activeChild,
+    familyId, families, isParent, members, uid,
   } = useApp();
-  const simpleUi = highChildFriendliness;
-  const [todos, setTodos] = useState([]);
   const [parentTodos, setParentTodos] = useState([]);
   const [mode, setMode] = useState('day');
   const [tasksLayoutMode, setTasksLayoutMode] = useState('list'); // desktop: 'list' | 'grid'
   const [taskFilter, setTaskFilter] = useState('open'); // open | done | trash
   const [anchor, setAnchor] = useState(() => new Date());
 
-  const viewingChild = isActingAsChild ? activeChild : (isChild ? meChild : null);
-  const childId = viewingChild?.id || null;
-
-  /** tasks = familieoppgaver · chores = gjøremål/belønning · auto = rollebasert */
-  const resolvedVariant = useMemo(() => {
-    if (variant === 'tasks' || variant === 'chores') return variant;
-    return viewingChild ? 'chores' : 'tasks';
-  }, [variant, viewingChild]);
-
-  const showChildFocus = resolvedVariant === 'chores' && !!viewingChild;
-  const showTasksOverview = resolvedVariant === 'tasks';
-  const heroName = showChildFocus ? 'chores' : (showTasksOverview ? 'stars' : null);
-  // Innlogget barn kan opprette/tildele; «vis som barn» beholder foresatt-rettigheter via egen profil.
-  const childTaskActor = showTasksOverview && canChildCreateParentTasks(isChild);
-  const parentTaskActor = showTasksOverview && isParent && !isActingAsChild;
-  const canCreateParentTask = childTaskActor || parentTaskActor;
+  const showTasksOverview = true;
+  const heroName = 'stars';
+  const canCreateParentTask = isParent;
   const showDelegated = canCreateParentTask;
-  const [rewardMode, setRewardMode] = useState('points');
-  const [weeklyBudget, setWeeklyBudget] = useState(0);
-  const [rewardWeekStart, setRewardWeekStart] = useState(6);
-  const [detailTask, setDetailTask] = useState(null);
-  useHelpScene(detailTask ? 'inner' : 'hub');
-  const [starGoals, setStarGoals] = useState([]);
-  const [starsByChild, setStarsByChild] = useState({});
+  useHelpScene('hub');
 
-  // Foresatt beholder full rettighet også når de bytter til barnets profil.
-  // Kun innlogget barn er begrenset.
-  const canManageChores = showChildFocus && isParent && !isChild;
-  const rMode = normalizeRewardMode(rewardMode);
-  const quietReward = !showsNumericReward(rMode);
-
-  useEffect(() => {
-    if (!familyId || !childId) return undefined;
-    return onSnapshot(doc(db, 'families', familyId, 'children', childId), (snap) => {
-      if (!snap.exists()) return;
-      const d = snap.data();
-      if (d.rewardMode) setRewardMode(normalizeRewardMode(d.rewardMode));
-      if (typeof d.weeklyBudget === 'number') setWeeklyBudget(d.weeklyBudget);
-      if (typeof d.rewardWeekStart === 'number') setRewardWeekStart(d.rewardWeekStart);
-    });
-  }, [familyId, childId]);
-
-  useEffect(() => {
-    if (!familyId || !showChildFocus || rMode !== 'points') {
-      setStarGoals([]);
-      return undefined;
-    }
-    return listenRewardGoals(familyId, setStarGoals);
-  }, [familyId, showChildFocus, rMode]);
-
-  useEffect(() => {
-    if (!showChildFocus || rMode !== 'points' || !childId) return;
-    setStarsByChild((prev) => ({
-      ...prev,
-      [childId]: lifetimeStarsFromTodos(todos),
-    }));
-  }, [todos, childId, showChildFocus, rMode]);
-
-  // For delte mål: hent stjerner for søsken som inngår
-  useEffect(() => {
-    if (!familyId || rMode !== 'points' || !starGoals.length) return undefined;
-    const siblingIds = new Set();
-    starGoals.forEach((g) => {
-      if (!g.shared) return;
-      (g.childIds || []).forEach((id) => {
-        if (id && id !== childId) siblingIds.add(id);
-      });
-    });
-    if (!siblingIds.size) return undefined;
-    let cancelled = false;
-    const unsubs = [...siblingIds].map((id) => onSnapshot(
-      collection(db, 'families', familyId, 'children', id, 'todos'),
-      (snap) => {
-        if (cancelled) return;
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setStarsByChild((prev) => ({
-          ...prev,
-          [id]: lifetimeStarsFromTodos(list),
-        }));
-      },
-      () => {},
-    ));
-    return () => {
-      cancelled = true;
-      unsubs.forEach((u) => u?.());
-    };
-  }, [familyId, starGoals, childId, rMode]);
-
-  useEffect(() => {
-    if (!familyId || !childId) return undefined;
-    return listenChildTodosAcrossPlatforms({
-      childUid: viewingChild?.uid || null,
-      activeFamilyId: familyId,
-      activeChildId: childId,
-      platforms: families,
-      onChange: setTodos,
-    });
-  }, [familyId, childId, viewingChild?.uid, families]);
-
-  const myIds = useMemo(() => {
-    if (viewingChild) {
-      const ids = new Set();
-      [viewingChild.uid, viewingChild.id, viewingChild.childId].filter(Boolean).forEach((id) => ids.add(id));
-      return ids;
-    }
-    return new Set([uid].filter(Boolean));
-  }, [uid, viewingChild]);
+  const myIds = useMemo(() => new Set([uid].filter(Boolean)), [uid]);
 
   const platformIds = useMemo(() => {
     const ids = platformIdsFromFamilies(families);
@@ -388,51 +208,20 @@ export default function RewardsScreen({ variant = 'auto' }) {
   }, [families, familyId]);
 
   useEffect(() => {
-    if (!familyId || !showTasksOverview) return undefined;
+    if (!familyId) return undefined;
     return listenParentTodosAcrossPlatforms({
       platformIds,
       activePlatformId: familyId,
       uid,
       viewerIds: myIds,
-      asChild: !!viewingChild,
+      asChild: false,
       platforms: families,
       includeDeleted: true,
       onChange: setParentTodos,
     });
-  }, [familyId, showTasksOverview, platformIds, uid, myIds, viewingChild, families]);
-
-  const weekKeys = useMemo(
-    () => isoWeekKeys(anchor),
-    [anchor],
-  );
-  const week = scoreInKeys(todos, weekKeys);
-  const weekCap = weekRewardCap(weeklyBudget, week.possible);
-
-  const {
-    bagRef,
-    bagScale,
-    onBagLayout,
-    openSummary,
-    celebrateComplete,
-    overlay: rewardOverlay,
-    bagUnit,
-    quietReward: celebrationQuiet,
-  } = useChildRewardCelebration({
-    todos,
-    rewardMode: rMode,
-    weekKeys,
-    anchorDate: anchor,
-  });
+  }, [familyId, platformIds, uid, myIds, families]);
 
   const selectedKey = dateKey(anchor);
-  const selectedTodos = todosOnDate(todos, anchor);
-  const openTodos = selectedTodos.filter((t) => !isDoneOn(t, selectedKey));
-  const doneTodos = selectedTodos.filter((t) => isDoneOn(t, selectedKey));
-  const rowQuiet = quietReward || celebrationQuiet;
-  const childGoals = useMemo(
-    () => (childId && rMode === 'points' ? goalsForChild(starGoals, childId) : []),
-    [starGoals, childId, rMode],
-  );
 
   const shellAddBtn = useMemo(() => {
     if (canCreateParentTask && showTasksOverview && taskFilter !== 'trash') {
@@ -443,24 +232,9 @@ export default function RewardsScreen({ variant = 'auto' }) {
         />
       );
     }
-    if (canManageChores) {
-      return (
-        <ShellAddButton
-          label="Legg til"
-          accessibilityLabel="Legg til gjøremål"
-          onPress={() => nav.navigate('AddTodo', {
-            familyId,
-            child: viewingChild,
-            currentDateKey: dateKey(anchor),
-            defaultStartKey: dateKey(anchor),
-          })}
-        />
-      );
-    }
     return null;
   }, [
-    isDesktop, canCreateParentTask, showTasksOverview, taskFilter,
-    canManageChores, familyId, viewingChild, anchor, nav,
+    canCreateParentTask, showTasksOverview, taskFilter, familyId, nav,
   ]);
   useShellTitleRight(shellAddBtn);
 
@@ -486,9 +260,9 @@ export default function RewardsScreen({ variant = 'auto' }) {
     () => dayParentTodos.filter((t) => parentTaskVisibleToUser(t, {
       uid,
       ids: myIds,
-      asChild: !!viewingChild,
+      asChild: false,
     })),
-    [dayParentTodos, uid, myIds, viewingChild],
+    [dayParentTodos, uid, myIds],
   );
 
   const delegatedTasks = useMemo(
@@ -535,11 +309,11 @@ export default function RewardsScreen({ variant = 'auto' }) {
       (parentTodos || []).filter((t) => parentTaskInTrashForUser(t, {
         uid,
         ids: myIds,
-        asChild: !!viewingChild,
+        asChild: false,
       })),
       selectedKey,
     ),
-    [parentTodos, uid, myIds, viewingChild, selectedKey],
+    [parentTodos, uid, myIds, selectedKey],
   );
 
   const listMyTasks = taskFilter === 'open' ? myOpen : taskFilter === 'done' ? myDone : trashTasks;
@@ -558,24 +332,6 @@ export default function RewardsScreen({ variant = 'auto' }) {
   const columnWidth = splitLists ? (bodyWidth - 32 - 12) / 2 : bodyWidth - 32;
   const gridCols = Math.max(2, Math.min(4, Math.floor(columnWidth / 300)));
   const gridCardBasis = { flexBasis: `${100 / gridCols - 2}%` };
-
-  const onToggle = async (task) => {
-    if (!familyId || !childId) return;
-    const wasDone = isDoneOn(task, selectedKey);
-    try {
-      await toggleTodo(familyId, childId, task, anchor);
-      if (!wasDone) celebrateComplete(task, { willBeDone: true });
-    } catch (e) {
-      toastTodoError('toggle', e);
-    }
-  };
-
-  const onCompleteFromDetail = async () => {
-    if (!detailTask) return;
-    const task = detailTask;
-    setDetailTask(null);
-    await onToggle(task);
-  };
 
   const onToggleParent = async (task) => {
     if (!familyId) return;
@@ -602,11 +358,10 @@ export default function RewardsScreen({ variant = 'auto' }) {
     const resolved = task.crossPlatform
       ? { ...task, id: task.sourceTodoId || task.id }
       : task;
-    // Barn: kun lesetilgang på eksisterende egne og tildelte oppgaver.
     nav.navigate('ParentTask', {
       task: resolved,
       familyId: task.familyId || familyId,
-      readOnly: isChildParentTaskReadOnly({ isChild, isNew: false }),
+      readOnly: false,
     });
   };
 
@@ -623,70 +378,21 @@ export default function RewardsScreen({ variant = 'auto' }) {
       ? `Uke ${iso.week} · ${weekDays[0].getDate()}.–${weekDays[6].getDate()}. ${MONTHS_NO[anchor.getMonth()].slice(0, 3)}`
       : dayLabel;
 
-  const taskCountForDay = (d) => {
-    let n = 0;
-    if (showTasksOverview) {
-      n += parentTodosOnDate(activeParentTodos, d).filter((t) => parentTaskVisibleToUser(t, {
-        uid,
-        ids: myIds,
-        asChild: !!viewingChild,
-      }) && isParentTaskOpen(t, dateKey(d))).length;
-    } else {
-      n += todosOnDate(todos, d).filter((t) => !isDoneOn(t, dateKey(d))).length;
-    }
-    return n;
-  };
+  const taskCountForDay = (d) => parentTodosOnDate(activeParentTodos, d).filter((t) => parentTaskVisibleToUser(t, {
+    uid,
+    ids: myIds,
+    asChild: false,
+  }) && isParentTaskOpen(t, dateKey(d))).length;
 
   return (
     <Screen>
       <ModulePageFrame name={heroName}>
-      {showChildFocus && rewardOverlay}
-      <ChildTodoDetailModal
-        visible={!!detailTask}
-        task={detailTask}
-        done={detailTask ? isDoneOn(detailTask, selectedKey) : false}
-        unitLabel={bagUnit}
-        quiet={rowQuiet}
-        onClose={() => setDetailTask(null)}
-        onComplete={onCompleteFromDetail}
-        canEdit={canManageChores}
-        onEdit={() => {
-          const t = detailTask;
-          if (!t || !viewingChild) return;
-          setDetailTask(null);
-          nav.navigate('AddTodo', {
-            familyId: t.familyId || familyId,
-            child: viewingChild,
-            todo: t.crossPlatform
-              ? { ...t, id: t.sourceTodoId || t.id }
-              : t,
-            currentDateKey: dateKey(anchor),
-            defaultStartKey: dateKey(anchor),
-          });
-        }}
-      />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.body}
         showsVerticalScrollIndicator={false}
         onLayout={(e) => setBodyWidth(Math.round(e.nativeEvent.layout.width))}
       >
-        {canManageChores && (
-          <View style={styles.choresTopRow}>
-            <Text style={styles.choresTopHint}>Belønning og import</Text>
-            <TouchableOpacity
-              style={styles.settingsBtn}
-              onPress={() => nav.navigate('ChoreSettings', {
-                familyId,
-                child: viewingChild,
-              })}
-              accessibilityRole="button"
-              accessibilityLabel="Gjøremålsinnstillinger"
-            >
-              <Ionicons name="settings-outline" size={20} color={colors.brand} />
-            </TouchableOpacity>
-          </View>
-        )}
         <View style={[styles.seg, isDesktop && styles.segDesk]}>
           {[['day', 'Dag'], ['week', 'Uke'], ['month', 'Måned']].map(([m, label]) => (
             <TouchableOpacity
@@ -814,9 +520,7 @@ export default function RewardsScreen({ variant = 'auto' }) {
           <>
             {!isDesktop && (
               <Text style={styles.moduleIntro}>
-                {isChild
-                  ? 'Opprett oppgaver og tildel andre. Du ser egne og oppgaver tildelt deg.'
-                  : 'Oppgaver med frist, for deg selv eller tildelt av andre.'}
+                Oppgaver med frist, for deg selv eller tildelt av andre.
               </Text>
             )}
 
@@ -1067,183 +771,6 @@ export default function RewardsScreen({ variant = 'auto' }) {
           </>
         )}
 
-        {showChildFocus && (
-          <>
-            <Pressable onPress={openSummary}>
-              <View ref={bagRef} onLayout={onBagLayout} collapsable={false}>
-                <Animated.View style={[styles.scoreCardAnim, { transform: [{ scale: bagScale }] }]}>
-                  <Card style={styles.scoreCard}>
-                    {rowQuiet ? (
-                      <>
-                        <Text style={styles.bal}>{doneTodos.length}/{selectedTodos.length || 0}</Text>
-                        <Text style={styles.balLbl}>
-                          ferdig i dag
-                          {iso?.week ? ` · uke ${iso.week}` : ''}
-                        </Text>
-                        <View style={styles.budgetBar}>
-                          <View style={{
-                            height: 6,
-                            backgroundColor: '#64748b',
-                            borderRadius: 999,
-                            width: `${selectedTodos.length
-                              ? Math.min(100, Math.round((doneTodos.length / selectedTodos.length) * 100))
-                              : 0}%`,
-                          }}
-                          />
-                        </View>
-                        <Mute>Sjekkliste uten poeng eller penger</Mute>
-                      </>
-                    ) : (
-                      <>
-                        <Text style={styles.bal}>{week.earned}</Text>
-                        <Text style={styles.balLbl}>
-                          {bagUnit || rewardUnitLabel(rMode)} av {weekCap || 0}
-                          {iso?.week ? ` · uke ${iso.week}` : ''}
-                        </Text>
-                        <View style={styles.budgetBar}>
-                          <View style={{
-                            height: 6,
-                            backgroundColor: rMode === 'money' ? '#10b981' : colors.star,
-                            borderRadius: 999,
-                            width: `${weekCap
-                              ? Math.min(100, Math.round((week.earned / weekCap) * 100))
-                              : 0}%`,
-                          }}
-                          />
-                        </View>
-                        <Mute>{doneTodos.length}/{selectedTodos.length || 0} ferdig denne dagen</Mute>
-                      </>
-                    )}
-                    <Text style={styles.scoreHint}>Trykk for ukeoversikt</Text>
-                  </Card>
-                </Animated.View>
-              </View>
-            </Pressable>
-
-            {rMode === 'points' && (childGoals.length > 0 || canManageChores) && (
-              <View style={styles.goalPreviewWrap}>
-                <Text style={styles.listSection}>Opptjeningsmål</Text>
-                {childGoals.length === 0 ? (
-                  <Text style={styles.emptyInline}>
-                    Ingen mål ennå. Legg inn bilde, beskrivelse og en lenke, så {viewingChild?.name || 'barnet'} ser hva stjernene går til.
-                  </Text>
-                ) : childGoals.slice(0, 3).map((goal) => (
-                  <RewardGoalCard
-                    key={goal.id}
-                    goal={goal}
-                    progress={goalProgress(goal, starsByChild, childId)}
-                    compact
-                    large={simpleUi}
-                    claimChildId={childId}
-                    meta={goal.shared ? 'Sammen med søsken' : ''}
-                  />
-                ))}
-                <TouchableOpacity
-                  onPress={() => nav.navigate('StarGoals', {
-                    familyId,
-                    childId,
-                    childName: viewingChild?.name || 'Barn',
-                  })}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.goalManageLink}>
-                    {canManageChores
-                      ? (childGoals.length ? 'Administrer opptjeningsmål' : 'Lag opptjeningsmål')
-                      : 'Se belønningene'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <View style={styles.listCard}>
-              <Text style={styles.listSection}>
-                {isToday(anchor) ? 'I dag' : dayLabel}
-              </Text>
-              {openTodos.length === 0 && doneTodos.length === 0 && (
-                <Text style={styles.emptyInline}>Ingen gjøremål denne dagen.</Text>
-              )}
-              {[...openTodos, ...doneTodos].filter((t) => String(t.category || '').toLowerCase() === 'lekser').length > 0 && (
-                <Text style={styles.lekserLabel}>Lekser</Text>
-              )}
-              {openTodos.filter((t) => String(t.category || '').toLowerCase() === 'lekser').map((t, i) => (
-                i === 0 ? (
-                  <HelpTarget key={t.id} id="content" onAdvance={() => setDetailTask(t)}>
-                    <ChoreTaskRow
-                      task={t}
-                      done={false}
-                      unitLabel={bagUnit}
-                      simpleUi={simpleUi}
-                      quiet={rowQuiet}
-                      onOpen={() => setDetailTask(t)}
-                      onToggle={() => onToggle(t)}
-                    />
-                  </HelpTarget>
-                ) : (
-                <ChoreTaskRow
-                  key={t.id}
-                  task={t}
-                  done={false}
-                  unitLabel={bagUnit}
-                  simpleUi={simpleUi}
-                  quiet={rowQuiet}
-                  onOpen={() => setDetailTask(t)}
-                  onToggle={() => onToggle(t)}
-                />
-                )
-              ))}
-              {doneTodos.filter((t) => String(t.category || '').toLowerCase() === 'lekser').map((t) => (
-                <ChoreTaskRow
-                  key={t.id}
-                  task={t}
-                  done
-                  unitLabel={bagUnit}
-                  simpleUi={simpleUi}
-                  quiet={rowQuiet}
-                  onOpen={() => setDetailTask(t)}
-                  onToggle={() => onToggle(t)}
-                />
-              ))}
-              {openTodos.filter((t) => String(t.category || '').toLowerCase() !== 'lekser').map((t, i) => (
-                i === 0 ? (
-                  <HelpTarget key={t.id} id="content" onAdvance={() => setDetailTask(t)}>
-                    <ChoreTaskRow
-                      task={t}
-                      done={false}
-                      unitLabel={bagUnit}
-                      simpleUi={simpleUi}
-                      quiet={rowQuiet}
-                      onOpen={() => setDetailTask(t)}
-                      onToggle={() => onToggle(t)}
-                    />
-                  </HelpTarget>
-                ) : (
-                <ChoreTaskRow
-                  key={t.id}
-                  task={t}
-                  done={false}
-                  unitLabel={bagUnit}
-                  simpleUi={simpleUi}
-                  quiet={rowQuiet}
-                  onOpen={() => setDetailTask(t)}
-                  onToggle={() => onToggle(t)}
-                />
-                )
-              ))}
-              {doneTodos.filter((t) => String(t.category || '').toLowerCase() !== 'lekser').map((t) => (
-                <ChoreTaskRow
-                  key={t.id}
-                  task={t}
-                  done
-                  unitLabel={bagUnit}
-                  simpleUi={simpleUi}
-                  quiet={rowQuiet}
-                  onOpen={() => setDetailTask(t)}
-                  onToggle={() => onToggle(t)}
-                />
-              ))}
-            </View>
-          </>
-        )}
         <View style={{ height: 16 }} />
       </ScrollView>
       </ModulePageFrame>

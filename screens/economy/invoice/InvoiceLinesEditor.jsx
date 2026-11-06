@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../../src/ui/lazyScreen';
 /**
  * Rediger fakturalinjer i et utkast: periode, tekst, antall, enhet, pris, påslag, rabatt
  * og konto med mva. Linjer kan flyttes, kopieres, slettes og legges til.
@@ -18,7 +19,7 @@ import {
 } from '../../../src/economy/invoiceLines.js';
 import { accountOptionLabel } from '../../../src/economy/companyChart.js';
 import { vatCodeForAccount } from '../../../src/economy/invoiceDraft.js';
-import { Button } from '../billing/ui';
+const Button = lazyScreen(() => import('../billing/ui'), { name: 'Button', pick: 'Button', silent: true });
 
 function numText(value) {
   if (value === '' || value == null) return '';

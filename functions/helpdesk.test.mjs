@@ -274,3 +274,18 @@ test('utviklerbrief tåler sak uten AI', () => {
   assert.match(brief, /# PT-1: X/);
   assert.match(brief, /Ingen teknisk info/);
 });
+
+test('krasjrapporter: bare teamet ser dem, gruppert per feil', async () => {
+  const env = setup();
+  const now = env.now();
+  await env.db.collection('crashReports').doc('c1').set({ signature: 's1', kind: 'render', message: 'A', uid: 'u1', createdAtMs: now - 1000, fatal: true });
+  await env.db.collection('crashReports').doc('c2').set({ signature: 's1', kind: 'render', message: 'A', uid: 'u2', createdAtMs: now - 500 });
+  await env.db.collection('crashReports').doc('c3').set({ signature: 's2', kind: 'error', message: 'B', uid: 'u1', createdAtMs: now - 40 * 24 * 3600 * 1000 });
+  await assert.rejects(() => env.call(USER, 'agentCrashes'), /tilgang/);
+  const res = await env.call(OWNER, 'agentCrashes', { days: 7 });
+  assert.equal(res.total, 2);
+  assert.equal(res.groups.length, 1);
+  assert.equal(res.groups[0].count, 2);
+  assert.equal(res.groups[0].users, 2);
+  assert.equal(res.groups[0].fatal, 1);
+});

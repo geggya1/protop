@@ -6,7 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import { signOut } from 'firebase/auth';
 import { Ionicons } from '@expo/vector-icons';
 import { auth } from '../firebase';
-import { colors, useLayout } from '../src/theme';
+import { colors, useBreakpoints } from '../src/theme';
 import { AvatarBubble } from './AvatarPicker';
 import ProfileSwitcherModal from './ProfileSwitcherModal';
 import FriendQrModal from './FriendQrModal';
@@ -32,7 +32,7 @@ function MenuRow({ icon, label, onPress, danger, compact = false }) {
 /** Profilmeny fra avatar — bytt bruker, oversikt, innstillinger, logg ut. */
 export default function ProfileMenuModal({ visible, onClose }) {
   const nav = useNavigation();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { family, familyId, kids, requestShellTab, isParent } = useApp();
   const {
     activeProfile,

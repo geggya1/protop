@@ -1,10 +1,10 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Utstyrskalenderen: samme visning som Kalender, men bare med firmautstyret.
  * Ingen private eller tilkoblede kalendere vises her.
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import OutlookCalendar from '../OutlookCalendar';
 import { addDays, dateKey, getISOWeek, monthGrid, startOfWeekMonday } from '../../src/utils/dates';
 import { eventOccursOnDate } from '../../src/utils/events';
 import {
@@ -13,6 +13,7 @@ import {
   equipmentGroupLayerId,
   withEquipmentChecks,
 } from '../../src/equipment/calendars';
+const OutlookCalendar = lazyScreen(() => import('../OutlookCalendar'), { name: 'OutlookCalendar', silent: true });
 
 const VIEWS = [
   { id: 'day', label: 'Dag' },

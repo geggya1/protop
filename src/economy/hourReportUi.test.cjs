@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
+const syncLazyScreen = require('../../tests/helpers/syncLazyScreen.cjs');
 const babel = require('@babel/core');
 const React = require('react');
 const assert = require('node:assert/strict');
@@ -120,18 +121,19 @@ const companyData = require('../company/companyDataTesting.js').companyDataHooks
 });
 
 function hookedRequire(orig, id) {
+  if (id.includes('ui/lazyScreen')) return syncLazyScreen((p) => hookedRequire(orig, p));
   if (id === 'react') return React;
   if (id.includes('CompanyDataContext')) return companyData;
   if (id === 'react-native') return rnMock;
   if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
-  if (id.includes('AppContext')) return { useApp: () => ({ familyId: 'co' }), useOptionalApp: () => ({ familyId: 'co' }) };
+  if (id.includes('AppContext')) return ((m) => ({ ...m, useShellNav: () => { const a = (m.useApp && m.useApp()) || {}; return { shellIntent: a.shellIntent ?? null, shellNav: a.shellNav ?? null }; } }))({ useApp: () => ({ familyId: 'co' }), useOptionalApp: () => ({ familyId: 'co' }) });
   if (id.includes('useCompanyAi')) return { useCompanyAiGuard: () => (call) => call, useCompanyAiAllowed: () => true };
   if (id.includes('useCompanyAccess')) {
     return { useCompanyAccess: () => ({ ready: true, previewing: false, employee: null, canView: () => true, canEdit: () => true, canAdmin: () => true }) };
   }
   if (id.includes('ThemeContext')) return { useColors: () => colors };
   if (id.includes('/theme')) {
-    return { useLayout: () => ({ width: 1400, height: 900, isPhone: false, hasRail: false, railWidth: 0 }) };
+    return ((m) => ({ ...m, useBreakpoints: m.useLayout }))({ useLayout: () => ({ width: 1400, height: 900, isPhone: false, hasRail: false, railWidth: 0 }) });
   }
   if (id.includes('saveToast')) return { showSaveToast() {} };
   if (id.includes('BrandBusyOverlay')) return { __esModule: true, default() { return null; } };

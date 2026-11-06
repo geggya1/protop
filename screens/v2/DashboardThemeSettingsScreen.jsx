@@ -14,7 +14,7 @@ import { CUSTOM_BANNER_ID } from '../../src/homeBanners';
 import { buildParentDashboardApps } from '../../src/navigation/shellModules';
 import { parentAppShortLabel } from '../../src/utils/parentHomeShortcuts';
 import { useI18n } from '../../src/i18n';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 
 export default function DashboardThemeSettingsScreen({
   inShell = false,
@@ -23,7 +23,7 @@ export default function DashboardThemeSettingsScreen({
   const nav = useNavigation();
   const colors = useColors();
   const { t } = useI18n();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { uid, familyId, isParent, isAdmin, kids, requestShellTab } = useApp();
   const canEdit = isParent || isAdmin;
   const home = useHomeLayout(uid, { role: 'parent' });

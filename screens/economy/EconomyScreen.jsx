@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, useShellNav } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { liveCustomerList, useCustomers, useProjects } from '../../src/context/CompanyDataContext';
 import { freshRows } from '../../src/company/companyData.js';
@@ -27,10 +27,7 @@ import EconomyDesk from './EconomyDesk';
 import EconomyIndex from './EconomyIndex';
 import IndexWorkspace from './IndexWorkspace';
 import EconomyIndices from './EconomyIndices';
-import EconomyInvoices from './EconomyInvoices';
-import EconomyBilling from './EconomyBilling';
 import EconomyOps from './EconomyOps';
-import ExpensesScreen from './ProjectExpensesScreen';
 import ProductCatalog from './ProductCatalog';
 import EconomyWelcome from './EconomyWelcome';
 import EconomySettingsScreen from './EconomySettingsScreen';
@@ -38,6 +35,10 @@ import EconomyEarnings from './EconomyEarnings';
 import { supplierFromCompany } from '../../src/economy/ehf.js';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { prefetchBillingData } from './billing/useBillingData';
+import { lazyScreen } from '../../src/ui/lazyScreen';
+const EconomyBilling = lazyScreen(() => import('./EconomyBilling'), { name: 'EconomyBilling', silent: true });
+const ExpensesScreen = lazyScreen(() => import('./ProjectExpensesScreen'), { name: 'ExpensesScreen' });
+const EconomyInvoices = lazyScreen(() => import('./EconomyInvoices'), { name: 'EconomyInvoices', silent: true });
 
 /** Arbeidsvinduet står i adressen (/hjem/okonomi/indeks?indeksAvtale=…). Fra en annen side blir det en ny oppføring, så tilbake går dit. */
 function rememberIndexUrl(contractId, caseId = '', view = '') {
@@ -53,8 +54,9 @@ function rememberIndexUrl(contractId, caseId = '', view = '') {
 export default function EconomyScreen({ subView = 'oversikt' }) {
   const colors = useColors();
   const {
-    family, familyId, members, requestShellTab, shellIntent, clearShellIntent, isAdmin, user,
+    family, familyId, members, requestShellTab, clearShellIntent, isAdmin, user,
   } = useApp();
+  const { shellIntent } = useShellNav();
   const page = defaultOkonomiSubView(subView);
   // Til fakturering henter prosjektene selv. Skallets egen lesing (med timer) venter til
   // en annen fane åpnes, så de to ikke henter det store prosjektdokumentet samtidig.

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import StorageImage from '../StorageImage';
 import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatHours } from '../../src/arbeid/hours.js';
@@ -195,7 +196,7 @@ export default function ProjectOverviewTab({
           <View style={styles.avatarStack}>
             {members.slice(0, 4).map((row) => (
               row.photoUrl ? (
-                <Image key={row.id} source={{ uri: row.photoUrl }} style={styles.miniAvatar} />
+                <StorageImage key={row.id} uri={row.photoUrl} style={styles.miniAvatar} />
               ) : (
                 <View key={row.id} style={[styles.miniAvatar, { backgroundColor: `${colors.brand}22`, alignItems: 'center', justifyContent: 'center' }]}>
                   <Ionicons name="person" size={9} color={colors.brand} />

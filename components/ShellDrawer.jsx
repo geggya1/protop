@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../src/context/AppContext';
-import { colors, useLayout } from '../src/theme';
+import { colors, useBreakpoints } from '../src/theme';
 import { touchHit } from '../src/ui/touchTarget';
 import { useColors } from '../src/context/ThemeContext';
 import { findActiveNavItem, navSections, runNavAction } from '../src/navigation/navTree';
@@ -36,7 +36,7 @@ export default function ShellDrawer({
   const logoTone = brandLogoToneForBackground(colors.card);
   const insets = useSafeAreaInsets();
   const { width: winW } = useWindowDimensions();
-  const { isTouch } = useLayout();
+  const { isTouch } = useBreakpoints();
   // Lukk-sirkelen er 30 px; trykkflaten rundt er 44 px på berøringsskjerm (UX-26).
   const closeHit = touchHit(30, 30, { touch: isTouch, os: Platform.OS });
   const drawerW = Math.min(DRAWER_WIDTH, Math.round(winW * 0.78));

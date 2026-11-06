@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
 import { useUnread } from '../../src/context/NotificationContext';
 import { useI18n } from '../../src/i18n';
-import { colors, useLayout } from '../../src/theme';
+import { colors, useBreakpoints } from '../../src/theme';
 import { Screen, Mute } from '../../components/ui';
 import ShellHeader from '../../components/ShellHeader';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,11 +16,6 @@ import {
 import { notificationNavPayload } from '../../src/utils/inAppNotifications';
 import { isFriendChatNavPayload, friendUidFromNavPayload } from '../../src/utils/friendsLogic';
 import { listenIncomingFamilyInvites } from '../../src/utils/groups';
-import {
-  listenIncomingGameInvites,
-  listenFamilyPendingGameInvites,
-  GAME_TYPE_LABELS,
-} from '../../src/utils/familyGamesShared';
 
 const CATEGORY_META = {
   members: { label: 'Familie', icon: 'people-outline' },
@@ -195,12 +190,10 @@ function NotificationRow({ row, onPress, compact }) {
 export default function NotificationsScreen({ inShell = false, onBack = null }) {
   const nav = useNavigation();
   const { t } = useI18n();
-  const { isDesktop } = useLayout();
+  const { isDesktop } = useBreakpoints();
   const { uid, familyId, requestShellTab, selectFamily } = useApp();
   const { items, unreadTotal } = useUnread();
   const [familyInvites, setFamilyInvites] = useState([]);
-  const [gameInvites, setGameInvites] = useState([]);
-  const [familyGameInvites, setFamilyGameInvites] = useState([]);
 
   useEffect(() => {
     if (!uid) {
@@ -209,32 +202,6 @@ export default function NotificationsScreen({ inShell = false, onBack = null }) 
     }
     return listenIncomingFamilyInvites(uid, setFamilyInvites);
   }, [uid]);
-
-  useEffect(() => {
-    if (!uid) {
-      setGameInvites([]);
-      return undefined;
-    }
-    return listenIncomingGameInvites(uid, setGameInvites);
-  }, [uid]);
-
-  useEffect(() => {
-    if (!uid || !familyId) {
-      setFamilyGameInvites([]);
-      return undefined;
-    }
-    return listenFamilyPendingGameInvites(familyId, uid, setFamilyGameInvites);
-  }, [uid, familyId]);
-
-  const mergedGameInvites = useMemo(() => {
-    const byKey = new Map();
-    [...(gameInvites || []), ...(familyGameInvites || [])].forEach((inv) => {
-      const key = inv.inviteId || inv.id || `${inv.gameType}_${inv.gameId}`;
-      if (!key || byKey.has(key)) return;
-      byKey.set(key, inv);
-    });
-    return [...byKey.values()];
-  }, [gameInvites, familyGameInvites]);
 
   const goHome = useCallback(() => {
     if (inShell && onBack) {
@@ -356,16 +323,6 @@ export default function NotificationsScreen({ inShell = false, onBack = null }) 
     });
   }, [nav]);
 
-  const openGameInvite = useCallback((inv) => {
-    if (navigateFromNotification({
-      eventType: 'gameInvite',
-      familyId: inv.familyId,
-      gameId: inv.gameId,
-      gameType: inv.gameType,
-    })) return;
-    nav.navigate('Home', { openShell: { tab: 'more', subView: 'games' } });
-  }, [nav]);
-
   // Grupper: uleste øverst, deretter etter dag. Chat kollapses per tråd.
   const grouped = useMemo(() => {
     const unread = [];
@@ -407,7 +364,7 @@ export default function NotificationsScreen({ inShell = false, onBack = null }) 
     return sections;
   }, [items]);
 
-  const hasContent = grouped.length > 0 || familyInvites.length > 0 || mergedGameInvites.length > 0;
+  const hasContent = grouped.length > 0 || familyInvites.length > 0;
 
   return (
     <Screen>
@@ -468,42 +425,6 @@ export default function NotificationsScreen({ inShell = false, onBack = null }) 
                     {inv.familyName || t('group.family')}
                   </Text>
                   <Text style={styles.rowBodyTxt}>{t('member.familyInviteHint')}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : null}
-
-        {mergedGameInvites.length > 0 ? (
-          <View style={[styles.listCard, isDesktop && styles.listCardDesk, styles.inviteCard]}>
-            <View style={styles.sectionHead}>
-              <Ionicons name="game-controller-outline" size={16} color={colors.brand} />
-              <Text style={[styles.sectionTitle, isDesktop && styles.sectionTitleDesk]}>
-                Spillinvitasjoner
-              </Text>
-            </View>
-            {mergedGameInvites.map((inv, idx) => (
-              <TouchableOpacity
-                key={inv.id || `${inv.gameType}_${inv.gameId}`}
-                onPress={() => openGameInvite(inv)}
-                activeOpacity={0.8}
-                style={[
-                  styles.inviteRow,
-                  isDesktop && styles.inviteRowDesk,
-                  idx < mergedGameInvites.length - 1 && styles.rowDivider,
-                ]}
-              >
-                <View style={styles.inviteIcon}>
-                  <Ionicons name="game-controller-outline" size={18} color={colors.brand} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
-                    {inv.gameTitle || GAME_TYPE_LABELS[inv.gameType] || 'Familiespill'}
-                  </Text>
-                  <Text style={styles.rowBodyTxt}>
-                    {inv.hostName ? `${inv.hostName} inviterer deg` : 'Ny spillinvitasjon'}
-                  </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={colors.muted} />
               </TouchableOpacity>

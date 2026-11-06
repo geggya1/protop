@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
   ActivityIndicator, Linking,
@@ -7,7 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Screen } from '../../components/ui';
-import { colors, radius, useLayout } from '../../src/theme';
+import { colors, radius, useBreakpoints } from '../../src/theme';
 import { useApp } from '../../src/context/AppContext';
 import CompactBackLink from '../../components/CompactBackLink';
 import CalendarLayerList from '../../components/CalendarLayerList';
@@ -29,17 +29,7 @@ import {
   OPEN_CALENDAR_SETTINGS_KEY,
   CALENDAR_SOURCE_META,
 } from '../../src/utils/calendarIntegration';
-import BrandToggle from '../../components/BrandToggle';
 import { friendlyCallableError } from '../../src/utils/callableErrors';
-import {
-  childrenWithCustody,
-  custodySummaryLabel,
-  resolveCustodyLabels,
-} from '../../src/utils/custodySchedule';
-import {
-  loadCustodyOverlayPrefs,
-  saveCustodyOverlayPrefs,
-} from '../../src/utils/custodyOverlayPrefs';
 
 const AZURE_AUTH_URL = 'https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Authentication/appId/d641e51b-4503-43d8-b2f4-332acb296864';
 const AZURE_SECRET_URL = 'https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Credentials/appId/d641e51b-4503-43d8-b2f4-332acb296864';
@@ -137,11 +127,10 @@ function ConnectionRow({ item, onRemove, onReconnect, onToggleVisible, hidden, b
 
 export default function CalendarSettingsScreen({
   inShell = false, onBack, calendars, hiddenCals: hiddenCalsProp, onToggleCal,
-  custodyOverlayPrefs: custodyOverlayPrefsProp, onCustodyOverlayChange,
 } = {}) {
   const nav = useNavigation();
-  const { isParent, uid, kids, parents, familyId } = useApp();
-  const { isDesktop } = useLayout();
+  const { isParent, uid } = useApp();
+  const { isDesktop } = useBreakpoints();
   const goBack = useCallback(() => {
     if (typeof onBack === 'function') onBack();
     else nav.goBack();
@@ -166,32 +155,6 @@ export default function CalendarSettingsScreen({
   const [oauth, setOauth] = useState({ google: false, microsoft: false, hasClientSecret: false });
   const [removeId, setRemoveId] = useState(null);
   const [info, setInfo] = useState({ visible: false, title: '', message: '' });
-  const [custodyPrefsLocal, setCustodyPrefsLocal] = useState({ showOverlay: false, childFilter: 'all' });
-  const custodyPrefs = custodyOverlayPrefsProp || custodyPrefsLocal;
-  const custodyKids = useMemo(() => childrenWithCustody(kids), [kids]);
-  const activeKids = useMemo(
-    () => (kids || []).filter((k) => k.active !== false && k.archived !== true),
-    [kids],
-  );
-
-  const parentNameByUid = useMemo(() => {
-    const map = {};
-    (parents || []).forEach((p) => {
-      const id = p.uid || p.id;
-      if (id) map[id] = p.name || 'Foresatt';
-    });
-    return map;
-  }, [parents]);
-
-  const setCustodyPrefs = useCallback(async (patch) => {
-    if (typeof onCustodyOverlayChange === 'function') {
-      onCustodyOverlayChange(patch);
-      return;
-    }
-    const next = await saveCustodyOverlayPrefs(uid, patch);
-    setCustodyPrefsLocal(next);
-  }, [onCustodyOverlayChange, uid]);
-
   const showInfo = (title, message) => setInfo({ visible: true, title, message });
 
   const reload = useCallback(async () => {
@@ -216,19 +179,6 @@ export default function CalendarSettingsScreen({
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
-
-  useEffect(() => {
-    if (custodyOverlayPrefsProp) return undefined;
-    if (!uid) {
-      setCustodyPrefsLocal({ showOverlay: false, childFilter: 'all' });
-      return undefined;
-    }
-    let alive = true;
-    loadCustodyOverlayPrefs(uid).then((prefs) => {
-      if (alive) setCustodyPrefsLocal(prefs);
-    });
-    return () => { alive = false; };
-  }, [uid, custodyOverlayPrefsProp]);
 
   useEffect(() => {
     if (hiddenCalsProp) return undefined;
@@ -438,77 +388,6 @@ export default function CalendarSettingsScreen({
           Koble til ekstern kalender (Outlook, Google, ICS) for å se avtalene dine — kun synlig for deg.
         </Text>
 
-        {/* Delt bosted gjelder barn. Uten barn (de fleste i en bedrift) vises det ikke. */}
-        {isParent && activeKids.length > 0 ? (
-          <>
-            <Text style={styles.section}>Delt bosted</Text>
-            <View style={styles.card}>
-              <Text style={styles.hint}>
-                Marker i kalenderen hvilke dager barna er hos deg eller den andre forelderen. Dette er en visuell markering — ikke hendelser.
-              </Text>
-              <View style={styles.custodyToggleRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.connTitle}>Vis bosted i kalenderen</Text>
-                  <Text style={styles.connSub}>
-                    {custodyKids.length
-                      ? `${custodyKids.length} barn med delt bosted`
-                      : 'Ingen barn med delt bosted ennå'}
-                  </Text>
-                </View>
-                <BrandToggle
-                  value={!!custodyPrefs.showOverlay}
-                  onValueChange={(showOverlay) => setCustodyPrefs({ showOverlay })}
-                />
-              </View>
-              {custodyPrefs.showOverlay && custodyKids.length > 1 ? (
-                <View style={styles.childFilterRow}>
-                  <Text style={styles.connSub}>Vis for</Text>
-                  <View style={styles.childFilterChips}>
-                    <TouchableOpacity
-                      style={[styles.filterChip, custodyPrefs.childFilter === 'all' && styles.filterChipOn]}
-                      onPress={() => setCustodyPrefs({ childFilter: 'all' })}
-                    >
-                      <Text style={[styles.filterChipTxt, custodyPrefs.childFilter === 'all' && styles.filterChipTxtOn]}>
-                        Alle barn
-                      </Text>
-                    </TouchableOpacity>
-                    {custodyKids.map((kid) => (
-                      <TouchableOpacity
-                        key={kid.id}
-                        style={[styles.filterChip, custodyPrefs.childFilter === kid.id && styles.filterChipOn]}
-                        onPress={() => setCustodyPrefs({ childFilter: kid.id })}
-                      >
-                        <Text style={[styles.filterChipTxt, custodyPrefs.childFilter === kid.id && styles.filterChipTxtOn]}>
-                          {kid.name || 'Barn'}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              ) : null}
-              {activeKids.map((kid) => {
-                const names = resolveCustodyLabels(kid.custody, { parents: parents || [] });
-                return (
-                  <TouchableOpacity
-                    key={kid.id}
-                    style={styles.custodyChildRow}
-                    onPress={() => nav.navigate('CustodySettings', {
-                      familyId,
-                      childId: kid.id,
-                      childName: kid.name || 'Barn',
-                    })}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.connTitle}>{kid.name || 'Barn'}</Text>
-                      <Text style={styles.connSub}>{custodySummaryLabel(kid.custody, names)}</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </>
-        ) : null}
 
         {!loading && oauth.microsoft && !oauth.hasClientSecret ? (
           <View style={styles.setupBox}>
@@ -767,18 +646,4 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   infoTitle: { fontSize: 18, fontWeight: '400', color: colors.ink, marginBottom: 8 },
   infoBody: { fontSize: 14, fontWeight: '400', color: colors.muted, textAlign: 'center' },
-  custodyToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  custodyChildRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line,
-  },
-  childFilterRow: { gap: 8 },
-  childFilterChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  filterChip: {
-    paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10,
-    borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg,
-  },
-  filterChipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
-  filterChipTxt: { fontWeight: '400', fontSize: 12, color: colors.ink },
-  filterChipTxtOn: { color: colors.brand },
 });

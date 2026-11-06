@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '../../src/context/ThemeContext';
-import { useLayout } from '../../src/theme';
+import { useBreakpoints } from '../../src/theme';
 import { radius, space, touch, type } from '../../src/ui/tokens';
 import { useTitleRef } from '../mail/useDomHover';
 import {
@@ -115,7 +115,7 @@ export function NewsBodyEditor({
   value, onChangeText, placeholder, title, minHeight = 160, maxHeight = 420,
 }) {
   const colors = useColors();
-  const { isPhone, isDesktop, isTouch } = useLayout();
+  const { isPhone, isDesktop, isTouch } = useBreakpoints();
   const web = Platform.OS === 'web';
   const inputRef = useRef(null);
   const selRef = useRef({ start: 0, end: 0 });

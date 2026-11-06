@@ -1,3 +1,4 @@
+import { lazyScreen } from '../../src/ui/lazyScreen';
 /**
  * Maler for undersøkelser og evalueringer, definert på selskapsnivå (Kunder → Kundeundersøkelse →
  * Maler). De innebygde malene kan ikke endres, men kopieres til en egen mal. Evalueringer som er
@@ -12,8 +13,10 @@ import { customerSurveyCall } from '../../src/surveys/customerClient';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { useConfirm } from '../../src/ui/useConfirm';
 import { radius, space, type } from '../../src/ui/tokens';
-import { EmptyHint, HrButton, HrChip } from '../hr/HrShared';
-import { SurveyEditor } from './CustomerSurveyDetail';
+const EmptyHint = lazyScreen(() => import('../hr/HrShared'), { name: 'EmptyHint', pick: 'EmptyHint', silent: true });
+const HrButton = lazyScreen(() => import('../hr/HrShared'), { name: 'HrButton', pick: 'HrButton', silent: true });
+const HrChip = lazyScreen(() => import('../hr/HrShared'), { name: 'HrChip', pick: 'HrChip', silent: true });
+const SurveyEditor = lazyScreen(() => import('./CustomerSurveyDetail'), { name: 'SurveyEditor', pick: 'SurveyEditor', silent: true });
 
 /** Malen som et utkast editoren forstår (navn → tittel). */
 function asDraft(t) {

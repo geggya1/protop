@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useI18n } from '../src/i18n';
 import CheckBox from './CheckBox';
-import LegalDocumentModal from './LegalDocumentModal';
+import LegalDocumentModal from './LegalDocumentModalLazy';
 import { colors, radius } from '../src/theme';
 import { acceptLegalConsents } from '../src/utils/consents';
 

@@ -4,8 +4,13 @@
  * om listen vises, om eksterne er med, og rekkefølgen (dra og slipp på nett, piler ellers).
  */
 import React, { useEffect, useRef, useState } from 'react';
+import StorageImage from '../StorageImage';
 import {
-  Image, Linking, Platform, StyleSheet, Text, View,
+  Linking,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { companyInitials, gridColumns, gridItemWidth } from '../../src/project/companyPage';
@@ -20,8 +25,8 @@ const isWeb = Platform.OS === 'web';
 function Photo({ person, colors }) {
   if (person.photoUrl) {
     return (
-      <Image
-        source={{ uri: person.photoUrl }}
+      <StorageImage
+        uri={person.photoUrl}
         style={[styles.photo, { backgroundColor: colors.sunken }]}
         resizeMode="cover"
         accessibilityLabel={`Bilde av ${person.name}`}

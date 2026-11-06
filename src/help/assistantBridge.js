@@ -5,7 +5,7 @@
 
 import { tryOpenChatInDock } from '../utils/chatDockBridge';
 import { getAppNav } from '../navigation/navRef';
-import { ASSISTANT_CHAT_ID } from './assistantEngine';
+import { ASSISTANT_CHAT_ID } from './assistantIds';
 
 export const ASSISTANT_ROUTE = 'ProtopAssistant';
 
